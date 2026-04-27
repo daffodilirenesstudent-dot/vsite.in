@@ -106,6 +106,16 @@ function OnboardingContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, checking]);
 
+  // Revoke all object URLs on unmount to prevent memory leaks.
+  useEffect(() => {
+    return () => {
+      setPhotos(prev => {
+        prev.forEach(p => URL.revokeObjectURL(p.url));
+        return prev;
+      });
+    };
+  }, []);
+
   const addFiles = useCallback((files: FileList | File[]) => {
     const incoming = Array.from(files).filter(f => f.type.startsWith('image/'));
     setPhotos(prev => {
@@ -230,7 +240,7 @@ function OnboardingContent() {
   };
 
   // ── Animated step navigation ────────────────────────────────────────────────
-  const goNext = (from: typeof step, to: typeof step) =>
+  const goNext = (to: typeof step) =>
     transition('right', () => setStep(to));
 
   const goBack = (to: typeof step) =>
@@ -438,13 +448,13 @@ function OnboardingContent() {
 
             {/* ── Wizard phases ── */}
             {step === 'popularity' && (
-              <PopularityPhase onNext={() => goNext('popularity', 'profitability')} />
+              <PopularityPhase onNext={() => goNext('profitability')} />
             )}
             {step === 'profitability' && (
-              <ProfitabilityPhase onNext={() => goNext('profitability', 'complexity')} />
+              <ProfitabilityPhase onNext={() => goNext('complexity')} />
             )}
             {step === 'complexity' && (
-              <ComplexityPhase onNext={() => goNext('complexity', 'summary')} />
+              <ComplexityPhase onNext={() => goNext('summary')} />
             )}
             {step === 'summary' && (
               <>

@@ -21,9 +21,8 @@ interface EnrichedItem {
   item_type: 'single' | 'variant' | 'combo';
   food_type: 'veg' | 'non_veg' | 'egg' | 'unknown';
   variants?: Array<{ size: string; price: number }>;
-  // Menu engineering tiers — collected by wizard
-  star_rating: number;         // 1–4
-  profit_tier: number;         // 1–4
+  star_rating: number;          // 1–4
+  profit_tier: number;          // 1–4
   prep_complexity_tier: number; // 1–4
 }
 
@@ -82,6 +81,79 @@ function clampTier(value: number): number {
   return Math.min(4, Math.max(1, Math.round(value)));
 }
 
+const VALID_ITEM_TYPES = new Set(['single', 'variant', 'combo']);
+const VALID_FOOD_TYPES = new Set(['veg', 'non_veg', 'egg', 'unknown']);
+
+function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; error: string } {
+  const { shopName, items = [] } = payload;
+
+  if (typeof shopName !== 'string' || !shopName.trim()) {
+    return { ok: false, error: 'Shop name is required' };
+  }
+  if (shopName.trim().length > 100) {
+    return { ok: false, error: 'Shop name must be 100 characters or fewer' };
+  }
+  if (!Array.isArray(items)) {
+    return { ok: false, error: 'items must be an array' };
+  }
+  if (items.length > 50) {
+    return { ok: false, error: 'Too many items — maximum 50 allowed' };
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const label = `items[${i}]`;
+
+    if (typeof item.name !== 'string' || !item.name.trim()) {
+      return { ok: false, error: `${label}.name is required` };
+    }
+    if (item.name.length > 200) {
+      return { ok: false, error: `${label}.name must be 200 characters or fewer` };
+    }
+    if (!Number.isFinite(item.price) || item.price < 0) {
+      return { ok: false, error: `${label}.price must be a non-negative number` };
+    }
+    if (typeof item.description === 'string' && item.description.length > 500) {
+      return { ok: false, error: `${label}.description must be 500 characters or fewer` };
+    }
+    if (item.category !== null && item.category !== undefined &&
+        (typeof item.category !== 'string' || item.category.length > 80)) {
+      return { ok: false, error: `${label}.category must be a string ≤ 80 characters` };
+    }
+    if (!VALID_ITEM_TYPES.has(item.item_type)) {
+      return { ok: false, error: `${label}.item_type must be single, variant, or combo` };
+    }
+    if (!VALID_FOOD_TYPES.has(item.food_type)) {
+      return { ok: false, error: `${label}.food_type must be veg, non_veg, egg, or unknown` };
+    }
+
+    // Tier checks — use Number.isFinite so NaN/Infinity cannot slip through
+    for (const [field, val] of [
+      ['star_rating', item.star_rating],
+      ['profit_tier', item.profit_tier],
+      ['prep_complexity_tier', item.prep_complexity_tier],
+    ] as [string, number][]) {
+      if (!Number.isFinite(val) || val < 1 || val > 4) {
+        return { ok: false, error: `${label}.${field} must be a finite number between 1 and 4` };
+      }
+    }
+
+    if (Array.isArray(item.variants)) {
+      for (let v = 0; v < item.variants.length; v++) {
+        const variant = item.variants[v];
+        if (typeof variant.size !== 'string' || !variant.size.trim() || variant.size.length > 50) {
+          return { ok: false, error: `${label}.variants[${v}].size must be a non-empty string ≤ 50 chars` };
+        }
+        if (!Number.isFinite(variant.price) || variant.price < 0) {
+          return { ok: false, error: `${label}.variants[${v}].price must be a non-negative number` };
+        }
+      }
+    }
+  }
+
+  return { ok: true };
+}
+
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -104,7 +176,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Parse JSON body ───────────────────────────────────────────────────────
+    // ── Idempotency guard — reject double-launch ──────────────────────────────
+    const { data: profile } = await supabaseServer
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', userId)
+      .single();
+    if (profile?.onboarding_completed) {
+      return NextResponse.json({ error: 'Onboarding already completed' }, { status: 409 });
+    }
+
+    // ── Parse and validate JSON body ──────────────────────────────────────────
     let payload: CompletePayload;
     try {
       payload = await request.json() as CompletePayload;
@@ -112,19 +194,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { shopName, items = [] } = payload;
-    if (!shopName?.trim()) {
-      return NextResponse.json({ error: 'Shop name is required' }, { status: 400 });
+    const validation = validatePayload(payload);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    // Validate tier values — reject anything clearly out of range
-    for (const item of items) {
-      if (item.star_rating < 1 || item.star_rating > 4 ||
-          item.profit_tier < 1 || item.profit_tier > 4 ||
-          item.prep_complexity_tier < 1 || item.prep_complexity_tier > 4) {
-        return NextResponse.json({ error: 'Invalid tier value — must be 1–4' }, { status: 400 });
-      }
-    }
+    const { shopName, items = [] } = payload;
 
     // ── Unique slug ───────────────────────────────────────────────────────────
     const baseSlug = generateSlug(shopName.trim());
@@ -163,11 +238,9 @@ export async function POST(request: NextRequest) {
     }
     const siteRecord = site as { id: string; slug: string };
 
-    // ── Pre-select site for new session ──────────────────────────────────────
-    // (localStorage key is set client-side after redirect)
-
     // ── Bulk insert products ──────────────────────────────────────────────────
     let insertedCount = 0;
+    let productsFailed = false;
     if (items.length > 0) {
       const imageUrls = await Promise.all(
         items.map(item => findDefaultImage(item.name).catch(() => null))
@@ -176,9 +249,10 @@ export async function POST(request: NextRequest) {
       // Score every item with the MCDS weighted formula.
       // At onboarding time ordersToday/likeCount are 0 — score is driven
       // purely by the owner-assigned star_rating (×0.50) and profit_tier (×0.35).
-      const scored = items.map((item, i) => ({
+      const scored = items.map((item, originalIndex) => ({
         item,
-        imageUrl: imageUrls[i] ?? null,
+        imageUrl: imageUrls[originalIndex] ?? null,
+        originalIndex,
         score: weightedScore({
           starRating:  clampTier(item.star_rating),
           profitTier:  clampTier(item.profit_tier),
@@ -188,12 +262,12 @@ export async function POST(request: NextRequest) {
         }),
       }));
 
-      // Sort highest score first — this becomes the customer-facing menu order.
-      scored.sort((a, b) => b.score - a.score);
+      // Sort highest score first; break ties by original extraction order for determinism.
+      scored.sort((a, b) => b.score - a.score || a.originalIndex - b.originalIndex);
 
       const rows = scored.map(({ item, imageUrl }, displayOrder) => ({
         site_id: siteRecord.id,
-        name: item.name,
+        name: item.name.trim(),
         selling_price: item.price,
         description: item.description,
         category: item.category ?? null,
@@ -216,12 +290,21 @@ export async function POST(request: NextRequest) {
         );
         if (prodError) {
           console.error('[onboarding/complete] products insert error:', prodError);
+          productsFailed = true;
         } else {
           insertedCount = rows.length;
           console.log(`[onboarding/complete] inserted ${insertedCount} products for site ${siteRecord.id}`);
         }
       } catch (retryErr) {
         console.error('[onboarding/complete] products insert failed after 3 retries:', retryErr);
+        productsFailed = true;
+      }
+
+      if (productsFailed) {
+        return NextResponse.json(
+          { error: 'Menu items could not be saved. Please try again.' },
+          { status: 500 }
+        );
       }
     }
 
