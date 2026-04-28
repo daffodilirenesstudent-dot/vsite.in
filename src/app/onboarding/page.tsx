@@ -6,23 +6,15 @@ import { useAuth } from '@/components/AuthContext';
 import { useOnboarding } from '@/components/OnboardingContext';
 import { firebaseAuth } from '@/lib/firebase';
 import StepIndicator from './components/StepIndicator';
-import PopularityPhase from './components/PopularityPhase';
-import ProfitabilityPhase from './components/ProfitabilityPhase';
-import ComplexityPhase from './components/ComplexityPhase';
+import BestsellersPhase from './components/BestsellersPhase';
+import ProfitablePhase from './components/ProfitablePhase';
 import SummaryPhase from './components/SummaryPhase';
 import LaunchLoadingScreen from './components/LaunchLoadingScreen';
 import type { WizardStep } from '@/components/OnboardingContext';
 
 const MAX_PHOTOS = 10;
 
-const STEP_LABELS = ['Setup', 'Popularity', 'Profitability', 'Complexity', 'Summary'];
-
-// ── Step order ────────────────────────────────────────────────────────────────
-// 0 = setup (business name + photos)
-// 1 = popularity
-// 2 = profitability
-// 3 = complexity
-// 4 = summary
+const STEP_LABELS = ['Setup', 'Bestsellers', 'Top Earners', 'Launch'];
 
 interface PreviewPhoto {
   id: string;
@@ -73,7 +65,7 @@ function OnboardingContent() {
 
   // Step index (0-based) matching STEP_LABELS
   const stepIndexMap: Record<typeof step, number> = {
-    setup: 0, popularity: 1, profitability: 2, complexity: 3, summary: 4,
+    setup: 0, bestsellers: 1, profitable: 2, summary: 3,
   };
   const stepIndex = stepIndexMap[step];
 
@@ -179,7 +171,7 @@ function OnboardingContent() {
       setExtractedItems(data.items ?? []);
 
       // Animate to next step
-      transition('right', () => setStep('popularity'));
+      transition('right', () => setStep('bestsellers'));
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -293,8 +285,8 @@ function OnboardingContent() {
           <button
             onClick={() => {
               const prev: Record<WizardStep, WizardStep> = {
-                setup: 'setup', popularity: 'setup', profitability: 'popularity',
-                complexity: 'profitability', summary: 'complexity',
+                setup: 'setup', bestsellers: 'setup', profitable: 'bestsellers',
+                summary: 'profitable',
               };
               goBack(prev[step]);
             }}
@@ -320,7 +312,7 @@ function OnboardingContent() {
         <div className="mt-2 px-4 flex justify-center">
           <StepIndicator
             current={stepIndex}
-            total={4}
+            total={3}
             labels={STEP_LABELS.slice(1)}
           />
         </div>
@@ -329,9 +321,9 @@ function OnboardingContent() {
       {/* Page heading */}
       {isSetup && (
         <div className="mt-6 text-center px-4">
-          <h1 className="text-2xl font-bold text-slate-800">Setup Your Store</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Add your business name and upload your menu photos.
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Let&apos;s get your menu online</h1>
+          <p className="mt-1.5 text-sm text-slate-500">
+            Two quick steps. Takes less than a minute.
           </p>
         </div>
       )}
@@ -347,17 +339,15 @@ function OnboardingContent() {
             {/* ── Setup step ── */}
             {step === 'setup' && (
               <>
-                <div className="mb-5 flex items-center gap-2">
-                  <span className="text-base">🔗</span>
-                  <span className="text-sm font-semibold text-slate-700">Connect Your Business</span>
-                </div>
-
-                <div className="space-y-4 mb-7">
+                <div className="space-y-5 mb-6">
                   <div>
-                    <label className="mb-1.5 block text-xs text-slate-500">Enter your Business Name</label>
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                      <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 14 }}>storefront</span>
+                      Store name
+                    </label>
                     <input
                       type="text"
-                      placeholder="Cream Story"
+                      placeholder="e.g. Cream Story"
                       value={businessName}
                       onChange={e => { setBusinessName(e.target.value); setError(''); }}
                       className="w-full rounded-[10px] border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
@@ -365,22 +355,17 @@ function OnboardingContent() {
                       disabled={extracting}
                     />
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs text-slate-500">Business Category</label>
-                    <div className="flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5">
-                      <span className="text-base">☕</span>
-                      <span className="text-sm font-medium text-slate-700">Cafe</span>
-                      <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Selected</span>
-                    </div>
-                  </div>
                 </div>
 
-                <div className="mb-6 border-t border-slate-100" />
+                <div className="mb-5 border-t border-slate-100" />
 
                 {/* Photo upload */}
                 <div>
-                  <div className="mb-4 flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-700">Menu Photos</p>
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                      <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 14 }}>photo_library</span>
+                      Menu photos
+                    </label>
                     {photos.length > 0 && (
                       <span className={`text-xs font-medium tabular-nums ${atLimit ? 'text-amber-500' : 'text-slate-400'}`}>
                         {photos.length} / {MAX_PHOTOS}
@@ -395,14 +380,14 @@ function OnboardingContent() {
                       onChange={e => e.target.files && addFiles(e.target.files)} />
                   )}
 
-                  <div className="flex flex-col items-center rounded-xl border border-slate-200 bg-white py-7 px-4">
-                    <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-                      <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 28 }}>upload</span>
+                  <div className="flex flex-col items-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/40 py-7 px-4 transition-colors hover:border-primary/30 hover:bg-primary/[0.02]">
+                    <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm">
+                      <span className="material-symbols-outlined text-primary" style={{ fontSize: 26 }}>cloud_upload</span>
                     </div>
-                    <p className="mb-1 text-sm font-medium text-slate-700">Upload your menu photos</p>
-                    <p className="mb-4 text-center text-xs text-slate-400 leading-relaxed">
-                      PNG, JPG or WebP &nbsp;·&nbsp; Up to {MAX_PHOTOS} photos
-                      {isMobile && <><br />Upload from gallery or take a photo</>}
+                    <p className="mb-1 text-sm font-semibold text-slate-800">Upload menu photos</p>
+                    <p className="mb-4 text-center text-xs text-slate-500 leading-relaxed">
+                      Snap or upload up to {MAX_PHOTOS} photos.<br />
+                      We&apos;ll read the items automatically.
                     </p>
                     <div className="flex items-center gap-2">
                       <button type="button" disabled={atLimit || extracting}
@@ -447,29 +432,31 @@ function OnboardingContent() {
                   <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{error}</p>
                 )}
 
-                <div className="mt-5 flex justify-end">
+                <div className="mt-5">
                   <button onClick={handleExtract} disabled={extracting}
-                    className="rounded-[10px] bg-primary px-10 py-2.5 text-sm font-semibold text-white shadow-md shadow-primary/25 transition hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
+                    className="w-full rounded-[10px] bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
                     {extracting ? (
-                      <span className="flex items-center gap-2 whitespace-nowrap">
+                      <span className="flex items-center justify-center gap-2 whitespace-nowrap">
                         <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                         {loadingMsg}
                       </span>
-                    ) : 'Next'}
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        Continue
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
+                      </span>
+                    )}
                   </button>
                 </div>
               </>
             )}
 
             {/* ── Wizard phases ── */}
-            {step === 'popularity' && (
-              <PopularityPhase onNext={() => goNext('profitability')} />
+            {step === 'bestsellers' && (
+              <BestsellersPhase onNext={() => goNext('profitable')} />
             )}
-            {step === 'profitability' && (
-              <ProfitabilityPhase onNext={() => goNext('complexity')} />
-            )}
-            {step === 'complexity' && (
-              <ComplexityPhase onNext={() => goNext('summary')} />
+            {step === 'profitable' && (
+              <ProfitablePhase onNext={() => goNext('summary')} />
             )}
             {step === 'summary' && (
               <>

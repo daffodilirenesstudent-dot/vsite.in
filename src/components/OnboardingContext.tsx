@@ -22,7 +22,7 @@ export interface WizardItem extends ExtractedItem {
   prep_complexity_tier: number; // 1–4, default 2
 }
 
-export type WizardStep = 'setup' | 'popularity' | 'profitability' | 'complexity' | 'summary';
+export type WizardStep = 'setup' | 'bestsellers' | 'profitable' | 'summary';
 
 interface OnboardingState {
   businessName: string;
