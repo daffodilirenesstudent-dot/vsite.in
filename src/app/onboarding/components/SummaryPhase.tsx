@@ -116,17 +116,10 @@ export default function SummaryPhase({ onLaunch, launching }: SummaryPhaseProps)
           disabled={launching}
           className="w-full rounded-[10px] bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {launching ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              Creating your menu…
-            </span>
-          ) : (
-            <span className="flex items-center justify-center gap-2">
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>rocket_launch</span>
-              Launch My Menu
-            </span>
-          )}
+          <span className="flex items-center justify-center gap-2">
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>rocket_launch</span>
+            Launch My Menu
+          </span>
         </button>
         <p className="text-center text-[10px] text-slate-300 mt-2">
           You can edit prices, photos, and details from the dashboard after launch.

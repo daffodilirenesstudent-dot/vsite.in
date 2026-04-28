@@ -10,6 +10,7 @@ import PopularityPhase from './components/PopularityPhase';
 import ProfitabilityPhase from './components/ProfitabilityPhase';
 import ComplexityPhase from './components/ComplexityPhase';
 import SummaryPhase from './components/SummaryPhase';
+import LaunchLoadingScreen from './components/LaunchLoadingScreen';
 import type { WizardStep } from '@/components/OnboardingContext';
 
 const MAX_PHOTOS = 10;
@@ -79,6 +80,8 @@ function OnboardingContent() {
   const [checking, setChecking] = useState(true);
   const [extracting, setExtracting] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [launchDone, setLaunchDone] = useState(false);
+  const [launchItemCount, setLaunchItemCount] = useState(0);
   const [loadingMsg, setLoadingMsg] = useState('Scanning your menu…');
   const [photos, setPhotos] = useState<PreviewPhoto[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -188,6 +191,7 @@ function OnboardingContent() {
   const handleLaunch = async () => {
     if (!user || launching) return;
     setLaunching(true);
+    setLaunchDone(false);
 
     try {
       const firebaseUser = firebaseAuth.currentUser;
@@ -224,19 +228,23 @@ function OnboardingContent() {
         return;
       }
 
-      // Pre-select newly created site
       if (data.siteId && firebaseAuth.currentUser) {
         localStorage.setItem(`activeSiteId_${firebaseAuth.currentUser.uid}`, data.siteId);
       }
 
-      // Clean up photo object URLs
       photos.forEach(p => URL.revokeObjectURL(p.url));
 
-      router.replace(`/manage/dashboard?onboarded=true&items=${data.itemCount ?? 0}`);
+      // Signal the loading screen that backend is done
+      setLaunchItemCount(data.itemCount ?? 0);
+      setLaunchDone(true);
     } catch {
       setError('Network error. Please try again.');
       setLaunching(false);
     }
+  };
+
+  const handleLaunchRedirect = () => {
+    router.replace(`/manage/dashboard?onboarded=true&items=${launchItemCount}`);
   };
 
   // ── Animated step navigation ────────────────────────────────────────────────
@@ -467,6 +475,13 @@ function OnboardingContent() {
           </div>
         </div>
       </main>
+
+      <LaunchLoadingScreen
+        show={launching}
+        done={launchDone}
+        itemCount={launchItemCount}
+        onRedirect={handleLaunchRedirect}
+      />
     </div>
   );
 }
