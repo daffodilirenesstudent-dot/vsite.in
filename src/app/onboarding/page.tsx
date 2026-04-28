@@ -222,6 +222,13 @@ function OnboardingContent() {
       });
 
       const data = await res.json();
+      if (res.status === 409) {
+        // Already onboarded — treat as success and redirect
+        photos.forEach(p => URL.revokeObjectURL(p.url));
+        setLaunchItemCount(0);
+        setLaunchDone(true);
+        return;
+      }
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong. Please try again.');
         setLaunching(false);
