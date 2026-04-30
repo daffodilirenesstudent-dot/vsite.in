@@ -1,29 +1,36 @@
 // /api/webhooks/razorpay
 //
-// Razorpay event listener. This is a fallback and reconciliation path —
-// `verify-payment` is the primary activation path. Webhooks must be:
-//   - Signature-verified (timing-safe HMAC of the raw body)
-//   - Idempotent (Razorpay retries on non-2xx and may redeliver after 2xx too)
-//   - Resilient to events arriving out of order or for unknown subscriptions
+// Razorpay webhook listener for ORDER-based payments (manual, no autopay).
+// This is a fallback — `verify-payment` is the primary activation path.
 //
-// Razorpay retries on non-2xx. We return 200 after a valid signature; only
-// invalid signatures return 4xx (so Razorpay stops retrying garbage).
+// Handles:
+//   - order.paid: Order fully paid → activate/extend plan
+//   - payment.captured: Payment captured → activate/extend plan
+//
+// Must be:
+//   - Signature-verified (timing-safe HMAC of the raw body)
+//   - Idempotent (Razorpay retries on non-2xx)
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 
-// Razorpay retries on non-2xx; long timeouts cascade. Keep tight.
 export const maxDuration = 15;
 export const runtime = 'nodejs';
 
-type PaymentEntity = { id: string; amount: number; currency: string };
+type PaymentEntity = {
+    id: string;
+    amount: number;
+    currency: string;
+    order_id?: string;
+    status?: string;
+};
 
 type WebhookEvent = {
     event: string;
     payload: {
-        subscription: { entity: { id: string; status: string; current_end?: number } };
         payment?: { entity: PaymentEntity };
+        order?: { entity: { id: string; amount: number; status: string } };
     };
 };
 
@@ -41,18 +48,11 @@ function verifySignature(rawBody: string, signature: string, secret: string): bo
     return timingSafeEqualHex(expected, signature);
 }
 
-function periodEndIso(currentEnd: number | undefined): string {
-    if (currentEnd && currentEnd > 0) return new Date(currentEnd * 1000).toISOString();
-    return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-}
-
 export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const signature = request.headers.get('x-razorpay-signature') ?? '';
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-    // Hard-fail when the secret is missing. An empty fallback would let an
-    // attacker forge events by computing HMAC with an empty key.
     if (!secret) {
         console.error('[razorpay-webhook] RAZORPAY_WEBHOOK_SECRET is not set');
         return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
@@ -66,50 +66,38 @@ export async function POST(request: NextRequest) {
     try {
         event = JSON.parse(rawBody);
     } catch {
-        return NextResponse.json({ ok: true }); // malformed JSON after valid sig — ignore
+        return NextResponse.json({ ok: true });
     }
 
-    const subscriptionEntity = event.payload?.subscription?.entity;
-    const subscriptionId = subscriptionEntity?.id;
-    const currentEnd = subscriptionEntity?.current_end;
     const paymentEntity = event.payload?.payment?.entity;
+    const orderId = paymentEntity?.order_id ?? event.payload?.order?.entity?.id;
 
-    if (!subscriptionId) {
-        // Subscription-less event (or wrong shape) — ack and ignore.
+    if (!orderId) {
         return NextResponse.json({ ok: true });
     }
 
     try {
         switch (event.event) {
-            case 'subscription.activated':
-                await handleActivated(subscriptionId, currentEnd, paymentEntity);
-                break;
-            case 'subscription.charged':
-                await handleCharged(subscriptionId, currentEnd, paymentEntity);
-                break;
-            case 'subscription.halted':
-            case 'subscription.cancelled':
-            case 'subscription.paused':
-                await handleDeactivated(subscriptionId, event.event);
+            case 'order.paid':
+            case 'payment.captured':
+                await handlePaymentSuccess(orderId, paymentEntity);
                 break;
             default:
                 console.log(`[razorpay-webhook] unhandled event: ${event.event}`);
         }
     } catch (err) {
-        // Log and still ack — surfacing 5xx triggers Razorpay retries which
-        // for already-applied state-changes would just churn. Reconciliation
-        // can be done from billing_history audit if needed.
         console.error(`[razorpay-webhook] handler error for ${event.event}:`, err);
     }
 
     return NextResponse.json({ ok: true });
 }
 
-async function findSiteBySubscriptionId(subscriptionId: string) {
+async function findSiteByOrderId(orderId: string) {
+    // razorpay_subscription_id column is reused to store the order_id
     const { data, error } = await supabaseServer
         .from('site_subscriptions')
         .select('site_id, user_id')
-        .eq('razorpay_subscription_id', subscriptionId)
+        .eq('razorpay_subscription_id', orderId)
         .maybeSingle();
 
     if (error) {
@@ -117,55 +105,25 @@ async function findSiteBySubscriptionId(subscriptionId: string) {
         return null;
     }
     if (!data) {
-        console.warn('[razorpay-webhook] no site for subscription:', subscriptionId);
+        console.warn('[razorpay-webhook] no site for order:', orderId);
         return null;
     }
     return data;
 }
 
-async function recordBillingIfNew(
-    userId: string,
-    payment: PaymentEntity,
-    planLabel: string,
-) {
-    // Defence in depth: also pre-checked, but UNIQUE(razorpay_payment_id) is
-    // the real guard against duplicates from concurrent webhook redeliveries.
-    const { count } = await supabaseServer
-        .from('billing_history')
-        .select('*', { count: 'exact', head: true })
-        .eq('razorpay_payment_id', payment.id);
-
-    if (count && count > 0) return;
-
-    const { error } = await supabaseServer.from('billing_history').insert({
-        user_id: userId,
-        plan_name: planLabel,
-        amount: Math.round(payment.amount / 100),
-        currency: payment.currency,
-        status: 'Success',
-        razorpay_payment_id: payment.id,
-    });
-
-    if (error && error.code !== '23505') {
-        console.error('[razorpay-webhook] billing insert failed:', error);
-    }
-}
-
-async function handleActivated(
-    subscriptionId: string,
-    currentEnd: number | undefined,
-    payment?: PaymentEntity,
-) {
-    const site = await findSiteBySubscriptionId(subscriptionId);
+async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
+    const site = await findSiteByOrderId(orderId);
     if (!site) return;
+
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     await supabaseServer.from('site_subscriptions').upsert(
         {
             site_id: site.site_id,
             user_id: site.user_id,
             store_plan: 'qr_menu',
-            store_expires_at: periodEndIso(currentEnd),
-            razorpay_subscription_id: subscriptionId,
+            store_expires_at: expiresAt,
+            razorpay_subscription_id: orderId,
             razorpay_status: 'active',
             updated_at: new Date().toISOString(),
         },
@@ -173,54 +131,26 @@ async function handleActivated(
     );
 
     if (payment) {
-        await recordBillingIfNew(site.user_id, payment, 'Smart QR Menu — Setup + First Month');
+        // Deduplicate by checking first
+        const { count } = await supabaseServer
+            .from('billing_history')
+            .select('*', { count: 'exact', head: true })
+            .eq('razorpay_payment_id', payment.id);
+
+        if (!count || count === 0) {
+            const amountInr = Math.round(payment.amount / 100);
+            const { error } = await supabaseServer.from('billing_history').insert({
+                user_id: site.user_id,
+                plan_name: `Smart QR Menu — Payment (webhook)`,
+                amount: amountInr,
+                currency: payment.currency,
+                status: 'Success',
+                razorpay_payment_id: payment.id,
+            });
+
+            if (error && error.code !== '23505') {
+                console.error('[razorpay-webhook] billing insert failed:', error);
+            }
+        }
     }
-}
-
-async function handleCharged(
-    subscriptionId: string,
-    currentEnd: number | undefined,
-    payment?: PaymentEntity,
-) {
-    const site = await findSiteBySubscriptionId(subscriptionId);
-    if (!site) return;
-
-    await supabaseServer.from('site_subscriptions').upsert(
-        {
-            site_id: site.site_id,
-            user_id: site.user_id,
-            store_plan: 'qr_menu',
-            store_expires_at: periodEndIso(currentEnd),
-            razorpay_subscription_id: subscriptionId,
-            razorpay_status: 'active',
-            updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'site_id' }
-    );
-
-    if (payment) {
-        await recordBillingIfNew(site.user_id, payment, 'Smart QR Menu — Monthly Renewal');
-    }
-}
-
-async function handleDeactivated(subscriptionId: string, eventName: string) {
-    const site = await findSiteBySubscriptionId(subscriptionId);
-    if (!site) return;
-
-    const status =
-        eventName === 'subscription.halted' ? 'halted'
-        : eventName === 'subscription.paused' ? 'paused'
-        : 'cancelled';
-
-    await supabaseServer.from('site_subscriptions').upsert(
-        {
-            site_id: site.site_id,
-            user_id: site.user_id,
-            store_expires_at: null,
-            razorpay_subscription_id: subscriptionId,
-            razorpay_status: status,
-            updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'site_id' }
-    );
 }

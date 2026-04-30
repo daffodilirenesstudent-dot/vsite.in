@@ -4,16 +4,21 @@ import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { rateLimit } from '@/lib/rateLimit';
 
-// Target p95 < 2s: auth(~100ms) + parallel DB(~300ms) + Razorpay create(~900ms) + DB write(~300ms)
+// Razorpay Orders API — manual payment each time (no autopay).
+// User pays once per billing cycle; no card mandate or recurring authorization.
 export const maxDuration = 15;
 export const runtime = 'nodejs';
+
+// Keep amounts in sync with the frontend (page.tsx constants).
+const SETUP_FEE_INR = 5;
+const MONTHLY_FEE_INR = 5;
 
 export async function POST(request: NextRequest) {
     const t0 = Date.now();
     try {
-        // ── Env guard — fail fast before any I/O ────────────────────────────
-        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET || !process.env.RAZORPAY_PLAN_ID) {
-            console.error('[create-subscription] missing Razorpay env vars');
+        // ── Env guard ────────────────────────────────────────────────────────
+        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+            console.error('[create-order] missing Razorpay env vars');
             return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
         }
 
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Rate limit ───────────────────────────────────────────────────────
-        const rl = rateLimit(`create-sub:${userId}`, { limit: 5, windowMs: 60 * 60_000 });
+        const rl = rateLimit(`create-order:${userId}`, { limit: 5, windowMs: 60 * 60_000 });
         if (!rl.allowed) {
             return NextResponse.json(
                 { error: 'Too many attempts. Please try again later.' },
@@ -49,8 +54,6 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Parallel DB queries ──────────────────────────────────────────────
-        // Run site ownership check and existing subscription lookup together
-        // instead of serially — saves ~300ms on every request.
         const t1 = Date.now();
         const [siteResult, subResult] = await Promise.all([
             supabaseServer
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
                 .eq('site_id', siteId)
                 .maybeSingle(),
         ]);
-        console.log(`[create-subscription] db queries ${Date.now() - t1}ms`);
+        console.log(`[create-order] db queries ${Date.now() - t1}ms`);
 
         const { data: site, error: siteError } = siteResult;
         if (siteError || !site) {
@@ -90,53 +93,45 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // ── Determine first-time vs renewal ──────────────────────────────────
+        // If store_expires_at was ever set (even if expired now), setup fee was
+        // already collected on the first purchase — only charge monthly.
+        const isRenewal = !!existingSub?.store_expires_at;
+        const amountInr = isRenewal ? MONTHLY_FEE_INR : (SETUP_FEE_INR + MONTHLY_FEE_INR);
+        const amountPaise = amountInr * 100;
+
         const razorpay = new Razorpay({
             key_id: process.env.RAZORPAY_KEY_ID!,
             key_secret: process.env.RAZORPAY_KEY_SECRET!,
         });
 
-        // ── Fire-and-forget stale subscription cancel ────────────────────────
-        // The cancel targets the OLD subscription ID and is independent of
-        // creating the new one — no reason to block on it. A failed cancel is
-        // non-fatal: the new subscription ID we write below is the only one
-        // the webhook will ever match, so the stale one becomes unreachable.
-        const staleId = existingSub?.razorpay_subscription_id;
-        if (staleId && ['created', 'authenticated', 'pending'].includes(existingSub?.razorpay_status ?? '')) {
-            razorpay.subscriptions.cancel(staleId, false).catch((err) =>
-                console.warn('[create-subscription] stale cancel skipped:', err)
-            );
-        }
-
-        // ── Create Razorpay subscription ─────────────────────────────────────
+        // ── Create Razorpay order ────────────────────────────────────────────
         const t2 = Date.now();
-        let subscription;
+        let order;
         try {
-            subscription = await razorpay.subscriptions.create({
-                plan_id: process.env.RAZORPAY_PLAN_ID!,
-                total_count: 120,
-                quantity: 1,
-                addons: [
-                    {
-                        item: {
-                            name: `Smart QR Menu - Setup Fee (${site.name})`,
-                            amount: 500,
-                            currency: 'INR',
-                        },
-                    },
-                ],
+            order = await razorpay.orders.create({
+                amount: amountPaise,
+                currency: 'INR',
+                receipt: `rcpt_${siteId}_${Date.now()}`,
+                notes: {
+                    siteId,
+                    userId,
+                    plan: 'qr_menu',
+                    type: isRenewal ? 'renewal' : 'first_time',
+                },
             });
         } catch (razorpayErr: unknown) {
             const rErr = razorpayErr as { error?: { code?: string; description?: string }; statusCode?: number };
-            console.error('[create-subscription] Razorpay error:', rErr);
+            console.error('[create-order] Razorpay error:', rErr);
             const description = rErr?.error?.description ?? 'Payment provider error';
             const status = rErr?.statusCode === 400 ? 400 : 502;
             return NextResponse.json({ error: description }, { status });
         }
-        console.log(`[create-subscription] razorpay create ${Date.now() - t2}ms`);
+        console.log(`[create-order] razorpay create ${Date.now() - t2}ms`);
 
-        // ── Persist subscription ID before returning ─────────────────────────
-        // Must complete before we respond: the webhook handler looks up this
-        // row by razorpay_subscription_id, and payment can complete quickly.
+        // ── Store order ID before returning ──────────────────────────────────
+        // Reuses razorpay_subscription_id column to hold the order ID.
+        // verify-payment will match against this to prevent cross-site replay.
         const t3 = Date.now();
         await supabaseServer
             .from('site_subscriptions')
@@ -145,21 +140,24 @@ export async function POST(request: NextRequest) {
                     site_id: siteId,
                     user_id: userId,
                     store_plan: 'qr_menu',
-                    razorpay_subscription_id: subscription.id,
+                    razorpay_subscription_id: order.id,
                     razorpay_status: 'created',
                     updated_at: new Date().toISOString(),
                 },
                 { onConflict: 'site_id' }
             );
-        console.log(`[create-subscription] db write ${Date.now() - t3}ms`);
+        console.log(`[create-order] db write ${Date.now() - t3}ms`);
 
-        console.log(`[create-subscription] total ${Date.now() - t0}ms`);
+        console.log(`[create-order] total ${Date.now() - t0}ms`);
         return NextResponse.json({
-            subscriptionId: subscription.id,
+            orderId: order.id,
             keyId: process.env.RAZORPAY_KEY_ID,
+            amount: amountPaise,
+            currency: 'INR',
+            isRenewal,
         });
     } catch (err) {
-        console.error('[create-subscription] unexpected error:', err);
+        console.error('[create-order] unexpected error:', err);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

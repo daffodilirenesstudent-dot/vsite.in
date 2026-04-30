@@ -124,7 +124,7 @@ export default function SubscriptionPage() {
     };
 
     const verifyAndActivate = async (
-        response: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string },
+        response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string },
         token: string,
         siteId: string,
     ) => {
@@ -190,15 +190,17 @@ export default function SubscriptionPage() {
 
             const rzp = new window.Razorpay({
                 key: data.keyId,
-                subscription_id: data.subscriptionId,
+                order_id: data.orderId,
+                amount: data.amount,
+                currency: data.currency,
                 name: 'vsite',
-                description: 'Smart QR Menu — ₹399/month',
+                description: data.isRenewal ? 'Smart QR Menu — Monthly Renewal' : 'Smart QR Menu — Setup + First Month',
                 prefill: {
                     name: firebaseUser.displayName ?? '',
                     contact: firebaseUser.phoneNumber ?? '',
                 },
                 theme: { color: '#5452F6' },
-                handler: (response: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) => {
+                handler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
                     setPaymentState('activating');
                     verifyAndActivate(response, token, siteId);
                 },
@@ -417,7 +419,7 @@ export default function SubscriptionPage() {
             )}
 
             <p className="mt-5 text-center text-[#71717A]" style={{ fontSize: 12 }}>
-                All payments are processed securely by Razorpay. Plans renew monthly. Cancel anytime.
+                All payments are processed securely by Razorpay. Plans are valid for 30 days. Renew manually.
             </p>
 
             {/* ── Payment modal ── */}
@@ -438,7 +440,7 @@ export default function SubscriptionPage() {
                                 </div>
                                 <div className="text-center">
                                     <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 18, marginBottom: 6 }}>Plan Activated!</p>
-                                    <p className="text-[#52525C]" style={{ fontSize: 14 }}>Your Smart QR Menu is now live. ₹399/month will auto-debit every 30 days.</p>
+                                    <p className="text-[#52525C]" style={{ fontSize: 14 }}>Your Smart QR Menu is now live for 30 days.</p>
                                 </div>
                             </div>
                         ) : paymentState === 'slow' ? (
@@ -506,7 +508,7 @@ export default function SubscriptionPage() {
                                         <span style={{ fontSize: 16, fontWeight: 800, color: '#16A34A' }}>₹{(SETUP_FEE + QR_MENU_MONTHLY).toLocaleString('en-IN')}</span>
                                     </div>
                                     <p style={{ fontSize: 11, color: '#71717A', marginTop: 8 }}>
-                                        Then ₹{QR_MENU_MONTHLY}/month auto-debit — cancel anytime.
+                                        Renew manually each month — no auto-debit.
                                     </p>
                                 </div>
 
