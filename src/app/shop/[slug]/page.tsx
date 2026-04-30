@@ -62,21 +62,24 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
         return null;
     }
 
-    // 2. Check owner's trial/subscription status
+    // 2. Check store trial/subscription status via per-store table.
+    // Trial baseline is sites.created_at (the canonical "store age"), NOT
+    // site_subscriptions.created_at — which can drift if the sub row is
+    // re-created or backfilled. maybeSingle so a missing sub row is not
+    // logged as a Postgrest error for trial-only stores.
     let canGoLive = false;
-    if (site.user_id) {
+    {
         const { data: sub } = await supabaseServer
-            .from('user_subscriptions')
-            .select('trial_ends_at, store_expires_at')
-            .eq('user_id', site.user_id)
-            .single();
+            .from('site_subscriptions')
+            .select('store_expires_at')
+            .eq('site_id', site.id)
+            .maybeSingle();
 
-        if (sub) {
-            const now = Date.now();
-            const trialEndsMs = sub.trial_ends_at ? new Date(sub.trial_ends_at).getTime() : 0;
-            const subEndsMs = sub.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
-            canGoLive = trialEndsMs > now || subEndsMs > now;
-        }
+        const now = Date.now();
+        const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
+        const subEndsMs = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
+        const trialEndsMs = new Date(site.created_at).getTime() + TRIAL_DURATION_MS;
+        canGoLive = subEndsMs > now || trialEndsMs > now;
     }
 
     // 4. Fetch products + banners in parallel

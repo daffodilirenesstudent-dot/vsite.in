@@ -1,8 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from './AuthContext';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useSite } from './SiteContext';
 
 type Plan = 'qr_menu' | 'base' | 'pro' | 'pay_eat' | string;
 
@@ -15,14 +14,16 @@ interface PlanContextType {
     isQrMenu: boolean;
     /** days remaining in trial (0 if expired or no trial) */
     trialDaysLeft: number;
-    /** trial window is still open */
+    /** trial window is still open for the active store */
     isTrialActive: boolean;
-    /** trial has ended AND no active paid subscription */
+    /** trial has ended AND no active paid subscription for the active store */
     isTrialExpired: boolean;
-    /** has a paid subscription with store_expires_at in the future */
+    /** active store has a paid subscription with store_expires_at in the future */
     isSubscribed: boolean;
     /** menu can be live: trial active OR subscribed */
     canGoLive: boolean;
+    /** re-fetch subscription data — call after a payment completes */
+    refreshPlan: () => Promise<void>;
 }
 
 const PlanContext = createContext<PlanContextType>({
@@ -35,73 +36,51 @@ const PlanContext = createContext<PlanContextType>({
     isTrialExpired: false,
     isSubscribed: false,
     canGoLive: false,
+    refreshPlan: async () => {},
 });
 
+const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
+
 export function PlanProvider({ children }: { children: React.ReactNode }) {
-    const { user } = useAuth();
-    const [plan, setPlan] = useState<Plan>('qr_menu');
-    const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
-    const [storeExpiresAt, setStoreExpiresAt] = useState<string | null>(null);
-    const [planLoading, setPlanLoading] = useState(true);
+    const { activeSite, sitesLoading, refreshSites } = useSite();
 
+    // Refresh every minute so trial/subscription expiry is reflected without a reload
+    const [now, setNow] = useState(() => Date.now());
     useEffect(() => {
-        if (!user) {
-            setPlan('qr_menu');
-            setTrialEndsAt(null);
-            setStoreExpiresAt(null);
-            setPlanLoading(false);
-            return;
-        }
+        const id = setInterval(() => setNow(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, []);
 
-        // Cancellation flag prevents a stale in-flight response from overwriting
-        // state after the user logged out / switched. Without this, a slow 4G
-        // request that resolves after sign-out would re-set a paid plan onto
-        // a logged-out (or different) user.
-        let cancelled = false;
-        setPlanLoading(true);
+    // Per-store trial: 14 days from when the store was created
+    const siteCreatedMs = activeSite ? new Date(activeSite.created_at).getTime() : 0;
+    const trialEndsMs   = siteCreatedMs > 0 ? siteCreatedMs + TRIAL_DURATION_MS : 0;
 
-        (async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('user_subscriptions')
-                    .select('store_plan, store_expires_at, trial_ends_at')
-                    .eq('user_id', user.id)
-                    .single();
-                if (cancelled) return;
-                if (!error && data) {
-                    if (data.store_plan) setPlan(data.store_plan);
-                    setTrialEndsAt(data.trial_ends_at ?? null);
-                    setStoreExpiresAt(data.store_expires_at ?? null);
-                }
-            } catch {
-                // Network failure — keep defaults, don't leave user stuck on loading
-            } finally {
-                if (!cancelled) setPlanLoading(false);
-            }
-        })();
+    // Per-store paid subscription
+    const sub           = activeSite?.site_subscriptions ?? null;
+    const subEndsMs     = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
+    const plan: Plan    = sub?.store_plan ?? 'qr_menu';
 
-        return () => { cancelled = true; };
-    }, [user]);
-
-    const now = Date.now();
-    const trialEndsMs = trialEndsAt ? new Date(trialEndsAt).getTime() : 0;
-    const subEndsMs = storeExpiresAt ? new Date(storeExpiresAt).getTime() : 0;
-
-    const isTrialActive = trialEndsMs > now;
-    const isSubscribed = subEndsMs > now;
-    const trialDaysLeft = isTrialActive
+    const isTrialActive  = trialEndsMs > now;
+    const isSubscribed   = subEndsMs > now;
+    const trialDaysLeft  = isTrialActive
         ? Math.ceil((trialEndsMs - now) / (1000 * 60 * 60 * 24))
         : 0;
     const isTrialExpired = !isTrialActive && !isSubscribed;
-    const canGoLive = isTrialActive || isSubscribed;
+    const canGoLive      = isTrialActive || isSubscribed;
 
     const isPayEat = plan === 'pro' || plan === 'pay_eat';
     const isQrMenu = !isPayEat;
 
+    // refreshPlan re-fetches sites (which include the nested site_subscriptions join).
+    // Returns the underlying promise so callers can await activation reflect.
+    const refreshPlan = useCallback(async () => { await refreshSites(); }, [refreshSites]);
+
     return (
         <PlanContext.Provider value={{
-            plan, planLoading, isPayEat, isQrMenu,
+            plan, planLoading: sitesLoading,
+            isPayEat, isQrMenu,
             trialDaysLeft, isTrialActive, isTrialExpired, isSubscribed, canGoLive,
+            refreshPlan,
         }}>
             {children}
         </PlanContext.Provider>

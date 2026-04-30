@@ -7,6 +7,10 @@ import { rateLimit } from '@/lib/rateLimit';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// One embedding round-trip + one Postgres RPC. Usually <2s but allow head-room.
+export const maxDuration = 30;
+export const runtime = 'nodejs';
+
 // POST /api/images/match
 // Body: { query: string }
 // Returns: { image_url: string | null, description: string | null, similarity: number | null }

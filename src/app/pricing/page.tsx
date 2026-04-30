@@ -169,9 +169,9 @@ export default function PricingPage() {
                   <span className="inline-block border border-primary text-primary text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">
                     QR Ordering + Payment
                   </span>
-                  <span className="inline-flex items-center gap-1 bg-primary text-white text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
-                    <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                    Most Popular
+                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
+                    <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
+                    Coming Soon
                   </span>
                 </div>
                 <p className="text-slate-500 text-sm mb-5">Full digital ordering + payment for your restaurant</p>
@@ -196,14 +196,14 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href="/signup"
-                className="flex items-center justify-center gap-2 bg-primary text-white px-6 py-3.5 rounded-full font-bold hover:bg-primary-dark transition-all shadow-lg shadow-primary/25"
+              <button
+                disabled
+                className="flex items-center justify-center gap-2 bg-slate-100 text-slate-400 px-6 py-3.5 rounded-full font-bold cursor-not-allowed"
               >
-                Start Free — 14 Days
-                <span className="material-symbols-outlined text-xl">arrow_forward</span>
-              </Link>
-              <p className="text-center text-xs text-slate-400 mt-2">No credit card. No commitment.</p>
+                <span className="material-symbols-outlined text-xl">schedule</span>
+                Coming Soon
+              </button>
+              <p className="text-center text-xs text-slate-400 mt-2">We&apos;ll notify you when it&apos;s available.</p>
             </div>
           </div>
 

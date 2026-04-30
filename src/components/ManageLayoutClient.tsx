@@ -103,13 +103,13 @@ function ManageShell({ children }: { children: React.ReactNode }) {
 export default function ManageLayoutClient({ children }: { children: React.ReactNode }) {
     return (
         <AuthProvider>
-            <PlanProvider>
-                <SiteProvider>
+            <SiteProvider>
+                <PlanProvider>
                     <NotificationProvider>
                         <ManageShell>{children}</ManageShell>
                     </NotificationProvider>
-                </SiteProvider>
-            </PlanProvider>
+                </PlanProvider>
+            </SiteProvider>
         </AuthProvider>
     );
 }

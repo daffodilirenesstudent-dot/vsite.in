@@ -108,7 +108,7 @@ export default function SubscriptionPage() {
     React.useEffect(() => () => stopPolling(), []);
 
     const openPayment = () => {
-        if (isQrMenuActive) return;
+        if (isQrMenuActive || isTrialActive) return;
         setModalType('payment');
         setPaymentState('idle');
     };
@@ -118,6 +118,31 @@ export default function SubscriptionPage() {
         stopPolling();
         setModalType(null);
         setPaymentState('idle');
+    };
+
+    const verifyAndActivate = async (
+        response: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string },
+        token: string,
+        siteId: string,
+    ) => {
+        try {
+            const res = await fetch('/api/subscription/verify-payment', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...response, siteId }),
+            });
+            if (res.ok) {
+                // Immediately refresh so polling picks up the DB change fast
+                await refreshPlan();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                console.error('[subscription] verify-payment failed:', data);
+            }
+        } catch (err) {
+            console.error('[subscription] verifyAndActivate error:', err);
+        }
+        // Always start polling regardless — catches cases where verify was fast or slow
+        startPolling();
     };
 
     const handleActivate = async () => {
@@ -152,6 +177,8 @@ export default function SubscriptionPage() {
                 return;
             }
 
+            const siteId = activeSite.id;
+
             const rzp = new window.Razorpay({
                 key: data.keyId,
                 subscription_id: data.subscriptionId,
@@ -162,9 +189,9 @@ export default function SubscriptionPage() {
                     contact: firebaseUser.phoneNumber ?? '',
                 },
                 theme: { color: '#5452F6' },
-                handler: () => {
+                handler: (response: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) => {
                     setPaymentState('activating');
-                    startPolling();
+                    verifyAndActivate(response, token, siteId);
                 },
                 modal: {
                     ondismiss: () => {
@@ -316,19 +343,23 @@ export default function SubscriptionPage() {
                         </div>
                         <button
                             onClick={openPayment}
-                            disabled={isQrMenuActive}
+                            disabled={isQrMenuActive || isTrialActive}
                             style={{
                                 width: '100%', height: 44, borderRadius: 10, fontSize: 14, fontWeight: 600,
-                                border: isQrMenuActive ? 'none' : '2px solid #16A34A',
-                                background: isQrMenuActive ? '#F0FDF4' : 'transparent',
-                                color: '#16A34A',
-                                cursor: isQrMenuActive ? 'not-allowed' : 'pointer',
+                                border: (isQrMenuActive || isTrialActive) ? 'none' : '2px solid #16A34A',
+                                background: isQrMenuActive ? '#F0FDF4' : isTrialActive ? '#F4F4F5' : 'transparent',
+                                color: isQrMenuActive ? '#16A34A' : isTrialActive ? '#71717A' : '#16A34A',
+                                cursor: (isQrMenuActive || isTrialActive) ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.15s',
                             }}
-                            onMouseEnter={e => { if (!isQrMenuActive) (e.currentTarget as HTMLButtonElement).style.background = '#F0FDF4'; }}
-                            onMouseLeave={e => { if (!isQrMenuActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                            onMouseEnter={e => { if (!isQrMenuActive && !isTrialActive) (e.currentTarget as HTMLButtonElement).style.background = '#F0FDF4'; }}
+                            onMouseLeave={e => { if (!isQrMenuActive && !isTrialActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                         >
-                            {isQrMenuActive ? 'Current Plan' : `Activate — ₹${QR_MENU_MONTHLY}/mo`}
+                            {isQrMenuActive
+                                ? 'Current Plan'
+                                : isTrialActive
+                                    ? `Available after trial (${trialDaysLeft}d left)`
+                                    : `Activate — ₹${QR_MENU_MONTHLY}/mo`}
                         </button>
                     </div>
 

@@ -11,6 +11,11 @@ import { rateLimit } from '@/lib/rateLimit';
 import { weightedScore, previewQuadrant } from '@/lib/menuEngineering';
 import OpenAI from 'openai';
 
+// 50 items × OpenAI embedding round-trips can take 20–40s.
+// Default 10s would intermittently kill the request before site insert.
+export const maxDuration = 60;
+export const runtime = 'nodejs';
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface EnrichedItem {
@@ -176,14 +181,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Idempotency guard — reject double-launch ──────────────────────────────
-    const { data: profile } = await supabaseServer
-      .from('profiles')
-      .select('onboarding_completed')
-      .eq('id', userId)
-      .single();
-    if (profile?.onboarding_completed) {
-      return NextResponse.json({ error: 'Onboarding already completed' }, { status: 409 });
+    // ── Per-store limit check ─────────────────────────────────────────────────
+    // Fetch all existing sites with their subscription status in one query.
+    // Trial = store within 14 days of creation with no active paid plan.
+    // Limits: max 2 active-trial stores, max 5 total stores per account.
+    const { data: existingSites } = await supabaseServer
+      .from('sites')
+      .select('id, created_at, site_subscriptions(store_expires_at)')
+      .eq('user_id', userId);
+
+    const nowMs = Date.now();
+    const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
+    const TRIAL_STORE_LIMIT = 2;
+    const PAID_STORE_LIMIT  = 5;
+
+    const totalSites = existingSites?.length ?? 0;
+
+    // A store is "on active trial" when it has no paid subscription AND was
+    // created within the last 14 days. These consume a trial slot.
+    //
+    // NOTE: Supabase returns nested has-many relations as ARRAYS even when the
+    // FK is functionally one-to-one. Reading `.site_subscriptions` as a single
+    // object silently returns `undefined`, making every paid store look like
+    // an unpaid trial slot — which then blocks legitimate users from creating
+    // additional stores. Always normalize array → first row.
+    const trialSites = (existingSites ?? []).filter(s => {
+      const rawSub = (s as unknown as { site_subscriptions: unknown }).site_subscriptions;
+      const sub = (Array.isArray(rawSub) ? rawSub[0] : rawSub) as
+        | { store_expires_at: string | null }
+        | null
+        | undefined;
+      const paidExpiry = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
+      if (paidExpiry > nowMs) return false; // has a paid plan — not a trial slot
+      const trialEnd = new Date(s.created_at).getTime() + TRIAL_DURATION_MS;
+      return trialEnd > nowMs; // within 14-day window
+    }).length;
+
+    if (totalSites >= PAID_STORE_LIMIT) {
+      return NextResponse.json(
+        { error: `You have reached the maximum of ${PAID_STORE_LIMIT} stores on your account.`, code: 'PLAN_LIMIT' },
+        { status: 403 }
+      );
+    }
+
+    if (trialSites >= TRIAL_STORE_LIMIT) {
+      return NextResponse.json(
+        { error: `Free trial allows up to ${TRIAL_STORE_LIMIT} stores at once. Activate a plan on an existing store to create more.`, code: 'TRIAL_LIMIT' },
+        { status: 403 }
+      );
     }
 
     // ── Parse and validate JSON body ──────────────────────────────────────────
@@ -237,6 +282,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create site after retries' }, { status: 500 });
     }
     const siteRecord = site as { id: string; slug: string };
+
+    // ── Create site_subscriptions row (trial — no store_expires_at yet) ───────
+    // This row is REQUIRED. /api/subscription/verify-payment looks it up by
+    // site_id and rejects activations that don't match — without this row the
+    // user can pay Razorpay but the plan never activates ("Subscription
+    // mismatch"). Treat the insert failure as fatal and roll back the site.
+    let subInserted = false;
+    try {
+      await withRetry(async () => {
+        const { error } = await supabaseServer.from('site_subscriptions').insert({
+          site_id:    siteRecord.id,
+          user_id:    userId,
+          store_plan: 'qr_menu',
+        });
+        // 23505 = unique_violation: a prior attempt already inserted this row.
+        // Idempotent — treat as success.
+        if (error && error.code !== '23505') throw error;
+      });
+      subInserted = true;
+    } catch (err) {
+      console.error('[onboarding/complete] site_subscriptions insert failed — rolling back site:', err);
+    }
+
+    if (!subInserted) {
+      // Roll back the site so the user is not left in a half-created state
+      // (no subscription row → can never activate a plan).
+      await supabaseServer.from('sites').delete().eq('id', siteRecord.id);
+      return NextResponse.json(
+        { error: 'Could not initialise store subscription. Please try again.' },
+        { status: 500 }
+      );
+    }
 
     // ── Bulk insert products ──────────────────────────────────────────────────
     let insertedCount = 0;
@@ -301,6 +378,9 @@ export async function POST(request: NextRequest) {
       }
 
       if (productsFailed) {
+        // Roll back: site_subscriptions cascades on site delete (FK), so
+        // both the site and its sub row go away. User retries cleanly.
+        await supabaseServer.from('sites').delete().eq('id', siteRecord.id);
         return NextResponse.json(
           { error: 'Menu items could not be saved. Please try again.' },
           { status: 500 }
@@ -308,7 +388,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Mark onboarding complete ──────────────────────────────────────────────
+    // ── Mark onboarding complete (idempotent — safe to repeat) ───────────────
     try {
       await withRetry(async () =>
         supabaseServer

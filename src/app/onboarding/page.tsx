@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthContext';
 import { useOnboarding } from '@/components/OnboardingContext';
@@ -143,7 +144,12 @@ function OnboardingContent() {
 
     setError('');
     setExtracting(true);
-    setLoadingMsg(photos.length > 0 ? 'Scanning your menu… ~15 sec' : 'Getting ready…');
+    setLoadingMsg(photos.length > 0 ? 'Scanning your menu… up to 60 sec' : 'Getting ready…');
+
+    // Hard client-side timeout so the button never gets stuck if the request
+    // never resolves (e.g. browser network drop). 75s = serverless 60s + buffer.
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 75_000);
 
     try {
       const firebaseUser = firebaseAuth.currentUser;
@@ -158,9 +164,10 @@ function OnboardingContent() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
+        signal: ctrl.signal,
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong. Please try again.');
         setExtracting(false);
@@ -172,9 +179,14 @@ function OnboardingContent() {
 
       // Animate to next step
       transition('right', () => setStep('bestsellers'));
-    } catch {
-      setError('Network error. Please try again.');
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('Scanning timed out. Try fewer photos, or smaller / clearer photos.');
+      } else {
+        setError('Network error. Please try again.');
+      }
     } finally {
+      clearTimeout(timeoutId);
       setExtracting(false);
     }
   };
@@ -214,14 +226,13 @@ function OnboardingContent() {
       });
 
       const data = await res.json();
-      if (res.status === 409) {
-        // Already onboarded — treat as success and redirect
-        photos.forEach(p => URL.revokeObjectURL(p.url));
-        setLaunchItemCount(0);
-        setLaunchDone(true);
-        return;
-      }
       if (!res.ok) {
+        if (res.status === 403 && (data.code === 'TRIAL_LIMIT' || data.code === 'TRIAL_EXPIRED' || data.code === 'PLAN_LIMIT')) {
+          setError(data.error ?? 'You need an active plan to create this store.');
+          setLaunching(false);
+          setTimeout(() => router.replace('/manage/subscription'), 2500);
+          return;
+        }
         setError(data.error ?? 'Something went wrong. Please try again.');
         setLaunching(false);
         return;
@@ -304,7 +315,16 @@ function OnboardingContent() {
           <span className="text-lg font-bold tracking-tight text-slate-800">Vsite</span>
         </div>
 
-        <div className="w-20" />
+        <Link
+          href="/support"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors"
+          aria-label="Open support — opens in a new tab"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>help_outline</span>
+          <span className="hidden sm:inline">Support</span>
+        </Link>
       </header>
 
       {/* Step indicator (hidden on setup) */}

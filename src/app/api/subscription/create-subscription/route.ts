@@ -4,6 +4,10 @@ import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { rateLimit } from '@/lib/rateLimit';
 
+// Razorpay round-trip + DB writes. Default 10s would occasionally lose first-time payments.
+export const maxDuration = 30;
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
     try {
         // ── Auth ────────────────────────────────────────────────────────────
@@ -41,7 +45,7 @@ export async function POST(request: NextRequest) {
         // ── Verify site belongs to this user ────────────────────────────────
         const { data: site, error: siteError } = await supabaseServer
             .from('sites')
-            .select('id, name')
+            .select('id, name, created_at')
             .eq('id', siteId)
             .eq('user_id', userId)
             .single();
@@ -50,12 +54,22 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Store not found' }, { status: 404 });
         }
 
+        // ── Block purchase during free trial ─────────────────────────────────
+        const TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
+        const trialEndsAt = new Date(site.created_at).getTime() + TRIAL_MS;
+        if (Date.now() < trialEndsAt) {
+            return NextResponse.json(
+                { error: 'Your free trial is still active. You can subscribe once it ends.' },
+                { status: 403 }
+            );
+        }
+
         // ── Check not already subscribed ────────────────────────────────────
         const { data: existingSub } = await supabaseServer
             .from('site_subscriptions')
-            .select('store_expires_at')
+            .select('store_expires_at, razorpay_subscription_id, razorpay_status')
             .eq('site_id', siteId)
-            .single();
+            .maybeSingle();
 
         if (existingSub?.store_expires_at) {
             const expiry = new Date(existingSub.store_expires_at).getTime();
@@ -67,11 +81,33 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // ── Create Razorpay subscription ────────────────────────────────────
+        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET || !process.env.RAZORPAY_PLAN_ID) {
+            console.error('[create-subscription] missing Razorpay env vars');
+            return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+        }
+
         const razorpay = new Razorpay({
-            key_id: process.env.RAZORPAY_KEY_ID!,
-            key_secret: process.env.RAZORPAY_KEY_SECRET!,
+            key_id: process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_KEY_SECRET,
         });
+
+        // ── Cancel any stale Razorpay subscription on this site ─────────────
+        // If the user dismissed a previous checkout, the prior Razorpay
+        // subscription is still alive on Razorpay's side. Without cancelling,
+        // it can later get charged and fire webhooks that no longer match any
+        // DB row (because we'd overwrite razorpay_subscription_id below).
+        const stalePending =
+            existingSub?.razorpay_subscription_id &&
+            ['created', 'authenticated', 'pending'].includes(existingSub.razorpay_status ?? '');
+
+        if (stalePending && existingSub?.razorpay_subscription_id) {
+            try {
+                await razorpay.subscriptions.cancel(existingSub.razorpay_subscription_id, false);
+            } catch (err) {
+                // Non-fatal: it may already be cancelled/expired on Razorpay's side.
+                console.warn('[create-subscription] stale subscription cancel skipped:', err);
+            }
+        }
 
         const subscription = await razorpay.subscriptions.create({
             plan_id: process.env.RAZORPAY_PLAN_ID!,
