@@ -109,20 +109,29 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const subscription = await razorpay.subscriptions.create({
-            plan_id: process.env.RAZORPAY_PLAN_ID!,
-            total_count: 120,
-            quantity: 1,
-            addons: [
-                {
-                    item: {
-                        name: `Smart QR Menu — Setup Fee (${site.name})`,
-                        amount: 199900,
-                        currency: 'INR',
+        let subscription;
+        try {
+            subscription = await razorpay.subscriptions.create({
+                plan_id: process.env.RAZORPAY_PLAN_ID!,
+                total_count: 120,
+                quantity: 1,
+                addons: [
+                    {
+                        item: {
+                            name: `Smart QR Menu - Setup Fee (${site.name})`,
+                            amount: 500,
+                            currency: 'INR',
+                        },
                     },
-                },
-            ],
-        });
+                ],
+            });
+        } catch (razorpayErr: unknown) {
+            const rErr = razorpayErr as { error?: { code?: string; description?: string }; statusCode?: number };
+            console.error('[create-subscription] Razorpay error:', JSON.stringify(rErr));
+            const description = rErr?.error?.description ?? 'Payment provider error';
+            const status = rErr?.statusCode === 400 ? 400 : 502;
+            return NextResponse.json({ error: description }, { status });
+        }
 
         // ── Save subscription ID to DB ──────────────────────────────────────
         await supabaseServer
@@ -144,7 +153,7 @@ export async function POST(request: NextRequest) {
             keyId: process.env.RAZORPAY_KEY_ID,
         });
     } catch (err) {
-        console.error('[create-subscription] error:', err);
+        console.error('[create-subscription] unexpected error:', err);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

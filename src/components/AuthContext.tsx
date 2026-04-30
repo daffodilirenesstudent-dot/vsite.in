@@ -8,6 +8,7 @@ import {
     RecaptchaVerifier,
     signOut as firebaseSignOut,
     onIdTokenChanged,
+    getAdditionalUserInfo,
     type ConfirmationResult,
     type User as FirebaseUser,
 } from 'firebase/auth';
@@ -176,11 +177,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const credential = await confirmationResultRef.current.confirm(otp);
             const firebaseUser = credential.user;
 
+            // Firebase is the authoritative source for new vs existing user.
+            // A Supabase DB check is unreliable here: RLS may block the SELECT
+            // if the client JWT hasn't been validated by Supabase yet, causing
+            // existing users to be incorrectly treated as new on every login.
+            const isNewUser = getAdditionalUserInfo(credential)?.isNewUser ?? false;
+
             // Wait for cookie before returning — prevents middleware bouncing the redirect.
             // syncCookie dedupes via lastSyncedTokenRef so onIdTokenChanged's call is free.
             await syncCookie(firebaseUser);
 
-            const isNewUser = await provisionNewUser(firebaseUser.uid, firebaseUser.phoneNumber, name);
+            await provisionNewUser(firebaseUser.uid, firebaseUser.phoneNumber, name, isNewUser);
 
             return { error: null, isNewUser };
         } catch (err: unknown) {
@@ -188,21 +195,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    // Returns true if a new profile was created, false if the user already existed.
-    // Both writes are idempotent via upsert — if the user retries verifyOTP after a
-    // partial write (e.g. profile succeeded, subscription failed), the retry heals
-    // state instead of producing a half-provisioned account.
-    const provisionNewUser = async (uid: string, phone: string | null, name?: string): Promise<boolean> => {
-        // Check first so we can return accurate isNewUser flag (onboarding routing depends on it).
-        const { data: existing } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', uid)
-            .maybeSingle();
-
-        const isNew = !existing;
-
-        // Profile — upsert is safe if row already exists (onboarding_completed preserved by DB default on insert only).
+    // Provisions a new user profile and subscription row.
+    // isNew comes from Firebase's authoritative AdditionalUserInfo — do not re-derive it here.
+    // Both writes are idempotent via upsert with ignoreDuplicates, so a retry after a
+    // partial failure heals state without clobbering existing data.
+    const provisionNewUser = async (uid: string, phone: string | null, name?: string, isNew = false): Promise<void> => {
+        // Profile — only create for brand-new Firebase accounts.
         // We intentionally do NOT overwrite full_name/onboarding_completed on conflict.
         if (isNew) {
             const { error: profileError } = await supabase.from('profiles').upsert(
@@ -234,8 +232,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             { onConflict: 'user_id', ignoreDuplicates: true },
         );
         if (subError) throw new Error('Failed to set up your account. Please try again.');
-
-        return isNew;
     };
 
     const signOut = async () => {

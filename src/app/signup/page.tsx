@@ -71,12 +71,12 @@ export default function SignupPage() {
     const code = otp.join('');
     if (code.length < 6) { setError('Enter the complete 6-digit code.'); return; }
     setLoading(true);
-    const { error: err } = await verifyOTP(code, name.trim());
+    const { error: err, isNewUser } = await verifyOTP(code, name.trim());
     setLoading(false);
     if (err) { setError(err); return; }
     // ?new=true hides the "← Dashboard" back button on /onboarding so fresh
     // users don't bounce back to an empty dashboard during their first flow.
-    window.location.replace('/onboarding?new=true');
+    window.location.replace(isNewUser ? '/onboarding?new=true' : '/manage/dashboard');
   };
 
   const handleResend = async () => {
