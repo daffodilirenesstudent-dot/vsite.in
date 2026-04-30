@@ -65,6 +65,11 @@ export default function SubscriptionPage() {
         return sub.store_plan === 'qr_menu' && new Date(sub.store_expires_at).getTime() > Date.now();
     })();
 
+    // Was previously a paying customer (store_expires_at was set), plan now expired
+    const isPlanExpired = !!sub?.store_expires_at && !isQrMenuActive;
+    const isRenewal = isPlanExpired;
+    const dueToday = isRenewal ? QR_MENU_MONTHLY : SETUP_FEE + QR_MENU_MONTHLY;
+
     const expiryLabel = sub?.store_expires_at
         ? new Date(sub.store_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
         : null;
@@ -271,7 +276,15 @@ export default function SubscriptionPage() {
                         </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                        {isTrialExpired && (
+                        {isPlanExpired && (
+                            <>
+                                <p style={{ fontSize: 15, fontWeight: 600, color: '#DC2626' }}>Plan expired</p>
+                                <p style={{ fontSize: 13, color: '#7F1D1D', marginTop: 2 }}>
+                                    Your menu is offline. Renew your plan below to go live again.
+                                </p>
+                            </>
+                        )}
+                        {isTrialExpired && !isPlanExpired && (
                             <>
                                 <p style={{ fontSize: 15, fontWeight: 600, color: '#DC2626' }}>Free trial ended</p>
                                 <p style={{ fontSize: 13, color: '#7F1D1D', marginTop: 2 }}>
@@ -370,7 +383,9 @@ export default function SubscriptionPage() {
                                 ? 'Current Plan'
                                 : isTrialActive
                                     ? `Available after trial (${trialDaysLeft}d left)`
-                                    : `Activate — ₹${QR_MENU_MONTHLY}/mo`}
+                                    : isPlanExpired
+                                        ? `Renew — ₹${QR_MENU_MONTHLY}/mo`
+                                        : `Activate — ₹${QR_MENU_MONTHLY}/mo`}
                         </button>
                     </div>
 
@@ -480,7 +495,7 @@ export default function SubscriptionPage() {
                                 {/* Modal header */}
                                 <div className="flex items-start justify-between mb-5">
                                     <div>
-                                        <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 18, lineHeight: '24px' }}>Activate Smart QR Menu</p>
+                                        <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 18, lineHeight: '24px' }}>{isRenewal ? 'Renew Smart QR Menu' : 'Activate Smart QR Menu'}</p>
                                         <p className="text-[#52525C]" style={{ fontSize: 13, marginTop: 2 }}>
                                             {activeSite ? <>For store: <span className="font-semibold text-[#0A0A0A]">{activeSite.name}</span></> : 'Review your order'}
                                         </p>
@@ -495,17 +510,19 @@ export default function SubscriptionPage() {
                                 {/* Order summary */}
                                 <div style={{ background: '#F8F7FF', border: '1px solid #E4E4E7', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
                                     <p style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A', marginBottom: 12 }}>Smart QR Menu</p>
-                                    <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                                        <span style={{ fontSize: 13, color: '#52525C' }}>Setup fee (one-time)</span>
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{SETUP_FEE.toLocaleString('en-IN')}</span>
-                                    </div>
+                                    {!isRenewal && (
+                                        <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                                            <span style={{ fontSize: 13, color: '#52525C' }}>Setup fee (one-time)</span>
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{SETUP_FEE.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-                                        <span style={{ fontSize: 13, color: '#52525C' }}>First month</span>
+                                        <span style={{ fontSize: 13, color: '#52525C' }}>{isRenewal ? 'Monthly renewal' : 'First month'}</span>
                                         <span style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{QR_MENU_MONTHLY}</span>
                                     </div>
                                     <div style={{ borderTop: '1px dashed #E4E4E7', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Due today</span>
-                                        <span style={{ fontSize: 16, fontWeight: 800, color: '#16A34A' }}>₹{(SETUP_FEE + QR_MENU_MONTHLY).toLocaleString('en-IN')}</span>
+                                        <span style={{ fontSize: 16, fontWeight: 800, color: '#16A34A' }}>₹{dueToday.toLocaleString('en-IN')}</span>
                                     </div>
                                     <p style={{ fontSize: 11, color: '#71717A', marginTop: 8 }}>
                                         Renew manually each month — no auto-debit.
@@ -534,7 +551,7 @@ export default function SubscriptionPage() {
                                     ) : (
                                         <>
                                             <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>lock</span>
-                                            Pay ₹{(SETUP_FEE + QR_MENU_MONTHLY).toLocaleString('en-IN')} & Activate
+                                            {isRenewal ? `Pay ₹${dueToday.toLocaleString('en-IN')} & Renew` : `Pay ₹${dueToday.toLocaleString('en-IN')} & Activate`}
                                         </>
                                     )}
                                 </button>

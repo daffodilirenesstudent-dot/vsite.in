@@ -17,9 +17,14 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
+import { rateLimit } from '@/lib/rateLimit';
 
 export const maxDuration = 30;
 export const runtime = 'nodejs';
+
+// Must match create-subscription/route.ts
+const SETUP_FEE_INR = 5;
+const MONTHLY_FEE_INR = 5;
 
 function timingSafeEqualHex(a: string, b: string): boolean {
     if (a.length !== b.length) return false;
@@ -40,6 +45,15 @@ export async function POST(request: NextRequest) {
         const userId = await verifyFirebaseToken(authHeader.replace('Bearer ', ''));
         if (!userId) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        }
+
+        // ── Rate limit ──────────────────────────────────────────────────────
+        const rl = rateLimit(`verify-payment:${userId}`, { limit: 10, windowMs: 60 * 60_000 });
+        if (!rl.allowed) {
+            return NextResponse.json(
+                { error: 'Too many attempts. Please try again later.' },
+                { status: 429, headers: { 'Retry-After': Math.ceil(rl.retryAfterMs / 1000).toString() } }
+            );
         }
 
         // ── Parse body ──────────────────────────────────────────────────────
@@ -168,7 +182,7 @@ export async function POST(request: NextRequest) {
             .from('billing_history')
             .insert({
                 user_id: userId,
-                plan_name: `Smart QR Menu — ${amountInr > 5 ? 'Setup + First Month' : 'Monthly Renewal'}`,
+                plan_name: `Smart QR Menu — ${amountInr >= (SETUP_FEE_INR + MONTHLY_FEE_INR) ? 'Setup + First Month' : 'Monthly Renewal'}`,
                 amount: amountInr,
                 currency: payment.currency || 'INR',
                 status: 'Success',
