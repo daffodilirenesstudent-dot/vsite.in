@@ -111,6 +111,9 @@ export default function SubscriptionPage() {
         if (isQrMenuActive || isTrialActive) return;
         setModalType('payment');
         setPaymentState('idle');
+        // Preload Razorpay script as soon as the modal opens — by the time the
+        // user reads the order summary and clicks Pay, the script is ready.
+        loadRazorpayScript();
     };
 
     const closeModal = () => {
@@ -152,7 +155,19 @@ export default function SubscriptionPage() {
         try {
             const firebaseUser = firebaseAuth.currentUser;
             if (!firebaseUser) { setPaymentState('failed'); return; }
-            const token = await firebaseUser.getIdToken();
+
+            // Kick off script load immediately — it likely started in openPayment
+            // already (idempotent), so this resolves instantly on a warm load.
+            // Run token fetch in parallel so neither blocks the other.
+            const [token, loaded] = await Promise.all([
+                firebaseUser.getIdToken(),
+                loadRazorpayScript(),
+            ]);
+
+            if (!loaded) {
+                setPaymentState('failed');
+                return;
+            }
 
             const res = await fetch('/api/subscription/create-subscription', {
                 method: 'POST',
@@ -167,12 +182,6 @@ export default function SubscriptionPage() {
 
             if (!res.ok) {
                 console.error('[subscription] create-subscription failed:', data);
-                setPaymentState('failed');
-                return;
-            }
-
-            const loaded = await loadRazorpayScript();
-            if (!loaded) {
                 setPaymentState('failed');
                 return;
             }
