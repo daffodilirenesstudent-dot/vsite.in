@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 
 const productLinks = [
     { label: 'Features', href: '/features' },
@@ -49,8 +50,9 @@ export default function FooterCTA() {
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-10 mb-16">
                     {/* Column 1: Brand */}
                     <div className="col-span-2 md:col-span-1">
-                        <Link href="/" className="text-2xl font-extrabold font-display text-white tracking-tight">
-                            vsite
+                        <Link href="/" className="flex items-center gap-2">
+                            <Image src="/android-chrome-192x192.png" alt="Vsite icon" width={28} height={28} className="h-7 w-7 rounded-lg" />
+                            <span className="text-xl font-extrabold text-white tracking-tight">vsite</span>
                         </Link>
                         <p className="mt-4 text-slate-400 text-sm leading-relaxed">
                             India&apos;s fastest digital menu software. Built for restaurants in Tamil Nadu.

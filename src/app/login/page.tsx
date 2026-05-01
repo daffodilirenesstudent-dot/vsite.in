@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/components/AuthContext';
 
 export default function LoginPage() {
@@ -175,10 +176,8 @@ function LoginContent() {
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="mb-8 flex flex-col items-center gap-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/30">
-              <span className="material-symbols-outlined text-white" style={{ fontSize: 26 }}>graphic_eq</span>
-            </div>
-            <span className="text-2xl font-bold tracking-tight text-slate-800">Vsite</span>
+            <Image src="/android-chrome-192x192.png" alt="Vsite" width={56} height={56} className="h-14 w-14 rounded-2xl shadow-md shadow-primary/30" />
+            <span className="text-2xl font-bold tracking-tight text-slate-800">vsite</span>
           </div>
 
           {step === 'phone' ? (

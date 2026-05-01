@@ -35,7 +35,18 @@ export default function DashboardHeader() {
             .select('full_name, phone_number')
             .eq('id', user.id)
             .single()
-            .then(({ data }) => { if (data) setProfile(data); });
+            .then(({ data }) => {
+                if (!data) return;
+                // Guard: if full_name was accidentally stored as a phone number, clear it
+                const looksLikePhone = /^\+?\d{7,}$/.test((data.full_name ?? '').trim());
+                if (looksLikePhone) {
+                    setProfile({ ...data, full_name: '' });
+                    // Repair the DB row so other consumers don't see the bad value
+                    supabase.from('profiles').update({ full_name: '' }).eq('id', user.id);
+                } else {
+                    setProfile(data);
+                }
+            });
     }, [user]);
 
     // Close dropdown on outside click

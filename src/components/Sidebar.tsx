@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import { usePlan } from './PlanContext';
@@ -41,9 +42,9 @@ export default function Sidebar() {
         <>
             {/* ── COLLAPSED ICON SIDEBAR — tablet only (md to lg) ── */}
             <aside className="hidden md:flex lg:hidden flex-col bg-white border-r border-[#E5E7EB] shrink-0 items-center py-3 gap-1" style={{ width: 60 }}>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary mb-2">
-                    <span className="material-symbols-outlined text-white" style={{ fontSize: 17, fontVariationSettings: "'FILL' 1" }}>asterisk</span>
-                </div>
+                <Link href="/" className="mb-2">
+                    <Image src="/android-chrome-192x192.png" alt="Vsite" width={36} height={36} className="h-9 w-9 rounded-lg" />
+                </Link>
                 <nav className="flex flex-col gap-1 flex-1 w-full px-1.5">
                     {NAV_ITEMS.map((item) => {
                         const locked = item.gated && !isPayEat;
@@ -94,10 +95,8 @@ export default function Sidebar() {
             {/* ── FULL SIDEBAR — desktop (lg+) ── */}
             <aside className="hidden lg:flex flex-col bg-white border-r border-[#E5E7EB] shrink-0" style={{ width: 256 }}>
                 <div className="flex items-center gap-2.5 px-5 border-b border-[#E5E7EB]" style={{ height: 73 }}>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                        <span className="material-symbols-outlined text-white" style={{ fontSize: 17, fontVariationSettings: "'FILL' 1" }}>asterisk</span>
-                    </div>
-                    <span className="font-semibold text-[#0D0439]" style={{ fontSize: 16.69 }}>Vsite</span>
+                    <Image src="/android-chrome-192x192.png" alt="Vsite" width={32} height={32} className="h-8 w-8 rounded-lg" />
+                    <span className="font-extrabold text-[#0D0439] tracking-tight" style={{ fontSize: 17 }}>vsite</span>
                 </div>
 
                 <div className="flex-1 overflow-y-auto" style={{ padding: '12px 12px 0' }}>

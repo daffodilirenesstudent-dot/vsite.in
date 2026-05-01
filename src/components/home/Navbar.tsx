@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
+import MobileScrollNav from './MobileBottomNav';
 
 export default function Navbar() {
     const [open, setOpen] = useState(false);
@@ -34,9 +36,10 @@ export default function Navbar() {
                     {/* Logo */}
                     <Link
                         href="/"
-                        className="text-2xl font-extrabold tracking-tight text-slate-900 font-display focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                        className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
                     >
-                        vsite
+                        <Image src="/android-chrome-192x192.png" alt="Vsite icon" width={32} height={32} className="h-8 w-8 rounded-lg" priority />
+                        <span className="text-xl font-extrabold tracking-tight text-slate-900">vsite</span>
                     </Link>
 
                     {/* Desktop Nav */}
@@ -130,6 +133,7 @@ export default function Navbar() {
                     </div>
                 </div>
             </div>
+            <MobileScrollNav menuOpen={open} />
         </>
     );
 }

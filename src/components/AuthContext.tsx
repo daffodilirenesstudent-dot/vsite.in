@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const { error: profileError } = await supabase.from('profiles').upsert(
                 {
                     id: uid,
-                    full_name: name ?? phone ?? '',
+                    full_name: name ?? '',
                     contact_email: '',
                     onboarding_completed: false,
                     updated_at: new Date().toISOString(),
