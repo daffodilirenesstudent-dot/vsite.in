@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthContext';
@@ -141,6 +142,7 @@ function OnboardingContent() {
   const handleExtract = async () => {
     if (!user || extracting) return;
     if (!businessName.trim()) { setError('Please enter your business name.'); return; }
+    if (photos.length === 0) { setError('Please upload at least one menu photo to continue.'); return; }
 
     setError('');
     setExtracting(true);
@@ -309,10 +311,8 @@ function OnboardingContent() {
         )}
 
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/30">
-            <span className="material-symbols-outlined text-white" style={{ fontSize: 22 }}>graphic_eq</span>
-          </div>
-          <span className="text-lg font-bold tracking-tight text-slate-800">Vsite</span>
+          <Image src="/android-chrome-192x192.png" alt="vsite icon" width={36} height={36} className="h-9 w-9 rounded-xl" />
+          <span className="text-lg font-bold tracking-tight text-slate-800">vsite</span>
         </div>
 
         <Link
@@ -453,7 +453,7 @@ function OnboardingContent() {
                 )}
 
                 <div className="mt-5">
-                  <button onClick={handleExtract} disabled={extracting}
+                  <button onClick={handleExtract} disabled={extracting || photos.length === 0}
                     className="w-full rounded-[10px] bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
                     {extracting ? (
                       <span className="flex items-center justify-center gap-2 whitespace-nowrap">
