@@ -11,9 +11,8 @@ import { rateLimit } from '@/lib/rateLimit';
 import { weightedScore, previewQuadrant } from '@/lib/menuEngineering';
 import OpenAI from 'openai';
 
-// 50 items × OpenAI embedding round-trips can take 20–40s.
-// Default 10s would intermittently kill the request before site insert.
-export const maxDuration = 60;
+// 300 items × OpenAI embedding round-trips can take 60-90s.
+export const maxDuration = 120;
 export const runtime = 'nodejs';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -101,8 +100,8 @@ function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; 
   if (!Array.isArray(items)) {
     return { ok: false, error: 'items must be an array' };
   }
-  if (items.length > 50) {
-    return { ok: false, error: 'Too many items — maximum 50 allowed' };
+  if (items.length > 300) {
+    return { ok: false, error: 'Too many items — maximum 300 allowed' };
   }
 
   for (let i = 0; i < items.length; i++) {
