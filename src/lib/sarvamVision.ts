@@ -1,6 +1,6 @@
 // src/lib/sarvamVision.ts
-// Converts a menu photo buffer to OCR text using GPT-4o-mini vision.
-// Named sarvamVision.ts to avoid renaming the import in onboarding/complete.
+// Kept for backward-compat import in onboarding/extract — actual OCR is now
+// done inside extractMenuItemsFromImages() which sends images directly to GPT-4o.
 
 import OpenAI from 'openai';
 
@@ -8,8 +8,7 @@ const OCR_PROMPT =
     'Extract all text from this menu image. Preserve item names, prices, and section headings. Include every item visible in the image. Return plain text, no markdown formatting.';
 
 /**
- * Converts a menu photo buffer to plain OCR text using GPT-4o-mini vision.
- * Returns an empty string if the call fails.
+ * Fallback single-image OCR — only used when the direct multi-image path fails.
  */
 export async function imageToMenuText(
     buffer: Buffer,

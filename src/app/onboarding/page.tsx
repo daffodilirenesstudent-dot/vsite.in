@@ -146,12 +146,12 @@ function OnboardingContent() {
 
     setError('');
     setExtracting(true);
-    setLoadingMsg(photos.length > 0 ? 'Scanning your menu… up to 60 sec' : 'Getting ready…');
+    setLoadingMsg(photos.length > 3 ? 'Scanning your menu… this may take up to 90 sec' : 'Scanning your menu…');
 
-    // Hard client-side timeout so the button never gets stuck if the request
-    // never resolves (e.g. browser network drop). 75s = serverless 60s + buffer.
+    // Hard client-side timeout — 130s gives the 120s serverless function a full
+    // run plus a small network buffer before we surface the timeout error.
     const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 75_000);
+    const timeoutId = setTimeout(() => ctrl.abort(), 130_000);
 
     try {
       const firebaseUser = firebaseAuth.currentUser;
@@ -183,7 +183,7 @@ function OnboardingContent() {
       transition('right', () => setStep('bestsellers'));
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        setError('Scanning timed out. Try fewer photos, or smaller / clearer photos.');
+        setError('Scanning timed out. Please try again — if it keeps failing, try uploading 3–5 photos at a time.');
       } else {
         setError('Network error. Please try again.');
       }

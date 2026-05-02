@@ -103,6 +103,108 @@ Other rules:
 - Do NOT merge variants into separate items — one product = one entry with variants array`;
 
 /**
+ * Sends up to 10 menu images directly to GPT-4o in a single API call and
+ * returns structured menu items. This is the fast path — one round trip
+ * instead of N OCR calls + 1 extraction call, and more accurate because
+ * GPT-4o sees visual cues (coloured dots, section header styling, price layout).
+ */
+export async function extractMenuItemsFromImages(
+  images: Array<{ buffer: Buffer; mime: string }>
+): Promise<MenuItem[]> {
+  if (images.length === 0) return [];
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const imageContent = images.map(({ buffer, mime }) => ({
+      type: 'image_url' as const,
+      image_url: {
+        url: `data:${mime};base64,${buffer.toString('base64')}`,
+        detail: 'high' as const,
+      },
+    }));
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: [
+            ...imageContent,
+            {
+              type: 'text',
+              text: 'These are menu photos. Extract every menu item from all images combined. Return the JSON object as described.',
+            },
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+      max_tokens: 16000,
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? '{}';
+    console.log('[menuExtractor] direct-image response:', raw.slice(0, 500));
+    return parseItemsFromRaw(raw);
+  } catch (err) {
+    console.error('[menuExtractor] extractMenuItemsFromImages failed:', err);
+    return [];
+  }
+}
+
+function parseItemsFromRaw(raw: string): MenuItem[] {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+  let items: unknown[] = [];
+  if (Array.isArray(parsed.items)) {
+    items = parsed.items as unknown[];
+  } else {
+    const arrayKey = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+    if (arrayKey) items = parsed[arrayKey] as unknown[];
+  }
+  console.log(`[menuExtractor] found ${items.length} raw items`);
+
+  return items
+    .filter((i): i is Record<string, unknown> => typeof i === 'object' && i !== null)
+    .filter(i => typeof i.name === 'string' && (i.name as string).trim().length > 0)
+    .map(i => {
+      const item_type = (['single', 'variant', 'combo'] as const).includes(
+        i.item_type as 'single' | 'variant' | 'combo'
+      )
+        ? (i.item_type as MenuItem['item_type'])
+        : 'single';
+
+      const rawVariants = Array.isArray(i.variants) ? (i.variants as unknown[]) : [];
+      const variants: MenuItemVariant[] = rawVariants
+        .filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null)
+        .filter(v => typeof v.size === 'string' && (v.size as string).trim().length > 0)
+        .map(v => ({
+          size: String(v.size).trim(),
+          price: typeof v.price === 'number' ? Math.max(0, v.price) : 0,
+        }));
+
+      let price = typeof i.price === 'number' ? Math.max(0, i.price) : 0;
+      if (item_type === 'variant' && variants.length > 0 && price === 0) {
+        price = Math.min(...variants.map(v => v.price));
+      }
+
+      return {
+        name: String(i.name).trim(),
+        price,
+        description: String(i.description ?? '').trim(),
+        category: String(i.category ?? '').trim(),
+        item_type,
+        food_type: (['veg', 'non_veg', 'unknown'] as const).includes(
+          i.food_type as 'veg' | 'non_veg' | 'unknown'
+        )
+          ? (i.food_type as MenuItem['food_type'])
+          : 'unknown',
+        variants: item_type === 'variant' && variants.length > 0 ? variants : undefined,
+      };
+    });
+}
+
+/**
  * Parses aggregated OCR text into structured menu items.
  * Returns an empty array on failure.
  */
@@ -118,63 +220,12 @@ export async function extractMenuItems(ocrText: string): Promise<MenuItem[]> {
         { role: 'user', content: `Menu OCR text:\n\n${ocrText}` },
       ],
       response_format: { type: 'json_object' },
-      max_tokens: 10000,
+      max_tokens: 16000,
     });
 
     const raw = completion.choices[0]?.message?.content ?? '{}';
     console.log('[menuExtractor] raw response:', raw.slice(0, 500));
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-
-    // Always expect { "items": [...] } — also check first array-valued key as fallback
-    let items: unknown[] = [];
-    if (Array.isArray(parsed.items)) {
-      items = parsed.items as unknown[];
-    } else {
-      const arrayKey = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
-      if (arrayKey) items = parsed[arrayKey] as unknown[];
-    }
-    console.log(`[menuExtractor] found ${items.length} raw items`);
-
-    return items
-      .filter((i): i is Record<string, unknown> => typeof i === 'object' && i !== null)
-      .filter(i => typeof i.name === 'string' && (i.name as string).trim().length > 0)
-      .map(i => {
-        const item_type = (['single', 'variant', 'combo'] as const).includes(
-          i.item_type as 'single' | 'variant' | 'combo'
-        )
-          ? (i.item_type as MenuItem['item_type'])
-          : 'single';
-
-        // Parse variants array — only meaningful for variant items
-        const rawVariants = Array.isArray(i.variants) ? (i.variants as unknown[]) : [];
-        const variants: MenuItemVariant[] = rawVariants
-          .filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null)
-          .filter(v => typeof v.size === 'string' && (v.size as string).trim().length > 0)
-          .map(v => ({
-            size: String(v.size).trim(),
-            price: typeof v.price === 'number' ? Math.max(0, v.price) : 0,
-          }));
-
-        // For variant items, derive price from the lowest variant price if AI didn't set it
-        let price = typeof i.price === 'number' ? Math.max(0, i.price) : 0;
-        if (item_type === 'variant' && variants.length > 0 && price === 0) {
-          price = Math.min(...variants.map(v => v.price));
-        }
-
-        return {
-          name: String(i.name).trim(),
-          price,
-          description: String(i.description ?? '').trim(),
-          category: String(i.category ?? '').trim(),
-          item_type,
-          food_type: (['veg', 'non_veg', 'unknown'] as const).includes(
-            i.food_type as 'veg' | 'non_veg' | 'unknown'
-          )
-            ? (i.food_type as MenuItem['food_type'])
-            : 'unknown',
-          variants: item_type === 'variant' && variants.length > 0 ? variants : undefined,
-        };
-      });
+    return parseItemsFromRaw(raw);
   } catch (err) {
     console.error('[menuExtractor] Failed to extract items:', err);
     return [];

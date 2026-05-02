@@ -1,19 +1,21 @@
 // src/app/api/onboarding/extract/route.ts
-// Step 1 of split onboarding: OCR + GPT extraction only — no DB writes.
-// Returns the extracted item list so the wizard can collect owner ratings.
-// The final DB writes happen in /api/onboarding/complete after the wizard.
+// Step 1 of split onboarding: extract menu items from photos — no DB writes.
+//
+// Fast path: all images → single GPT-4o call (1 round trip, ~15-25s for 10 photos)
+// Fallback:  parallel OCR per image → aggregated text → GPT-4o extraction
+//            (used only if the direct image call fails)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { imageToMenuText } from '@/lib/sarvamVision';
-import { extractMenuItems } from '@/lib/menuExtractor';
+import { extractMenuItems, extractMenuItemsFromImages } from '@/lib/menuExtractor';
 import { validateImageFile, MAX_IMAGE_BYTES } from '@/lib/fileValidation';
 import { rateLimit } from '@/lib/rateLimit';
 
-// OCR (Sarvam) + GPT-4o extraction on up to 10 photos commonly takes 20–40s.
-// Vercel's default timeout for serverless on hobby is 10s — that was the
-// "menu upload won't go to next" symptom. Bump to 60s.
-export const maxDuration = 60;
+// GPT-4o with 10 high-detail images takes ~20-40s in practice.
+// Bump maxDuration to 120s so we never hit the ceiling.
+// (Vercel Pro allows up to 300s; hobby allows 60s — upgrade if still timing out on hobby)
+export const maxDuration = 120;
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
@@ -59,8 +61,6 @@ export async function POST(request: NextRequest) {
       validated.push({ file: entry, mime: result.mime });
     }
 
-    // If the user uploaded photos but ALL were rejected, surface that clearly
-    // instead of letting them advance into an empty wizard.
     if (photoEntries.length > 0 && validated.length === 0) {
       return NextResponse.json(
         {
@@ -71,26 +71,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── OCR (parallel) ───────────────────────────────────────────────────────
-    const ocrResults = await Promise.all(
-      validated.map(async ({ file, mime }) => {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        try {
-          return await imageToMenuText(buffer, mime);
-        } catch (err) {
-          console.warn('[onboarding/extract] OCR failed for one photo:', err);
-          return '';
-        }
-      })
+    // ── Convert to buffers ───────────────────────────────────────────────────
+    const imageBuffers = await Promise.all(
+      validated.map(async ({ file, mime }) => ({
+        buffer: Buffer.from(await file.arrayBuffer()),
+        mime,
+      }))
     );
-    const aggregatedOcr = ocrResults.filter(t => t.trim()).join('\n\n---\n\n');
 
-    // ── Extract structured items ──────────────────────────────────────────────
-    const menuItems = aggregatedOcr ? await extractMenuItems(aggregatedOcr) : [];
-    console.log(`[onboarding/extract] Extracted ${menuItems.length} items for user ${userId.slice(0, 8)}…`);
+    // ── Fast path: all images → single GPT-4o call ───────────────────────────
+    let menuItems = await extractMenuItemsFromImages(imageBuffers);
+    console.log(`[onboarding/extract] fast-path extracted ${menuItems.length} items`);
 
-    // If photos were uploaded but no items came back, tell the user — the
-    // wizard cannot meaningfully proceed with zero items.
+    // ── Fallback: OCR each image → aggregate → GPT-4o ────────────────────────
+    if (menuItems.length === 0 && imageBuffers.length > 0) {
+      console.warn('[onboarding/extract] fast-path returned 0 items — falling back to OCR pipeline');
+      const ocrResults = await Promise.all(
+        imageBuffers.map(async ({ buffer, mime }) => {
+          try { return await imageToMenuText(buffer, mime); }
+          catch { return ''; }
+        })
+      );
+      const aggregatedOcr = ocrResults.filter(t => t.trim()).join('\n\n---\n\n');
+      if (aggregatedOcr) {
+        menuItems = await extractMenuItems(aggregatedOcr);
+        console.log(`[onboarding/extract] fallback extracted ${menuItems.length} items`);
+      }
+    }
+
     if (validated.length > 0 && menuItems.length === 0) {
       return NextResponse.json(
         {
