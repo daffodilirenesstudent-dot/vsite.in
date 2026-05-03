@@ -58,7 +58,7 @@ export default function FooterCTA() {
                             India&apos;s fastest digital menu software. Built for restaurants in Tamil Nadu.
                         </p>
                         <div className="mt-6 flex gap-4">
-                            <a href="https://www.instagram.com/vsitein" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-sm">Instagram</a>
+                            <a href="https://www.instagram.com/vsite.in?igsh=MXE5dGltMmtvbmJxNw==" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-sm">Instagram</a>
                             <a href="https://www.linkedin.com/company/vsitein" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-sm">LinkedIn</a>
                             <a href="https://wa.me/919360706659" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-sm">WhatsApp</a>
                         </div>
