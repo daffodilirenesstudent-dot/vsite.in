@@ -10,8 +10,8 @@ export const maxDuration = 15;
 export const runtime = 'nodejs';
 
 // Keep amounts in sync with the frontend (page.tsx constants).
-const SETUP_FEE_INR = 5;
-const MONTHLY_FEE_INR = 5;
+const SETUP_FEE_INR = 1999;
+const MONTHLY_FEE_INR = 399;
 
 export async function POST(request: NextRequest) {
     const t0 = Date.now();

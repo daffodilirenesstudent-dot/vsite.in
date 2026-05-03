@@ -6,8 +6,8 @@ import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { firebaseAuth } from '@/lib/firebase';
 
-const SETUP_FEE = 5;
-const QR_MENU_MONTHLY = 5;
+const SETUP_FEE = 1999;
+const QR_MENU_MONTHLY = 399;
 const QR_ORDERING_MONTHLY = 799;
 
 type ModalType = 'payment' | 'coming_soon' | null;
