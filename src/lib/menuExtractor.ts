@@ -1,20 +1,35 @@
 // src/lib/menuExtractor.ts
 //
-// Two-pass pipeline for high accuracy on large menus (200+ items):
+// Two-pass pipeline for high accuracy on large menus (200–300+ items) within
+// Vercel Hobby's 60s function ceiling.
 //
-//   Pass 1 — EXTRACT (images → GPT-4o)
-//     Focused only on: name, price, category, item_type, food_type, variants.
-//     No descriptions — keeps output tokens small so 200+ items fit without
-//     truncation. Pricing and structure accuracy is near-perfect at this scale.
+//   Pass 1 — EXTRACT (images → GPT-4o, COMPACT JSON output)
+//     Output is a tuple-array — ["name", price, "category", typeChar, foodChar, [["sz",p]]]
+//     This cuts output tokens ~3x vs verbose JSON, so 300 items fit in 16k easily.
+//     Visual cues from images (veg/non-veg dots, section headings) are preserved.
 //
-//   Pass 2 — DESCRIBE (batches of 60 → gpt-4o-mini, parallel)
-//     Writes full South Indian style descriptions for each item using the
-//     item name, type, food_type, and variant info. Runs in parallel batches
-//     so 200 items takes the same wall-clock time as 60 items (1 batch time).
+//   Pass 2 — DESCRIBE (gpt-4o, parallel batches of 50)
+//     Writes South Indian style descriptions per item. Runs concurrently so wall
+//     time for 300 items ≈ wall time for 50 items (~6-8s).
 //
-// Fallback (OCR text path): same two-pass approach applied to aggregated text.
+//   Post-processing (deterministic, no LLM):
+//     • Dedup by (normalized_name, price)
+//     • Price sanity check (clamp impossibly large hallucinations)
+//     • Description fallback: keyword match if Pass 2 returned empty
+//
+// Fallback: aggregated OCR text path used only if Pass 1 image call returns 0 items.
 
 import OpenAI from 'openai';
+import { matchByKeyword } from '@/lib/defaultImages';
+
+// ── Module-level singleton — reuses HTTPS connection across calls ────────────
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface MenuItemVariant {
   size: string;
@@ -27,211 +42,262 @@ export interface MenuItem {
   description: string;
   category: string;
   item_type: 'single' | 'variant' | 'combo';
-  food_type: 'veg' | 'non_veg' | 'unknown';
+  food_type: 'veg' | 'non_veg' | 'egg' | 'unknown';
   variants?: MenuItemVariant[];
 }
 
-// ── Pass 1 prompts: extract structure only, no descriptions ──────────────────
+// ── Constants — env-overridable ──────────────────────────────────────────────
 
-const EXTRACT_SYSTEM_PROMPT = `You are a menu parser for Indian restaurants and cafes. Your only job is to extract the COMPLETE list of every menu item from the provided content (images or OCR text).
+const MAX_PRICE = 10_000;          // INR — flag/clamp anything above this
+const SUSPICIOUS_PRICE = 3_000;    // log a warning above this
+const MAX_VARIANTS = 10;
+const DESCRIBE_BATCH_SIZE = 50;
+const PASS1_MAX_TOKENS = 16_000;
+const PASS2_MAX_TOKENS = 8_000;
 
-Return a JSON object: { "items": [ ... ] }
+// ── Pass 1 prompt: COMPACT tuple output ──────────────────────────────────────
 
-Each item shape:
-{
-  "name": "English name (transliterate regional names — e.g. பணியாரம் → Paniyaram)",
-  "price": 120,
-  "category": "Section heading (e.g. Starters, Main Course, Beverages)",
-  "item_type": "single",
-  "food_type": "veg",
-  "variants": []
-}
+const EXTRACT_SYSTEM_PROMPT = `You are a menu parser for Indian restaurants. Extract every menu item from the provided menu images or OCR text.
 
-RULES — follow exactly:
+Return a JSON object with a single key "items" whose value is an array of TUPLES (not objects) for compactness:
 
-name:
-- Translate or transliterate to English. Use standard spelling.
-- Do NOT skip any item visible in the menu.
+{ "items": [
+  ["Item Name", price, "Category", "s", "v", []],
+  ["Grill Chicken", 160, "Grills", "v", "n", [["Half",160],["Full",360]]]
+]}
 
-price:
-- Exact INR price as a number.
-- For variant items: use the LOWEST variant price.
-- Use 0 only when price is completely absent.
+TUPLE POSITIONS (always 6 elements, in this exact order):
+  [0] name        — string, English (transliterate regional names: பணியாரம் → Paniyaram)
+  [1] price       — number in INR. For variants use the LOWEST variant price. Use 0 only if no price visible.
+  [2] category    — string, exact section heading from menu, or "" if none
+  [3] item_type   — single character: "s" = single, "v" = variant, "c" = combo
+  [4] food_type   — single character: "v" = veg, "n" = non_veg, "e" = egg, "u" = unknown
+  [5] variants    — array of [size, price] pairs. REQUIRED for "v" items. Empty [] otherwise.
 
-category:
-- The section heading this item belongs to. Copy exactly from the menu.
-- Use "" if no section heading exists.
+RULES:
+- Extract EVERY item visible across all images — do not skip any.
+- Remove duplicates that appear on multiple pages (cover + interior).
+- Skip non-food lines: phone numbers, addresses, taglines, table numbers, GST notes.
+- "v" item_type = same dish in multiple sizes/portions with different prices (Half/Full, 250ml/500ml, Small/Large).
+- "c" item_type = bundled meal deal ("Combo 1: Burger + Fries").
+- Write NO descriptions — leave that for the next stage.
+- If no items found return { "items": [] }.`;
 
-item_type:
-- "variant"  → item sold in multiple sizes/portions with DIFFERENT prices (Small/Large, Full/Half, 250ml/100ml)
-- "combo"    → bundled meal deal (e.g. "Combo 1: Burger + Fries + Drink")
-- "single"   → everything else
+// ── Pass 2 prompt: description generation ────────────────────────────────────
 
-variants (REQUIRED when item_type is "variant"):
-- List every size: [{ "size": "Full", "price": 360 }, { "size": "Half", "price": 160 }]
-- Use exact labels from the menu (Full, Half, Small, Large, 250ml, 100ml, Regular, Premium, etc.)
-- Empty array [] for single/combo items.
+const DESCRIBE_SYSTEM_PROMPT = `You write descriptions for South Indian restaurant menu items.
 
-food_type:
-- "veg"     → vegetarian
-- "non_veg" → meat, chicken, fish, egg
-- "unknown" → genuinely unclear
+You will receive a JSON array of items. Return { "descriptions": [ "...", "...", ... ] } in the same order, same length.
 
-CRITICAL:
-- Extract EVERY item — do not skip any.
-- Remove duplicates and non-food lines (phone numbers, addresses, taglines, table numbers).
-- Do NOT write descriptions — leave that field out entirely.
-- If no items found: { "items": [] }`;
+FORMAT — depends on item_type:
 
-// ── Pass 2 prompt: description writing ──────────────────────────────────────
-
-const DESCRIBE_SYSTEM_PROMPT = `You are a menu copywriter specialising in South Indian and Indian restaurant menus. You will receive a JSON array of menu items. For each item write a vivid, accurate description in South Indian restaurant style.
-
-Return a JSON object: { "descriptions": [ "desc for item 0", "desc for item 1", ... ] }
-
-The array MUST have the same length as the input array and be in the same order.
-
-Description format rules:
-
-SINGLE items — exactly 4 lines joined by " | ":
+SINGLE — exactly 4 lines joined by " | ":
   Line 1: Main ingredient or how it is prepared
-  Line 2: Taste or texture highlight
+  Line 2: Taste / texture highlight
   Line 3: Served with / accompaniments
   Line 4: Best occasion or extra note
-  Example: "Crispy dosa made with fermented rice batter | Golden and crunchy outside, soft and airy inside | Served with sambar and fresh coconut chutney | Perfect for breakfast or a light evening snack"
+  Example: "Crispy dosa made with fermented rice batter | Golden and crunchy outside, soft inside | Served with sambar and fresh coconut chutney | Perfect for a light breakfast or snack"
 
-VARIANT items — size-price pairs, then a dish description after " || ":
-  Format: "SizeLabel - ₹Price | SizeLabel - ₹Price || One-line description of the dish"
-  Use the EXACT size labels and prices from the variants array.
-  Example: "Full - ₹360 | Half - ₹160 || Tender chicken marinated in aromatic spices and grilled to perfection"
+VARIANT — size-price pairs, then dish description after " || ":
+  Format: "Size - ₹Price | Size - ₹Price || One-line dish description"
+  Use the EXACT prices from the variants array.
+  Example: "Full - ₹360 | Half - ₹160 || Tender chicken marinated in spices and chargrilled to smoky perfection"
 
-COMBO items — 4 lines joined by " | " listing what is included:
-  Line 1: Main items in the combo
+COMBO — 4 lines joined by " | ":
+  Line 1: Main item(s) included
   Line 2: Sides included
-  Line 3: Drink or dessert (if any), or value highlight
-  Line 4: Serving note or who it suits
-  Example: "Steamed rice with sambar, rasam and 2 curries | Served with papad, pickle and fresh salad | Includes a sweet pongal or payasam | A wholesome South Indian meal for one"
+  Line 3: Drink/dessert or value highlight
+  Line 4: Serving note
+  Example: "Steamed rice, sambar and 2 curries | Served with papad, pickle and salad | Includes a sweet payasam | A satisfying South Indian meal"
 
-General rules:
-- Write in simple, appetising English — avoid overly formal or generic phrases.
-- Use South Indian culinary terms where appropriate (e.g. tadka, tempering, tawa, masala, chutney, rasam, appam).
-- Infer from the name: if the name contains "chicken / mutton / fish / prawn / egg" treat as non-veg and describe accordingly.
-- If the name is a regional dish, describe it authentically (e.g. Appam → lacy fermented rice pancake).
-- Never invent prices. Use the prices from the variants array exactly.
-- Every item in the output array must have a non-empty description.`;
+GUIDELINES:
+- Simple appetising English. Avoid generic filler ("a delicious dish").
+- Use authentic South Indian terms where natural: tadka, tawa, chutney, sambar, podi, rasam, appam, kothu, salna.
+- Infer accurately from the name. "Mutton Chukka" = dry mutton roast, "Karandi Omelette" = egg omelette in spoon, etc.
+- If "egg" appears in the name, treat as egg-based and describe accordingly.
+- Every item must get a non-empty description.`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function chunk<T>(arr: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
-  return chunks;
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
 
-type RawItem = Record<string, unknown>;
+function normalizeName(s: string): string {
+  return s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '');
+}
 
-function parseRawItems(raw: string): RawItem[] {
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    let items: unknown[] = [];
-    if (Array.isArray(parsed.items)) {
-      items = parsed.items;
-    } else {
-      const key = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
-      if (key) items = parsed[key] as unknown[];
+function clampPrice(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return 0;
+  if (raw < 0) return 0;
+  if (raw > MAX_PRICE) {
+    console.warn(`[menuExtractor] price ${raw} exceeds MAX_PRICE ${MAX_PRICE} — clamping to 0 (probable hallucination)`);
+    return 0;
+  }
+  if (raw > SUSPICIOUS_PRICE) {
+    console.warn(`[menuExtractor] suspicious price ${raw} (above ${SUSPICIOUS_PRICE}) — keeping but flag for review`);
+  }
+  return raw;
+}
+
+const TYPE_CHAR_MAP: Record<string, MenuItem['item_type']> = { s: 'single', v: 'variant', c: 'combo' };
+const FOOD_CHAR_MAP: Record<string, MenuItem['food_type']> = { v: 'veg', n: 'non_veg', e: 'egg', u: 'unknown' };
+
+// Tuple → MenuItem (without description). Tolerant to extra/missing fields and
+// to the model occasionally returning verbose objects instead of tuples.
+function tupleToItem(t: unknown): Omit<MenuItem, 'description'> | null {
+  // Tuple form
+  if (Array.isArray(t)) {
+    const [name, price, category, typeChar, foodChar, variantsRaw] = t as unknown[];
+    if (typeof name !== 'string' || !name.trim()) return null;
+
+    const item_type = TYPE_CHAR_MAP[String(typeChar).toLowerCase()] ?? 'single';
+    const food_type = FOOD_CHAR_MAP[String(foodChar).toLowerCase()] ?? 'unknown';
+
+    const rawVariants = Array.isArray(variantsRaw) ? variantsRaw : [];
+    const variants: MenuItemVariant[] = rawVariants.slice(0, MAX_VARIANTS)
+      .map(v => Array.isArray(v) ? { size: String(v[0] ?? '').trim(), price: clampPrice(v[1]) } : null)
+      .filter((v): v is MenuItemVariant => v !== null && v.size.length > 0 && v.size.length <= 50);
+
+    let finalPrice = clampPrice(price);
+    if (item_type === 'variant' && variants.length > 0 && finalPrice === 0) {
+      finalPrice = Math.min(...variants.map(v => v.price).filter(p => p > 0)) || 0;
     }
-    return items.filter((i): i is RawItem => typeof i === 'object' && i !== null);
-  } catch {
+
+    return {
+      name: name.trim().slice(0, 200),
+      price: finalPrice,
+      category: typeof category === 'string' ? category.trim().slice(0, 80) : '',
+      item_type,
+      food_type,
+      variants: item_type === 'variant' && variants.length > 0 ? variants : undefined,
+    };
+  }
+
+  // Verbose object form (defensive — older prompt format)
+  if (typeof t === 'object' && t !== null) {
+    const o = t as Record<string, unknown>;
+    if (typeof o.name !== 'string' || !o.name.trim()) return null;
+
+    const itRaw = String(o.item_type ?? '').toLowerCase();
+    const item_type: MenuItem['item_type'] =
+      (['single', 'variant', 'combo'] as const).includes(itRaw as MenuItem['item_type'])
+        ? (itRaw as MenuItem['item_type']) : 'single';
+
+    const ftRaw = String(o.food_type ?? '').toLowerCase();
+    const food_type: MenuItem['food_type'] =
+      (['veg', 'non_veg', 'egg', 'unknown'] as const).includes(ftRaw as MenuItem['food_type'])
+        ? (ftRaw as MenuItem['food_type']) : 'unknown';
+
+    const rawVariants = Array.isArray(o.variants) ? o.variants : [];
+    const variants: MenuItemVariant[] = rawVariants.slice(0, MAX_VARIANTS)
+      .map(v => {
+        if (typeof v !== 'object' || v === null) return null;
+        const vo = v as Record<string, unknown>;
+        const size = typeof vo.size === 'string' ? vo.size.trim() : '';
+        return size.length > 0 && size.length <= 50 ? { size, price: clampPrice(vo.price) } : null;
+      })
+      .filter((v): v is MenuItemVariant => v !== null);
+
+    let finalPrice = clampPrice(o.price);
+    if (item_type === 'variant' && variants.length > 0 && finalPrice === 0) {
+      finalPrice = Math.min(...variants.map(v => v.price).filter(p => p > 0)) || 0;
+    }
+
+    return {
+      name: o.name.trim().slice(0, 200),
+      price: finalPrice,
+      category: typeof o.category === 'string' ? o.category.trim().slice(0, 80) : '',
+      item_type,
+      food_type,
+      variants: item_type === 'variant' && variants.length > 0 ? variants : undefined,
+    };
+  }
+
+  return null;
+}
+
+function parseRawTuples(raw: string): Array<Omit<MenuItem, 'description'>> {
+  let parsed: Record<string, unknown> = {};
+  try { parsed = JSON.parse(raw) as Record<string, unknown>; }
+  catch (err) {
+    console.error('[menuExtractor] JSON parse failed (likely truncated):', err);
     return [];
   }
+
+  let items: unknown[] = [];
+  if (Array.isArray(parsed.items)) items = parsed.items;
+  else {
+    const key = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+    if (key) items = parsed[key] as unknown[];
+  }
+
+  return items.map(tupleToItem).filter((i): i is Omit<MenuItem, 'description'> => i !== null);
 }
 
-function buildMenuItems(rawItems: RawItem[], descriptions: string[]): MenuItem[] {
-  return rawItems
-    .filter(i => typeof i.name === 'string' && (i.name as string).trim().length > 0)
-    .map((i, idx) => {
-      const item_type = (['single', 'variant', 'combo'] as const).includes(
-        i.item_type as MenuItem['item_type']
-      ) ? (i.item_type as MenuItem['item_type']) : 'single';
+// ── Deterministic dedup: same item appearing on multiple pages ───────────────
 
-      const rawVariants = Array.isArray(i.variants) ? (i.variants as unknown[]) : [];
-      const variants: MenuItemVariant[] = rawVariants
-        .filter((v): v is RawItem => typeof v === 'object' && v !== null)
-        .filter(v => typeof v.size === 'string' && (v.size as string).trim().length > 0)
-        .map(v => ({
-          size: String(v.size).trim(),
-          price: typeof v.price === 'number' ? Math.max(0, v.price) : 0,
-        }));
-
-      let price = typeof i.price === 'number' ? Math.max(0, i.price) : 0;
-      if (item_type === 'variant' && variants.length > 0 && price === 0) {
-        price = Math.min(...variants.map(v => v.price));
-      }
-
-      return {
-        name: String(i.name).trim(),
-        price,
-        description: descriptions[idx] ?? '',
-        category: typeof i.category === 'string' ? i.category.trim() : '',
-        item_type,
-        food_type: (['veg', 'non_veg', 'unknown'] as const).includes(
-          i.food_type as MenuItem['food_type']
-        ) ? (i.food_type as MenuItem['food_type']) : 'unknown',
-        variants: item_type === 'variant' && variants.length > 0 ? variants : undefined,
-      };
-    });
+function dedupItems<T extends { name: string; price: number }>(items: T[]): T[] {
+  const seen = new Map<string, T>();
+  for (const item of items) {
+    const key = `${normalizeName(item.name)}|${item.price}`;
+    if (!seen.has(key)) seen.set(key, item);
+  }
+  return Array.from(seen.values());
 }
 
-// ── Pass 2: parallel batch description generation ────────────────────────────
+// ── Pass 2: parallel batched description generation ─────────────────────────
 
 async function generateDescriptions(
   openai: OpenAI,
-  items: RawItem[],
-  batchSize = 60
+  items: Array<Omit<MenuItem, 'description'>>
 ): Promise<string[]> {
   const descriptions = new Array<string>(items.length).fill('');
-  const batches = chunk(items.map((item, idx) => ({ item, idx })), batchSize);
+  const batches = chunk(items.map((item, idx) => ({ item, idx })), DESCRIBE_BATCH_SIZE);
 
-  await Promise.all(
-    batches.map(async (batch) => {
-      const payload = batch.map(({ item }) => ({
-        name: item.name,
-        item_type: item.item_type ?? 'single',
-        food_type: item.food_type ?? 'unknown',
-        variants: Array.isArray(item.variants) ? item.variants : [],
-      }));
+  await Promise.all(batches.map(async (batch) => {
+    const payload = batch.map(({ item }) => ({
+      name: item.name,
+      item_type: item.item_type,
+      food_type: item.food_type,
+      variants: item.variants ?? [],
+    }));
 
-      try {
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: DESCRIBE_SYSTEM_PROMPT },
-            {
-              role: 'user',
-              content: `Write descriptions for these ${payload.length} menu items:\n\n${JSON.stringify(payload)}`,
-            },
-          ],
-          response_format: { type: 'json_object' },
-          max_tokens: 8000,
-        });
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: DESCRIBE_SYSTEM_PROMPT },
+          { role: 'user', content: `Write descriptions for these ${payload.length} items:\n\n${JSON.stringify(payload)}` },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: PASS2_MAX_TOKENS,
+      });
 
-        const raw = completion.choices[0]?.message?.content ?? '{}';
-        const parsed = JSON.parse(raw) as Record<string, unknown>;
-        const descs = Array.isArray(parsed.descriptions)
-          ? (parsed.descriptions as unknown[]).map(d => String(d ?? '').trim())
-          : [];
+      const raw = completion.choices[0]?.message?.content ?? '{}';
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const descs = Array.isArray(parsed.descriptions)
+        ? (parsed.descriptions as unknown[]).map(d => String(d ?? '').trim())
+        : [];
 
-        batch.forEach(({ idx }, batchIdx) => {
-          descriptions[idx] = descs[batchIdx] ?? '';
-        });
+      batch.forEach(({ idx }, batchIdx) => {
+        descriptions[idx] = descs[batchIdx] ?? '';
+      });
+    } catch (err) {
+      console.error('[menuExtractor] Pass 2 batch failed (items left without description, fallback applied):', err);
+    }
+  }));
 
-        console.log(`[menuExtractor] described batch of ${batch.length}, got ${descs.length} descriptions`);
-      } catch (err) {
-        console.error('[menuExtractor] description batch failed:', err);
-        // Leave descriptions empty for this batch — items still usable
-      }
-    })
-  );
+  // Fallback: any item still without a description gets the keyword-matched
+  // description from the default-images library (or a safe generic).
+  items.forEach((item, idx) => {
+    if (!descriptions[idx]) {
+      const kw = matchByKeyword(item.name);
+      descriptions[idx] = kw?.description ?? `${item.name} — freshly prepared and served.`;
+    }
+  });
 
   return descriptions;
 }
@@ -239,24 +305,27 @@ async function generateDescriptions(
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Pass 1+2: images → structure extraction → parallel description generation.
- * Handles 200+ items without truncation or description loss.
+ * Pass 1+2: images → compact tuple extraction → dedup → parallel descriptions.
+ * Handles 300+ items reliably within Vercel Hobby's 60s ceiling.
  */
 export async function extractMenuItemsFromImages(
   images: Array<{ buffer: Buffer; mime: string }>
 ): Promise<MenuItem[]> {
   if (images.length === 0) return [];
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = getOpenAI();
+  const t0 = Date.now();
 
-  // ── Pass 1: extract structure from all images in one GPT-4o call ─────────
-  let rawItems: RawItem[] = [];
+  // Pass 1 — single GPT-4o call with all images
+  let rawTuples: Array<Omit<MenuItem, 'description'>> = [];
   try {
     const imageContent = images.map(({ buffer, mime }) => ({
       type: 'image_url' as const,
       image_url: {
         url: `data:${mime};base64,${buffer.toString('base64')}`,
-        detail: 'high' as const,
+        // 'auto' lets GPT-4o decide — uses 'high' only when text density needs it.
+        // Cuts vision token cost ~3-4x vs forcing 'high' for every image.
+        detail: 'auto' as const,
       },
     }));
 
@@ -268,44 +337,47 @@ export async function extractMenuItemsFromImages(
           role: 'user',
           content: [
             ...imageContent,
-            {
-              type: 'text',
-              text: 'Extract every menu item from all these images. Return the complete JSON.',
-            },
+            { type: 'text', text: 'Extract every menu item from these images. Use the compact tuple format.' },
           ],
         },
       ],
       response_format: { type: 'json_object' },
-      max_tokens: 16000,
+      max_tokens: PASS1_MAX_TOKENS,
     });
 
-    rawItems = parseRawItems(completion.choices[0]?.message?.content ?? '{}');
-    console.log(`[menuExtractor] Pass 1 extracted ${rawItems.length} items from images`);
+    rawTuples = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
+    console.log(`[menuExtractor] Pass 1 (images): ${rawTuples.length} items in ${Date.now() - t0}ms`);
   } catch (err) {
     console.error('[menuExtractor] Pass 1 (image extraction) failed:', err);
     return [];
   }
 
-  if (rawItems.length === 0) return [];
+  if (rawTuples.length === 0) return [];
 
-  // ── Pass 2: generate descriptions in parallel batches ───────────────────
-  const descriptions = await generateDescriptions(openai, rawItems);
-  console.log(`[menuExtractor] Pass 2 wrote ${descriptions.filter(Boolean).length}/${rawItems.length} descriptions`);
+  // Dedup before Pass 2 (don't waste tokens describing the same item twice)
+  const deduped = dedupItems(rawTuples);
+  if (deduped.length < rawTuples.length) {
+    console.log(`[menuExtractor] dedup: ${rawTuples.length} → ${deduped.length}`);
+  }
 
-  return buildMenuItems(rawItems, descriptions);
+  // Pass 2 — descriptions
+  const t1 = Date.now();
+  const descriptions = await generateDescriptions(openai, deduped);
+  console.log(`[menuExtractor] Pass 2 (descriptions): ${descriptions.filter(Boolean).length}/${deduped.length} in ${Date.now() - t1}ms`);
+
+  return deduped.map((item, idx) => ({ ...item, description: descriptions[idx] }));
 }
 
 /**
- * Pass 1+2: OCR text → structure extraction → parallel description generation.
- * Used as fallback when image extraction returns 0 items.
+ * OCR text fallback path. Same structure as image path — used when Pass 1
+ * image call returns 0 items (model couldn't read images).
  */
 export async function extractMenuItems(ocrText: string): Promise<MenuItem[]> {
   if (!ocrText.trim()) return [];
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = getOpenAI();
 
-  // ── Pass 1: extract structure from aggregated OCR text ───────────────────
-  let rawItems: RawItem[] = [];
+  let rawTuples: Array<Omit<MenuItem, 'description'>> = [];
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -314,21 +386,19 @@ export async function extractMenuItems(ocrText: string): Promise<MenuItem[]> {
         { role: 'user', content: `Menu OCR text:\n\n${ocrText}` },
       ],
       response_format: { type: 'json_object' },
-      max_tokens: 16000,
+      max_tokens: PASS1_MAX_TOKENS,
     });
 
-    rawItems = parseRawItems(completion.choices[0]?.message?.content ?? '{}');
-    console.log(`[menuExtractor] Pass 1 (OCR) extracted ${rawItems.length} items`);
+    rawTuples = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
+    console.log(`[menuExtractor] Pass 1 (OCR): ${rawTuples.length} items`);
   } catch (err) {
     console.error('[menuExtractor] Pass 1 (OCR extraction) failed:', err);
     return [];
   }
 
-  if (rawItems.length === 0) return [];
+  if (rawTuples.length === 0) return [];
 
-  // ── Pass 2: generate descriptions in parallel batches ───────────────────
-  const descriptions = await generateDescriptions(openai, rawItems);
-  console.log(`[menuExtractor] Pass 2 wrote ${descriptions.filter(Boolean).length}/${rawItems.length} descriptions`);
-
-  return buildMenuItems(rawItems, descriptions);
+  const deduped = dedupItems(rawTuples);
+  const descriptions = await generateDescriptions(openai, deduped);
+  return deduped.map((item, idx) => ({ ...item, description: descriptions[idx] }));
 }

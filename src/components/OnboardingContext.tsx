@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
 // ── Extracted item shape from /api/onboarding/extract ────────────────────────
 
@@ -40,22 +40,62 @@ interface OnboardingContextValue extends OnboardingState {
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
+const STORAGE_KEY = 'vsite:onboarding:v1';
+const STORAGE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+const INITIAL_STATE: OnboardingState = { businessName: '', step: 'setup', items: [] };
+
 function makeWizardItems(items: ExtractedItem[]): WizardItem[] {
   return items.map(item => ({
     ...item,
     star_rating: 2,
     profit_tier: 2,
-    profit_chip: 1,   // chip index 1 = "₹20–30" → tier 2 default
+    profit_chip: 1,
     prep_complexity_tier: 2,
   }));
 }
 
+function loadFromStorage(): OnboardingState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { savedAt: number; state: OnboardingState };
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > STORAGE_TTL_MS) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return parsed.state;
+  } catch {
+    return null;
+  }
+}
+
+function saveToStorage(state: OnboardingState) {
+  if (typeof window === 'undefined') return;
+  try {
+    // Skip persisting the empty initial state — pollutes storage with noise.
+    if (!state.businessName && state.items.length === 0 && state.step === 'setup') {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), state }));
+  } catch {
+    // QuotaExceededError or storage disabled — silently ignore.
+  }
+}
+
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<OnboardingState>({
-    businessName: '',
-    step: 'setup',
-    items: [],
-  });
+  const [state, setState] = useState<OnboardingState>(INITIAL_STATE);
+
+  // Hydrate from localStorage on mount (client-only).
+  useEffect(() => {
+    const saved = loadFromStorage();
+    if (saved) setState(saved);
+  }, []);
+
+  // Persist on every meaningful change.
+  useEffect(() => { saveToStorage(state); }, [state]);
 
   const setBusinessName = useCallback((name: string) => {
     setState(prev => ({ ...prev, businessName: name }));
@@ -81,7 +121,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   );
 
   const resetOnboarding = useCallback(() => {
-    setState({ businessName: '', step: 'setup', items: [] });
+    setState(INITIAL_STATE);
+    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   return (

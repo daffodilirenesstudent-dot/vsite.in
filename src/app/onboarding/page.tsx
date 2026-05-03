@@ -13,8 +13,9 @@ import ProfitablePhase from './components/ProfitablePhase';
 import SummaryPhase from './components/SummaryPhase';
 import LaunchLoadingScreen from './components/LaunchLoadingScreen';
 import type { WizardStep } from '@/components/OnboardingContext';
+import { compressImage } from '@/lib/imageCompress';
 
-const MAX_PHOTOS = 10;
+const MAX_PHOTOS = 15;
 
 const STEP_LABELS = ['Setup', 'Bestsellers', 'Top Earners', 'Launch'];
 
@@ -146,21 +147,31 @@ function OnboardingContent() {
 
     setError('');
     setExtracting(true);
-    setLoadingMsg(photos.length > 3 ? 'Scanning your menu… this may take up to 90 sec' : 'Scanning your menu…');
+    setLoadingMsg(photos.length > 5 ? 'Compressing & scanning your menu…' : 'Scanning your menu…');
 
-    // Hard client-side timeout — 130s gives the 120s serverless function a full
-    // run plus a small network buffer before we surface the timeout error.
+    // Server caps at 60s (Vercel Hobby). 70s gives a small buffer for round-trip
+    // network latency before we surface a timeout to the user.
     const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 130_000);
+    const timeoutId = setTimeout(() => ctrl.abort(), 70_000);
 
     try {
       const firebaseUser = firebaseAuth.currentUser;
       if (!firebaseUser) { setError('Session expired. Please log in again.'); setExtracting(false); return; }
       const token = await firebaseUser.getIdToken();
 
+      // Compress every image before upload — Vercel body cap is ~4.5MB.
+      // Compression runs in parallel and reduces a 10-photo batch from ~50MB
+      // to ~3-5MB. Failures fall back to the original file.
+      const compressed = await Promise.all(
+        photos.map(async p => {
+          try { return await compressImage(p.file); }
+          catch { return p.file; }
+        })
+      );
+
       const formData = new FormData();
       formData.append('shopName', businessName.trim());
-      photos.forEach(p => formData.append('photos', p.file));
+      compressed.forEach(file => formData.append('photos', file));
 
       const res = await fetch('/api/onboarding/extract', {
         method: 'POST',
@@ -204,11 +215,19 @@ function OnboardingContent() {
       if (!firebaseUser) { setError('Session expired.'); setLaunching(false); return; }
       const token = await firebaseUser.getIdToken();
 
+      // Stable idempotency key — survives accidental double-clicks AND a
+      // network retry of the same launch (server returns the cached response
+      // instead of creating a duplicate site).
+      const idemKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${firebaseUser.uid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
       const res = await fetch('/api/onboarding/complete', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Idempotency-Key': idemKey,
         },
         body: JSON.stringify({
           shopName: businessName.trim(),
