@@ -54,7 +54,7 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
         .select('photos_used')
         .eq('user_id', userId)
         .eq('month', currentMonth())
-        .single();
+        .maybeSingle();
       if (!cancelled) setQuotaUsed((data as { photos_used: number } | null)?.photos_used ?? 0);
     })();
     return () => { cancelled = true; };
@@ -216,6 +216,18 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                 </div>
               ) : (
                 <>
+                  {/* Hidden file input — lives OUTSIDE the drop zone so its bubbled
+                      click events don't re-trigger the drop zone onClick handler */}
+                  <input
+                    ref={fileInputRef}
+                    id="bulk-photo-input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
+                  />
+
                   {/* Drop zone */}
                   <div
                     onDrop={handleDrop}
@@ -231,21 +243,14 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                     <p style={{ fontSize: 12, color: '#99A1AF', marginBottom: 12, textAlign: 'center' }}>
                       Up to {sessionMax} photo{sessionMax !== 1 ? 's' : ''} per scan · JPG, PNG or WebP
                     </p>
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                      style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}
+                    {/* Use a native label so the browser opens the file dialog without JS intermediary */}
+                    <label
+                      htmlFor="bulk-photo-input"
+                      onClick={e => e.stopPropagation()}
+                      style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer', display: 'inline-block' }}
                     >
                       Choose Files
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
-                    />
+                    </label>
                   </div>
 
                   {/* Selected file chips */}
