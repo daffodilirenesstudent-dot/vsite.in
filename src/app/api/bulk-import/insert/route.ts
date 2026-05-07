@@ -37,6 +37,65 @@ function getOpenAI(): OpenAI {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function clampTier(v: number): number { return Math.min(4, Math.max(1, Math.round(v))); }
 
+// Auto-infer menu engineering tiers for bulk import items (no user review step).
+// Mirrors what owners assign manually during onboarding review.
+//
+// star_rating  (1–4) = popularity proxy: how much customers tend to order this
+// profit_tier  (1–4) = profit margin proxy: high = simple/low-cost ingredients
+// prep_complexity_tier (1–4) = kitchen effort: 1 = instant, 4 = long prep
+function inferTiers(item: Record<string, unknown>): {
+  star_rating: number;
+  profit_tier: number;
+  prep_complexity_tier: number;
+} {
+  const name     = String(item.name ?? '').toLowerCase();
+  const category = String(item.category ?? '').toLowerCase();
+  const price    = Math.max(0, Number(item.price) || 0);
+  const itemType = String(item.item_type ?? 'single');
+
+  // ── star_rating: popularity signal from name keywords ───────────────────
+  let star_rating = 2;
+  if (/special|signature|chef.?s|house|famous|best|must.?try|award/.test(name)) {
+    star_rating = 4;
+  } else if (/biryani|biriyani|butter\s+chicken|paneer\s+butter|dal\s+makhani|masala\s+dosa|thali|meal/.test(name)) {
+    star_rating = 3; // universally popular dishes
+  } else if (itemType === 'combo') {
+    star_rating = 3; // combos drive high order counts
+  }
+
+  // ── profit_tier: margin signal from category + price bracket ────────────
+  // Beverages/simple items = high margin (4). Expensive dishes = lower margin (1-2).
+  let profit_tier = 2;
+  if (/tea|coffee|chai|filter\s+coffee|juice|lassi|butter\s+milk|buttermilk|soda|water|shake|milkshake|smoothie/.test(name) ||
+      /beverage|drink/.test(category)) {
+    profit_tier = 4; // very high margin — almost pure ingredient cost is nil
+  } else if (/bread|roti|chapati|parotta|paratha|idli|dosa|vada|puri|rice/.test(name)) {
+    profit_tier = 3; // staple items — low ingredient cost, high volume
+  } else if (price > 0 && price <= 100) {
+    profit_tier = 3;
+  } else if (price > 100 && price <= 250) {
+    profit_tier = 2;
+  } else if (price > 250) {
+    profit_tier = 1; // expensive = premium ingredients, lower margin
+  }
+
+  // ── prep_complexity_tier: kitchen effort ─────────────────────────────────
+  let prep_complexity_tier = 2;
+  if (/tea|coffee|juice|water|soda|lassi|buttermilk/.test(name)) {
+    prep_complexity_tier = 1; // pour and serve
+  } else if (itemType === 'combo' || /thali|meal\s+box|family\s+pack/.test(name)) {
+    prep_complexity_tier = 4; // assemble multiple dishes
+  } else if (/biryani|biriyani|dum|slow.?cook|tandoor|roast|fry\s+rice|noodle/.test(name)) {
+    prep_complexity_tier = 3; // long cook or marination
+  } else if (/gravy|curry|korma|masala|salna|kuzhambu|sambhar/.test(name)) {
+    prep_complexity_tier = 3;
+  } else if (itemType === 'variant') {
+    prep_complexity_tier = 2; // portioned dishes — standard complexity
+  }
+
+  return { star_rating, profit_tier, prep_complexity_tier };
+}
+
 function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -278,14 +337,25 @@ export async function POST(request: NextRequest) {
     // Image matching — one batched embedding call + bounded RPC concurrency
     const imageUrls = await findImagesForItems(items.map(i => String(i.name ?? '')));
 
-    // Menu engineering score + sort
-    const scored = items.map((item, originalIndex) => ({
+    // Auto-infer tiers for items that don't have owner-assigned values,
+    // then apply menu engineering score + sort (same formula as onboarding)
+    const itemsWithTiers: Record<string, unknown>[] = items.map(item => {
+      const inferred = inferTiers(item);
+      return {
+        ...item,
+        star_rating:          clampTier(Number(item.star_rating)          || inferred.star_rating),
+        profit_tier:          clampTier(Number(item.profit_tier)          || inferred.profit_tier),
+        prep_complexity_tier: clampTier(Number(item.prep_complexity_tier) || inferred.prep_complexity_tier),
+      };
+    });
+
+    const scored = itemsWithTiers.map((item, originalIndex) => ({
       item,
       imageUrl: imageUrls[originalIndex] ?? null,
       originalIndex,
       score: weightedScore({
-        starRating:  clampTier(Number(item.star_rating) || 2),
-        profitTier:  clampTier(Number(item.profit_tier) || 2),
+        starRating:  item.star_rating as number,
+        profitTier:  item.profit_tier as number,
         ordersToday: 0,
         likeCount:   0,
         offerActive: false,
@@ -308,9 +378,9 @@ export async function POST(request: NextRequest) {
     const rows = scored.map(({ item, imageUrl }, idx) => {
       const itemType   = String(item.item_type ?? 'single');
       const foodType   = String(item.food_type ?? 'unknown');
-      const starRating = clampTier(Number(item.star_rating) || 2);
-      const profitTier = clampTier(Number(item.profit_tier) || 2);
-      const prepTier   = clampTier(Number(item.prep_complexity_tier) || 2);
+      const starRating = item.star_rating as number;
+      const profitTier = item.profit_tier as number;
+      const prepTier   = item.prep_complexity_tier as number;
       const variants   = Array.isArray(item.variants) ? item.variants.slice(0, MAX_VARIANTS) : [];
       return {
         site_id:              siteId,
