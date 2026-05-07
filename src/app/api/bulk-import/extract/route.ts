@@ -1,6 +1,5 @@
 // src/app/api/bulk-import/extract/route.ts
-// Extracts menu items from product/dish photos — works with both printed menus
-// AND food photos (GPT-4o vision identifies dishes even without visible text).
+// Extracts menu items from photos — works with printed menus AND food/dish photos.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
@@ -13,7 +12,6 @@ export const runtime = 'nodejs';
 
 const MAX_PHOTOS = 3;
 const EXTRACT_LIMIT_PER_HR = 20;
-const PASS1_MAX_TOKENS = 8000;
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -21,38 +19,75 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
-// Works for both printed menus and food/product photos
-const EXTRACT_SYSTEM_PROMPT = `You are a menu extraction assistant for Indian restaurants.
+// Pass 1: structured extraction (menu text or visible dish names)
+const STRICT_PROMPT = `You are a food menu assistant for an Indian restaurant. Look at the photo(s) carefully.
 
-You will receive 1–3 photos. These may be:
-  A) A printed/digital menu (text-based: item names, prices, categories visible)
-  B) Photos of individual food dishes or products
+List every food item or beverage you can see OR read in the photo(s). This includes:
+- Text on a printed/digital menu (read all item names)
+- Food dishes visible in the photo (identify each dish by its common name)
+- Any product packaging with a food item name
 
-For BOTH types, extract every distinct food or beverage item visible.
+Return ONLY this JSON (no other text):
+{
+  "items": [
+    { "name": "Dosa", "price": 0, "category": "Breakfast", "item_type": "single", "food_type": "veg", "description": "" }
+  ]
+}
 
-Return ONLY valid JSON:
-{ "items": [
-  { "name": "Item Name", "price": 0, "category": "Category", "item_type": "single", "food_type": "veg", "description": "" }
-]}
+Rules:
+- name: English name. Transliterate if in another language.
+- price: number in INR (0 if not visible).
+- category: infer from context or use "".
+- item_type: "single" (default), "variant" (multiple sizes/prices), "combo" (bundled meal).
+- food_type: "veg", "non_veg", "egg", or "unknown". Infer from dish name if not marked.
+- description: always "".
+- If no food items are visible at all, return { "items": [] }.`;
 
-FIELD RULES:
-- name: string — the dish/item name in English. Transliterate regional names (தோசை → Dosa).
-- price: number in INR. If price is visible, use it. If not visible, use 0.
-- category: string — section heading if visible, or infer from context (e.g. "Starters", "Rice", "Beverages"). Use "" if truly unknown.
-- item_type: "single" | "variant" | "combo"
-  • "variant" = same dish in multiple sizes/portions with different prices
-  • "combo" = bundled meal deal
-  • "single" = everything else
-- food_type: "veg" | "non_veg" | "egg" | "unknown"
-  • Use veg/non-veg dot colour if visible. Infer from dish name if not (e.g. "Chicken" → non_veg, "Paneer" → veg).
-- description: leave as "" — descriptions are generated in a separate step.
+// Fallback Pass: very direct — just name what you see
+const FALLBACK_PROMPT = `Look at this food photo. What food dish(es) do you see?
 
-RULES:
-- For food photos (type B): identify every dish visible. One item per distinct dish.
-- For menu photos (type A): extract every item in the menu. Do not skip any.
-- Do NOT include: phone numbers, addresses, taglines, table numbers, GST notes.
-- Remove exact duplicates.
-- If nothing identifiable is found, return { "items": [] }.`;
+Return ONLY this JSON:
+{
+  "items": [
+    { "name": "dish name here", "price": 0, "category": "", "item_type": "single", "food_type": "unknown", "description": "" }
+  ]
+}
+
+Include every dish visible. If you see a printed menu, list all items from it. Be inclusive — even partial dish names are fine.`;
+
+async function callGPT4o(
+  openai: OpenAI,
+  imageContent: Array<{ type: 'image_url'; image_url: { url: string; detail: 'high' } }>,
+  systemPrompt: string,
+  label: string
+): Promise<unknown[]> {
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content: [
+          ...imageContent,
+          { type: 'text', text: 'Extract all food items. Return JSON.' },
+        ],
+      },
+    ],
+    response_format: { type: 'json_object' },
+    max_tokens: 6000,
+  });
+
+  const raw = completion.choices[0]?.message?.content ?? '{}';
+  console.log(`[bulk-import/extract] ${label} raw response (first 500 chars): ${raw.slice(0, 500)}`);
+
+  let parsed: Record<string, unknown> = {};
+  try { parsed = JSON.parse(raw) as Record<string, unknown>; }
+  catch { console.warn(`[bulk-import/extract] ${label} JSON parse failed`); return []; }
+
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  console.log(`[bulk-import/extract] ${label} extracted ${items.length} items`);
+  return items;
+}
 
 export async function POST(request: NextRequest) {
   const t0 = Date.now();
@@ -83,12 +118,20 @@ export async function POST(request: NextRequest) {
     if (photoEntries.length === 0)
       return NextResponse.json({ error: 'Please upload at least one photo.' }, { status: 400 });
 
+    console.log(`[bulk-import/extract] received ${photoEntries.length} entries`);
+
     // Validate images
     const validated: Array<{ file: File; mime: string }> = [];
     for (const entry of photoEntries) {
-      if (!(entry instanceof File)) continue;
+      if (!(entry instanceof File)) { console.warn('[bulk-import/extract] entry is not a File, skipping'); continue; }
+      console.log(`[bulk-import/extract] validating file: name=${entry.name} size=${entry.size} type=${entry.type}`);
       const result = await validateImageFile(entry);
-      if (result.ok) validated.push({ file: entry, mime: result.mime });
+      if (result.ok) {
+        validated.push({ file: entry, mime: result.mime });
+        console.log(`[bulk-import/extract] validated: ${entry.name} → ${result.mime}`);
+      } else {
+        console.warn(`[bulk-import/extract] rejected ${entry.name}: ${result.reason}`);
+      }
     }
     if (validated.length === 0)
       return NextResponse.json({ error: 'None of your photos could be read. Upload clear JPG, PNG, or WebP photos under 10 MB each.' }, { status: 400 });
@@ -104,47 +147,44 @@ export async function POST(request: NextRequest) {
     if (imageBuffers.length === 0)
       return NextResponse.json({ error: 'Could not read any photos. Please retry.' }, { status: 400 });
 
-    // GPT-4o vision — handles both menu text and food photos
+    console.log(`[bulk-import/extract] ${imageBuffers.length} image buffers ready, total size: ${imageBuffers.reduce((s, b) => s + b.buffer.length, 0)} bytes`);
+
     const openai = getOpenAI();
     const imageContent = imageBuffers.map(({ buffer, mime }) => ({
       type: 'image_url' as const,
       image_url: {
         url: `data:${mime};base64,${buffer.toString('base64')}`,
-        detail: 'high' as const, // high detail — read menu text AND identify dishes
+        detail: 'high' as const,
       },
     }));
 
+    // Pass 1: structured extraction
     let items: unknown[] = [];
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: [
-              ...imageContent,
-              { type: 'text', text: 'Extract all food/beverage items from these photos. Return JSON.' },
-            ],
-          },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: PASS1_MAX_TOKENS,
-      });
-
-      const raw = completion.choices[0]?.message?.content ?? '{}';
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      items = Array.isArray(parsed.items) ? parsed.items : [];
+      items = await callGPT4o(openai, imageContent, STRICT_PROMPT, 'Pass1');
     } catch (err) {
-      console.error('[bulk-import/extract] GPT-4o call failed:', err);
-      return NextResponse.json({ error: 'AI extraction failed. Please retry.' }, { status: 502 });
+      console.error('[bulk-import/extract] Pass1 failed:', err);
     }
 
-    console.log(`[bulk-import/extract] extracted ${items.length} items in ${Date.now() - t0}ms`);
+    // Fallback: simpler direct prompt
+    if (items.length === 0) {
+      console.warn('[bulk-import/extract] Pass1 returned 0 items — trying fallback prompt');
+      try {
+        items = await callGPT4o(openai, imageContent, FALLBACK_PROMPT, 'Fallback');
+      } catch (err) {
+        console.error('[bulk-import/extract] Fallback failed:', err);
+        return NextResponse.json({ error: 'AI extraction failed. Please retry.' }, { status: 502 });
+      }
+    }
+
+    console.log(`[bulk-import/extract] final: ${items.length} items in ${Date.now() - t0}ms`);
 
     if (items.length === 0) {
       return NextResponse.json(
-        { error: "We couldn't identify any menu items from those photos. Try photos with clearer dish names, or upload a printed menu photo." },
+        {
+          error: 'We couldn\'t identify any food items from those photos. Please upload a clearer photo of your dishes or a printed menu.',
+          hint: 'Tips: use good lighting, keep the dish/menu in frame, avoid blurry shots.',
+        },
         { status: 422 }
       );
     }
