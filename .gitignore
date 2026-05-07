@@ -49,9 +49,10 @@ supabase/.temp/
 
 # Food image assets (served from Supabase Storage, not the repo)
 food images/
+food image 2/
+food images 3/
 
 /.firebaserc
-food image 2/
 
 # Files staged for manual deletion
 delete/
@@ -68,4 +69,7 @@ AGENTS.md
 # Playwright test results
 test-results/
 vsite logos/
+
+# Dev-only seed scripts (contain env-var usage, not needed in production)
+scripts/seed-*.mjs
 
