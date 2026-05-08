@@ -404,13 +404,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Bulk insert with retry
-    let insertErr: unknown = null;
-    await withRetry(async () => {
-      const result = await supabaseServer.from('products').insert(rows);
-      if (result.error) { insertErr = result.error; throw result.error; }
-    });
-    if (insertErr) {
-      console.error('[bulk-import/insert] insert failed:', insertErr);
+    try {
+      await withRetry(async () => {
+        const result = await supabaseServer.from('products').insert(rows);
+        if (result.error) throw result.error;
+      });
+    } catch (err) {
+      console.error('[bulk-import/insert] insert failed:', err);
       return NextResponse.json({ error: 'Failed to save products. Please try again.' }, { status: 500 });
     }
 
