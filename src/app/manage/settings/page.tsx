@@ -35,6 +35,13 @@ export default function SettingsPage() {
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [deleting, setDeleting] = useState(false);
 
+    // ── KOT settings state ────────────────────────────────────────────────────
+    const [kotMode,         setKotModeState]   = useState<'manual' | 'automatic'>('manual');
+    const [kotModeLoaded,   setKotModeLoaded]  = useState(false);
+    const [kotModeUpdating, setKotModeUpdating]= useState(false);
+    const [isKotStation,    setIsKotStation]   = useState(false);
+    const [kotDevMode,      setKotDevMode]     = useState(false);
+
     // ── Load site data from active site context ───────────────────────────────
     useEffect(() => {
         if (!activeSite) return;
@@ -42,7 +49,7 @@ export default function SettingsPage() {
         setLogoPreview(null);
         supabase
             .from('sites')
-            .select('id, slug, name, description, contact_number, timing, image_url')
+            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -57,6 +64,13 @@ export default function SettingsPage() {
                         timing: data.timing ?? '',
                     });
                     setLogoUrl(data.image_url);
+                    setKotModeState((data.kot_mode as 'manual' | 'automatic') ?? 'manual');
+                    setKotModeLoaded(true);
+                    // Load localStorage KOT flags
+                    try {
+                        setIsKotStation(localStorage.getItem(`kot_station_${data.id}`) === '1');
+                        setKotDevMode(localStorage.getItem('kot_dev_mode') === '1');
+                    } catch { /* ignore */ }
                 }
                 setLoading(false);
             });
@@ -107,6 +121,51 @@ export default function SettingsPage() {
         setSaving(false);
         if (error) { toast.error('Failed to save changes'); }
         else { toast.success('Settings saved'); refreshSites(); }
+    };
+
+    // ── KOT mode toggle ───────────────────────────────────────────────────────
+    const handleKotModeChange = async (newMode: 'manual' | 'automatic') => {
+        if (newMode === kotMode || !siteId || kotModeUpdating) return;
+        const confirmMsg = newMode === 'automatic'
+            ? 'Switch to Automatic? New orders will print immediately on the KOT Station device.'
+            : 'Switch to Manual? You must click KOT for each order.';
+        if (!confirm(confirmMsg)) return;
+
+        setKotModeUpdating(true);
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch(`/api/manage/sites/${siteId}/kot-mode`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kot_mode: newMode }),
+            });
+            if (res.ok) {
+                setKotModeState(newMode);
+                toast.success(`KOT mode set to ${newMode}`);
+            } else {
+                toast.error('Failed to update KOT mode');
+            }
+        } catch {
+            toast.error('Failed to update KOT mode');
+        } finally {
+            setKotModeUpdating(false);
+        }
+    };
+
+    const toggleKotStation = () => {
+        if (!siteId) return;
+        const next = !isKotStation;
+        try { localStorage.setItem(`kot_station_${siteId}`, next ? '1' : '0'); } catch { /* ignore */ }
+        setIsKotStation(next);
+        toast.success(next ? 'This device is now the KOT Station' : 'KOT Station flag cleared');
+    };
+
+    const toggleKotDevMode = () => {
+        const next = !kotDevMode;
+        try { localStorage.setItem('kot_dev_mode', next ? '1' : '0'); } catch { /* ignore */ }
+        setKotDevMode(next);
+        toast.success(next ? 'KOT dev mode on — toasts instead of printing' : 'KOT dev mode off');
     };
 
     // ── Delete store ──────────────────────────────────────────────────────────
@@ -291,6 +350,99 @@ export default function SettingsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* ── Kitchen Printing (KOT) ── */}
+            {kotModeLoaded && (
+            <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
+                <div className="flex items-start gap-3 mb-5">
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#F97316' }}>receipt_long</span>
+                    </div>
+                    <div>
+                        <h2 className="font-semibold" style={{ fontSize: 16, lineHeight: '24px', color: '#0A0A0A' }}>Kitchen Printing (KOT)</h2>
+                        <p style={{ fontSize: 13, color: '#71717A', lineHeight: '20px', marginTop: 2 }}>
+                            Control how kitchen order tokens are sent when customers place orders.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Mode toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl mb-3" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                    <div>
+                        <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Printing Mode</p>
+                        <p style={{ fontSize: 12, color: '#71717A' }}>
+                            {kotMode === 'manual' ? 'Admin clicks KOT for each order' : 'Kitchen device auto-prints on arrival'}
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        {(['manual', 'automatic'] as const).map(m => (
+                            <button
+                                key={m}
+                                onClick={() => handleKotModeChange(m)}
+                                disabled={kotModeUpdating}
+                                style={{
+                                    padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: kotModeUpdating ? 'wait' : 'pointer',
+                                    border: kotMode === m ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                                    background: kotMode === m ? '#EEEEFF' : '#fff',
+                                    color: kotMode === m ? '#5137EF' : '#52525C',
+                                    textTransform: 'capitalize',
+                                }}
+                            >
+                                {m}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* KOT Station toggle — only relevant in automatic mode */}
+                {kotMode === 'automatic' && (
+                    <div className="flex items-center justify-between p-4 rounded-xl mb-3" style={{ background: isKotStation ? '#F0FDF4' : '#FAFAFA', border: `1px solid ${isKotStation ? '#86EFAC' : '#E4E4E7'}` }}>
+                        <div>
+                            <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>
+                                {isKotStation
+                                    ? <><span style={{ color: '#16A34A' }}>●</span> KOT Station Active</>
+                                    : <><span style={{ color: '#A1A1AA' }}>○</span> Not a KOT Station</>
+                                }
+                            </p>
+                            <p style={{ fontSize: 12, color: '#71717A' }}>
+                                Mark this device as the KOT Station. Only KOT Station devices auto-print.
+                            </p>
+                        </div>
+                        <button
+                            onClick={toggleKotStation}
+                            style={{
+                                padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                background: isKotStation ? '#16A34A' : '#5137EF',
+                                color: '#fff', border: 'none',
+                            }}
+                        >
+                            {isKotStation ? 'Unmark' : 'Mark as KOT Station'}
+                        </button>
+                    </div>
+                )}
+
+                {/* Dev / test mode */}
+                <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                    <div>
+                        <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Show Toast Instead of Printing</p>
+                        <p style={{ fontSize: 12, color: '#71717A' }}>
+                            For testing — shows a notification instead of sending to printer.
+                        </p>
+                    </div>
+                    <button
+                        onClick={toggleKotDevMode}
+                        style={{
+                            padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                            border: kotDevMode ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                            background: kotDevMode ? '#EEEEFF' : '#fff',
+                            color: kotDevMode ? '#5137EF' : '#52525C',
+                        }}
+                    >
+                        {kotDevMode ? 'On' : 'Off'}
+                    </button>
+                </div>
+            </div>
+            )}
 
             {/* ── Danger Zone ── */}
             <div style={{ border: '1px solid #FECACA', borderRadius: 14, padding: '24px', background: '#FFFBFB' }}>
