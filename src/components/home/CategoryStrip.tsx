@@ -1,49 +1,50 @@
 'use client';
 
-const categories = [
-    'Restaurant',
-    'Café',
-    'Food Truck',
-    'Hotel',
-    'Tiffin Centre',
-    'Bakery',
-    'Bar & Lounge',
-    'Cloud Kitchen',
-    'Fast Food',
-    'Street Food',
+import { useInView } from '@/hooks/useInView';
+
+const restaurantTypes = [
+    { icon: 'coffee', label: 'Cafes' },
+    { icon: 'restaurant', label: 'Restaurants' },
+    { icon: 'cloud', label: 'Cloud Kitchens' },
+    { icon: 'takeout_dining', label: 'QSR & Takeaway' },
+    { icon: 'sports_bar', label: 'Bars & Pubs' },
+    { icon: 'food_bank', label: 'Food Courts' },
 ];
 
 export default function CategoryStrip() {
-    const doubled = [...categories, ...categories];
+    const { ref: labelRef, visible: labelVisible } = useInView(0.3);
+    const { ref: gridRef, visible: gridVisible } = useInView(0.2);
 
     return (
-        <section className="py-8 sm:py-10 bg-white border-y border-slate-100 overflow-hidden">
-            <p className="text-center text-xs font-bold uppercase tracking-widest text-slate-400 mb-5">
-                Built for every kind of F&amp;B business
-            </p>
-            <div className="relative">
-                {/* Fade edges */}
-                <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-16 sm:w-24 z-10 bg-gradient-to-r from-white to-transparent" />
-                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 sm:w-24 z-10 bg-gradient-to-l from-white to-transparent" />
-
-                <div className="flex gap-3 sm:gap-4 animate-[marquee_30s_linear_infinite] hover:[animation-play-state:paused] whitespace-nowrap w-max">
-                    {doubled.map((label, i) => (
+        <section className="bg-white border-b border-slate-100 px-4 py-10 sm:py-12">
+            <div className="mx-auto max-w-5xl">
+                <p
+                    ref={labelRef}
+                    className={`text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 mb-7 sm:mb-8
+                        transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+                        ${labelVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                >
+                    Works for every type of food business
+                </p>
+                <div ref={gridRef} className="grid grid-cols-3 sm:grid-cols-6 gap-4 sm:gap-6">
+                    {restaurantTypes.map((t, i) => (
                         <div
-                            key={i}
-                            className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-background-light border border-slate-200 shrink-0"
+                            key={t.label}
+                            className={`flex flex-col items-center gap-2 sm:gap-2.5
+                                transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
+                                ${gridVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-5 scale-[0.88]'}`}
+                            style={{ transitionDelay: gridVisible ? `${i * 55}ms` : '0ms' }}
                         >
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                            <span className="text-xs sm:text-sm font-semibold text-slate-700">{label}</span>
+                            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center
+                                hover:bg-slate-100 hover:border-slate-200 hover:scale-110 hover:-translate-y-0.5
+                                transition-all duration-300 ease-out cursor-default">
+                                <span className="material-symbols-outlined text-slate-400 text-lg sm:text-xl">{t.icon}</span>
+                            </div>
+                            <span className="text-[10px] sm:text-xs font-medium text-slate-500 text-center leading-tight">{t.label}</span>
                         </div>
                     ))}
                 </div>
             </div>
-            <style jsx>{`
-                @keyframes marquee {
-                    0%   { transform: translateX(0); }
-                    100% { transform: translateX(-50%); }
-                }
-            `}</style>
         </section>
     );
 }

@@ -35,14 +35,45 @@ export default function SettingsPage() {
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [deleting, setDeleting] = useState(false);
 
+    // ── Payments (Razorpay OAuth) state ───────────────────────────────────────
+    interface RzpStatus { connected: boolean; accountId?: string; mode?: 'test' | 'live'; expiresAt?: string }
+    const [rzpStatus,        setRzpStatus]        = useState<RzpStatus | null>(null);
+    const [rzpStatusLoading, setRzpStatusLoading] = useState(true);
+    const [rzpBusy,          setRzpBusy]          = useState<'connect' | 'disconnect' | null>(null);
+    const [rzpBanner,        setRzpBanner]        = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+
+    // ── KOT settings state ────────────────────────────────────────────────────
+    const [kotMode,         setKotModeState]   = useState<'manual' | 'automatic'>('manual');
+    const [kotModeLoaded,   setKotModeLoaded]  = useState(false);
+    const [kotModeUpdating, setKotModeUpdating]= useState(false);
+    const [kotDevMode,      setKotDevMode]     = useState(false);
+
+    // ── Windows Print Bridge state ────────────────────────────────────────────
+    const BRIDGE_URL = 'http://127.0.0.1:7878';
+    const [bridgeOnline,       setBridgeOnline]       = useState<boolean | null>(null);
+    const [bridgePrinters,     setBridgePrinters]     = useState<Array<{ name: string; isDefault: boolean; isVirtual: boolean }>>([]);
+    const [, setKotPrinterName]  = useState<string | null>(null);
+    const [, setBillPrinterName] = useState<string | null>(null);
+    const [savingPrinter,      setSavingPrinter]      = useState(false);
+    // Local bridge config (role → printer name assignments stored on the PC)
+    const [bridgeRoles,        setBridgeRoles]        = useState<{ kot: string | null; bill: string | null; admin: string | null }>({ kot: null, bill: null, admin: null });
+    const [autoStartEnabled,   setAutoStartEnabled]   = useState<boolean | null>(null);
+    const [testPrinting,       setTestPrinting]       = useState<string | null>(null); // role being test-printed
+    // Per-role printer status from bridge GET /status
+    const [roleStatus,         setRoleStatus]         = useState<Record<string, { state: string; printerName: string | null; lastError?: string | null }>>({});
+    // Bridge auth token — fetched from GET /status; required on mutating endpoints.
+    const bridgeTokenRef = useRef<string>('');
+
     // ── Load site data from active site context ───────────────────────────────
     useEffect(() => {
         if (!activeSite) return;
         setLoading(true);
-        setLogoPreview(null);
+        // Revoke any blob preview from the previously-selected store so it
+        // doesn't sit in memory forever.
+        setLogoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
         supabase
             .from('sites')
-            .select('id, slug, name, description, contact_number, timing, image_url')
+            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -57,16 +88,31 @@ export default function SettingsPage() {
                         timing: data.timing ?? '',
                     });
                     setLogoUrl(data.image_url);
+                    setKotModeState((data.kot_mode as 'manual' | 'automatic') ?? 'manual');
+                    setKotModeLoaded(true);
+                    setKotPrinterName((data as Record<string, unknown>).kot_printer_name as string | null ?? null);
+                    setBillPrinterName((data as Record<string, unknown>).bill_printer_name as string | null ?? null);
+                    try {
+                        setKotDevMode(localStorage.getItem('kot_dev_mode') === '1');
+                    } catch { /* ignore */ }
                 }
                 setLoading(false);
             });
     }, [activeSite]);
 
+    // Revoke any blob URL still held when the page unmounts.
+    useEffect(() => () => {
+        setLogoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
+    }, []);
+
     // ── Logo upload ───────────────────────────────────────────────────────────
     const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        // Reset so picking the same file again still fires the change event.
+        e.target.value = '';
         if (!file || !siteId || !siteSlug) return;
-        if (file.size > 5 * 1024 * 1024) { toast.error('Image too large. Max 5 MB.'); return; }
+        if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
+        if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
 
         setUploadingLogo(true);
         try {
@@ -77,7 +123,11 @@ export default function SettingsPage() {
             if (uploadError) throw uploadError;
             const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
             setLogoUrl(publicUrl);
-            setLogoPreview(URL.createObjectURL(file));
+            // Revoke previous blob (if any) before creating a fresh one.
+            setLogoPreview(prev => {
+                if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+                return URL.createObjectURL(file);
+            });
             toast.success('Logo uploaded');
         } catch (err) {
             console.error('Logo upload error:', err);
@@ -107,6 +157,255 @@ export default function SettingsPage() {
         setSaving(false);
         if (error) { toast.error('Failed to save changes'); }
         else { toast.success('Settings saved'); refreshSites(); }
+    };
+
+    // ── KOT mode toggle ───────────────────────────────────────────────────────
+    const handleKotModeChange = async (newMode: 'manual' | 'automatic') => {
+        if (newMode === kotMode || !siteId || kotModeUpdating) return;
+        const confirmMsg = newMode === 'automatic'
+            ? 'Switch to Automatic? New orders will print immediately on the KOT Station device.'
+            : 'Switch to Manual? You must click KOT for each order.';
+        if (!confirm(confirmMsg)) return;
+
+        setKotModeUpdating(true);
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch(`/api/manage/sites/${siteId}/kot-mode`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kot_mode: newMode }),
+            });
+            if (res.ok) {
+                setKotModeState(newMode);
+                toast.success(`KOT mode set to ${newMode}`);
+            } else {
+                toast.error('Failed to update KOT mode');
+            }
+        } catch {
+            toast.error('Failed to update KOT mode');
+        } finally {
+            setKotModeUpdating(false);
+        }
+    };
+
+    // ── Razorpay OAuth handlers ───────────────────────────────────────────────
+    const loadRzpStatus = async (sid: string) => {
+        setRzpStatusLoading(true);
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch(`/api/manage/payments/razorpay/status?siteId=${sid}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) setRzpStatus(await res.json());
+            else setRzpStatus({ connected: false });
+        } catch {
+            setRzpStatus({ connected: false });
+        } finally {
+            setRzpStatusLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!siteId) return;
+        loadRzpStatus(siteId);
+    }, [siteId]);
+
+    // Show banner from OAuth callback redirect query params (?connected=1 | ?error=…).
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('tab') !== 'payments') return;
+        if (params.get('connected') === '1') {
+            setRzpBanner({ kind: 'success', text: 'Razorpay account connected successfully.' });
+        } else if (params.get('error')) {
+            const map: Record<string, string> = {
+                state_mismatch:        'Security check failed. Please try connecting again.',
+                state_not_found:       'Connection link expired. Please try again.',
+                state_expired:         'Connection link expired. Please try again.',
+                token_exchange_failed: 'Razorpay rejected the authorization. Please try again.',
+                persist_failed:        'Could not save your tokens. Please contact support.',
+                missing_code_or_state: 'Razorpay did not return a valid code.',
+                no_account_id:         'Razorpay did not return an account id.',
+            };
+            const code = params.get('error') ?? '';
+            setRzpBanner({ kind: 'error', text: map[code] ?? `Connection failed (${code}).` });
+        }
+        // Strip the query params so a refresh doesn't re-show the banner.
+        if (params.get('connected') || params.get('error')) {
+            const clean = new URL(window.location.href);
+            clean.searchParams.delete('connected');
+            clean.searchParams.delete('error');
+            clean.searchParams.delete('tab');
+            window.history.replaceState({}, '', clean.toString());
+        }
+    }, []);
+
+    const handleConnectRazorpay = async () => {
+        if (!siteId) return;
+        setRzpBusy('connect');
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) { toast.error('Please sign in again'); return; }
+            const res = await fetch('/api/manage/payments/razorpay/connect', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ siteId }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.url) {
+                toast.error(data.error ?? 'Could not start Razorpay connection');
+                return;
+            }
+            window.location.href = data.url;
+        } catch {
+            toast.error('Could not start Razorpay connection');
+        } finally {
+            setRzpBusy(null);
+        }
+    };
+
+    const handleDisconnectRazorpay = async () => {
+        if (!siteId) return;
+        if (!confirm('Disconnect Razorpay? Online payments will be disabled until you reconnect.')) return;
+        setRzpBusy('disconnect');
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch('/api/manage/payments/razorpay/disconnect', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ siteId }),
+            });
+            if (res.ok) {
+                toast.success('Razorpay disconnected');
+                setRzpBanner(null);
+                await loadRzpStatus(siteId);
+            } else {
+                toast.error('Failed to disconnect');
+            }
+        } finally {
+            setRzpBusy(null);
+        }
+    };
+
+    const toggleKotDevMode = () => {
+        const next = !kotDevMode;
+        try { localStorage.setItem('kot_dev_mode', next ? '1' : '0'); } catch { /* ignore */ }
+        setKotDevMode(next);
+        toast.success(next ? 'KOT dev mode on — toasts instead of printing' : 'KOT dev mode off');
+    };
+
+    // ── Poll local print bridge every 8 s ─────────────────────────────────────
+    useEffect(() => {
+        let cancelled = false;
+        const poll = async () => {
+            try {
+                const [printersRes, statusRes] = await Promise.all([
+                    fetch(`${BRIDGE_URL}/printers`, { signal: AbortSignal.timeout(3000) }),
+                    fetch(`${BRIDGE_URL}/status`,   { signal: AbortSignal.timeout(3000) }),
+                ]);
+                if (!printersRes.ok) throw new Error('not ok');
+                const { printers } = await printersRes.json();
+                if (!cancelled) { setBridgeOnline(true); setBridgePrinters(printers ?? []); }
+                if (statusRes.ok) {
+                    const status = await statusRes.json();
+                    if (!cancelled) {
+                        const cfg = status.config ?? {};
+                        setBridgeRoles({ kot: cfg.roles?.kot ?? null, bill: cfg.roles?.bill ?? null, admin: cfg.roles?.admin ?? null });
+                        setAutoStartEnabled(status.autoStart ?? null);
+                        setRoleStatus(status.roleStatus ?? {});
+                        // Capture the bridge auth token so mutating calls can authenticate.
+                        if (cfg.token && typeof cfg.token === 'string') bridgeTokenRef.current = cfg.token;
+                    }
+                }
+            } catch {
+                if (!cancelled) { setBridgeOnline(false); setBridgePrinters([]); }
+            }
+        };
+        poll();
+        const id = setInterval(poll, 8000);
+        return () => { cancelled = true; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const savePrinterAssignment = async (field: 'kot' | 'bill', printerName: string | null) => {
+        if (!siteId) return;
+        setSavingPrinter(true);
+        try {
+            // 1. Save to local bridge config (source of truth for routing)
+            const bridgeRes = await fetch(`${BRIDGE_URL}/config`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-BYS-Token': bridgeTokenRef.current },
+                body: JSON.stringify({ roles: { [field]: printerName } }),
+                signal: AbortSignal.timeout(4000),
+            });
+            if (!bridgeRes.ok) throw new Error('Bridge config save failed');
+            const { config: newConfig } = await bridgeRes.json();
+            setBridgeRoles({ kot: newConfig.roles?.kot ?? null, bill: newConfig.roles?.bill ?? null, admin: newConfig.roles?.admin ?? null });
+
+            // 2. Mirror to cloud DB (display cache only — not used for routing)
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (token) {
+                const body = field === 'kot'
+                    ? { kot_printer_name: printerName }
+                    : { bill_printer_name: printerName };
+                await fetch(`/api/manage/sites/${siteId}/printer-settings`, {
+                    method: 'PATCH',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                }).catch(() => { /* non-fatal — local config already saved */ });
+            }
+
+            if (field === 'kot')  setKotPrinterName(printerName);
+            else                  setBillPrinterName(printerName);
+            const label = field === 'kot' ? 'KOT' : 'Bill';
+            toast.success(printerName ? `${label} printer set to "${printerName}"` : `${label} printer cleared`);
+        } catch {
+            toast.error('Could not save — is the Print Bridge running?');
+        } finally {
+            setSavingPrinter(false);
+        }
+    };
+
+    const testPrint = async (role: 'kot' | 'bill') => {
+        const printerName = bridgeRoles[role];
+        if (!printerName) { toast.error(`No ${role.toUpperCase()} printer assigned`); return; }
+        setTestPrinting(role);
+        try {
+            const res = await fetch(`${BRIDGE_URL}/test-print`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-BYS-Token': bridgeTokenRef.current },
+                body: JSON.stringify({ printerName, type: role }),
+                signal: AbortSignal.timeout(15000),
+            });
+            if (res.ok) toast.success(`Test print sent to "${printerName}"`);
+            else {
+                const err = await res.json().catch(() => ({}));
+                toast.error(err.error || 'Test print failed');
+            }
+        } catch {
+            toast.error('Bridge unreachable — is it running?');
+        } finally {
+            setTestPrinting(null);
+        }
+    };
+
+    const toggleAutoStart = async () => {
+        const endpoint = autoStartEnabled ? '/autostart/disable' : '/autostart/enable';
+        try {
+            const res = await fetch(`${BRIDGE_URL}${endpoint}`, { method: 'POST', headers: { 'X-BYS-Token': bridgeTokenRef.current }, signal: AbortSignal.timeout(5000) });
+            if (res.ok) {
+                const { registered } = await res.json();
+                setAutoStartEnabled(registered);
+                toast.success(registered ? 'Auto-start enabled — bridge will launch on Windows login' : 'Auto-start disabled');
+            } else {
+                toast.error('Failed to update auto-start');
+            }
+        } catch {
+            toast.error('Bridge unreachable — is it running?');
+        }
     };
 
     // ── Delete store ──────────────────────────────────────────────────────────
@@ -289,6 +588,313 @@ export default function SettingsPage() {
                     <button onClick={handleSave} disabled={saving || uploadingLogo} className="flex items-center gap-2 text-white transition-opacity hover:opacity-90 disabled:opacity-60" style={{ background: '#5137EF', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 500, cursor: saving ? 'wait' : 'pointer' }}>
                         {saving ? (<><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Saving…</>) : 'Save Changes'}
                     </button>
+                </div>
+            </div>
+
+            {/* ── Kitchen Printing (KOT) ── */}
+            {kotModeLoaded && (
+            <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
+                <div className="flex items-start gap-3 mb-5">
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#F97316' }}>receipt_long</span>
+                    </div>
+                    <div>
+                        <h2 className="font-semibold" style={{ fontSize: 16, lineHeight: '24px', color: '#0A0A0A' }}>Kitchen Printing (KOT)</h2>
+                        <p style={{ fontSize: 13, color: '#71717A', lineHeight: '20px', marginTop: 2 }}>
+                            Control how kitchen order tokens are sent when customers place orders.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Mode toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl mb-3" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                    <div>
+                        <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Printing Mode</p>
+                        <p style={{ fontSize: 12, color: '#71717A' }}>
+                            {kotMode === 'manual' ? 'Admin clicks KOT for each order' : 'Kitchen device auto-prints on arrival'}
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        {(['manual', 'automatic'] as const).map(m => (
+                            <button
+                                key={m}
+                                onClick={() => handleKotModeChange(m)}
+                                disabled={kotModeUpdating}
+                                style={{
+                                    padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: kotModeUpdating ? 'wait' : 'pointer',
+                                    border: kotMode === m ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                                    background: kotMode === m ? '#EEEEFF' : '#fff',
+                                    color: kotMode === m ? '#5137EF' : '#52525C',
+                                    textTransform: 'capitalize',
+                                }}
+                            >
+                                {m}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Windows Print Bridge */}
+                <div className="rounded-xl mb-3 overflow-hidden" style={{ border: '1px solid #E4E4E7' }}>
+                    {/* Bridge header */}
+                    <div className="flex items-center justify-between p-4" style={{ background: '#FAFAFA', borderBottom: bridgeOnline === true ? '1px solid #E4E4E7' : undefined }}>
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: bridgeOnline === true ? '#16A34A' : bridgeOnline === false ? '#DC2626' : '#99A1AF' }}>
+                                {bridgeOnline === true ? 'wifi' : bridgeOnline === false ? 'wifi_off' : 'wifi'}
+                            </span>
+                            <div>
+                                <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A' }}>
+                                    Print Bridge&nbsp;
+                                    <span style={{ fontSize: 12, fontWeight: 400, color: bridgeOnline === true ? '#16A34A' : bridgeOnline === false ? '#DC2626' : '#99A1AF' }}>
+                                        {bridgeOnline === null ? '(checking…)' : bridgeOnline ? '● Connected' : '● Not running'}
+                                    </span>
+                                </p>
+                                <p style={{ fontSize: 12, color: '#71717A' }}>
+                                    {bridgeOnline
+                                        ? `${bridgePrinters.length} printer${bridgePrinters.length !== 1 ? 's' : ''} found`
+                                        : 'Download & install the bridge below (one-time setup)'}
+                                </p>
+                            </div>
+                        </div>
+                        <a
+                            href="/bys-print-bridge-setup.exe"
+                            download
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                background: '#F4F4F5', color: '#0A0A0A', textDecoration: 'none', border: '1px solid #E4E4E7',
+                            }}
+                        >
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>download</span>
+                            Download Installer
+                        </a>
+                    </div>
+
+                    {/* Printer assignment rows — only when bridge is online */}
+                    {bridgeOnline === true && bridgePrinters.length > 0 && (
+                        <div className="divide-y" style={{ borderTop: '1px solid #E4E4E7' }}>
+                            {(['kot', 'bill'] as const).map((role) => {
+                                const label       = role === 'kot' ? 'KOT Printer (Kitchen)' : 'Bill Printer (Counter)';
+                                const icon        = role === 'kot' ? 'receipt_long' : 'print';
+                                const assigned    = bridgeRoles[role]; // local bridge config is source of truth
+                                const setAssigned = (name: string | null) => savePrinterAssignment(role, name);
+                                const isTesting   = testPrinting === role;
+                                const rs          = roleStatus[role];
+                                const statusColor = !rs || rs.state === 'unknown' || rs.state === 'not_assigned' ? '#99A1AF'
+                                    : rs.state === 'ready'         ? '#16A34A'
+                                    : rs.state === 'incompatible'  ? '#D97706'
+                                    : /* disconnected */             '#DC2626';
+                                const statusLabel = !rs || rs.state === 'not_assigned' ? 'Not assigned'
+                                    : rs.state === 'ready'         ? 'Ready'
+                                    : rs.state === 'incompatible'  ? 'Not a thermal printer'
+                                    : rs.state === 'disconnected'  ? 'Disconnected'
+                                    : null;
+                                return (
+                                    <div key={role} className="p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#5137EF' }}>{icon}</span>
+                                            <p style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>{label}</p>
+                                            {statusLabel && (
+                                                <span style={{ fontSize: 11, fontWeight: 500, color: statusColor, background: `${statusColor}18`, borderRadius: 4, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, display: 'inline-block' }} />
+                                                    {statusLabel}
+                                                </span>
+                                            )}
+                                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                {assigned && (
+                                                    <button
+                                                        onClick={() => testPrint(role)}
+                                                        disabled={isTesting || savingPrinter}
+                                                        style={{ fontSize: 11, color: '#5137EF', background: '#EEEEFF', border: '1px solid #C7C2F8', borderRadius: 6, cursor: 'pointer', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                    >
+                                                        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>{isTesting ? 'hourglass_empty' : 'print'}</span>
+                                                        {isTesting ? 'Printing…' : 'Test'}
+                                                    </button>
+                                                )}
+                                                {assigned && (
+                                                    <button
+                                                        onClick={() => setAssigned(null)}
+                                                        disabled={savingPrinter}
+                                                        style={{ fontSize: 11, color: '#71717A', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            {bridgePrinters.map((p) => (
+                                                <button
+                                                    key={p.name}
+                                                    onClick={() => !p.isVirtual && setAssigned(assigned === p.name ? null : p.name)}
+                                                    disabled={savingPrinter || p.isVirtual}
+                                                    title={p.isVirtual ? 'Virtual printers cannot print ESC/POS receipts — connect a real thermal printer' : undefined}
+                                                    className="flex items-center gap-3 text-left transition-colors"
+                                                    style={{
+                                                        padding: '8px 12px', borderRadius: 8, fontSize: 13,
+                                                        border: assigned === p.name ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                                                        background: assigned === p.name ? '#EEEEFF' : p.isVirtual ? '#FAFAFA' : '#fff',
+                                                        color: p.isVirtual ? '#99A1AF' : '#0A0A0A',
+                                                        cursor: savingPrinter || p.isVirtual ? 'not-allowed' : 'pointer',
+                                                        opacity: p.isVirtual ? 0.7 : 1,
+                                                    }}
+                                                >
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: p.isVirtual ? '#D97706' : assigned === p.name ? '#5137EF' : '#99A1AF' }}>
+                                                        {p.isVirtual ? 'computer' : assigned === p.name ? 'radio_button_checked' : 'radio_button_unchecked'}
+                                                    </span>
+                                                    <span style={{ flex: 1 }}>{p.name}</span>
+                                                    {p.isVirtual && (
+                                                        <span style={{ fontSize: 10, color: '#D97706', background: '#FEF3C7', borderRadius: 4, padding: '2px 6px' }}>Virtual — not compatible</span>
+                                                    )}
+                                                    {!p.isVirtual && p.isDefault && (
+                                                        <span style={{ fontSize: 10, color: '#71717A', background: '#F4F4F5', borderRadius: 4, padding: '2px 6px' }}>Default</span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {/* Auto-start toggle */}
+                            <div className="flex items-center justify-between p-4">
+                                <div>
+                                    <p style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A', marginBottom: 2 }}>Auto-start on Windows Login</p>
+                                    <p style={{ fontSize: 12, color: '#71717A' }}>
+                                        Bridge launches automatically when admin logs in — no daily manual setup needed.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={toggleAutoStart}
+                                    disabled={autoStartEnabled === null}
+                                    style={{
+                                        padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+                                        border: autoStartEnabled ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                                        background: autoStartEnabled ? '#EEEEFF' : '#fff',
+                                        color: autoStartEnabled ? '#5137EF' : '#52525C',
+                                    }}
+                                >
+                                    {autoStartEnabled === null ? '…' : autoStartEnabled ? 'Enabled' : 'Disabled'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* No printers found message */}
+                    {bridgeOnline === true && bridgePrinters.length === 0 && (
+                        <div className="p-4 text-center" style={{ color: '#71717A', fontSize: 13 }}>
+                            No printers found. Make sure printers are installed in Windows &gt; Devices and Printers.
+                        </div>
+                    )}
+                </div>
+
+                {/* Dev / test mode */}
+                <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                    <div>
+                        <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Show Toast Instead of Printing</p>
+                        <p style={{ fontSize: 12, color: '#71717A' }}>
+                            For testing — shows a notification instead of sending to printer.
+                        </p>
+                    </div>
+                    <button
+                        onClick={toggleKotDevMode}
+                        style={{
+                            padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                            border: kotDevMode ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                            background: kotDevMode ? '#EEEEFF' : '#fff',
+                            color: kotDevMode ? '#5137EF' : '#52525C',
+                        }}
+                    >
+                        {kotDevMode ? 'On' : 'Off'}
+                    </button>
+                </div>
+            </div>
+            )}
+
+            {/* ── Payments (Razorpay OAuth) ── */}
+            <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
+                <div className="flex items-start gap-3 mb-5">
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#2563EB' }}>credit_card</span>
+                    </div>
+                    <div>
+                        <h2 className="font-semibold" style={{ fontSize: 16, lineHeight: '24px', color: '#0A0A0A' }}>Online Payments (Razorpay)</h2>
+                        <p style={{ fontSize: 13, color: '#71717A', lineHeight: '20px', marginTop: 2 }}>
+                            Connect your Razorpay account so customer payments go directly to you. The platform takes no commission.
+                        </p>
+                    </div>
+                </div>
+
+                {rzpBanner && (
+                    <div
+                        style={{
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            marginBottom: 16,
+                            fontSize: 13,
+                            background: rzpBanner.kind === 'success' ? '#ECFDF5' : '#FEF2F2',
+                            color:      rzpBanner.kind === 'success' ? '#047857' : '#B91C1C',
+                            border:     `1px solid ${rzpBanner.kind === 'success' ? '#A7F3D0' : '#FECACA'}`,
+                        }}
+                    >
+                        {rzpBanner.text}
+                    </div>
+                )}
+
+                <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                    <div style={{ minWidth: 0 }}>
+                        {rzpStatusLoading ? (
+                            <p style={{ fontSize: 13, color: '#71717A' }}>Checking connection…</p>
+                        ) : rzpStatus?.connected ? (
+                            <>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16A34A' }} />
+                                    <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Connected</p>
+                                    {rzpStatus.mode && (
+                                        <span style={{ fontSize: 10, fontWeight: 600, color: rzpStatus.mode === 'live' ? '#047857' : '#B45309', background: rzpStatus.mode === 'live' ? '#D1FAE5' : '#FEF3C7', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase' }}>
+                                            {rzpStatus.mode}
+                                        </span>
+                                    )}
+                                </div>
+                                <p style={{ fontSize: 12, color: '#71717A', fontFamily: 'monospace' }}>{rzpStatus.accountId}</p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#99A1AF' }} />
+                                    <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Not connected</p>
+                                </div>
+                                <p style={{ fontSize: 12, color: '#71717A' }}>Customers won&rsquo;t see the &ldquo;Pay Online&rdquo; option until you connect.</p>
+                            </>
+                        )}
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                        {rzpStatus?.connected ? (
+                            <button
+                                onClick={handleDisconnectRazorpay}
+                                disabled={rzpBusy !== null}
+                                style={{
+                                    padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                                    border: '1px solid #FECACA', background: '#FFFFFF', color: '#B91C1C',
+                                    cursor: rzpBusy ? 'wait' : 'pointer',
+                                }}
+                            >
+                                {rzpBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleConnectRazorpay}
+                                disabled={rzpBusy !== null || rzpStatusLoading}
+                                style={{
+                                    padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                                    border: 'none', background: '#2563EB', color: '#FFFFFF',
+                                    cursor: rzpBusy ? 'wait' : 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                }}
+                            >
+                                {rzpBusy === 'connect' ? 'Redirecting…' : (<>Connect Razorpay Account <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span></>)}
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 

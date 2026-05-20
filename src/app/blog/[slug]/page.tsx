@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
 import { blogPosts, getPostBySlug, getAllSlugs } from '@/content/blog/posts';
@@ -119,6 +120,17 @@ function renderBlock(block: ContentBlock, idx: number) {
           <p className="font-semibold text-slate-900">{block.q}</p>
           <p className="text-slate-600 mt-2 text-sm leading-relaxed">{block.a}</p>
         </div>
+      );
+    case 'image':
+      return (
+        <figure key={idx} className="my-6">
+          <div className="relative w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm aspect-[16/9]">
+            <Image src={block.src} alt={block.alt} fill className="object-contain object-center bg-slate-50" />
+          </div>
+          {block.caption && (
+            <figcaption className="text-center text-xs text-slate-400 mt-2">{block.caption}</figcaption>
+          )}
+        </figure>
       );
     default:
       return null;

@@ -67,6 +67,8 @@ function PreviewContent() {
           menuProducts={SAMPLE_PRODUCTS}
           banners={[]}
           tier={tier}
+          shopId="preview"
+          shopSlug="preview"
         />
       </div>
     </div>

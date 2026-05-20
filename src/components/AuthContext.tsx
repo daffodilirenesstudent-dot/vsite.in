@@ -50,13 +50,19 @@ function friendlyAuthError(err: unknown): string {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Small helper: fetch with retries + exponential backoff.
+// Fetch with retries + exponential backoff.
 // Flaky 4G is the norm for TN restaurants — silently dropping a cookie sync
 // leaves the user with a stale cookie and bounces them on next navigation.
+//
+// 429 handling honours the server's Retry-After header. Rate-limit windows
+// (60s on /api/auth/session) are far longer than naive backoff (~600ms across
+// 3 tries) would ever cover. Under a 50-concurrent-signup burst, this means
+// the 20 users who hit the limit actually recover instead of seeing an OTP error.
+const MAX_429_WAIT_MS = 8_000;  // honour Retry-After up to 8s; longer = surface error
 async function fetchWithRetry(
     url: string,
     init: RequestInit,
-    attempts = 3,
+    attempts = 4,
 ): Promise<Response> {
     let lastErr: unknown;
     for (let i = 0; i < attempts; i++) {
@@ -65,12 +71,25 @@ async function fetchWithRetry(
             if (res.ok) return res;
             // 5xx / 429 → retry; 4xx (besides 429) → don't retry (token issue)
             if (res.status < 500 && res.status !== 429) return res;
+
+            // Honour server's Retry-After for 429s. Falls back to exponential
+            // backoff (300ms → 600ms → 1200ms) for 5xx or missing header.
+            let waitMs: number;
+            if (res.status === 429) {
+                const ra = parseInt(res.headers.get('Retry-After') ?? '', 10);
+                waitMs = Number.isFinite(ra) && ra > 0
+                    ? Math.min(ra * 1000, MAX_429_WAIT_MS)
+                    : Math.min(800 * Math.pow(2, i), MAX_429_WAIT_MS);
+            } else {
+                waitMs = 300 * Math.pow(2, i);
+            }
             lastErr = new Error(`HTTP ${res.status}`);
+            if (i < attempts - 1) await new Promise((r) => setTimeout(r, waitMs));
         } catch (err) {
             lastErr = err;
-        }
-        if (i < attempts - 1) {
-            await new Promise((r) => setTimeout(r, 200 * Math.pow(2, i))); // 200, 400ms
+            if (i < attempts - 1) {
+                await new Promise((r) => setTimeout(r, 300 * Math.pow(2, i)));
+            }
         }
     }
     throw lastErr;

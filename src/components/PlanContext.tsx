@@ -12,6 +12,8 @@ interface PlanContextType {
     isPayEat: boolean;
     /** true for qr_menu / base — limited access */
     isQrMenu: boolean;
+    /** true for qr_order — ordering without payment */
+    isQrOrder: boolean;
     /** days remaining in trial (0 if expired or no trial) */
     trialDaysLeft: number;
     /** trial window is still open for the active store */
@@ -31,6 +33,7 @@ const PlanContext = createContext<PlanContextType>({
     planLoading: true,
     isPayEat: false,
     isQrMenu: true,
+    isQrOrder: false,
     trialDaysLeft: 0,
     isTrialActive: false,
     isTrialExpired: false,
@@ -70,6 +73,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
 
     const isPayEat = plan === 'pro' || plan === 'pay_eat';
     const isQrMenu = !isPayEat;
+    const isQrOrder = plan === 'qr_order';
 
     // refreshPlan re-fetches sites (which include the nested site_subscriptions join).
     // Returns the underlying promise so callers can await activation reflect.
@@ -78,7 +82,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     return (
         <PlanContext.Provider value={{
             plan, planLoading: sitesLoading,
-            isPayEat, isQrMenu,
+            isPayEat, isQrMenu, isQrOrder,
             trialDaysLeft, isTrialActive, isTrialExpired, isSubscribed, canGoLive,
             refreshPlan,
         }}>

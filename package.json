@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.53.1",
     "@supabase/supabase-js": "^2.91.0",
     "clsx": "^2.1.1",
     "firebase": "^12.11.0",
@@ -20,6 +21,7 @@
     "next": "14.2.35",
     "ogl": "^1.0.11",
     "openai": "^6.16.0",
+    "qr-code-styling": "^1.9.2",
     "qrcode.react": "^4.2.0",
     "razorpay": "^2.9.6",
     "react": "^18",
