@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import CartSheet from './CartSheet';
 import CheckoutScreen from './CheckoutScreen';
+import CounterWaitingScreen from './CounterWaitingScreen';
 import OrderConfirmedScreen from './OrderConfirmedScreen';
 
 // ── VARIANT DESCRIPTION HELPERS ──────────────────────────────────────────────
@@ -31,7 +32,7 @@ const T = {
 } as const;
 
 // ── TYPES ─────────────────────────────────────────────────────────────────────
-export type Tier = 'view' | 'order';
+export type Tier = 'view' | 'order' | 'order_no_pay';
 
 export interface CartItem {
   id: string;
@@ -40,6 +41,7 @@ export interface CartItem {
   qty: number;
   image_url?: string | null;
   variantSize?: string;
+  food_type?: string | null;
 }
 
 export interface MenuProduct {
@@ -72,6 +74,8 @@ interface QRMenuTemplateProps {
   banners: ShopBanner[];
   tier: Tier;
   shopId: string;
+  shopSlug: string;
+  tableNumber?: number;
   onAddToCart?: (product: MenuProduct, qty: number, variantSize?: string) => void;
 }
 
@@ -125,7 +129,7 @@ function QuadrantBadge({ quadrant }: { quadrant?: string | null }) {
   if (!c) return null;
   return (
     <span aria-hidden="true" style={{
-      position: 'absolute', bottom: 0, left: 0, right: 0,
+      position: 'absolute', top: 0, left: 0, right: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '2px 0', background: c.bg,
       fontFamily: "'Manrope',sans-serif", fontWeight: 700,
@@ -275,13 +279,13 @@ function ProductDetailSheet({
               onClick={onClose}
               aria-label="Close"
               style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.08)', border: 'none', flexShrink: 0,
+                width: 40, height: 40, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.75)', border: 'none', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1l12 12M13 1L1 13" stroke={T.dark} strokeWidth="2" strokeLinecap="round"/>
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1l12 12M13 1L1 13" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
               </svg>
             </button>
           </div>
@@ -399,7 +403,7 @@ function ProductDetailSheet({
           </div>
 
           {/* ── BOTTOM BAR ── */}
-          {tier === 'order' && (
+          {(tier === 'order' || tier === 'order_no_pay') && (
             <div style={{
               height: 70, flexShrink: 0,
               background: 'linear-gradient(271.36deg, #FFFFFF 1.97%, #FFF3E6 126.56%)',
@@ -487,10 +491,25 @@ function ProductDetailSheet({
       style={{
         position: 'fixed', inset: 0, zIndex: 200,
         background: 'rgba(0,0,0,0.55)',
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end',
         animation: 'qrFadeIn 0.15s ease',
       }}
     >
+      {/* Close button — floats above sheet with gap, like Zomato */}
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+          background: 'rgba(30,30,30,0.85)', border: 'none', marginBottom: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+          <path d="M1 1l12 12M13 1L1 13" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      </button>
+
       <div style={{
         width: '100%', maxWidth: 560,
         background: T.white, borderRadius: '24px 24px 0 0',
@@ -499,21 +518,6 @@ function ProductDetailSheet({
         position: 'relative', overflow: 'hidden',
       }}>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          style={{
-            position: 'absolute', top: 16, right: 16, zIndex: 10,
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'rgba(0,0,0,0.08)', border: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1 1l12 12M13 1L1 13" stroke={T.dark} strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-        </button>
-
         <div style={{ padding: '12px 0 0', display: 'flex', justifyContent: 'center' }}>
           <div style={{ width: 36, height: 4, borderRadius: 100, background: T.border }} />
         </div>
@@ -615,7 +619,7 @@ function ProductDetailSheet({
         </div>
         </div>
 
-        {tier === 'order' && (
+        {(tier === 'order' || tier === 'order_no_pay') && (
           <div style={{
             width: '100%', height: 79, flexShrink: 0,
             background: 'linear-gradient(271.36deg, #FFFFFF 1.97%, #FFF6EB 126.56%)',
@@ -945,7 +949,7 @@ function BrowseResultCard({
       }}>₹{p.selling_price}</p>
 
       {/* ADD button */}
-      {tier === 'order' && (
+      {(tier === 'order' || tier === 'order_no_pay') && (
         <button
           onClick={e => { e.stopPropagation(); onSelect(p); }}
           aria-label={`Add ${p.name} to cart`}
@@ -966,25 +970,140 @@ function BrowseResultCard({
 
 // ── MAIN TEMPLATE ─────────────────────────────────────────────────────────────
 export default function QRMenuTemplate({
-  shopName, shopTagline, logoUrl, menuProducts, banners, tier, shopId,
+  shopName, shopTagline, logoUrl, menuProducts, banners, tier, shopId, shopSlug, tableNumber,
 }: QRMenuTemplateProps) {
+  const canOrder = tier === 'order' || tier === 'order_no_pay';
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeProduct, setActiveProduct] = useState<MenuProduct | null>(null);
   const [activeBanner, setActiveBanner] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [myOrdersOpen, setMyOrdersOpen] = useState(false);
   const [bannerPaused, setBannerPaused] = useState(false);
+  // Whether the restaurant has connected a Razorpay account. Default to true so
+  // the option doesn't flicker off on slow networks; we hide it once we know.
+  const [onlineEnabled, setOnlineEnabled] = useState(true);
+  useEffect(() => {
+    if (!canOrder || tier === 'order_no_pay') return;
+    let cancelled = false;
+    fetch(`/api/shop/payment-options?siteId=${encodeURIComponent(shopId)}`)
+      .then(r => r.ok ? r.json() : { onlineEnabled: false })
+      .then(d => { if (!cancelled) setOnlineEnabled(!!d.onlineEnabled); })
+      .catch(() => { if (!cancelled) setOnlineEnabled(false); });
+    return () => { cancelled = true; };
+  }, [shopId, canOrder, tier]);
 
-  // ── CART STATE ────────────────────────────────────────────────────────────
-  const [cart, setCart] = useState<CartItem[]>([]);
+  // ── MY ORDERS (localStorage-backed, today only, this shop only) ───────────
+  const LS_ORDERS = `bys_orders_${shopId}`;
+  interface SavedOrder { orderId: string; orderNumber: string; tokenNumber?: string; counterNumber?: string; paymentMethod?: string; tableNumber?: number; ts: number; }
+
+  const saveOrder = useCallback((o: SavedOrder) => {
+    try {
+      const today = new Date().toDateString();
+      const existing: SavedOrder[] = JSON.parse(localStorage.getItem(LS_ORDERS) ?? '[]');
+      const todayOnly = existing.filter(x => new Date(x.ts).toDateString() === today);
+      const deduped = todayOnly.filter(x => x.orderId !== o.orderId);
+      localStorage.setItem(LS_ORDERS, JSON.stringify([o, ...deduped].slice(0, 20)));
+    } catch { /* quota */ }
+  }, [LS_ORDERS]);
+
+  const getTodayOrders = useCallback((): SavedOrder[] => {
+    try {
+      const today = new Date().toDateString();
+      const all: SavedOrder[] = JSON.parse(localStorage.getItem(LS_ORDERS) ?? '[]');
+      return all.filter(x => new Date(x.ts).toDateString() === today);
+    } catch { return []; }
+  }, [LS_ORDERS]);
+
+  const [todayOrders, setTodayOrders] = useState<SavedOrder[]>([]);
+  useEffect(() => { setTodayOrders(getTodayOrders()); }, [getTodayOrders]);
+
+  // ── CART STATE (sessionStorage-backed so refreshes don't lose the flow) ──
+  // Start with empty defaults so SSR and initial client render match (no hydration mismatch).
+  // sessionStorage is restored in useEffect after mount.
+  const SS_CART      = `bys_cart_${shopId}`;
+  const SS_WAITING   = `bys_waiting_${shopId}`;
+  const SS_CONFIRMED = `bys_confirmed_${shopId}`;
+
+  const [cart, setCartRaw] = useState<CartItem[]>([]);
+  const setCart = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
+    setCartRaw(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try { sessionStorage.setItem(SS_CART, JSON.stringify(next)); } catch { /* quota */ }
+      return next;
+    });
+  }, [SS_CART]);
+
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'online' | 'counter'>('counter');
-  const [confirmedOrder, setConfirmedOrder] = useState<{
-    id: string; number: string; paymentMethod: 'online' | 'counter';
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'online' | 'counter'>('online');
+  const effectivePaymentMethod = tier === 'order_no_pay' ? 'no_payment' : selectedPaymentMethod;
+  const [billReqState, setBillReqState] = useState<'idle' | 'confirming' | 'sending' | 'sent' | 'cooldown'>('idle');
+  const [confirmedOrder, setConfirmedOrderRaw] = useState<{
+    id: string; number: string; paymentMethod: 'online' | 'counter' | 'no_payment'; tokenNumber?: string;
   } | null>(null);
+  // Snapshot of cart items at confirm time — survives refresh so the bill still renders correctly
+  const [confirmedCart, setConfirmedCart] = useState<CartItem[]>([]);
+  const [confirmedSubtotal, setConfirmedSubtotal] = useState(0);
+
+  const setConfirmedOrder = useCallback((
+    val: { id: string; number: string; paymentMethod: 'online' | 'counter' | 'no_payment'; tokenNumber?: string } | null,
+    cartSnapshot?: CartItem[],
+    subtotalSnapshot?: number,
+  ) => {
+    setConfirmedOrderRaw(val);
+    if (cartSnapshot !== undefined) setConfirmedCart(cartSnapshot);
+    if (subtotalSnapshot !== undefined) setConfirmedSubtotal(subtotalSnapshot);
+    try {
+      if (val) {
+        sessionStorage.setItem(SS_CONFIRMED, JSON.stringify({
+          order: val,
+          cart: cartSnapshot ?? [],
+          subtotal: subtotalSnapshot ?? 0,
+        }));
+      } else {
+        sessionStorage.removeItem(SS_CONFIRMED);
+      }
+    } catch { /* quota */ }
+  }, [SS_CONFIRMED]);
+  const [counterWaiting, setCounterWaitingRaw] = useState<{
+    id: string; counterNumber: string;
+  } | null>(null);
+  const setCounterWaiting = useCallback((val: { id: string; counterNumber: string } | null) => {
+    setCounterWaitingRaw(val);
+    try {
+      if (val) sessionStorage.setItem(SS_WAITING, JSON.stringify(val));
+      else sessionStorage.removeItem(SS_WAITING);
+    } catch { /* quota */ }
+  }, [SS_WAITING]);
+
+  // Restore persisted state from sessionStorage after hydration
+  useEffect(() => {
+    try {
+      const cartRaw = sessionStorage.getItem(SS_CART);
+      if (cartRaw) setCartRaw(JSON.parse(cartRaw) as CartItem[]);
+    } catch { /* ignore */ }
+    try {
+      const waitingRaw = sessionStorage.getItem(SS_WAITING);
+      if (waitingRaw) setCounterWaitingRaw(JSON.parse(waitingRaw));
+    } catch { /* ignore */ }
+    try {
+      const confirmedRaw = sessionStorage.getItem(SS_CONFIRMED);
+      if (confirmedRaw) {
+        const parsed = JSON.parse(confirmedRaw) as {
+          order: { id: string; number: string; paymentMethod: 'online' | 'counter' | 'no_payment'; tokenNumber?: string };
+          cart: CartItem[];
+          subtotal: number;
+        };
+        setConfirmedOrderRaw(parsed.order);
+        setConfirmedCart(parsed.cart);
+        setConfirmedSubtotal(parsed.subtotal);
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const cartItemCount = cart.reduce((sum, i) => sum + i.qty, 0);
-  const cartSubtotal  = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const cartSubtotal  = Math.round(cart.reduce((sum, i) => sum + i.price * i.qty, 0) * 100) / 100;
 
   const addToCart = useCallback((product: MenuProduct, qty: number, variantSize?: string, priceOverride?: number) => {
     const variants = Array.isArray(product.metadata?.variants)
@@ -1001,10 +1120,10 @@ export default function QRMenuTemplate({
       if (existing) {
         return prev.map(i =>
           `${i.id}-${i.variantSize ?? ''}` === key
-            ? { ...i, qty: Math.min(99, i.qty + qty) } : i,
+            ? { ...i, price, qty: Math.min(99, i.qty + qty) } : i,
         );
       }
-      return [...prev, { id: product.id, name: product.name, price, qty, image_url: product.image_url, variantSize }];
+      return [...prev, { id: product.id, name: product.name, price, qty, image_url: product.image_url, variantSize, food_type: product.food_type }];
     });
   }, []);
 
@@ -1019,7 +1138,10 @@ export default function QRMenuTemplate({
     setCart(prev => prev.filter(i => !(i.id === id && i.variantSize === variantSize)));
   }, []);
 
-  const clearCart = useCallback(() => setCart([]), []);
+  const clearCart = useCallback(() => {
+    setCart([]);
+    try { sessionStorage.removeItem(SS_CART); } catch { /* quota */ }
+  }, [setCart, SS_CART]);
 
   // ── EDIT MODE ─────────────────────────────────────────────────────────────
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
@@ -1046,10 +1168,10 @@ export default function QRMenuTemplate({
       if (existing) {
         return filtered.map(i =>
           `${i.id}-${i.variantSize ?? ''}` === newKey
-            ? { ...i, qty: Math.min(99, i.qty + qty) } : i,
+            ? { ...i, price, qty: Math.min(99, i.qty + qty) } : i,
         );
       }
-      return [...filtered, { id: product.id, name: product.name, price, qty, image_url: product.image_url, variantSize }];
+      return [...filtered, { id: product.id, name: product.name, price, qty, image_url: product.image_url, variantSize, food_type: product.food_type }];
     });
   }, []);
 
@@ -1165,7 +1287,20 @@ export default function QRMenuTemplate({
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 50,
         }}>
-          <div style={{ width: 36 }} />
+          <button
+            aria-label="My orders"
+            onClick={() => { setTodayOrders(getTodayOrders()); setMyOrdersOpen(true); }}
+            style={{ position: 'relative', width: 36, height: 36, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.dark} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+              <rect x="9" y="3" width="6" height="4" rx="1"/>
+              <path d="M9 12h6M9 16h4"/>
+            </svg>
+            {todayOrders.length > 0 && (
+              <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: T.pink, border: `2px solid ${T.white}` }} />
+            )}
+          </button>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1258,26 +1393,54 @@ export default function QRMenuTemplate({
           </div>
         )}
 
-        {/* ── CATEGORY CHIPS ── */}
-        {categories.length > 0 && (
-          <div className="qr-chips">
-            {['All', ...categories].map(cat => {
-              const on = cat === activeCategory;
-              return (
-                <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+        {/* ── CATEGORY CHIPS + REQUEST BILL ── */}
+        {(categories.length > 0 || (tier === 'order_no_pay' && tableNumber)) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: T.white, minHeight: 60 }}>
+            {/* Category chips — scrollable */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12, overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {['All', ...categories].map(cat => {
+                const on = cat === activeCategory;
+                return (
+                  <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+                    flexShrink: 0,
+                    display: 'flex', flexDirection: 'row', alignItems: 'center',
+                    padding: '8px 12px', gap: 8,
+                    height: 36, borderRadius: 40,
+                    border: `0.65px solid ${on ? T.pink : T.chipBorder}`,
+                    background: on ? T.pink : T.white,
+                    color: on ? T.white : T.chipText,
+                    fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 14,
+                    lineHeight: '20px', letterSpacing: '-0.15px',
+                    cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+                  }}>{cat}</button>
+                );
+              })}
+            </div>
+
+            {/* Request Bill — inline, right side of chip row */}
+            {tier === 'order_no_pay' && tableNumber && (
+              <button
+                onClick={() => billReqState === 'idle' && setBillReqState('confirming')}
+                disabled={billReqState === 'cooldown' || billReqState === 'sending' || billReqState === 'sent'}
+                style={{
                   flexShrink: 0,
-                  display: 'flex', flexDirection: 'row', alignItems: 'center',
-                  padding: '8px 12px', gap: 8,
-                  height: 36, borderRadius: 40,
-                  border: `0.65px solid ${on ? T.pink : T.chipBorder}`,
-                  background: on ? T.pink : T.white,
-                  color: on ? T.white : T.chipText,
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 14,
-                  lineHeight: '20px', letterSpacing: '-0.15px',
-                  cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
-                }}>{cat}</button>
-              );
-            })}
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  height: 36, padding: '0 14px', borderRadius: 40,
+                  border: billReqState === 'sent' || billReqState === 'cooldown'
+                    ? '0.65px solid #86EFAC' : '0.65px solid #191919',
+                  background: billReqState === 'sent' || billReqState === 'cooldown'
+                    ? '#F0FDF4' : '#191919',
+                  color: billReqState === 'sent' || billReqState === 'cooldown'
+                    ? '#166534' : '#FFFFFF',
+                  fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 13,
+                  cursor: billReqState === 'idle' ? 'pointer' : 'default',
+                  whiteSpace: 'nowrap', transition: 'all 0.15s',
+                }}
+              >
+                <span style={{ fontSize: 14 }}>🧾</span>
+                {billReqState === 'sent' || billReqState === 'cooldown' ? 'Bill Sent' : 'Request Bill'}
+              </button>
+            )}
           </div>
         )}
 
@@ -1375,21 +1538,89 @@ export default function QRMenuTemplate({
                         }}>₹{p.selling_price}</p>
                       )}
 
-                      {/* ADD button */}
-                      {tier === 'order' && (
-                        <button
-                          onClick={e => { e.stopPropagation(); openProduct(p); }}
-                          aria-label={`Add ${p.name} to cart`}
-                          style={{
-                            position: 'absolute', right: 8, bottom: 8,
-                            width: 57, height: 26, borderRadius: 14,
-                            border: `1px solid ${T.pink}`, background: T.white, color: T.pink,
-                            fontFamily: "'Manrope',sans-serif", fontWeight: 700, fontSize: 12, lineHeight: '12px',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0px 2px 1px rgba(0,0,0,0.08)',
-                          }}
-                        >ADD</button>
-                      )}
+                      {/* ADD / Qty stepper */}
+                      {canOrder && (() => {
+                        const cartQty = cart.filter(i => i.id === p.id).reduce((s, i) => s + i.qty, 0);
+                        const hasVariants = Array.isArray(p.metadata?.variants) && (p.metadata!.variants as unknown[]).length > 0;
+                        if (cartQty > 0 && hasVariants) {
+                          return (
+                            <div
+                              onClick={e => e.stopPropagation()}
+                              style={{
+                                position: 'absolute', right: 4, bottom: 6,
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                width: 84, height: 28, borderRadius: 14,
+                                background: T.pink,
+                                boxShadow: '0px 2px 4px rgba(239,89,161,0.4)',
+                              }}
+                            >
+                              <button
+                                onClick={e => { e.stopPropagation(); openProduct(p); }}
+                                aria-label="Edit variants"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                              </button>
+                              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, color: '#FFFFFF' }}>{cartQty}</span>
+                              <button
+                                onClick={e => { e.stopPropagation(); openProduct(p); }}
+                                aria-label="Add more"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                              </button>
+                            </div>
+                          );
+                        }
+                        if (cartQty > 0 && !hasVariants) {
+                          return (
+                            <div
+                              onClick={e => e.stopPropagation()}
+                              style={{
+                                position: 'absolute', right: 4, bottom: 6,
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                width: 84, height: 28, borderRadius: 14,
+                                background: T.pink,
+                                boxShadow: '0px 2px 4px rgba(239,89,161,0.4)',
+                              }}
+                            >
+                              <button
+                                onClick={e => { e.stopPropagation(); if (cartQty > 1) { updateQty(p.id, undefined, -1); } else { removeFromCart(p.id, undefined); } }}
+                                aria-label="Decrease"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                              </button>
+                              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, color: '#FFFFFF' }}>{cartQty}</span>
+                              <button
+                                onClick={e => { e.stopPropagation(); addToCart(p, 1); }}
+                                aria-label="Increase"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                              </button>
+                            </div>
+                          );
+                        }
+                        return (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (hasVariants) { openProduct(p); }
+                              else { addToCart(p, 1); }
+                            }}
+                            aria-label={`Add ${p.name} to cart`}
+                            style={{
+                              position: 'absolute', right: 17, bottom: 6,
+                              width: 57, height: 26, borderRadius: 14,
+                              border: `1px solid ${T.pink}`, background: T.white, color: T.pink,
+                              fontFamily: "'Manrope',sans-serif", fontWeight: 700, fontSize: 12, lineHeight: '12px',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              boxShadow: '0px 2px 1px rgba(0,0,0,0.08)',
+                            }}
+                          >ADD</button>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -1430,7 +1661,7 @@ export default function QRMenuTemplate({
       </div>
 
       {/* ── FLOATING CART BAR ── */}
-      {tier === 'order' && cartItemCount > 0 && !cartOpen && !checkoutOpen && !confirmedOrder && (
+      {canOrder && cartItemCount > 0 && !cartOpen && !checkoutOpen && !confirmedOrder && !counterWaiting && (
         <div style={{
           position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
           zIndex: 100, width: '100%', maxWidth: 560, height: 70,
@@ -1440,13 +1671,7 @@ export default function QRMenuTemplate({
           boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
         }}>
           {/* Left: dish thumbnails + text */}
-          <button
-            onClick={() => setCartOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            }}
-          >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {/* Overlapping dish image circles */}
             <div style={{ display: 'flex', alignItems: 'center', position: 'relative', width: Math.min(cart.length, 3) * 20 + 12, height: 32, flexShrink: 0 }}>
               {cart.slice(0, 3).map((item, i) => (
@@ -1483,23 +1708,16 @@ export default function QRMenuTemplate({
               ))}
             </div>
 
-            {/* Text: "X Dishes Added" + "View Order" */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                fontSize: 14, lineHeight: '21px', color: '#333333',
-                textDecorationLine: 'underline',
-              }}>{cartItemCount} Dish{cartItemCount !== 1 ? 'es' : ''} Added</span>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                fontSize: 12, lineHeight: '18px', color: '#666666',
-              }}>View Order</span>
-            </div>
-          </button>
+            {/* Text: "X Dishes Added" */}
+            <span style={{
+              fontFamily: "'Poppins',sans-serif", fontWeight: 500,
+              fontSize: 14, lineHeight: '21px', color: '#333333',
+            }}>{cartItemCount} Dish{cartItemCount !== 1 ? 'es' : ''} Added</span>
+          </div>
 
-          {/* Right: Green checkout button */}
+          {/* Right: View Cart button */}
           <button
-            onClick={() => { setCartOpen(false); setCheckoutOpen(true); }}
+            onClick={() => setCartOpen(true)}
             style={{
               display: 'flex', alignItems: 'center',
               height: 46, background: '#00A63E',
@@ -1523,12 +1741,12 @@ export default function QRMenuTemplate({
             {/* Vertical divider */}
             <div style={{ width: 1, height: 34, background: '#FFFFFF', opacity: 0.5 }} />
 
-            {/* Check out text */}
+            {/* View Cart text */}
             <span style={{
               fontFamily: "'Poppins',sans-serif", fontWeight: 400,
               fontSize: 14, lineHeight: '21px', color: '#FFFFFF',
               whiteSpace: 'nowrap',
-            }}>Check out</span>
+            }}>View Cart</span>
           </button>
         </div>
       )}
@@ -1563,7 +1781,10 @@ export default function QRMenuTemplate({
           onClose={() => setCartOpen(false)}
           onUpdateQty={updateQty}
           onRemove={removeFromCart}
-          onCheckout={(pm) => { setSelectedPaymentMethod(pm); setCartOpen(false); setCheckoutOpen(true); }}
+          onAddMore={() => setCartOpen(false)}
+          paymentMode={tier === 'order_no_pay' ? 'no_payment' : undefined}
+          onlineEnabled={onlineEnabled}
+          onCheckout={(pm) => { if (pm !== 'no_payment') setSelectedPaymentMethod(pm); setCartOpen(false); setCheckoutOpen(true); }}
           onEditItem={(item) => {
             const product = menuProducts.find(p => p.id === item.id);
             if (product) openProductForEdit(product, item);
@@ -1576,12 +1797,38 @@ export default function QRMenuTemplate({
         <CheckoutScreen
           items={cart}
           siteId={shopId}
-          paymentMethod={selectedPaymentMethod}
+          paymentMethod={effectivePaymentMethod}
+          tableNumber={tableNumber}
           onClose={() => setCheckoutOpen(false)}
-          onOrderPlaced={(id, number, pm) => {
+          onOrderPlaced={(id, number, pm, counterNumber, tokenNumber) => {
             setCheckoutOpen(false);
-            setConfirmedOrder({ id, number, paymentMethod: pm });
+            if (pm === 'counter' && counterNumber) {
+              setCounterWaiting({ id, counterNumber });
+              saveOrder({ orderId: id, orderNumber: number, counterNumber, ts: Date.now() });
+            } else {
+              setConfirmedOrder({ id, number, paymentMethod: pm, tokenNumber }, cart, cartSubtotal);
+              saveOrder({ orderId: id, orderNumber: number, tokenNumber, paymentMethod: pm, tableNumber, ts: Date.now() });
+              setTodayOrders(getTodayOrders());
+            }
           }}
+        />
+      )}
+
+      {/* ── COUNTER WAITING SCREEN ── */}
+      {counterWaiting && (
+        <CounterWaitingScreen
+          orderId={counterWaiting.id}
+          counterNumber={counterWaiting.counterNumber}
+          items={cart}
+          subtotal={cartSubtotal}
+          onTokenReceived={(tokenNumber) => {
+            const waitingId = counterWaiting!.id;
+            setCounterWaiting(null);
+            setConfirmedOrder({ id: waitingId, number: tokenNumber, paymentMethod: 'counter', tokenNumber }, cart, cartSubtotal);
+            saveOrder({ orderId: waitingId, orderNumber: tokenNumber, tokenNumber, ts: Date.now() });
+            setTodayOrders(getTodayOrders());
+          }}
+          onCancel={() => { setCounterWaiting(null); clearCart(); }}
         />
       )}
 
@@ -1590,11 +1837,136 @@ export default function QRMenuTemplate({
         <OrderConfirmedScreen
           orderId={confirmedOrder.id}
           orderNumber={confirmedOrder.number}
-          items={cart}
-          subtotal={cartSubtotal}
+          shopName={shopName}
+          items={confirmedCart.length > 0 ? confirmedCart : cart}
+          subtotal={confirmedSubtotal > 0 ? confirmedSubtotal : cartSubtotal}
           paymentMethod={confirmedOrder.paymentMethod}
+          tokenNumber={confirmedOrder.tokenNumber}
+          tableNumber={tableNumber}
           onDone={() => { clearCart(); setConfirmedOrder(null); }}
         />
+      )}
+
+      {/* ── MY ORDERS PANEL ── */}
+      {myOrdersOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+          {/* Backdrop */}
+          <div style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} onClick={() => setMyOrdersOpen(false)} />
+          {/* Sheet */}
+          <div style={{ background: T.white, borderRadius: '20px 20px 0 0', padding: '0 0 32px', maxHeight: '75vh', overflowY: 'auto' }}>
+            {/* Handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: T.border }} />
+            </div>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 16px' }}>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 17, color: T.dark }}>My Orders Today</span>
+              <button onClick={() => setMyOrdersOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.lightGray} strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            {todayOrders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 24px' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.border} strokeWidth="1.8" strokeLinecap="round" style={{ marginBottom: 12 }}>
+                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                  <path d="M9 12h6M9 16h4"/>
+                </svg>
+                <p style={{ margin: 0, fontSize: 14, color: T.descColor }}>No orders placed today</p>
+              </div>
+            ) : (
+              <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {todayOrders.map(o => {
+                  const isNoPayment = o.paymentMethod === 'no_payment';
+                  const displayId = isNoPayment
+                    ? (o.tableNumber ? `Table ${o.tableNumber}` : (o.tokenNumber ?? `#${o.orderNumber}`))
+                    : (o.tokenNumber ?? o.counterNumber ?? `#${o.orderNumber}`);
+                  const isToken = !!o.tokenNumber && !isNoPayment;
+                  const isCounter = !!o.counterNumber && !o.tokenNumber && !isNoPayment;
+                  const timeStr = new Date(o.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  return (
+                    <a
+                      key={o.orderId}
+                      href={`/shop/${shopSlug}/order/${o.orderId}`}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: T.cardBg, borderRadius: 12, textDecoration: 'none' }}
+                    >
+                      <div>
+                        <p style={{ margin: '0 0 3px', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 20, color: T.pink, lineHeight: 1 }}>{displayId}</p>
+                        <p style={{ margin: 0, fontSize: 12, color: T.descColor }}>
+                          {isNoPayment ? 'Order placed · ' : isToken ? 'Token ready · ' : isCounter ? 'Awaiting payment · ' : 'Online · '}{timeStr}
+                        </p>
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.descColor} strokeWidth="2.5" strokeLinecap="round">
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+
+      {/* ── REQUEST BILL CONFIRMATION DIALOG ── */}
+      {(billReqState === 'confirming' || billReqState === 'sending') && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          onClick={() => setBillReqState('idle')}
+        >
+          <div
+            style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '28px 24px 40px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🧾</div>
+              <p style={{ margin: '0 0 6px', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 18, color: '#191919' }}>Request Bill?</p>
+              <p style={{ margin: 0, fontSize: 14, color: '#808080' }}>Notify staff to bring the bill for Table {tableNumber}.</p>
+            </div>
+            <button
+              onClick={async () => {
+                setBillReqState('sending');
+                try {
+                  const res = await fetch('/api/bill-request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ siteId: shopId, tableNumber }),
+                  });
+                  if (res.ok || res.status === 429) {
+                    setBillReqState('sent');
+                    setTimeout(() => setBillReqState('cooldown'), 8000);
+                  } else {
+                    setBillReqState('idle');
+                  }
+                } catch {
+                  setBillReqState('idle');
+                }
+              }}
+              disabled={billReqState === 'sending'}
+              style={{
+                width: '100%', height: 52, borderRadius: 12, border: 'none',
+                background: '#191919', color: '#FFFFFF',
+                fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 16,
+                cursor: 'pointer', marginBottom: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              {billReqState === 'sending' ? (
+                <div style={{ width: 20, height: 20, border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+              ) : 'Yes, call staff'}
+            </button>
+            <button
+              onClick={() => setBillReqState('idle')}
+              style={{ width: '100%', height: 44, borderRadius: 12, border: '1.5px solid #E6E6E6', background: '#FFFFFF', color: '#555555', fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 15, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

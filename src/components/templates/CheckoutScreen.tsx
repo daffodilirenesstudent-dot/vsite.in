@@ -1,7 +1,55 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CartItem } from './QRMenuTemplate';
+
+// Razorpay Checkout SDK is loaded on demand the first time the customer
+// clicks "Click to Pay". Caching it on window prevents a re-download on retry.
+// (Type-only — `window.Razorpay` is declared elsewhere in the codebase.)
+interface RazorpayCheckoutOptions {
+  key:         string;
+  order_id:    string;
+  amount:      number;
+  currency:    string;
+  name:        string;
+  description: string;
+  prefill?:    { name?: string; email?: string; contact?: string };
+  notes?:      Record<string, string>;
+  theme?:      { color?: string };
+  handler:     (resp: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
+  modal?:      { ondismiss?: () => void };
+}
+
+const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com/v1/checkout.js';
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(false);
+    if (window.Razorpay) return resolve(true);
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${RAZORPAY_SCRIPT}"]`);
+    if (existing) {
+      existing.addEventListener('load',  () => resolve(true),  { once: true });
+      existing.addEventListener('error', () => resolve(false), { once: true });
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = RAZORPAY_SCRIPT;
+    s.async = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
+// Generate a stable idempotency key per checkout session so retries / double-taps
+// don't create duplicate orders on the server.
+function makeIdempotencyKey(): string {
+  const cryptoObj = typeof globalThis !== 'undefined'
+    ? (globalThis.crypto as Crypto | undefined)
+    : undefined;
+  if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 const C = {
   pink: '#EF59A1',
@@ -19,79 +67,186 @@ const C = {
 interface CheckoutScreenProps {
   items: CartItem[];
   siteId: string;
-  paymentMethod: 'online' | 'counter';
+  paymentMethod: 'online' | 'counter' | 'no_payment';
+  tableNumber?: number;
   onClose: () => void;
-  onOrderPlaced: (orderId: string, orderNumber: string, paymentMethod: 'online' | 'counter') => void;
+  onOrderPlaced: (orderId: string, orderNumber: string, paymentMethod: 'online' | 'counter' | 'no_payment', counterNumber?: string, tokenNumber?: string) => void;
 }
 
-export default function CheckoutScreen({ items, siteId, paymentMethod, onClose, onOrderPlaced }: CheckoutScreenProps) {
-  const [name, setName] = useState('');
-  const [mobile, setMobile] = useState('');
+export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumber, onClose, onOrderPlaced }: CheckoutScreenProps) {
+  const [name, setName]   = useState('');
+  const [email, setEmail] = useState('');
+  // Phone is collected only for no_payment (qr_order) — Pay-Eat keeps email.
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showGateway, setShowGateway] = useState(false);
 
-  const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
+  // Stable across retries — server treats subsequent submits with the same
+  // key as replays of the original.
+  const idempotencyKeyRef = useRef<string>('');
+  if (!idempotencyKeyRef.current) idempotencyKeyRef.current = makeIdempotencyKey();
 
-  async function submitOrder() {
-    setLoading(true);
+  const subtotal = Math.round(items.reduce((sum, i) => sum + i.price * i.qty, 0) * 100) / 100;
+
+  // Place the order server-side. For online payments this only *creates* the
+  // local + Razorpay order — the customer hasn't paid yet. Returns the order
+  // info (and Razorpay handoff fields) so the caller can either finalize
+  // (counter / no_payment) or open the Razorpay Checkout modal.
+  interface PlaceOrderResult {
+    orderId:         string;
+    orderNumber:     string;
+    counterNumber?:  string;
+    tokenNumber?:    string;
+    razorpayOrderId?: string;
+    razorpayKey?:    string;
+    amount?:         number;
+  }
+
+  async function placeOrder(): Promise<PlaceOrderResult | null> {
     setError('');
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type':    'application/json',
+        'Idempotency-Key': idempotencyKeyRef.current,
+      },
+      body: JSON.stringify({
+        siteId,
+        customerName:  name.trim(),
+        customerEmail: paymentMethod === 'no_payment' ? '' : (email.trim() || ''),
+        customerPhone: paymentMethod === 'no_payment' ? phone.trim() : '',
+        paymentMethod,
+        items: items.map(i => ({
+          id: i.id,
+          qty: i.qty,
+          variantSize: i.variantSize,
+        })),
+        clientRequestId: idempotencyKeyRef.current,
+        ...(tableNumber ? { tableNumber } : {}),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? 'Failed to place order. Please try again.');
+      return null;
+    }
+    return data as PlaceOrderResult;
+  }
+
+  // Counter / no-payment: just place the order and we're done.
+  async function submitNonOnlineOrder() {
+    setLoading(true);
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siteId,
-          customerName: name.trim(),
-          customerMobile: mobile.trim(),
-          paymentMethod,
-          items: items.map(i => ({
-            id: i.id,
-            name: i.name,
-            price: i.price,
-            qty: i.qty,
-            variantSize: i.variantSize,
-          })),
-          subtotal,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? 'Failed to place order. Please try again.');
-        setLoading(false);
-        setShowGateway(false);
-        return;
-      }
-
-      onOrderPlaced(data.orderId, data.orderNumber, paymentMethod);
+      const data = await placeOrder();
+      if (!data) { setLoading(false); return; }
+      onOrderPlaced(data.orderId, data.orderNumber, paymentMethod, data.counterNumber, data.tokenNumber);
     } catch {
       setError('Network error. Please check your connection and try again.');
       setLoading(false);
-      setShowGateway(false);
     }
   }
 
   // Step 1: validate, then for online show gateway / for counter submit directly
   async function handlePlaceOrder() {
     if (!name.trim()) { setError('Please enter your name.'); return; }
-    if (!/^\d{10}$/.test(mobile.trim())) { setError('Please enter a valid 10-digit mobile number.'); return; }
+    if (paymentMethod === 'no_payment') {
+      // Indian phones are 10 digits; allow 7–15 to be safe for international
+      // customers. Strip formatting before counting digits.
+      const digits = phone.replace(/[^\d]/g, '');
+      if (digits.length < 7 || digits.length > 15) {
+        setError('Please enter a valid phone number.'); return;
+      }
+    } else {
+      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        setError('Please enter a valid email address.'); return;
+      }
+    }
     setError('');
 
-    if (paymentMethod === 'counter') {
-      setLoading(true);
-      await submitOrder();
+    if (paymentMethod === 'counter' || paymentMethod === 'no_payment') {
+      await submitNonOnlineOrder();
     } else {
       setShowGateway(true);
     }
   }
 
-  // Step 2 (online only): simulate payment processing then submit
+  // Step 2 (online only): create the order + Razorpay order on the server,
+  // then open Razorpay Checkout. On success, verify with our server and
+  // hand off to onOrderPlaced.
   async function handleClickToPay() {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    await submitOrder();
+    setError('');
+    try {
+      const sdkReady = await loadRazorpayScript();
+      if (!sdkReady || !window.Razorpay) {
+        setError('Could not load the payment SDK. Check your connection and try again.');
+        setLoading(false);
+        return;
+      }
+
+      const data = await placeOrder();
+      if (!data) { setLoading(false); return; }
+
+      if (!data.razorpayOrderId || !data.razorpayKey || !data.amount) {
+        setError('Online payment is unavailable for this store right now.');
+        setLoading(false);
+        return;
+      }
+
+      const RazorpayCtor = window.Razorpay as unknown as new (options: RazorpayCheckoutOptions) => { open: () => void };
+      const rzp = new RazorpayCtor({
+        key:         data.razorpayKey,
+        order_id:    data.razorpayOrderId,
+        amount:      data.amount,
+        currency:    'INR',
+        name:        'Order Payment',
+        description: `Order #${data.orderNumber}`,
+        prefill: { name: name.trim(), email: email.trim() },
+        notes:   { order_id: data.orderId, site_id: siteId },
+        theme:   { color: C.pink },
+        handler: async (resp) => {
+          try {
+            const v = await fetch(`/api/orders/${encodeURIComponent(data.orderId)}/verify-payment`, {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_payment_id: resp.razorpay_payment_id,
+                razorpay_order_id:   resp.razorpay_order_id,
+                razorpay_signature:  resp.razorpay_signature,
+              }),
+            });
+            const vData = await v.json();
+            if (!v.ok && !vData.alreadyPaid) {
+              setError(vData.error ?? 'Payment could not be verified. Please contact the store.');
+              setLoading(false);
+              return;
+            }
+            onOrderPlaced(data.orderId, data.orderNumber, 'online', undefined, data.tokenNumber);
+          } catch {
+            setError('Could not confirm your payment. Please contact the store with your payment id.');
+            setLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            // Customer closed the modal without paying. Order remains pending
+            // server-side; if they retry, the idempotency key returns the same
+            // razorpay_order_id so we don't create duplicates.
+            setLoading(false);
+          },
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      console.error('[CheckoutScreen] razorpay open failed:', err);
+      setError('Could not open the payment screen. Please try again.');
+      setLoading(false);
+    }
   }
+
+  // Suppress unused-warning when an environment doesn't show the gateway screen.
+  useEffect(() => { /* mount only */ }, []);
 
   // ── PAYMENT GATEWAY SCREEN (online only) ─────────────────────────────────
   if (showGateway) {
@@ -111,13 +266,13 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, onClose, 
             fontFamily: "'Poppins',sans-serif", fontWeight: 500,
             fontSize: 24, lineHeight: '36px', color: '#000000',
             margin: '0 0 2px', textAlign: 'center',
-          }}>Payment Gateway</h1>
+          }}>Payment</h1>
 
           <p style={{
             fontFamily: "'Poppins',sans-serif", fontWeight: 400,
             fontSize: 14, lineHeight: '21px', color: '#676767',
             margin: '0 0 8px', textAlign: 'center',
-          }}>Mock UPI / GPay / PhonePe</p>
+          }}>Secure payment via Razorpay</p>
 
           <p style={{
             fontFamily: "'Poppins',sans-serif", fontWeight: 600,
@@ -224,8 +379,10 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, onClose, 
           margin: '0 0 32px', maxWidth: 337,
         }}>
           {paymentMethod === 'counter'
-            ? 'Enter your name and mobile so we can call you when your order is ready.'
-            : 'Enter your name and mobile to complete your order. We\'ll redirect you to payment.'}
+            ? 'Enter your name and email so we can send you updates when your order is ready.'
+            : paymentMethod === 'no_payment'
+            ? 'Enter your name and phone number so we can call you when your order is ready.'
+            : 'Enter your name and email to complete your order. We\'ll redirect you to payment.'}
         </p>
 
         {/* Name */}
@@ -254,34 +411,67 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, onClose, 
           </div>
         </div>
 
-        {/* Mobile */}
-        <div style={{ marginBottom: 32 }}>
-          <label style={{
-            fontFamily: "'Manrope',sans-serif", fontWeight: 500,
-            fontSize: 14, lineHeight: '19px', color: C.gray500,
-            display: 'block', marginBottom: 8,
-          }}>Mobile Number</label>
-          <div style={{
-            width: '100%', height: 45,
-            background: C.inputBg, border: `1px solid ${C.border}`,
-            borderRadius: 6, display: 'flex', alignItems: 'center', padding: '0 12px',
-          }}>
-            <input
-              value={mobile}
-              onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              placeholder="Enter mobile number"
-              type="tel"
-              inputMode="numeric"
-              maxLength={10}
-              style={{
-                width: '100%', height: '100%', border: 'none',
-                background: 'transparent', outline: 'none',
-                fontFamily: "'Manrope',sans-serif", fontWeight: 600,
-                fontSize: 14, lineHeight: '19px', color: C.black,
-              }}
-            />
+        {/* Phone — no_payment only; the kitchen calls the customer when ready.  */}
+        {paymentMethod === 'no_payment' && (
+          <div style={{ marginBottom: 32 }}>
+            <label style={{
+              fontFamily: "'Manrope',sans-serif", fontWeight: 500,
+              fontSize: 14, lineHeight: '19px', color: C.gray500,
+              display: 'block', marginBottom: 8,
+            }}>Phone Number</label>
+            <div style={{
+              width: '100%', height: 45,
+              background: C.inputBg, border: `1px solid ${C.border}`,
+              borderRadius: 6, display: 'flex', alignItems: 'center', padding: '0 12px',
+            }}>
+              <input
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="e.g. 98765 43210"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                style={{
+                  width: '100%', height: '100%', border: 'none',
+                  background: 'transparent', outline: 'none',
+                  fontFamily: "'Manrope',sans-serif", fontWeight: 600,
+                  fontSize: 14, lineHeight: '19px', color: C.black,
+                }}
+              />
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Email — required for online/counter (Pay-Eat). */}
+        {paymentMethod !== 'no_payment' && (
+          <div style={{ marginBottom: 32 }}>
+            <label style={{
+              fontFamily: "'Manrope',sans-serif", fontWeight: 500,
+              fontSize: 14, lineHeight: '19px', color: C.gray500,
+              display: 'block', marginBottom: 8,
+            }}>Email Address</label>
+            <div style={{
+              width: '100%', height: 45,
+              background: C.inputBg, border: `1px solid ${C.border}`,
+              borderRadius: 6, display: 'flex', alignItems: 'center', padding: '0 12px',
+            }}>
+              <input
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                style={{
+                  width: '100%', height: '100%', border: 'none',
+                  background: 'transparent', outline: 'none',
+                  fontFamily: "'Manrope',sans-serif", fontWeight: 600,
+                  fontSize: 14, lineHeight: '19px', color: C.black,
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {error && (
           <p style={{
@@ -312,10 +502,10 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, onClose, 
                 borderTopColor: '#fff', borderRadius: '50%',
                 animation: 'spin 0.7s linear infinite',
               }} />
-              {paymentMethod === 'counter' ? 'Placing order…' : 'Processing…'}
+              {paymentMethod === 'counter' || paymentMethod === 'no_payment' ? 'Placing order…' : 'Processing…'}
             </>
           ) : (
-            paymentMethod === 'counter' ? 'Place Order' : 'Proceed to Pay'
+            paymentMethod === 'counter' || paymentMethod === 'no_payment' ? 'Place Order' : 'Proceed to Pay'
           )}
         </button>
       </div>
