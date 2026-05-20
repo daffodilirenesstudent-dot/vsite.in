@@ -61,6 +61,7 @@ function FoodDot({ type }: { type: ExtractedItem['food_type'] }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }: BulkImportModalProps) {
   const [phase, setPhase] = useState<Phase>('upload');
   const [files, setFiles] = useState<File[]>([]);
