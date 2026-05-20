@@ -7,6 +7,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useSite } from './SiteContext';
 import { usePlan } from './PlanContext';
+import PrinterStatusIndicator from './PrinterStatusIndicator';
 
 const TRIAL_STORE_LIMIT = 2;
 const PAID_STORE_LIMIT  = 5;
@@ -226,9 +227,13 @@ export default function DashboardHeader() {
                                                     <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#DC2626' }}>lock</span>
                                                 </div>
                                                 <div style={{ textAlign: 'left' }}>
-                                                    <p style={{ fontSize: 13, fontWeight: 500, color: '#DC2626' }}>Store limit reached</p>
+                                                    <p style={{ fontSize: 13, fontWeight: 500, color: '#DC2626' }}>
+                                                        {atPaidLimit ? 'Max stores reached' : 'Trial limit reached'}
+                                                    </p>
                                                     <p style={{ fontSize: 10, color: '#71717A' }}>
-                                                        {atPaidLimit ? '5-store limit reached' : 'Activate a plan on a store to add more'}
+                                                        {atPaidLimit
+                                                            ? `${PAID_STORE_LIMIT}-store account limit reached`
+                                                            : `Free trial allows ${TRIAL_STORE_LIMIT} unpaid stores — activate a plan to add more`}
                                                     </p>
                                                 </div>
                                             </button>
@@ -262,11 +267,13 @@ export default function DashboardHeader() {
 
                 {/* Mobile search icon */}
                 <button
+                    type="button"
+                    aria-label="Open search"
                     className="lg:hidden flex items-center justify-center shrink-0"
                     style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #E4E4E7', background: '#FFFFFF' }}
                     onClick={() => setSearchOpen(true)}
                 >
-                    <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 18 }}>search</span>
+                    <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 18 }} aria-hidden>search</span>
                 </button>
 
                 {/* Spacer */}
@@ -274,8 +281,15 @@ export default function DashboardHeader() {
 
                 {/* Bell + User */}
                 <div className="flex items-center gap-2 shrink-0">
-                    <button className="flex items-center justify-center" style={{ width: 32, height: 32 }}>
-                        <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 20 }}>notifications</span>
+                    {/* Printer status — bridge connection + per-role health */}
+                    <PrinterStatusIndicator />
+                    <button
+                        type="button"
+                        aria-label="Notifications"
+                        className="flex items-center justify-center"
+                        style={{ width: 32, height: 32 }}
+                    >
+                        <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 20 }} aria-hidden>notifications</span>
                     </button>
 
                     {/* Profile button + dropdown */}

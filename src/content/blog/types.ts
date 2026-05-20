@@ -6,7 +6,8 @@ export type ContentBlock =
   | { type: 'ol'; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] }
   | { type: 'callout'; text: string }
-  | { type: 'faq'; q: string; a: string };
+  | { type: 'faq'; q: string; a: string }
+  | { type: 'image'; src: string; alt: string; caption?: string };
 
 export type BlogPost = {
   slug: string;

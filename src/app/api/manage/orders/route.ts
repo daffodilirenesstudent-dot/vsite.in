@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   // ── Verify ownership ────────────────────────────────────────────────────────
   const { data: site, error: siteErr } = await supabaseServer
     .from('sites')
-    .select('id, timezone, table_count, kot_mode')
+    .select('id, timezone, table_count, kot_mode, kot_station_device_id, kot_printer_name, bill_printer_name')
     .eq('id', siteId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -57,11 +57,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const tz         = site.timezone ?? 'Asia/Kolkata';
-  const todayStart = getTodayStartInTz(tz);
-  const tableCount = (site as Record<string, unknown>).table_count as number | null ?? 0;
-  const kotMode    = (site as Record<string, unknown>).kot_mode as string ?? 'manual';
-  const isQrOrder  = tableCount > 0;
+  const tz                 = site.timezone ?? 'Asia/Kolkata';
+  const todayStart         = getTodayStartInTz(tz);
+  const tableCount         = (site as Record<string, unknown>).table_count as number | null ?? 0;
+  const kotMode            = (site as Record<string, unknown>).kot_mode as string ?? 'manual';
+  const kotStationDeviceId = (site as Record<string, unknown>).kot_station_device_id as string | null ?? null;
+  const kotPrinterName     = (site as Record<string, unknown>).kot_printer_name  as string | null ?? null;
+  const billPrinterName    = (site as Record<string, unknown>).bill_printer_name as string | null ?? null;
+  const isQrOrder          = tableCount > 0;
 
   // ── Delta mode ──────────────────────────────────────────────────────────────
   if (since) {
@@ -101,6 +104,9 @@ export async function GET(request: NextRequest) {
         oldestTs:     null,
         todayStart:   todayStart.toISOString(),
         kotMode,
+        kotStationDeviceId,
+        kotPrinterName,
+        billPrinterName,
         ...(isQrOrder ? { billRequests: billResult.data ?? [] } : {}),
       },
       { headers: { 'Cache-Control': 'no-store' } },
@@ -132,7 +138,7 @@ export async function GET(request: NextRequest) {
     const oldestTs = orders.length > 0 ? orders[orders.length - 1].created_at : null;
 
     return NextResponse.json(
-      { orders, hasMore, oldestTs, todayStart: todayStart.toISOString(), kotMode },
+      { orders, hasMore, oldestTs, todayStart: todayStart.toISOString(), kotMode, kotStationDeviceId, kotPrinterName, billPrinterName },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
@@ -140,16 +146,18 @@ export async function GET(request: NextRequest) {
   // ── Initial load ─────────────────────────────────────────────────────────────
   if (isQrOrder) {
     // qr_order: two parallel queries.
-    // Active orders have no cap — a busy day with 200+ completed orders must
-    // not push out a table's current active order beyond PAGE_SIZE.
-    // Completed orders are capped for the history list.
+    // Active orders: yesterday's todayStart — a 36-hour rolling window.
+    // This lets orders placed just before midnight remain visible after midnight
+    // without surfacing weeks of abandoned test orders.
+    // Completed orders are capped to today's history list.
+    const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
     const [activeResult, completedResult, billResult] = await Promise.all([
       supabaseServer
         .from('orders')
         .select(SELECT_COLS)
         .eq('site_id', siteId)
         .neq('status', 'completed')
-        .gte('created_at', todayStart.toISOString())
+        .gte('created_at', yesterdayStart.toISOString())
         .order('created_at', { ascending: false }),
       supabaseServer
         .from('orders')
@@ -190,32 +198,57 @@ export async function GET(request: NextRequest) {
         todayStart:   todayStart.toISOString(),
         tableCount,
         kotMode,
+        kotStationDeviceId,
+        kotPrinterName,
+        billPrinterName,
         billRequests: billResult.data ?? [],
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
 
-  // pay_eat / standard initial load — single query, 100 most-recent today.
-  const { data, error } = await supabaseServer
-    .from('orders')
-    .select(SELECT_COLS)
-    .eq('site_id', siteId)
-    .gte('created_at', todayStart.toISOString())
-    .order('created_at', { ascending: false })
-    .limit(PAGE_SIZE);
+  // pay_eat / standard initial load — two parallel queries.
+  // Active (non-completed): 36-hour rolling window (yesterday → now).
+  // Completed: today only (history list).
+  const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+  const [activeRes, completedRes] = await Promise.all([
+    supabaseServer
+      .from('orders')
+      .select(SELECT_COLS)
+      .eq('site_id', siteId)
+      .neq('status', 'completed')
+      .gte('created_at', yesterdayStart.toISOString())
+      .order('created_at', { ascending: false }),
+    supabaseServer
+      .from('orders')
+      .select(SELECT_COLS)
+      .eq('site_id', siteId)
+      .eq('status', 'completed')
+      .gte('created_at', todayStart.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(PAGE_SIZE),
+  ]);
 
+  const error = activeRes.error ?? completedRes.error;
   if (error) {
     console.error('[GET /api/manage/orders]', error);
     return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
   }
 
-  const orders   = data ?? [];
-  const hasMore  = orders.length === PAGE_SIZE;
-  const oldestTs = orders.length > 0 ? orders[orders.length - 1].created_at : null;
+  const activeRows    = activeRes.data ?? [];
+  const completedRows = completedRes.data ?? [];
+  const seenIds       = new Set(activeRows.map((o) => o.id));
+  const data          = [
+    ...activeRows,
+    ...completedRows.filter((o) => !seenIds.has(o.id)),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const orders   = data;
+  const hasMore  = completedRows.length === PAGE_SIZE;
+  const oldestTs = completedRows.length > 0 ? completedRows[completedRows.length - 1].created_at : null;
 
   return NextResponse.json(
-    { orders, hasMore, oldestTs, todayStart: todayStart.toISOString(), tableCount: 0, kotMode },
+    { orders, hasMore, oldestTs, todayStart: todayStart.toISOString(), tableCount: 0, kotMode, kotStationDeviceId, kotPrinterName, billPrinterName },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }

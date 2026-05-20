@@ -12,6 +12,7 @@ const BASE_URL = 'https://vsite.in';
 
 interface PageProps {
     params: Promise<{ slug: string }>;
+    searchParams: Promise<{ table?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -50,11 +51,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
 }
 
-async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuProduct[]; banners: ShopBanner[]; canGoLive: boolean; tier: 'view' | 'order' } | null> {
+async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuProduct[]; banners: ShopBanner[]; canGoLive: boolean; tier: 'view' | 'order' | 'order_no_pay'; qrMode: string; tableCount: number } | null> {
     // 1. Fetch Site
     const { data: site, error: siteError } = await supabaseServer
         .from('sites')
-        .select('id, slug, name, description, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, image_url, tagline, social_links, type, is_live, created_at, user_id')
+        .select('id, slug, name, description, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, image_url, tagline, social_links, type, is_live, created_at, user_id, qr_mode, table_count')
         .eq('slug', slug)
         .single();
 
@@ -68,7 +69,7 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
     // re-created or backfilled. maybeSingle so a missing sub row is not
     // logged as a Postgrest error for trial-only stores.
     let canGoLive = false;
-    let tier: 'view' | 'order' = 'view';
+    let tier: 'view' | 'order' | 'order_no_pay' = 'view';
     {
         const { data: sub } = await supabaseServer
             .from('site_subscriptions')
@@ -82,7 +83,13 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
         const trialEndsMs = new Date(site.created_at).getTime() + TRIAL_DURATION_MS;
         canGoLive = subEndsMs > now || trialEndsMs > now;
         const storePlan: string = sub?.store_plan ?? 'qr_menu';
-        tier = (storePlan === 'pay_eat' || storePlan === 'pro') ? 'order' : 'view';
+        if (storePlan === 'pay_eat' || storePlan === 'pro') {
+          tier = 'order';
+        } else if (storePlan === 'qr_order') {
+          tier = 'order_no_pay';
+        } else {
+          tier = 'view';
+        }
     }
 
     // 4. Fetch products + banners in parallel
@@ -131,18 +138,22 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
         is_live: site.is_live,
     };
 
-    return { shop: shopData, menuProducts: (products || []) as MenuProduct[], banners: (bannersData || []) as ShopBanner[], canGoLive, tier };
+    return { shop: shopData, menuProducts: (products || []) as MenuProduct[], banners: (bannersData || []) as ShopBanner[], canGoLive, tier, qrMode: (site.qr_mode ?? 'common') as string, tableCount: (site.table_count ?? 50) as number };
 }
 
-export default async function ShopPage({ params }: PageProps) {
+export default async function ShopPage({ params, searchParams }: PageProps) {
     const { slug } = await params;
+    const { table } = await searchParams;
+    const tableNumber = table ? parseInt(table, 10) : undefined;
+    const validTableNumber = tableNumber && Number.isInteger(tableNumber) && tableNumber >= 1 && tableNumber <= 50
+      ? tableNumber : undefined;
     const result = await getShop(slug);
 
     if (!result) {
         notFound();
     }
 
-    const { shop, menuProducts, banners, canGoLive, tier } = result;
+    const { shop, menuProducts, banners, canGoLive, tier, qrMode, tableCount } = result;
 
     // Check if shop is live (also gates on trial/subscription)
     if (shop.is_live === false || !canGoLive) {
@@ -170,5 +181,35 @@ export default async function ShopPage({ params }: PageProps) {
         );
     }
 
-    return <ShopPageClient shop={shop} menuProducts={menuProducts} banners={banners} tier={tier} />;
+    // In table QR mode, reject scans for tables that no longer exist.
+    // (e.g. owner had 8 tables, reduced to 7 — old Table 8 QR is now invalid.)
+    if (qrMode === 'table' && validTableNumber && validTableNumber > tableCount) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 font-sans">
+                <div className="text-center max-w-sm">
+                    <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <span className="material-symbols-outlined text-4xl text-orange-400">qr_code_2_add</span>
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">QR Code Not Available</h1>
+                    <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+                        This QR code is no longer active. Please scan the QR code on your table or ask a staff member for assistance.
+                    </p>
+                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3 text-left">
+                        <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-orange-500 text-lg">table_restaurant</span>
+                        </div>
+                        <div>
+                            <p className="font-semibold text-gray-900 text-sm">{shop.name}</p>
+                            <p className="text-xs text-gray-400">Table {validTableNumber} · No longer active</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // pay_eat = common QR only — ignore any ?table= param that may appear in the URL
+    const effectiveTableNumber = tier === 'order' ? undefined : validTableNumber;
+
+    return <ShopPageClient shop={shop} menuProducts={menuProducts} banners={banners} tier={tier} tableNumber={effectiveTableNumber} />;
 }

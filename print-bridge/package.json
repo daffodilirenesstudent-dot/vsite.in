@@ -1,0 +1,24 @@
+{
+  "name": "bys-print-bridge",
+  "version": "2.3.0",
+  "description": "Local Windows print bridge for BuildYourStore thermal printing",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "build": "pkg src/server.js --target node18-win-x64 --output dist/bys-print-bridge.exe && node patch-subsystem.js dist/bys-print-bridge.exe",
+    "build:installer": "makensis installer.nsi",
+    "release": "npm run build && npm run build:installer"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [],
+    "targets": ["node18-win-x64"],
+    "outputPath": "dist"
+  }
+}

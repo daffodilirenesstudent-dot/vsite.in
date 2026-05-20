@@ -1,102 +1,146 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
+import { useInView } from '@/hooks/useInView';
 
-const rows = [
+const features = [
     {
-        before: 'Reprinting costs ₹2,000–5,000 every time a price changes',
-        after: 'Update any item in 10 seconds. Zero printing cost. Ever.',
+        tag: 'Inventory Control',
+        title: <>Live Product <span className="text-primary">Inventory</span> Updates</>,
+        description: 'Keep your menu in sync with your kitchen — always. When a dish runs out, mark it unavailable in seconds and it disappears from every customer\'s menu instantly. No more awkward "sorry, that\'s not available" moments.',
+        bullets: [
+            'Mark items out-of-stock in one tap',
+            'Changes go live across all customer phones instantly',
+            'Low-stock alerts before you run out',
+        ],
+        image: '/productinven.png',
+        imageAlt: 'Live product inventory management',
+        reverse: false,
     },
     {
-        before: "Customers can't see what the dish looks like — they order less",
-        after: 'Every item has a professional photo. Customers order more.',
+        tag: 'Order Management',
+        title: <>Real-Time <span className="text-primary">Live Orders</span> View</>,
+        description: 'Watch orders arrive the moment customers place them — directly on your phone or any device. No missed orders, no back-and-forth. Your kitchen and serving staff stay perfectly in sync, even during the busiest rush.',
+        bullets: [
+            'Orders appear in real-time — zero delay',
+            'Track status: New → In Kitchen → Ready → Served',
+            'Works across multiple devices simultaneously',
+        ],
+        image: '/orderpage.png',
+        imageAlt: 'Live orders management',
+        reverse: true,
     },
     {
-        before: 'Rush hour: waiter runs between tables explaining the menu',
-        after: 'Customers read everything on their own phone. Waiter focuses on serving.',
-    },
-    {
-        before: "Want to add today's special? You can't, without printing",
-        after: 'Add a live offer or special in 30 seconds. It shows instantly.',
-    },
-    {
-        before: 'Monsoon, oil stains, torn pages — menus look unprofessional',
-        after: 'A clean, beautiful digital menu every single time.',
-    },
-    {
-        before: 'No idea which dish is popular, which one nobody orders',
-        after: 'See exactly what customers are viewing and ordering. Real data.',
-    },
-    {
-        before: '10 customers arrive together — queue, confusion, someone leaves',
-        after: 'With Pay & Eat — all 10 can order simultaneously from their phone.',
+        tag: 'Business Intelligence',
+        title: <>Powerful <span className="text-primary">Admin Dashboard</span> Insights</>,
+        description: 'Stop guessing what\'s working. Your dashboard shows daily revenue, total orders, average order value, and your bestselling dishes — all in one place. Make better decisions backed by real data.',
+        bullets: [
+            'Revenue and order trends at a glance',
+            'Discover your most popular dishes',
+            'Export daily reports in one click',
+        ],
+        image: '/dashboardpage.png',
+        imageAlt: 'Admin dashboard insights',
+        reverse: false,
     },
 ];
 
-export default function PainSection() {
+function FeatureRow({ feat, index }: { feat: typeof features[0]; index: number }) {
+    const { ref, visible } = useInView(0.1);
+
+    const imgFrom = feat.reverse
+        ? 'translate-x-10 scale-[0.96]'
+        : '-translate-x-10 scale-[0.96]';
+
     return (
-        <section className="py-14 sm:py-24 px-4 bg-background-light">
-            <div className="mx-auto max-w-5xl">
-                <div className="text-center mb-10 sm:mb-14">
-                    <span className="text-xs font-bold uppercase tracking-widest text-primary">The Problem</span>
-                    <h2 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display text-slate-900 leading-tight">
-                        Paper Menus Are Silently<br />Costing You Money.<br />
-                        <span className="text-slate-500">Every Single Day.</span>
+        <div
+            ref={ref}
+            className={`flex flex-col gap-8 sm:gap-12 lg:gap-16 lg:items-center ${feat.reverse ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}
+        >
+            {/* Image */}
+            <div
+                className={`flex-1 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+                    ${visible ? 'opacity-100 translate-x-0 scale-100' : `opacity-0 ${imgFrom}`}`}
+            >
+                <Image
+                    src={feat.image}
+                    alt={feat.imageAlt}
+                    width={1200}
+                    height={800}
+                    sizes="(max-width: 1024px) 100vw, 560px"
+                    className="w-full h-auto rounded-xl sm:rounded-2xl shadow-sm hover:shadow-xl hover:scale-[1.015] transition-all duration-500 ease-out"
+                    priority={index === 0}
+                />
+            </div>
+
+            {/* Text */}
+            <div
+                className={`flex-1 space-y-4 sm:space-y-5 transition-all duration-700 delay-100 ease-[cubic-bezier(0.22,1,0.36,1)]
+                    ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            >
+                <span className="inline-block text-[11px] font-semibold uppercase tracking-[0.14em] text-primary bg-primary/8 px-3 py-1.5 rounded-full">
+                    {feat.tag}
+                </span>
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 leading-tight">
+                    {feat.title}
+                </h3>
+                <p className="text-sm sm:text-base lg:text-lg text-slate-500 leading-relaxed">
+                    {feat.description}
+                </p>
+                <ul className="space-y-2.5 sm:space-y-3">
+                    {feat.bullets.map((b, bi) => (
+                        <li
+                            key={b}
+                            className={`flex items-start gap-2.5 sm:gap-3 text-slate-700 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
+                                ${visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}
+                            style={{ transitionDelay: visible ? `${280 + bi * 80}ms` : '0ms' }}
+                        >
+                            <span className="material-symbols-outlined text-green-500 text-base mt-0.5 shrink-0">check_circle</span>
+                            <span className="text-sm sm:text-base">{b}</span>
+                        </li>
+                    ))}
+                </ul>
+
+            </div>
+        </div>
+    );
+}
+
+export default function PainSection() {
+    const { ref: headerRef, visible: headerVisible } = useInView(0.2);
+
+    return (
+        <section className="py-14 sm:py-20 lg:py-28 px-4 bg-white">
+            <div className="mx-auto max-w-6xl">
+
+                <div
+                    ref={headerRef}
+                    className={`text-center mb-12 sm:mb-16 lg:mb-20 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+                        ${headerVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.98]'}`}
+                >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 mb-4">Smart Features</p>
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
+                        A digital menu made for<br className="hidden sm:block" />{' '}
+                        <span className="text-slate-400">all your business needs</span>
                     </h2>
-                    <p className="mt-5 text-base sm:text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
-                        Most restaurant owners in Tamil Nadu don&apos;t realise how much a paper menu
-                        is actually holding their business back.
+                    <p className="mt-4 sm:mt-5 text-sm sm:text-base lg:text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
+                        Everything you need to manage your menu, track orders, and grow your restaurant — from one simple dashboard.
                     </p>
                 </div>
 
-                {/* Desktop: side-by-side table */}
-                <div className="hidden sm:block rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                    <div className="grid grid-cols-2">
-                        <div className="bg-red-50 px-6 py-4 border-b border-slate-200 border-r flex items-center gap-2">
-                            <span className="material-symbols-outlined text-red-400 text-lg">close</span>
-                            <span className="font-bold text-red-700 text-sm uppercase tracking-wide">Paper Menu — Right Now</span>
-                        </div>
-                        <div className="bg-green-50 px-6 py-4 border-b border-slate-200 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
-                            <span className="font-bold text-green-700 text-sm uppercase tracking-wide">With vsite</span>
-                        </div>
-                    </div>
-                    {rows.map((row, i) => (
-                        <div key={i} className={`grid grid-cols-2 ${i < rows.length - 1 ? 'border-b border-slate-200' : ''}`}>
-                            <div className="px-6 py-5 border-r border-slate-200 bg-white flex items-start gap-3">
-                                <span className="material-symbols-outlined text-red-300 text-base mt-0.5 shrink-0">remove_circle</span>
-                                <p className="text-sm text-slate-600 leading-relaxed">{row.before}</p>
-                            </div>
-                            <div className="px-6 py-5 bg-white flex items-start gap-3">
-                                <span className="material-symbols-outlined text-green-500 text-base mt-0.5 shrink-0">check_circle</span>
-                                <p className="text-sm text-slate-700 font-medium leading-relaxed">{row.after}</p>
-                            </div>
-                        </div>
+                <div className="flex flex-col gap-14 sm:gap-20 lg:gap-28">
+                    {features.map((feat, i) => (
+                        <FeatureRow key={i} feat={feat} index={i} />
                     ))}
                 </div>
 
-                {/* Mobile: stacked cards */}
-                <div className="sm:hidden space-y-3">
-                    {rows.map((row, i) => (
-                        <div key={i} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                            <div className="flex items-start gap-3 px-4 py-4 border-b border-slate-100 bg-red-50">
-                                <span className="material-symbols-outlined text-red-400 text-base mt-0.5 shrink-0">remove_circle</span>
-                                <p className="text-sm text-slate-600 leading-relaxed">{row.before}</p>
-                            </div>
-                            <div className="flex items-start gap-3 px-4 py-4">
-                                <span className="material-symbols-outlined text-green-500 text-base mt-0.5 shrink-0">check_circle</span>
-                                <p className="text-sm text-slate-700 font-medium leading-relaxed">{row.after}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="mt-10 text-center">
+                <div className="mt-14 sm:mt-20 text-center">
                     <Link
                         href="/signup"
-                        className="inline-flex items-center gap-2 bg-primary text-white px-8 py-4 rounded-full font-bold text-base sm:text-lg shadow-lg shadow-primary/25 hover:bg-primary-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-full font-bold text-base sm:text-lg shadow-lg shadow-primary/25 hover:bg-primary-dark hover:scale-[1.03] active:scale-95 transition-all duration-300"
                     >
-                        Fix This For Free — Start Your 14-Day Trial
+                        Start Your Free 14-Day Trial
                         <span className="material-symbols-outlined text-xl">arrow_forward</span>
                     </Link>
                 </div>

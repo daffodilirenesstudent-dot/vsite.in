@@ -94,22 +94,39 @@ export default function BannerManagementPage() {
     };
 
     // ── Drawer helpers ────────────────────────────────────────────────────────
+    // Always revoke any in-progress blob URL when replacing form state so we
+    // don't leak across open → edit → save cycles.
+    const revokeFormBlob = () => {
+        setForm(f => {
+            if (f.imagePreview?.startsWith('blob:')) URL.revokeObjectURL(f.imagePreview);
+            return f;
+        });
+    };
     const openDrawer = () => {
+        revokeFormBlob();
         setEditingBanner(null);
         setForm({ ...emptyForm });
         setDrawerOpen(true);
     };
     const openEditDrawer = (banner: Banner) => {
+        revokeFormBlob();
         setEditingBanner(banner);
         setForm({ name: banner.name, description: banner.description ?? '', imagePreview: banner.image_url, imageFile: null });
         setDrawerOpen(true);
     };
-    const closeDrawer = () => { setDrawerOpen(false); setEditingBanner(null); };
+    const closeDrawer = () => {
+        revokeFormBlob();
+        setDrawerOpen(false);
+        setEditingBanner(null);
+        setForm({ ...emptyForm });
+    };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        e.target.value = '';
         if (!file) return;
-        if (file.size > 5 * 1024 * 1024) { toast.error('Image too large. Max 5 MB.'); return; }
+        if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
+        if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
         setForm(f => {
             // Revoke previous local blob URL to avoid memory leak
             if (f.imagePreview?.startsWith('blob:')) URL.revokeObjectURL(f.imagePreview);
@@ -318,7 +335,7 @@ export default function BannerManagementPage() {
 
                                 {/* Actions */}
                                 <div className="flex items-center gap-1">
-                                    <button className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => openEditDrawer(banner)} title="Edit">
+                                    <button type="button" aria-label={`Edit ${banner.name}`} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => openEditDrawer(banner)} title="Edit">
                                         <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#0A0A0A' }}>edit</span>
                                     </button>
                                     <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => setDeleteTarget({ id: banner.id, name: banner.name })} title="Delete">

@@ -1,10 +1,9 @@
 'use client';
 
-import { Suspense, useCallback, useState } from 'react';
-import { Shop } from '@/lib/supabase';
+import { Suspense, useEffect, useState } from 'react';
+import { Shop, supabase } from '@/lib/supabase';
 import { TEMPLATE_MAP, DEFAULT_TEMPLATE, type TemplateName } from '@/components/templates/index';
 import type { MenuProduct, ShopBanner } from '@/components/templates/QRMenuTemplate';
-import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 
 export type { MenuProduct, ShopBanner };
 
@@ -43,11 +42,13 @@ export default function ShopPageClient({
   menuProducts: initialProducts,
   banners: initialBanners,
   tier,
+  tableNumber,
 }: {
   shop: Shop;
   menuProducts: MenuProduct[];
   banners: ShopBanner[];
-  tier: 'view' | 'order';
+  tier: 'view' | 'order' | 'order_no_pay';
+  tableNumber?: number;
 }) {
   // Hydrated from server — kept in state so realtime updates can mutate the
   // customer's view without a full page reload (the bedrock UX requirement
@@ -57,54 +58,59 @@ export default function ShopPageClient({
   const [products, setProducts] = useState<MenuProduct[]>(initialProducts);
   const [banners, setBanners] = useState<ShopBanner[]>(initialBanners);
 
-  // ── Realtime: site row (name, image_url, is_live, tagline, etc.) ───────
-  useRealtimeTable<Shop>({
-    table: 'sites',
-    filter: `id=eq.${initialShop.id}`,
-    event: 'UPDATE',
-    onChange: useCallback((payload) => {
-      const next = payload.new as Shop | undefined;
-      if (!next) return;
-      // If the owner just took the store offline, force a full reload so the
-      // server-rendered "Shop Currently Unavailable" page is shown — the
-      // customer sees a clear closed-state instead of a half-broken UI.
-      if (next.is_live === false) {
-        if (typeof window !== 'undefined') window.location.reload();
-        return;
-      }
-      setShop(prev => ({ ...prev, ...next }));
-    }, []),
-  });
+  // ── Realtime: single channel for sites + products + banners ────────────
+  // Three .on() listeners on one channel = 1 WebSocket subscription instead
+  // of 3, cutting Supabase Realtime connections by 2/3 per customer session.
+  useEffect(() => {
+    const siteId = initialShop.id;
+    const channel = supabase
+      .channel(`shop:${siteId}`)
+      .on(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        'postgres_changes' as any,
+        { event: 'UPDATE', schema: 'public', table: 'sites', filter: `id=eq.${siteId}` },
+        (payload: { new?: Shop }) => {
+          const next = payload.new;
+          if (!next) return;
+          if (next.is_live === false) {
+            if (typeof window !== 'undefined') window.location.reload();
+            return;
+          }
+          setShop(prev => ({ ...prev, ...next }));
+        },
+      )
+      .on(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'products', filter: `site_id=eq.${siteId}` },
+        (payload: { eventType: string; new?: MenuProduct & { is_live?: boolean }; old?: { id?: string } }) => {
+          setProducts(prev => {
+            const merged = applyRowChange(
+              prev as Array<MenuProduct & { id?: string }>,
+              payload as never,
+            ) as Array<MenuProduct & { is_live?: boolean }>;
+            return merged.filter(p => !shouldExcludeProduct(p));
+          });
+        },
+      )
+      .on(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'banners', filter: `site_id=eq.${siteId}` },
+        (payload: { eventType: string; new?: ShopBanner & { is_active?: boolean }; old?: { id?: string } }) => {
+          setBanners(prev => {
+            const merged = applyRowChange(
+              prev as Array<ShopBanner & { id?: string }>,
+              payload as never,
+            ) as Array<ShopBanner & { is_active?: boolean }>;
+            return merged.filter(b => !shouldExcludeBanner(b));
+          });
+        },
+      )
+      .subscribe();
 
-  // ── Realtime: products for this site (price, name, photo, in-stock) ────
-  useRealtimeTable<MenuProduct & { is_live?: boolean; site_id?: string }>({
-    table: 'products',
-    filter: `site_id=eq.${initialShop.id}`,
-    onChange: useCallback((payload) => {
-      setProducts(prev => {
-        const merged = applyRowChange(
-          prev as Array<MenuProduct & { id?: string }>,
-          payload as never,
-        ) as Array<MenuProduct & { is_live?: boolean }>;
-        return merged.filter(p => !shouldExcludeProduct(p));
-      });
-    }, []),
-  });
-
-  // ── Realtime: banners for this site ────────────────────────────────────
-  useRealtimeTable<ShopBanner & { is_active?: boolean; site_id?: string }>({
-    table: 'banners',
-    filter: `site_id=eq.${initialShop.id}`,
-    onChange: useCallback((payload) => {
-      setBanners(prev => {
-        const merged = applyRowChange(
-          prev as Array<ShopBanner & { id?: string }>,
-          payload as never,
-        ) as Array<ShopBanner & { is_active?: boolean }>;
-        return merged.filter(b => !shouldExcludeBanner(b));
-      });
-    }, []),
-  });
+    return () => { supabase.removeChannel(channel); };
+  }, [initialShop.id]);
 
   const templateKey: TemplateName = DEFAULT_TEMPLATE;
   const Template = TEMPLATE_MAP[templateKey];
@@ -133,6 +139,8 @@ export default function ShopPageClient({
         banners={banners}
         tier={tier}
         shopId={shop.id}
+        shopSlug={shop.slug}
+        tableNumber={tableNumber}
       />
     </Suspense>
   );

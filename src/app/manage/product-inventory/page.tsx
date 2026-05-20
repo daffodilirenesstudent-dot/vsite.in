@@ -72,6 +72,7 @@ const emptyForm = {
 };
 
 const uid = () => Math.random().toString(36).slice(2);
+const toTitleCase = (s: string) => s.trim().replace(/\b\w/g, c => c.toUpperCase());
 
 /* ── Shared sub-components for the drawer ── */
 
@@ -182,7 +183,9 @@ export default function ProductInventoryPage() {
     const [form, setForm] = useState({ ...emptyForm });
     const [showAddCategory, setShowAddCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<string | null>(null);
     const [categories, setCategories] = useState<string[]>([]);
+    const [activeCategory, setActiveCategory] = useState<string>('All');
     const [variants, setVariants] = useState<VariantRow[]>([{ id: uid(), size: '', price: '' }]);
     const [toppings, setToppings] = useState<ToppingRow[]>([{ id: uid(), name: '', price: '' }]);
     const [comboItems, setComboItems] = useState<ComboItemRow[]>([{ id: uid(), name: '', qty: '1' }]);
@@ -194,26 +197,95 @@ export default function ProductInventoryPage() {
         setLoading(true);
         setProducts([]);
         setSiteId(id);
-        const { data, error } = await supabase
-            .from('products')
-            .select('id, name, description, type, dish_type, item_type, food_type, category, selling_price, is_live, image_url, metadata')
-            .eq('site_id', id)
-            .order('sort_order', { ascending: true });
+
+        // Fetch products + persisted categories in parallel
+        const [{ data, error }, { data: catRows }] = await Promise.all([
+            supabase
+                .from('products')
+                .select('id, name, description, type, dish_type, item_type, food_type, category, selling_price, is_live, image_url, metadata')
+                .eq('site_id', id)
+                .order('sort_order', { ascending: true }),
+            supabase
+                .from('categories')
+                .select('name')
+                .eq('site_id', id)
+                .order('sort_order', { ascending: true }),
+        ]);
+
         if (error) {
             toast.error('Failed to load products');
             setLoading(false);
             return;
         }
         const all: Product[] = (data ?? []).map((p: any) => ({ ...p, site_id: id }));
-        setProducts(all);
-        const cats = Array.from(new Set(all.map((p: Product) => p.category).filter(Boolean))) as string[];
-        setCategories(cats);
+        // Sort once on fetch: missing image (2) + offline (1) → highest score last.
+        // Toggling is_live does in-place updates so the display order never jumps.
+        const sorted = [...all].sort((a, b) => {
+            const score = (p: Product) => (!p.image_url ? 2 : 0) + (p.is_live === false ? 1 : 0);
+            return score(b) - score(a);
+        });
+        setProducts(sorted);
+
+        // Merge: categories table (source of truth) + product.category fields (backward compat)
+        const tableCats  = (catRows ?? []).map((c: { name: string }) => c.name);
+        const productCats = Array.from(new Set(all.map((p: Product) => p.category).filter(Boolean))) as string[];
+        const merged = Array.from(new Set([...tableCats, ...productCats]));
+        setCategories(merged);
         setLoading(false);
     }, []);
 
     useEffect(() => {
         if (activeSite?.id) fetchProducts(activeSite.id);
     }, [activeSite?.id, fetchProducts]);
+
+    // Persists a new category to the DB and updates local state.
+    // Safe to call multiple times for the same name (DB has no unique constraint,
+    // but the local dedupe prevents visual duplicates).
+    const confirmNewCategory = useCallback(async (name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed || !siteId) return;
+
+        // Optimistic local update first
+        setCategories(prev => prev.includes(trimmed) ? prev : [...prev, trimmed]);
+        setForm(f => ({ ...f, category: trimmed }));
+        setNewCategoryName('');
+        setShowAddCategory(false);
+
+        // Persist to the categories table so it survives refresh even if
+        // no product is saved with this category.
+        const { error } = await supabase
+            .from('categories')
+            .insert({ site_id: siteId, name: trimmed });
+        if (error && error.code !== '23505') {
+            // Ignore unique-violation (category already exists); log anything else
+            console.warn('Category save failed:', error.message);
+        }
+    }, [siteId]);
+
+    // Deletes a category row and sets category=null on all products in that category.
+    // Products themselves are never deleted.
+    const deleteCategory = useCallback(async (name: string) => {
+        if (!siteId) return;
+
+        // Optimistic local update
+        setCategories(prev => prev.filter(c => c !== name));
+        setProducts(prev => prev.map(p => p.category === name ? { ...p, category: undefined } : p));
+        setForm(f => f.category === name ? { ...f, category: '' } : f);
+        setActiveCategory(prev => prev === name ? 'All' : prev);
+
+        // DB: delete category row + null-out product references in parallel
+        const [{ error: catErr }, { error: prodErr }] = await Promise.all([
+            supabase.from('categories').delete().eq('site_id', siteId).eq('name', name),
+            supabase.from('products').update({ category: null }).eq('site_id', siteId).eq('category', name),
+        ]);
+
+        if (catErr || prodErr) {
+            toast.error('Failed to delete category');
+            fetchProducts(siteId); // re-sync on failure
+        } else {
+            toast.success(`"${name}" category removed`);
+        }
+    }, [siteId, fetchProducts]);
 
     const toggleAvailability = async (id: string, current: boolean) => {
         // Optimistic update first
@@ -234,7 +306,17 @@ export default function ProductInventoryPage() {
         setDeleteTarget(null);
     };
 
+    // Revokes any blob URL still held in the form before we replace it —
+    // prevents leaks when the drawer is opened/edited/closed repeatedly.
+    const revokeFormBlob = () => {
+        setForm(f => {
+            if (f.imagePreview?.startsWith('blob:')) URL.revokeObjectURL(f.imagePreview);
+            return f;
+        });
+    };
+
     const openDrawer = () => {
+        revokeFormBlob();
         setEditingProduct(null);
         setProImageUsed(false);
         setForm({ ...emptyForm, imagePreview: null, imageFile: null });
@@ -247,6 +329,7 @@ export default function ProductInventoryPage() {
     };
 
     const openEditDrawer = (product: Product) => {
+        revokeFormBlob();
         setEditingProduct(product);
         const productType = (product.type as string) || DB_TO_ITEM_TYPE[product.item_type ?? ''] || 'Single Item';
         const dishType    = (product.dish_type as typeof DISH_TYPES[number]) || DB_TO_DISH_TYPE[product.food_type ?? ''] || 'Non-Vegetarian';
@@ -286,11 +369,22 @@ export default function ProductInventoryPage() {
         setDrawerOpen(true);
     };
 
-    const closeDrawer = () => { setDrawerOpen(false); setEditingProduct(null); };
+    const closeDrawer = () => {
+        revokeFormBlob();
+        setDrawerOpen(false);
+        setEditingProduct(null);
+    };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        // Reset the input so picking the same file twice still triggers onChange.
+        e.target.value = '';
         if (!file) return;
+        // Hard guards: phone galleries are full of 20+ MB shots and exotic formats
+        // that will silently choke the upload. Catch them client-side with a clear
+        // toast so the user knows what went wrong.
+        if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
+        if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
         setProImageUsed(false);
         setForm(f => {
             // Revoke previous blob URL to avoid memory leak
@@ -391,7 +485,7 @@ export default function ProductInventoryPage() {
         }
 
         const row = {
-            name:          form.name.trim(),
+            name:          toTitleCase(form.name),
             description:   form.description.trim() || undefined,
             type:          form.productType,
             dish_type:     form.dishType,
@@ -446,14 +540,15 @@ export default function ProductInventoryPage() {
 
     const COLS = ['PRODUCT', 'DESCRIPTION', 'TYPE', 'CATEGORY', 'PRICE', 'AVAILABILITY', 'ACTIONS'];
 
-    // Sort: missing image (score 2) + toggled off (score 1) → highest score first
-    const sortedProducts = [...products].sort((a, b) => {
-        const score = (p: Product) => (!p.image_url ? 2 : 0) + (p.is_live === false ? 1 : 0);
-        return score(b) - score(a);
-    });
+    // products is already sorted on fetch; filter by activeCategory for the table
+    const filteredProducts = (activeCategory === 'All' || !categories.includes(activeCategory))
+        ? products
+        : products.filter(p => p.category === activeCategory);
 
     return (
         <div className="px-4 lg:px-8 py-5 lg:py-8">
+            {/* Skeleton animation used by both desktop + mobile row skeletons. */}
+            <style>{`@keyframes pi-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
 
             {/* Page header */}
             <div className="flex items-start justify-between mb-5 lg:mb-6">
@@ -492,6 +587,36 @@ export default function ProductInventoryPage() {
                 </div>
             )}
 
+            {/* ── Category filter strip ── */}
+            {categories.length > 0 && (
+                <div className="flex items-center gap-2 mb-4" style={{ overflowX: 'auto', paddingBottom: 2 }}>
+                    {(['All', ...categories] as string[]).map(cat => {
+                        const active = activeCategory === cat;
+                        return (
+                            <button
+                                key={cat}
+                                onClick={() => setActiveCategory(cat)}
+                                style={{
+                                    border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7',
+                                    borderRadius: 20,
+                                    padding: '5px 16px',
+                                    fontSize: 13,
+                                    fontWeight: active ? 600 : 500,
+                                    background: active ? '#5137EF' : '#FFFFFF',
+                                    color: active ? '#FFFFFF' : '#52525C',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                {cat}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
             {/* ── DESKTOP TABLE (md+) ── */}
             <div className="hidden lg:block bg-white overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
                 <div className="grid" style={{ gridTemplateColumns: '160px 1fr 110px 110px 80px 110px 80px', background: '#F4F4F4', borderBottom: '1px solid #E4E4E7', padding: '0 24px' }}>
@@ -500,18 +625,30 @@ export default function ProductInventoryPage() {
                     ))}
                 </div>
                 {loading ? (
-                    <div className="py-16 text-center text-sm text-[#99A1AF]">Loading…</div>
-                ) : sortedProducts.length === 0 ? (
+                    // Row skeletons mirror the real list shape so the page doesn't
+                    // collapse and jump on load.
+                    Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="grid items-center" style={{ gridTemplateColumns: '60px 1.5fr 120px 1fr 90px 110px 140px', padding: '12px 16px', borderBottom: i < 5 ? '1px solid #F4F4F5' : 'none', minHeight: 60 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div style={{ height: 12, width: '70%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div style={{ height: 12, width: 80, borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div style={{ height: 12, width: '60%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div style={{ height: 12, width: 60, borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div style={{ height: 22, width: 40, borderRadius: 12, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div style={{ height: 28, width: 80, borderRadius: 6, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                        </div>
+                    ))
+                ) : filteredProducts.length === 0 ? (
                     <div className="py-16 flex flex-col items-center gap-2">
                         <span className="material-symbols-outlined text-[#D4D4D8]" style={{ fontSize: 48 }}>inventory_2</span>
                         <p className="text-sm text-[#99A1AF]">No products yet. Add your first product.</p>
                     </div>
-                ) : sortedProducts.map((product, idx) => {
+                ) : filteredProducts.map((product, idx) => {
                     const isOn = product.is_live !== false;
                     const typeLabel = DB_TO_ITEM_TYPE[product.item_type ?? ''] ?? 'Single Item';
                     const noImage = !product.image_url;
                     return (
-                        <div key={product.id} className="grid items-center" style={{ gridTemplateColumns: '160px 1fr 110px 110px 80px 110px 80px', padding: '0 24px', minHeight: 50, borderBottom: idx < sortedProducts.length - 1 ? '1px solid #E4E4E7' : 'none', background: noImage ? '#FFFBF5' : 'transparent' }}>
+                        <div key={product.id} className="grid items-center" style={{ gridTemplateColumns: '160px 1fr 110px 110px 80px 110px 80px', padding: '0 24px', minHeight: 50, borderBottom: idx < filteredProducts.length - 1 ? '1px solid #E4E4E7' : 'none', background: noImage ? '#FFFBF5' : 'transparent' }}>
                             <div className="truncate pr-3 flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 500, color: '#0A0A0A' }}>
                                 {noImage && (
                                     <span title="No image — tap edit to add one" style={{
@@ -529,13 +666,13 @@ export default function ProductInventoryPage() {
                             <div style={{ fontSize: 12, color: '#52525C' }}>{product.category || '—'}</div>
                             <div style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>₹{product.selling_price}</div>
                             <div>
-                                <button onClick={() => toggleAvailability(product.id, isOn)} style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 43, height: 20, borderRadius: 9999, background: isOn ? '#00A63E' : '#EE5A4F', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
+                                <button type="button" role="switch" aria-checked={isOn} aria-label={`${isOn ? 'Disable' : 'Enable'} ${product.name}`} onClick={() => toggleAvailability(product.id, isOn)} style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 43, height: 20, borderRadius: 9999, background: isOn ? '#00A63E' : '#EE5A4F', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
                                     <span style={{ position: 'absolute', top: 2, left: isOn ? 25 : 2, width: 16, height: 16, borderRadius: '50%', background: '#FFFFFF', transition: 'left 0.2s' }} />
                                 </button>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => openEditDrawer(product)}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#0A0A0A' }}>edit</span>
+                                <button type="button" aria-label={`Edit ${product.name}`} title="Edit" className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => openEditDrawer(product)}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#0A0A0A' }} aria-hidden>edit</span>
                                 </button>
                                 <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => setDeleteTarget({ id: product.id, name: product.name })}>
                                     <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#E7000B' }}>delete</span>
@@ -549,20 +686,28 @@ export default function ProductInventoryPage() {
             {/* ── MOBILE CARDS ── */}
             <div className="lg:hidden overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
                 {loading ? (
-                    <div className="py-16 text-center text-sm text-[#99A1AF]">Loading…</div>
-                ) : sortedProducts.length === 0 ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} style={{ padding: '14px 16px', borderBottom: i < 3 ? '1px solid #F4F4F5' : 'none', display: 'flex', gap: 12, alignItems: 'center' }}>
+                            <div style={{ width: 56, height: 56, borderRadius: 8, background: '#F4F4F5', flexShrink: 0, animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <div style={{ height: 12, width: '60%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                                <div style={{ height: 10, width: '40%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            </div>
+                        </div>
+                    ))
+                ) : filteredProducts.length === 0 ? (
                     <div className="py-16 flex flex-col items-center gap-2">
                         <span className="material-symbols-outlined text-[#D4D4D8]" style={{ fontSize: 40 }}>inventory_2</span>
                         <p className="text-sm text-[#99A1AF]">No products yet.</p>
                     </div>
-                ) : sortedProducts.map((product, idx) => {
+                ) : filteredProducts.map((product, idx) => {
                     const isOn = product.is_live !== false;
                     const typeLabel = DB_TO_ITEM_TYPE[product.item_type ?? ''] ?? 'Single Item';
                     const noImage = !product.image_url;
                     return (
                         <div
                             key={product.id}
-                            style={{ padding: '14px 16px', background: noImage ? '#FFFBF5' : '#FFFFFF', borderBottom: idx < sortedProducts.length - 1 ? '1px solid #E4E4E7' : 'none' }}
+                            style={{ padding: '14px 16px', background: noImage ? '#FFFBF5' : '#FFFFFF', borderBottom: idx < filteredProducts.length - 1 ? '1px solid #E4E4E7' : 'none' }}
                         >
                             {/* Row 1: Name + Actions */}
                             <div className="flex items-center justify-between mb-2">
@@ -579,7 +724,7 @@ export default function ProductInventoryPage() {
                                     <span style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>{product.name}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <button className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 30, height: 30, borderRadius: 6 }} onClick={() => openEditDrawer(product)}>
+                                    <button type="button" aria-label={`Edit ${product.name}`} title="Edit" className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 30, height: 30, borderRadius: 6 }} onClick={() => openEditDrawer(product)}>
                                         <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#0A0A0A' }}>edit</span>
                                     </button>
                                     <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 30, height: 30, borderRadius: 6 }} onClick={() => setDeleteTarget({ id: product.id, name: product.name })}>
@@ -591,7 +736,7 @@ export default function ProductInventoryPage() {
                             <div className="flex items-center gap-3">
                                 <span style={{ display: 'inline-flex', alignItems: 'center', background: '#F0EDFF', borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 500, color: '#5137EF' }}>{typeLabel}</span>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A' }}>₹{product.selling_price}</span>
-                                <button onClick={() => toggleAvailability(product.id, isOn)} style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 40, height: 20, borderRadius: 9999, background: isOn ? '#00A63E' : '#EE5A4F', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0, marginLeft: 'auto' }}>
+                                <button type="button" role="switch" aria-checked={isOn} aria-label={`${isOn ? 'Disable' : 'Enable'} ${product.name}`} onClick={() => toggleAvailability(product.id, isOn)} style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 40, height: 20, borderRadius: 9999, background: isOn ? '#00A63E' : '#EE5A4F', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0, marginLeft: 'auto' }}>
                                     <span style={{ position: 'absolute', top: 2, left: isOn ? 22 : 2, width: 16, height: 16, borderRadius: '50%', background: '#FFFFFF', transition: 'left 0.2s' }} />
                                 </button>
                             </div>
@@ -792,13 +937,25 @@ export default function ProductInventoryPage() {
                             <div style={{ marginBottom: 20 }}>
                                 <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
                                     <label style={{ ...lbl, marginBottom: 0 }}>Category</label>
-                                    {!showAddCategory && (
-                                        <button type="button" onClick={() => setShowAddCategory(true)} style={{ fontSize: 13, fontWeight: 600, color: '#5137EF', background: 'none', border: 'none', cursor: 'pointer' }}>+ Add New</button>
-                                    )}
+                                    <div className="flex items-center gap-3">
+                                        {/* Delete Category — only visible when a category is selected */}
+                                        {form.category && !showAddCategory && !deleteCategoryTarget && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteCategoryTarget(form.category)}
+                                                style={{ fontSize: 13, fontWeight: 600, color: '#E7000B', background: 'none', border: 'none', cursor: 'pointer' }}
+                                            >
+                                                Delete Category
+                                            </button>
+                                        )}
+                                        {!showAddCategory && !deleteCategoryTarget && (
+                                            <button type="button" onClick={() => setShowAddCategory(true)} style={{ fontSize: 13, fontWeight: 600, color: '#5137EF', background: 'none', border: 'none', cursor: 'pointer' }}>+ Add New</button>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {/* Existing category chips */}
-                                {categories.length > 0 && (
+                                {/* Existing category chips — select only, no delete on the chip itself */}
+                                {categories.length > 0 && !deleteCategoryTarget && (
                                     <div className="flex flex-wrap gap-2" style={{ marginBottom: showAddCategory ? 12 : 0 }}>
                                         {categories.map(cat => {
                                             const active = form.category === cat;
@@ -806,7 +963,7 @@ export default function ProductInventoryPage() {
                                                 <button
                                                     key={cat}
                                                     type="button"
-                                                    onClick={() => setForm(f => ({ ...f, category: active ? '' : cat }))}
+                                                    onClick={() => { if (!active) setForm(f => ({ ...f, category: cat })); }}
                                                     style={{
                                                         border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7',
                                                         borderRadius: 20,
@@ -815,14 +972,50 @@ export default function ProductInventoryPage() {
                                                         fontWeight: 500,
                                                         background: active ? '#F0EDFF' : '#FFFFFF',
                                                         color: active ? '#5137EF' : '#52525C',
-                                                        cursor: 'pointer',
+                                                        cursor: active ? 'default' : 'pointer',
                                                         transition: 'all 0.15s',
                                                     }}
                                                 >
+                                                    {active && <span style={{ marginRight: 4 }}>✓</span>}
                                                     {cat}
                                                 </button>
                                             );
                                         })}
+                                    </div>
+                                )}
+
+                                {/* ── Delete Category confirmation panel ── */}
+                                {deleteCategoryTarget && (
+                                    <div style={{ border: '1.5px solid #FCA5A5', borderRadius: 10, padding: '14px 16px', background: '#FFF5F5' }}>
+                                        <div className="flex items-start gap-3">
+                                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#E7000B' }}>warning</span>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A', marginBottom: 4 }}>
+                                                    Delete &ldquo;{deleteCategoryTarget}&rdquo;?
+                                                </p>
+                                                <p style={{ fontSize: 12, color: '#52525C', marginBottom: 12, lineHeight: '18px' }}>
+                                                    The category will be removed. All products in this category will be kept but their category will be cleared.
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDeleteCategoryTarget(null)}
+                                                        style={{ border: '1px solid #E4E4E7', borderRadius: 7, padding: '6px 16px', fontSize: 12, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { deleteCategory(deleteCategoryTarget); setDeleteCategoryTarget(null); }}
+                                                        style={{ background: '#E7000B', borderRadius: 7, padding: '6px 16px', fontSize: 12, fontWeight: 600, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
+                                                    >
+                                                        Yes, Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
@@ -842,12 +1035,7 @@ export default function ProductInventoryPage() {
                                             onKeyDown={e => {
                                                 if (e.key === 'Enter') {
                                                     e.preventDefault();
-                                                    if (!newCategoryName.trim()) return;
-                                                    const name = newCategoryName.trim();
-                                                    if (!categories.includes(name)) setCategories(p => [...p, name]);
-                                                    setForm(f => ({ ...f, category: name }));
-                                                    setNewCategoryName('');
-                                                    setShowAddCategory(false);
+                                                    confirmNewCategory(newCategoryName);
                                                 }
                                             }}
                                             placeholder="e.g., South Indian"
@@ -858,14 +1046,7 @@ export default function ProductInventoryPage() {
                                             <button type="button" onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }} className="hover:bg-neutral-50" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}>Cancel</button>
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    if (!newCategoryName.trim()) return;
-                                                    const name = newCategoryName.trim();
-                                                    if (!categories.includes(name)) setCategories(p => [...p, name]);
-                                                    setForm(f => ({ ...f, category: name }));
-                                                    setNewCategoryName('');
-                                                    setShowAddCategory(false);
-                                                }}
+                                                onClick={() => confirmNewCategory(newCategoryName)}
                                                 className="hover:opacity-90"
                                                 style={{ background: '#5137EF', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 500, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
                                             >

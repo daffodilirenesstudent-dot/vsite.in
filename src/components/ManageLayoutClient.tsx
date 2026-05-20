@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { PlanProvider } from './PlanContext';
 import { SiteProvider, useSite } from './SiteContext';
 import { NotificationProvider } from './NotificationContext';
+import { PrinterStatusProvider } from './PrinterStatusContext';
 import DashboardHeader from './DashboardHeader';
 import TrialBanner from './manage/TrialBanner';
 import { supabase } from '@/lib/supabase';
@@ -106,7 +107,9 @@ export default function ManageLayoutClient({ children }: { children: React.React
             <SiteProvider>
                 <PlanProvider>
                     <NotificationProvider>
-                        <ManageShell>{children}</ManageShell>
+                        <PrinterStatusProvider>
+                            <ManageShell>{children}</ManageShell>
+                        </PrinterStatusProvider>
                     </NotificationProvider>
                 </PlanProvider>
             </SiteProvider>

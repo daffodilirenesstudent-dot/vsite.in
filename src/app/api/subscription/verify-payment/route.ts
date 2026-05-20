@@ -160,6 +160,27 @@ export async function POST(request: NextRequest) {
         // ── Set expiry to 30 days from now ──────────────────────────────────
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
+        // ── Record billing history first ────────────────────────────────────
+        // Insert billing record before activating the subscription so a failed
+        // billing write aborts cleanly without leaving the subscription active.
+        const amountInr = Math.round(payment.amount / 100);
+        const { error: billingError } = await supabaseServer
+            .from('billing_history')
+            .insert({
+                user_id: userId,
+                plan_name: `Smart QR Menu — ${amountInr >= (SETUP_FEE_INR + MONTHLY_FEE_INR) ? 'Setup + First Month' : 'Monthly Renewal'}`,
+                amount: amountInr,
+                currency: payment.currency || 'INR',
+                status: 'Success',
+                razorpay_payment_id,
+            });
+
+        // 23505 = unique_violation — another request beat us to it (idempotent).
+        if (billingError && billingError.code !== '23505') {
+            console.error('[verify-payment] billing_history insert failed:', billingError);
+            return NextResponse.json({ error: 'Failed to record billing' }, { status: 500 });
+        }
+
         // ── Activate ────────────────────────────────────────────────────────
         const { error: updateError } = await supabaseServer
             .from('site_subscriptions')
@@ -174,24 +195,6 @@ export async function POST(request: NextRequest) {
         if (updateError) {
             console.error('[verify-payment] site_subscriptions update failed:', updateError);
             return NextResponse.json({ error: 'Failed to activate subscription' }, { status: 500 });
-        }
-
-        // ── Record billing history ──────────────────────────────────────────
-        const amountInr = Math.round(payment.amount / 100);
-        const { error: billingError } = await supabaseServer
-            .from('billing_history')
-            .insert({
-                user_id: userId,
-                plan_name: `Smart QR Menu — ${amountInr >= (SETUP_FEE_INR + MONTHLY_FEE_INR) ? 'Setup + First Month' : 'Monthly Renewal'}`,
-                amount: amountInr,
-                currency: payment.currency || 'INR',
-                status: 'Success',
-                razorpay_payment_id,
-            });
-
-        // 23505 = unique_violation — another request beat us to it.
-        if (billingError && billingError.code !== '23505') {
-            console.error('[verify-payment] billing_history insert failed:', billingError);
         }
 
         return NextResponse.json({ success: true, expiresAt });

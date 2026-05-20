@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CartItem } from './QRMenuTemplate';
 
-// ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
 const C = {
   white: '#FFFFFF',
   dark: '#171717',
@@ -12,40 +11,58 @@ const C = {
   border: '#E5E5E5',
   green: '#00A63E',
   greenBg: '#F0FDF4',
+  greenBorder: '#BBF7D0',
   tokenBorder: '#FFE2BD',
   pink: '#EF59A1',
-  barcodeBg: '#FAFAFA',
-  stepBg: '#171717',
+  saveBg: '#FFF7ED',
+  saveAccent: '#F97316',
   cardBg: '#F5F5F5',
 };
 
 interface OrderConfirmedScreenProps {
   orderId: string;
   orderNumber: string;
+  shopName: string;
   items: CartItem[];
   subtotal: number;
-  paymentMethod: 'online' | 'counter';
+  paymentMethod: 'online' | 'counter' | 'no_payment';
+  tokenNumber?: string;
+  tableNumber?: number;
   onDone: () => void;
 }
 
-// Generate a short token from order number
-function generateToken(orderNumber: string): string {
-  const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-  return `${letter}${orderNumber.slice(-4)}`;
+function consolidateItems(items: CartItem[]): CartItem[] {
+  const map = new Map<string, CartItem>();
+  for (const item of items) {
+    const key = `${item.name}||${item.variantSize ?? ''}`;
+    const existing = map.get(key);
+    if (existing) {
+      map.set(key, { ...existing, qty: existing.qty + item.qty });
+    } else {
+      map.set(key, { ...item });
+    }
+  }
+  return Array.from(map.values());
 }
 
 export default function OrderConfirmedScreen({
-  orderNumber, items, subtotal, onDone,
+  orderNumber, shopName, items, subtotal, paymentMethod, tokenNumber, tableNumber, onDone,
 }: OrderConfirmedScreenProps) {
+  const displayItems = consolidateItems(items);
   const [phase, setPhase] = useState<'success' | 'details'>('success');
+  const [downloading, setDownloading] = useState(false);
+  const billRef = useRef<HTMLDivElement>(null);
+  const saveBillCardRef = useRef<HTMLDivElement>(null);
 
-  const token = useMemo(() => generateToken(orderNumber), [orderNumber]);
-  const orderTime = useMemo(() => {
-    const now = new Date();
-    return now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  }, []);
+  const isNoPayment = paymentMethod === 'no_payment';
+  // For no_payment: table orders use tableNumber, takeaway orders use tokenNumber ("Takeaway X")
+  const isTakeawayNoPayment = isNoPayment && !tableNumber;
+  const isTokenOrder = !!tokenNumber && !isNoPayment;
+  const displayToken = tokenNumber ?? `#${orderNumber.slice(-6).toUpperCase()}`;
+  const paymentLabel = paymentMethod === 'online' ? 'Paid Online' : isNoPayment ? 'Order Placed' : 'Payment Confirmed';
 
-  // Phase 1: show success for 2.5 seconds, then switch to details
+  const orderTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
   useEffect(() => {
     if (phase === 'success') {
       const timer = setTimeout(() => setPhase('details'), 2500);
@@ -53,18 +70,57 @@ export default function OrderConfirmedScreen({
     }
   }, [phase]);
 
+  async function handleDownload() {
+    if (!billRef.current) return;
+    setDownloading(true);
+
+    // Hide the save-bill card so it doesn't appear in the captured image
+    if (saveBillCardRef.current) saveBillCardRef.current.style.display = 'none';
+
+    // Scroll the fixed overlay back to top so html2canvas always captures
+    // from the same position — second+ downloads otherwise clip or offset
+    const scrollParent = billRef.current.closest('[style*="overflow-y"]') as HTMLElement | null;
+    const prevScroll = scrollParent?.scrollTop ?? 0;
+    if (scrollParent) scrollParent.scrollTop = 0;
+
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const el = billRef.current;
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        // explicitly size the canvas to the element's full content
+        width: el.offsetWidth,
+        height: el.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: el.offsetWidth,
+        windowHeight: el.scrollHeight,
+      });
+      const link = document.createElement('a');
+      link.download = `bill-${orderNumber}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch {
+      window.print();
+    } finally {
+      if (saveBillCardRef.current) saveBillCardRef.current.style.display = 'block';
+      if (scrollParent) scrollParent.scrollTop = prevScroll;
+      setDownloading(false);
+    }
+  }
+
   // ── PHASE 1: SUCCESS ANIMATION ──
   if (phase === 'success') {
     return (
-      <div
-        style={{
-          position: 'fixed', inset: 0, zIndex: 300,
-          background: C.white,
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          maxWidth: 560, margin: '0 auto',
-        }}
-      >
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 300,
+        background: C.white,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        maxWidth: 560, margin: '0 auto',
+      }}>
         <style>{`
           @keyframes checkPop {
             0%   { transform: scale(0.5); opacity: 0; }
@@ -76,14 +132,12 @@ export default function OrderConfirmedScreen({
             100% { stroke-dashoffset: 0; }
           }
         `}</style>
-
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
           <div style={{
             position: 'relative', width: 154, height: 154,
             animation: 'checkPop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards',
           }}>
-            <svg width="154" height="154" viewBox="0 0 154 154" fill="none"
-              style={{ position: 'absolute', inset: 0 }}>
+            <svg width="154" height="154" viewBox="0 0 154 154" fill="none" style={{ position: 'absolute', inset: 0 }}>
               <circle cx="77" cy="77" r="72" stroke="#EF59A1" strokeWidth="1.5"
                 strokeDasharray="440" strokeDashoffset="440" strokeLinecap="round"
                 style={{ animation: 'ringDraw 1s 0.3s ease forwards' }} />
@@ -112,277 +166,286 @@ export default function OrderConfirmedScreen({
     );
   }
 
-  // ── PHASE 2: BARCODE / ORDER DETAILS SCREEN ──
+  // ── PHASE 2: ORDER DETAILS SCREEN ──
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 300,
-        background: C.white,
-        display: 'flex', flexDirection: 'column',
-        animation: 'qrFadeIn 0.3s ease',
-        maxWidth: 560, margin: '0 auto',
-        overflowY: 'auto',
-      }}
-    >
-      {/* ── TOP: GREEN CHECKMARK + CONFIRMED ── */}
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      background: C.white,
+      display: 'flex', flexDirection: 'column',
+      animation: 'qrFadeIn 0.3s ease',
+      maxWidth: 560, margin: '0 auto',
+      overflowY: 'auto',
+    }}>
+      {/* ── TOP HEADER ── */}
       <div style={{
         width: '100%', padding: '24px 16px 20px',
         borderBottom: `1px solid ${C.border}`,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
       }}>
-        {/* Green circle checkmark */}
         <div style={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: C.greenBg,
+          width: 56, height: 56, borderRadius: '50%',
+          background: C.greenBg, border: `2px solid ${C.greenBorder}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          marginBottom: 8,
+          marginBottom: 4,
         }}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="14" stroke={C.green} strokeWidth="2.67" fill="none" />
-            <path d="M10 16.5l4 4 8-9" stroke={C.green} strokeWidth="2.67"
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <path d="M6 16.5l7 7 13-14" stroke={C.green} strokeWidth="3"
               strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
         <h2 style={{
-          fontFamily: "'Poppins',sans-serif", fontWeight: 600,
+          fontFamily: "'Poppins',sans-serif", fontWeight: 700,
           fontSize: 20, lineHeight: '28px', color: C.dark,
           margin: 0, textAlign: 'center',
         }}>Order Confirmed</h2>
         <p style={{
           fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-          fontSize: 14, lineHeight: '20px', color: C.gray400,
-          margin: 0, textAlign: 'center',
-        }}>Thank you, Visit Again</p>
+          fontSize: 13, color: C.gray400, margin: 0, textAlign: 'center',
+        }}>{shopName}</p>
       </div>
 
       {/* ── SCROLLABLE CONTENT ── */}
       <div style={{ flex: 1, padding: '20px 16px 0' }}>
 
-        {/* ── TOKEN NUMBER CARD ── */}
-        <div style={{
-          width: '100%', padding: '20px 34px',
-          border: `2px solid ${C.tokenBorder}`, borderRadius: 16,
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: 8, marginBottom: 18,
-        }}>
-          <span style={{
-            fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-            fontSize: 12, lineHeight: '16px', textAlign: 'center',
-            letterSpacing: '0.6px', textTransform: 'uppercase',
-            color: C.gray400,
-          }}>Token Number</span>
-          <span style={{
-            fontFamily: "'Poppins',sans-serif", fontWeight: 700,
-            fontSize: 40, lineHeight: '72px', textAlign: 'center',
-            letterSpacing: '-1.8px', color: C.dark,
-          }}>{token}</span>
-          <span style={{
-            fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-            fontSize: 12, lineHeight: '16px', textAlign: 'center',
-            color: C.gray500,
-          }}>Show this when collecting your order</span>
-        </div>
+        {/* ── PRINTABLE BILL — billRef captures everything; saveBillCardRef hidden during export ── */}
+        <div ref={billRef} style={{ background: C.white }}>
 
-        {/* ── BARCODE CARD ── */}
-        <div style={{
-          width: '100%', padding: '25px 25px 1px',
-          border: `1px solid ${C.border}`, borderRadius: 16,
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          marginBottom: 18,
-        }}>
-          {/* Barcode area */}
-          <div style={{
-            width: '100%', height: 95,
-            background: C.barcodeBg, borderRadius: 12,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            padding: '16px',
-            marginBottom: 16,
+          {/* Shop name + payment badge */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 15, color: C.dark }}>{shopName}</span>
+            <span style={{
+              fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 12, color: C.green,
+              background: C.greenBg, border: `1px solid ${C.greenBorder}`, borderRadius: 20, padding: '3px 10px',
+            }}>✓ {paymentLabel}</span>
+          </div>
+
+          {/* ── TABLE CARD (no_payment + table scan) ── */}
+          {isNoPayment && !isTakeawayNoPayment ? (
+            <div style={{
+              width: '100%', padding: '20px 24px',
+              border: `2px solid #FED7AA`, borderRadius: 16,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              gap: 8, marginBottom: 14, background: '#FFF7ED',
+            }}>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 600,
+                fontSize: 11, letterSpacing: '1px', textTransform: 'uppercase', color: '#9A3412',
+              }}>Your Table</span>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 800,
+                fontSize: 42, lineHeight: 1, textAlign: 'center', color: C.dark,
+              }}>Table {tableNumber}</span>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
+                fontSize: 12, color: '#C2410C', textAlign: 'center',
+              }}>Your order is being prepared — we&apos;ll bring it to you</span>
+            </div>
+
+          /* ── TAKEAWAY TOKEN CARD (no_payment + takeaway scan) ── */
+          ) : isTakeawayNoPayment ? (
+            <div style={{
+              width: '100%', padding: '20px 24px',
+              border: `2px solid #FED7AA`, borderRadius: 16,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              gap: 8, marginBottom: 14, background: '#FFF7ED',
+            }}>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 600,
+                fontSize: 11, letterSpacing: '1px', textTransform: 'uppercase', color: '#9A3412',
+              }}>Takeaway Number</span>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 800,
+                fontSize: 56, lineHeight: 1, textAlign: 'center', color: C.dark,
+              }}>{tokenNumber ?? 'Takeaway'}</span>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
+                fontSize: 12, color: '#C2410C', textAlign: 'center',
+              }}>Show this number when collecting your order from the counter</span>
+            </div>
+          ) : (
+            /* ── TOKEN CARD (online / counter) ── */
+            <div style={{
+              width: '100%', padding: '20px 24px',
+              border: `2px solid ${C.tokenBorder}`, borderRadius: 16,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              gap: 6, marginBottom: 14,
+            }}>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 600,
+                fontSize: 11, letterSpacing: '1px', textTransform: 'uppercase', color: C.gray400,
+              }}>{isTokenOrder ? 'Token Number' : 'Order Reference'}</span>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 800,
+                fontSize: 56, lineHeight: 1, textAlign: 'center', color: C.dark,
+              }}>{displayToken}</span>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
+                fontSize: 12, color: C.gray500, textAlign: 'center',
+              }}>{isTokenOrder ? 'Show this when collecting your order' : 'Your order is being prepared'}</span>
+            </div>
+          )}
+
+          {/* ── SAVE BILL (hidden during download via saveBillCardRef) ── */}
+          <div ref={saveBillCardRef} style={{
+            width: '100%', padding: '14px 18px',
+            background: C.saveBg, borderRadius: 16,
+            display: 'flex', alignItems: 'center', gap: 14,
+            marginBottom: 14,
           }}>
-            {/* SVG Barcode representation */}
-            <svg width="267" height="50" viewBox="0 0 267 50" fill="none" style={{ marginBottom: 8 }}>
-              {[0,4.5,9,16.5,21,28.5,33,40.5,46.5,49.5,52.5,60,66,73.5,78,82.5,90,93,99,105,109.5,115.5,121.5,124.5,132,136.5,144,148.5,153,157.5,165,171,177,181.5,184.5,190.5,198,201,210,214.5,220.5,225,231,235.5,241.5,247.5,255,261,264].map((x, i) => (
-                <rect key={i} x={x} y="0" width={i % 3 === 0 ? 3 : 1.5} height="40" fill="#000000" />
-              ))}
-              <text x="133.5" y="49" textAnchor="middle" style={{
-                fontFamily: "'Inter',sans-serif", fontWeight: 400,
-                fontSize: 11, fill: '#000000',
-              }}>1774361140055-{token}</text>
-            </svg>
-          </div>
-          <span style={{
-            fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-            fontSize: 12, lineHeight: '16px', textAlign: 'center',
-            color: C.gray400, marginBottom: 16,
-          }}>Scan for quick pickup</span>
-        </div>
-
-        {/* ── ORDER DETAILS CARD ── */}
-        <div style={{
-          width: '100%', padding: 25,
-          border: `1px solid ${C.border}`, borderRadius: 16,
-          marginBottom: 18,
-        }}>
-          {/* Order ID + Time row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                fontSize: 12, lineHeight: '16px', color: C.gray400,
-              }}>Order ID</span>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                fontSize: 14, lineHeight: '20px', color: C.dark,
-              }}>#{orderNumber.slice(-6)}</span>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%', background: '#FED7AA',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.saveAccent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                fontSize: 12, lineHeight: '16px', color: C.gray400,
-              }}>Time</span>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                fontSize: 14, lineHeight: '20px', color: C.dark,
-              }}>{orderTime}</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 13, color: '#9A3412', margin: '0 0 1px' }}>
+                Save your bill for reference
+              </p>
+              <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: '#C2410C', margin: 0 }}>
+                Download a copy in case you need it later.
+              </p>
             </div>
-          </div>
-
-          {/* Divider */}
-          <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 20 }} />
-
-          {/* Items list */}
-          {items.map(item => (
-            <div key={`${item.id}-${item.variantSize ?? ''}`}
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
               style={{
-                display: 'flex', justifyContent: 'space-between',
-                alignItems: 'flex-start', marginBottom: 16,
-              }}>
-              <div>
-                <p style={{
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                  fontSize: 14, lineHeight: '20px', color: C.dark,
-                  margin: '0 0 2px',
-                }}>{item.name}{item.variantSize ? ` (${item.variantSize})` : ''}</p>
-                <span style={{
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                  fontSize: 12, lineHeight: '16px', color: C.gray400,
-                }}>Qty: {item.qty}</span>
+                flexShrink: 0, background: C.saveAccent, border: 'none', borderRadius: 8,
+                padding: '8px 14px', cursor: downloading ? 'not-allowed' : 'pointer',
+                opacity: downloading ? 0.7 : 1,
+              }}
+            >
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 12, color: '#fff' }}>
+                {downloading ? '…' : 'Download'}
+              </span>
+            </button>
+          </div>
+
+          {/* ── ORDER DETAILS CARD ── */}
+          <div style={{
+            width: '100%', padding: '20px',
+            border: `1px solid ${C.border}`, borderRadius: 16,
+            marginBottom: 14,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: C.gray400 }}>Order No.</span>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 14, color: C.dark }}>#{orderNumber}</span>
               </div>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                fontSize: 14, lineHeight: '20px', color: C.dark,
-                textAlign: 'right',
-              }}>₹{item.price * item.qty}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: C.gray400 }}>Time</span>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 14, color: C.dark }}>{orderTime}</span>
+              </div>
             </div>
-          ))}
 
-          {/* Divider */}
-          <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 16 }} />
+            <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 16 }} />
 
-          {/* Total */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 600,
-              fontSize: 16, lineHeight: '24px', color: C.dark,
-            }}>Total</span>
-            <span style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 700,
-              fontSize: 20, lineHeight: '28px', color: C.dark,
-            }}>₹{subtotal}</span>
+            {displayItems.map(item => (
+              <div key={`${item.id}-${item.variantSize ?? ''}`}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <p style={{
+                    fontFamily: "'Poppins',sans-serif", fontWeight: 500,
+                    fontSize: 14, color: C.dark, margin: '0 0 2px',
+                  }}>{item.name}{item.variantSize ? ` (${item.variantSize})` : ''}</p>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: C.gray400 }}>Qty: {item.qty}</span>
+                </div>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.dark }}>
+                  ₹{item.price * item.qty}
+                </span>
+              </div>
+            ))}
+
+            <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 14 }} />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.dark }}>Total</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 20, color: C.dark }}>₹{subtotal}</span>
+            </div>
           </div>
         </div>
+        {/* end billRef */}
 
-        {/* ── ESTIMATED WAIT TIME CARD ── */}
+        {/* ── ESTIMATED WAIT TIME (screen only, not in download) ── */}
         <div style={{
-          width: '100%', padding: '21px',
+          width: '100%', padding: '18px 20px',
           border: `1px solid ${C.border}`, borderRadius: 16,
           display: 'flex', alignItems: 'center', gap: 12,
-          marginBottom: 18,
+          marginBottom: 14, marginTop: 14,
         }}>
-          {/* Clock icon */}
           <div style={{
-            width: 40, height: 40, borderRadius: '50%',
-            background: C.cardBg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
+            width: 40, height: 40, borderRadius: '50%', background: C.cardBg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <circle cx="10" cy="10" r="8.33" stroke={C.gray500} strokeWidth="1.67" fill="none" />
-              <path d="M10 5v5l3.33 1.67" stroke={C.gray500} strokeWidth="1.67"
-                strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 5v5l3.33 1.67" stroke={C.gray500} strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <div>
-            <p style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-              fontSize: 14, lineHeight: '20px', color: C.dark, margin: 0,
-            }}>Estimated Wait Time</p>
-            <span style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-              fontSize: 12, lineHeight: '16px', color: C.gray400,
-            }}>5-10 minutes</span>
+            <p style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.dark, margin: 0 }}>
+              Estimated Wait Time
+            </p>
+            <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: C.gray400 }}>5-10 minutes</span>
           </div>
         </div>
 
-        {/* ── NEXT STEPS CARD ── */}
+        {/* ── NEXT STEPS (screen only, not in download) ── */}
         <div style={{
-          width: '100%', padding: '21px',
+          width: '100%', padding: '20px',
           border: `1px solid ${C.border}`, borderRadius: 16,
-          marginBottom: 24,
+          marginBottom: 14,
         }}>
-          <p style={{
-            fontFamily: "'Poppins',sans-serif", fontWeight: 600,
-            fontSize: 14, lineHeight: '20px', color: C.dark,
-            margin: '0 0 12px',
-          }}>Next Steps</p>
-
+          <p style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 14, color: C.dark, margin: '0 0 12px' }}>
+            Next Steps
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              'Wait for your token to be called',
-              'Show token or scan barcode at counter',
-              'Complete payment and enjoy!',
-            ].map((text, i) => (
+            {(isNoPayment ? (isTakeawayNoPayment ? [
+              'Your order has been placed!',
+              'The kitchen has been notified',
+              `Show "${tokenNumber ?? 'your takeaway number'}" when collecting your order`,
+            ] : [
+              'Your order has been placed!',
+              'The kitchen has been notified',
+              'Relax — your food will be brought to your table',
+            ]) : isTokenOrder ? [
+              'Your payment was confirmed',
+              'Wait for your token number to be called',
+              'Show this screen when collecting your order',
+            ] : [
+              'Your order is being prepared',
+              'Payment received — nothing more needed',
+              'Enjoy your meal!',
+            ]).map((text, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 20, height: 20, borderRadius: '50%',
-                  background: C.stepBg,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
+                  width: 20, height: 20, borderRadius: '50%', background: C.dark,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <span style={{
-                    fontFamily: "'Poppins',sans-serif", fontWeight: 600,
-                    fontSize: 12, lineHeight: '16px', color: '#FFFFFF',
-                  }}>{i + 1}</span>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 11, color: '#fff' }}>{i + 1}</span>
                 </div>
-                <span style={{
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                  fontSize: 12, lineHeight: '16px', color: C.gray500,
-                }}>{text}</span>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: C.gray500 }}>{text}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ── BOTTOM: RETURN TO HOME ── */}
-      <div style={{
-        width: '100%', padding: '13px 16px 24px',
-        background: C.white, flexShrink: 0,
-      }}>
+      {/* ── BOTTOM BUTTON ── */}
+      <div style={{ width: '100%', padding: '12px 16px 24px', background: C.white, flexShrink: 0 }}>
         <button
           onClick={onDone}
           style={{
-            width: '100%', height: 43,
-            background: C.pink, border: 'none',
-            borderRadius: 0, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '100%', height: 46,
+            background: C.pink, border: 'none', borderRadius: 6,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
-          <span style={{
-            fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-            fontSize: 16, lineHeight: '24px', textAlign: 'center',
-            color: '#FFFFFF',
-          }}>Return to Home</span>
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 16, color: '#fff' }}>
+            Return to Home
+          </span>
         </button>
       </div>
     </div>

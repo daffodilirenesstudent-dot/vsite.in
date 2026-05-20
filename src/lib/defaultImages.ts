@@ -228,6 +228,75 @@ const KEYWORD_MAP: Record<string, DefaultImageEntry> = {
   'white rice':       { path: 'cafe-foods/white-rice.jpeg',      description: 'Soft, fluffy steamed white rice cooked to perfection — plain, simple and comforting.\nThe essential South Indian base — best with sambar, rasam, curd or any curry.' },
   'steamed rice':     { path: 'cafe-foods/white-rice.jpeg',      description: 'Soft, fluffy steamed white rice cooked to perfection — plain, simple and comforting.\nThe essential South Indian base — best with sambar, rasam, curd or any curry.' },
   rice:               { path: 'cafe-foods/white-rice.jpeg',      description: 'Soft, fluffy steamed white rice cooked to perfection — plain, simple and comforting.\nThe essential South Indian base — best with sambar, rasam, curd or any curry.' },
+
+  // ── Batch 3 ─────────────────────────────────────────────────────────────────
+
+  // ── Mushroom Soup ───────────────────────────────────────────────────────────
+  'mushroom soup':    { path: 'cafe-foods/mushroom-soup.jpeg',   description: 'Velvety cream of mushroom soup simmered with garlic, herbs and fresh mushrooms.\nRich, warming and silky-smooth — served with toasted bread or croutons on the side.' },
+  'cream of mushroom': { path: 'cafe-foods/mushroom-soup.jpeg',  description: 'Velvety cream of mushroom soup simmered with garlic, herbs and fresh mushrooms.\nRich, warming and silky-smooth — served with toasted bread or croutons on the side.' },
+
+  // ── Mushroom Tikka ──────────────────────────────────────────────────────────
+  'mushroom tikka':   { path: 'cafe-foods/mushroom-tikka.jpeg',  description: 'Plump button mushrooms marinated in spiced yoghurt and grilled in a tandoor until smoky and charred.\nA vegetarian starter with bold tandoori flavours — served with mint chutney and sliced onions.' },
+  mushroom:           { path: 'cafe-foods/mushroom-tikka.jpeg',  description: 'Plump button mushrooms marinated in spiced yoghurt and grilled in a tandoor until smoky and charred.\nA vegetarian starter with bold tandoori flavours — served with mint chutney and sliced onions.' },
+
+  // ── Chicken Soup ────────────────────────────────────────────────────────────
+  'chicken soup':     { path: 'cafe-foods/chicken-soup.jpeg',    description: 'Comforting clear chicken broth simmered with vegetables, ginger and aromatic spices.\nLight, nourishing and warming — perfect as a starter or on a rainy day.' },
+  'chicken broth':    { path: 'cafe-foods/chicken-soup.jpeg',    description: 'Comforting clear chicken broth simmered with vegetables, ginger and aromatic spices.\nLight, nourishing and warming — perfect as a starter or on a rainy day.' },
+  'clear soup':       { path: 'cafe-foods/chicken-soup.jpeg',    description: 'Comforting clear chicken broth simmered with vegetables, ginger and aromatic spices.\nLight, nourishing and warming — perfect as a starter or on a rainy day.' },
+  soup:               { path: 'cafe-foods/chicken-soup.jpeg',    description: 'Comforting clear chicken broth simmered with vegetables, ginger and aromatic spices.\nLight, nourishing and warming — perfect as a starter or on a rainy day.' },
+
+  // ── Ghee Roast Dosa ─────────────────────────────────────────────────────────
+  'ghee roast dosa':  { path: 'cafe-foods/ghee-roast-dosa.jpeg', description: 'Crispy golden dosa generously roasted in clarified butter on a hot tawa until deep amber and crunchy.\nRich, buttery and intensely flavoured — served with coconut chutney and spiced potato filling.' },
+  'ghee roast dose':  { path: 'cafe-foods/ghee-roast-dosa.jpeg', description: 'Crispy golden dosa generously roasted in clarified butter on a hot tawa until deep amber and crunchy.\nRich, buttery and intensely flavoured — served with coconut chutney and spiced potato filling.' },
+  'ghee roast':       { path: 'cafe-foods/ghee-roast-dosa.jpeg', description: 'Crispy golden dosa generously roasted in clarified butter on a hot tawa until deep amber and crunchy.\nRich, buttery and intensely flavoured — served with coconut chutney and spiced potato filling.' },
+
+  // ── Lemon Rice ──────────────────────────────────────────────────────────────
+  'lemon rice':       { path: 'cafe-foods/lemon-rice.jpeg',      description: 'Steamed rice tossed with fresh lemon juice, turmeric, mustard seeds, curry leaves and roasted peanuts.\nBright, tangy and nutty — a quick South Indian staple that is light yet satisfying.' },
+  chitranna:          { path: 'cafe-foods/lemon-rice.jpeg',      description: 'Steamed rice tossed with fresh lemon juice, turmeric, mustard seeds, curry leaves and roasted peanuts.\nBright, tangy and nutty — a quick South Indian staple that is light yet satisfying.' },
+  'elumichai sadam':  { path: 'cafe-foods/lemon-rice.jpeg',      description: 'Steamed rice tossed with fresh lemon juice, turmeric, mustard seeds, curry leaves and roasted peanuts.\nBright, tangy and nutty — a quick South Indian staple that is light yet satisfying.' },
+
+  // ── Mint Mojito ─────────────────────────────────────────────────────────────
+  'mint mojito':      { path: 'cafe-foods/mint-mojito.jpeg',     description: 'Chilled sparkling drink with fresh mint leaves, lime juice and a hint of sugar over crushed ice.\nCool, zesty and refreshing — the perfect non-alcoholic mocktail for any weather.' },
+  mojito:             { path: 'cafe-foods/mint-mojito.jpeg',     description: 'Chilled sparkling drink with fresh mint leaves, lime juice and a hint of sugar over crushed ice.\nCool, zesty and refreshing — the perfect non-alcoholic mocktail for any weather.' },
+  mocktail:           { path: 'cafe-foods/mint-mojito.jpeg',     description: 'Chilled sparkling drink with fresh mint leaves, lime juice and a hint of sugar over crushed ice.\nCool, zesty and refreshing — the perfect non-alcoholic mocktail for any weather.' },
+
+  // ── Onion Dosa ──────────────────────────────────────────────────────────────
+  'onion dosa':       { path: 'cafe-foods/onion-dosa.jpeg',      description: 'Crispy fermented rice crepe topped with finely chopped onions and green chilli, cooked on a hot tawa.\nA savoury South Indian classic — light, crunchy and full of flavour, served with chutneys.' },
+  'vengaya dosa':     { path: 'cafe-foods/onion-dosa.jpeg',      description: 'Crispy fermented rice crepe topped with finely chopped onions and green chilli, cooked on a hot tawa.\nA savoury South Indian classic — light, crunchy and full of flavour, served with chutneys.' },
+
+  // ── Paneer Fried Rice ───────────────────────────────────────────────────────
+  'paneer fried rice': { path: 'cafe-foods/paneer-fried-rice.jpeg', description: 'Wok-tossed basmati rice with golden paneer cubes, mixed vegetables and Indo-Chinese sauces.\nSmoky, flavourful and satisfying — a delicious fusion of Indian and Chinese cooking.' },
+  'cottage cheese rice': { path: 'cafe-foods/paneer-fried-rice.jpeg', description: 'Wok-tossed basmati rice with golden paneer cubes, mixed vegetables and Indo-Chinese sauces.\nSmoky, flavourful and satisfying — a delicious fusion of Indian and Chinese cooking.' },
+
+  // ── Sambar Rice ─────────────────────────────────────────────────────────────
+  'sambar rice':      { path: 'cafe-foods/sambar-rice.jpeg',     description: 'Soft steamed rice mixed with tangy tamarind sambar, tempered with mustard seeds and curry leaves.\nA soul-warming South Indian comfort dish — simple, nutritious and deeply satisfying.' },
+  'sambar sadam':     { path: 'cafe-foods/sambar-rice.jpeg',     description: 'Soft steamed rice mixed with tangy tamarind sambar, tempered with mustard seeds and curry leaves.\nA soul-warming South Indian comfort dish — simple, nutritious and deeply satisfying.' },
+  sambar:             { path: 'cafe-foods/sambar-rice.jpeg',     description: 'Soft steamed rice mixed with tangy tamarind sambar, tempered with mustard seeds and curry leaves.\nA soul-warming South Indian comfort dish — simple, nutritious and deeply satisfying.' },
+
+  // ── Dragon Chicken ──────────────────────────────────────────────────────────
+  'dragon chicken':   { path: 'cafe-foods/dragon-chicken.jpeg',  description: 'Crispy fried chicken strips tossed in a fiery dragon sauce with capsicum, onions and dried red chillies.\nAn Indo-Chinese crowd favourite — bold, spicy and intensely addictive.' },
+  'dragon':           { path: 'cafe-foods/dragon-chicken.jpeg',  description: 'Crispy fried chicken strips tossed in a fiery dragon sauce with capsicum, onions and dried red chillies.\nAn Indo-Chinese crowd favourite — bold, spicy and intensely addictive.' },
+  'spicy dragon':     { path: 'cafe-foods/dragon-chicken.jpeg',  description: 'Crispy fried chicken strips tossed in a fiery dragon sauce with capsicum, onions and dried red chillies.\nAn Indo-Chinese crowd favourite — bold, spicy and intensely addictive.' },
+
+  // ── Fish Curry ──────────────────────────────────────────────────────────────
+  'fish curry':       { path: 'cafe-foods/fish-curry.jpeg',      description: 'Fresh fish pieces slow-cooked in a fiery South Indian masala with tamarind, tomato and coastal spices.\nBold, tangy and deeply flavoured — best served with steamed rice or dosa.' },
+  'fish masala':      { path: 'cafe-foods/fish-curry.jpeg',      description: 'Fresh fish pieces slow-cooked in a fiery South Indian masala with tamarind, tomato and coastal spices.\nBold, tangy and deeply flavoured — best served with steamed rice or dosa.' },
+  'fish gravy':       { path: 'cafe-foods/fish-curry.jpeg',      description: 'Fresh fish pieces slow-cooked in a fiery South Indian masala with tamarind, tomato and coastal spices.\nBold, tangy and deeply flavoured — best served with steamed rice or dosa.' },
+
+  // ── Tomato Rice ─────────────────────────────────────────────────────────────
+  'tomato rice':      { path: 'cafe-foods/tomato-rice.jpeg',     description: 'Steamed rice cooked with ripe tomatoes, onions, mustard seeds and aromatic spices.\nTangy, mildly spiced and comforting — a quick South Indian one-pot meal.' },
+  'thakkali sadam':   { path: 'cafe-foods/tomato-rice.jpeg',     description: 'Steamed rice cooked with ripe tomatoes, onions, mustard seeds and aromatic spices.\nTangy, mildly spiced and comforting — a quick South Indian one-pot meal.' },
+  'tomato pulao':     { path: 'cafe-foods/tomato-rice.jpeg',     description: 'Steamed rice cooked with ripe tomatoes, onions, mustard seeds and aromatic spices.\nTangy, mildly spiced and comforting — a quick South Indian one-pot meal.' },
+
+  // ── Uthappam ────────────────────────────────────────────────────────────────
+  uthappam:           { path: 'cafe-foods/uthappam.jpeg',        description: 'Thick, soft fermented rice pancake topped with onions, tomatoes, green chilli and coriander.\nA wholesome South Indian breakfast — fluffy inside, slightly crisp outside, served with sambar.' },
+  uttapam:            { path: 'cafe-foods/uthappam.jpeg',        description: 'Thick, soft fermented rice pancake topped with onions, tomatoes, green chilli and coriander.\nA wholesome South Indian breakfast — fluffy inside, slightly crisp outside, served with sambar.' },
+  oothappam:          { path: 'cafe-foods/uthappam.jpeg',        description: 'Thick, soft fermented rice pancake topped with onions, tomatoes, green chilli and coriander.\nA wholesome South Indian breakfast — fluffy inside, slightly crisp outside, served with sambar.' },
+
+  // ── Veg Rice ────────────────────────────────────────────────────────────────
+  'veg rice':         { path: 'cafe-foods/veg-rice.jpeg',        description: 'Fluffy steamed rice cooked with seasonal vegetables, mild spices and a tempering of mustard and curry leaves.\nLight, healthy and comforting — pairs well with any curry, dal or raita.' },
+  'vegetable rice':   { path: 'cafe-foods/veg-rice.jpeg',        description: 'Fluffy steamed rice cooked with seasonal vegetables, mild spices and a tempering of mustard and curry leaves.\nLight, healthy and comforting — pairs well with any curry, dal or raita.' },
+  'mixed veg rice':   { path: 'cafe-foods/veg-rice.jpeg',        description: 'Fluffy steamed rice cooked with seasonal vegetables, mild spices and a tempering of mustard and curry leaves.\nLight, healthy and comforting — pairs well with any curry, dal or raita.' },
 };
 
 // ── Public API ─────────────────────────────────────────────────────────────────

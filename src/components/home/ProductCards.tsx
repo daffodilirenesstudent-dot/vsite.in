@@ -1,256 +1,191 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
+import { useInView } from '@/hooks/useInView';
 
-const qrMenuFlow = [
-    { icon: 'qr_code_scanner', label: 'Customer scans or taps' },
-    { icon: 'menu_book', label: 'Views your full digital menu' },
-    { icon: 'person', label: 'Decides what to order' },
-];
-
-const payEatFlow = [
-    { icon: 'qr_code_scanner', label: 'Customer scans or taps' },
-    { icon: 'shopping_cart', label: 'Selects items from menu' },
-    { icon: 'payments', label: 'Pays directly (UPI/Cash)' },
-    { icon: 'receipt_long', label: 'Order goes to kitchen (live)' },
-    { icon: 'storefront', label: 'Customer picks up at counter' },
-];
-
-const qrFeatures = [
-    'Clean digital menu (no printing needed)',
-    'Auto-generated food images & descriptions',
-    'Edit menu anytime (add/remove/update)',
-    'Highlight offers & sold-out items live',
-    'Works for dine-in & takeaway',
-    'NFC card + QR stickers included',
-];
-
-const payEatFeatures = [
-    'Customers place orders directly from phone',
-    'Accept UPI, GPay, PhonePe & cash',
-    'Instant order to kitchen (live)',
-    'Automatic billing (no manual work)',
-    'Smart queue (handles rush smoothly)',
-    'Sell more with faster table turnover',
-];
-
-const restaurantTypes = [
-    { icon: 'coffee', label: 'Cafes' },
-    { icon: 'restaurant', label: 'Restaurants' },
-    { icon: 'cloud', label: 'Cloud Kitchens' },
-    { icon: 'takeout_dining', label: 'QSR & Takeaway' },
-    { icon: 'sports_bar', label: 'Bars & Pubs' },
-    { icon: 'food_bank', label: 'Food Courts' },
+const cards = [
+    {
+        number: '01',
+        accent: '#22c55e',
+        accentBg: 'rgba(34,197,94,0.10)',
+        accentBorder: 'rgba(34,197,94,0.25)',
+        tag: 'Menu Engineering',
+        title: 'Grow revenue up to 15% — without adding a single new dish.',
+        description: 'Our AI analyses every item on your menu and tells you exactly what to push, what to reprice, and what to retire. Best sellers, hidden gems, and slow movers — surfaced automatically every week so you always know where your money is coming from.',
+        image: '/productinven.png',
+        imageAlt: 'vsite menu engineering and AI analysis',
+        bullets: ['AI ranks best-selling & most-ordered items', 'Popular item badges shown to customers', 'Weekly insights — no spreadsheets needed'],
+    },
+    {
+        number: '02',
+        accent: '#6366f1',
+        accentBg: 'rgba(99,102,241,0.10)',
+        accentBorder: 'rgba(99,102,241,0.25)',
+        tag: 'AI Food Photos',
+        title: 'Every dish looks irresistible — automatically.',
+        description: 'No photographer. No studio. No cost. The moment you add an item, our AI generates a high-accuracy food photo that matches your dish — the right colours, plating style, and portion size. Menus with photos get 30% more orders than those without.',
+        image: '/orderpage.png',
+        imageAlt: 'vsite AI generated food photos',
+        bullets: ['Accurate photos matched to each dish', 'Generated instantly on item creation', 'Replace with your own photo anytime'],
+    },
+    {
+        number: '03',
+        accent: '#f59e0b',
+        accentBg: 'rgba(245,158,11,0.10)',
+        accentBorder: 'rgba(245,158,11,0.25)',
+        tag: 'Offers & Banners',
+        title: 'Put your offer in front of every customer — in under 1 minute.',
+        description: 'Running a lunch deal? A weekend special? A new launch? Add a banner or offer to your digital menu in seconds — no designer, no tech skills, no waiting. Every customer who scans your QR sees it the moment it goes live.',
+        image: '/dashboardpage.png',
+        imageAlt: 'vsite offer and banner management',
+        bullets: ['Live on your menu in under 1 minute', 'Full-width banners & limited-time offers', 'No designer or tech skills needed'],
+    },
 ];
 
 export default function ProductCards() {
+    const { ref: headerRef, visible: headerVisible } = useInView(0.2);
+
     return (
-        <section className="py-14 sm:py-24 px-4 bg-background-light">
-            <div className="mx-auto max-w-5xl">
+        <section id="features" className="py-16 sm:py-24 lg:py-32 px-4 bg-white">
+            <div className="mx-auto max-w-6xl">
 
                 {/* Header */}
-                <div className="text-center mb-10 sm:mb-14">
-                    <span className="text-xs font-bold uppercase tracking-widest text-primary">Choose How You Want to Run Your Orders</span>
-                    <h2 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display text-slate-900 leading-tight">
-                        Start with a Simple QR Menu.<br />
-                        <span className="text-primary">Upgrade to Full Ordering When You&apos;re Ready.</span>
+                <div
+                    ref={headerRef}
+                    className={`text-center mb-14 sm:mb-20 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+                        ${headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                >
+                    <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-5">
+                        <span className="w-5 h-px bg-slate-200" />
+                        What you get
+                        <span className="w-5 h-px bg-slate-200" />
+                    </span>
+                    <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-[1.05] tracking-tight">
+                        Three tools.<br />
+                        <span className="text-slate-400">One restaurant.</span>
                     </h2>
-                    <p className="mt-4 text-base sm:text-lg text-slate-500 max-w-xl mx-auto">
-                        No pressure. No complexity.<br />
-                        Pick what your restaurant actually needs today.
+                    <p className="mt-5 text-sm sm:text-lg text-slate-500 max-w-lg mx-auto leading-relaxed">
+                        Everything you need to run a modern restaurant — menu, orders, and revenue — built into one simple platform.
                     </p>
                 </div>
 
                 {/* Cards */}
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-
-                    {/* Card 1 — Smart QR Menu */}
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 flex flex-col shadow-sm">
-                        {/* Option badge */}
-                        <div className="mb-5">
-                            <span className="inline-block border border-green-500 text-green-600 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                                Option 1
-                            </span>
-                        </div>
-
-                        {/* Icon + title */}
-                        <div className="flex items-center gap-4 mb-2">
-                            <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-green-600 text-3xl">qr_code</span>
-                            </div>
-                            <div>
-                                <h3 className="text-xl sm:text-2xl font-extrabold font-display text-slate-900">Smart QR Menu</h3>
-                                <p className="text-green-600 font-semibold text-sm">View Only – No Ordering</p>
-                            </div>
-                        </div>
-
-                        <p className="text-slate-600 text-sm leading-relaxed mb-6">
-                            Let customers scan → view → decide.<br />You keep taking orders your way.
-                        </p>
-
-                        {/* How it works mini flow */}
-                        <div className="rounded-xl border border-green-100 bg-green-50 p-4 mb-6">
-                            <p className="text-green-700 font-bold text-xs uppercase tracking-wider mb-3">How it works</p>
-                            <div className="flex items-start gap-1 flex-wrap">
-                                {qrMenuFlow.map((step, i) => (
-                                    <div key={step.label} className="flex items-center gap-1">
-                                        <div className="flex flex-col items-center gap-1">
-                                            <div className="w-10 h-10 rounded-xl bg-white border border-green-200 flex items-center justify-center shadow-sm">
-                                                <span className="material-symbols-outlined text-slate-600 text-lg">{step.icon}</span>
-                                            </div>
-                                            <span className="text-[9px] text-slate-500 text-center leading-tight max-w-[56px]">{step.label}</span>
-                                        </div>
-                                        {i < qrMenuFlow.length - 1 && (
-                                            <span className="material-symbols-outlined text-slate-300 text-base mb-4">arrow_forward</span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Features */}
-                        <div className="mb-6 flex-1">
-                            <p className="text-green-600 font-bold text-sm mb-3">What you get:</p>
-                            <ul className="space-y-2.5">
-                                {qrFeatures.map((f) => (
-                                    <li key={f} className="flex items-start gap-2.5 text-sm text-slate-700">
-                                        <span className="material-symbols-outlined text-green-500 text-base shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                        {f}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        {/* Best for */}
-                        <div className="rounded-xl bg-amber-50 border border-amber-100 p-4 mb-6">
-                            <p className="flex items-center gap-1.5 text-amber-700 font-bold text-sm mb-1">
-                                <span className="material-symbols-outlined text-amber-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                                Best for:
-                            </p>
-                            <p className="text-slate-600 text-sm leading-relaxed">
-                                Restaurants that want to look modern and save printing cost without changing their current order flow.
-                            </p>
-                        </div>
-
-                        {/* CTA */}
-                        <Link
-                            href="/signup"
-                            className="flex items-center justify-center gap-2 border-2 border-green-500 text-green-600 px-6 py-3.5 rounded-full font-bold hover:bg-green-500 hover:text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
-                        >
-                            Start Free QR Menu
-                            <span className="material-symbols-outlined text-xl">arrow_forward</span>
-                        </Link>
-                        <p className="text-center text-xs text-slate-400 mt-2">Get started in 2 minutes. No card required.</p>
-                    </div>
-
-                    {/* Card 2 — QR Ordering + Payment */}
-                    <div className="bg-white rounded-3xl border-2 border-primary p-6 sm:p-8 flex flex-col shadow-xl shadow-primary/10 relative overflow-hidden">
-                        {/* Most Popular ribbon */}
-                        <div className="absolute top-0 right-0">
-                            <div className="bg-primary text-white text-[10px] font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-bl-2xl flex items-center gap-1">
-                                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                                Most Popular
-                            </div>
-                        </div>
-
-                        {/* Option badge */}
-                        <div className="mb-5">
-                            <span className="inline-block border border-primary text-primary text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                                Option 2
-                            </span>
-                        </div>
-
-                        {/* Icon + title */}
-                        <div className="flex items-center gap-4 mb-2">
-                            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-white text-3xl">shopping_cart</span>
-                            </div>
-                            <div>
-                                <h3 className="text-xl sm:text-2xl font-extrabold font-display text-slate-900">QR Ordering + Payment</h3>
-                                <p className="text-primary font-semibold text-sm">Scan → Order → Pay → Pickup</p>
-                            </div>
-                        </div>
-
-                        <p className="text-slate-600 text-sm leading-relaxed mb-6">
-                            Turn every table into a self-ordering system.<br />No waiting. No manual billing.
-                        </p>
-
-                        {/* How it works mini flow */}
-                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 mb-6">
-                            <p className="text-primary font-bold text-xs uppercase tracking-wider mb-3">How it works</p>
-                            <div className="flex items-start gap-1 flex-wrap">
-                                {payEatFlow.map((step, i) => (
-                                    <div key={step.label} className="flex items-center gap-1">
-                                        <div className="flex flex-col items-center gap-1">
-                                            <div className="w-10 h-10 rounded-xl bg-white border border-primary/20 flex items-center justify-center shadow-sm">
-                                                <span className="material-symbols-outlined text-slate-600 text-lg">{step.icon}</span>
-                                            </div>
-                                            <span className="text-[9px] text-slate-500 text-center leading-tight max-w-[56px]">{step.label}</span>
-                                        </div>
-                                        {i < payEatFlow.length - 1 && (
-                                            <span className="material-symbols-outlined text-slate-300 text-base mb-4">arrow_forward</span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Features */}
-                        <div className="mb-6 flex-1">
-                            <p className="text-primary font-bold text-sm mb-3">Everything in QR Menu, plus:</p>
-                            <ul className="space-y-2.5">
-                                {payEatFeatures.map((f) => (
-                                    <li key={f} className="flex items-start gap-2.5 text-sm text-slate-700">
-                                        <span className="material-symbols-outlined text-primary text-base shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                        {f}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        {/* Best for */}
-                        <div className="rounded-xl bg-primary/8 border border-primary/15 p-4 mb-6">
-                            <p className="flex items-center gap-1.5 text-amber-700 font-bold text-sm mb-1">
-                                <span className="material-symbols-outlined text-amber-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                                Best for:
-                            </p>
-                            <p className="text-slate-600 text-sm leading-relaxed">
-                                Restaurants that want to serve faster, reduce staff load, and increase revenue per table.
-                            </p>
-                        </div>
-
-                        {/* CTA */}
-                        <Link
-                            href="/signup"
-                            className="flex items-center justify-center gap-2 bg-primary text-white px-6 py-3.5 rounded-full font-bold hover:bg-primary-dark transition-all shadow-lg shadow-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        >
-                            Start Pay &amp; Eat Free
-                            <span className="material-symbols-outlined text-xl">arrow_forward</span>
-                        </Link>
-                        <p className="text-center text-xs text-slate-400 mt-2">Get started in 2 minutes. No card required.</p>
-                    </div>
+                <div className="flex flex-col gap-5 sm:gap-6">
+                    {cards.map((card, i) => (
+                        <FeatureCard key={card.number} card={card} index={i} />
+                    ))}
                 </div>
 
-                {/* Works for every restaurant type */}
-                <div className="bg-white rounded-2xl border border-slate-200 px-6 sm:px-10 py-7">
-                    <p className="text-center font-bold text-slate-900 text-base mb-6">Works for every restaurant type</p>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
-                        {restaurantTypes.map((t) => (
-                            <div key={t.label} className="flex flex-col items-center gap-2">
-                                <div className="w-12 h-12 rounded-xl bg-background-light flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-slate-600 text-2xl">{t.icon}</span>
-                                </div>
-                                <span className="text-xs font-medium text-slate-600 text-center">{t.label}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400 text-xs">
-                        <span className="material-symbols-outlined text-base">verified_user</span>
-                        Secure. Reliable. Made for Restaurants.
-                    </div>
+                {/* CTA */}
+                <div className="mt-14 sm:mt-16 text-center">
+                    <Link
+                        href="/signup"
+                        className="inline-flex items-center gap-2 bg-primary text-white px-8 py-4 rounded-full font-bold text-base hover:bg-primary-dark hover:scale-[1.03] active:scale-95 transition-all duration-300 shadow-lg shadow-primary/25"
+                    >
+                        Start your free 14-day trial
+                        <span className="material-symbols-outlined text-xl">arrow_forward</span>
+                    </Link>
+                    <p className="mt-3 text-xs text-slate-400">No credit card · Setup in 3 minutes · Cancel anytime</p>
                 </div>
 
             </div>
         </section>
+    );
+}
+
+function FeatureCard({ card, index }: { card: typeof cards[0]; index: number }) {
+    const { ref, visible } = useInView(0.08);
+    const isEven = index % 2 === 0;
+
+    return (
+        <div
+            ref={ref}
+            className={`rounded-2xl sm:rounded-3xl overflow-hidden border transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+                ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+            style={{
+                transitionDelay: `${index * 100}ms`,
+                borderColor: card.accentBorder,
+                background: 'white',
+            }}
+        >
+            <div className={`flex flex-col ${isEven ? 'lg:flex-row' : 'lg:flex-row-reverse'} min-h-[420px] sm:min-h-[460px]`}>
+
+                {/* Text side */}
+                <div className="flex flex-col justify-center p-7 sm:p-10 lg:p-14 lg:w-[42%] lg:shrink-0">
+
+                    {/* Number + Tag */}
+                    <div className="flex items-center gap-3 mb-6">
+                        <span
+                            className="text-[11px] font-black tracking-[0.2em] uppercase"
+                            style={{ color: card.accent }}
+                        >
+                            {card.number}
+                        </span>
+                        <span className="w-6 h-px" style={{ background: card.accentBorder }} />
+                        <span
+                            className="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-full border"
+                            style={{ color: card.accent, borderColor: card.accentBorder, background: card.accentBg }}
+                        >
+                            {card.tag}
+                        </span>
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 leading-snug mb-4 tracking-tight">
+                        {card.title}
+                    </h3>
+
+                    {/* Description */}
+                    <p className="text-sm sm:text-base text-slate-500 leading-relaxed mb-7">
+                        {card.description}
+                    </p>
+
+                    {/* Bullets */}
+                    <ul className="space-y-2.5">
+                        {card.bullets.map((b) => (
+                            <li key={b} className="flex items-center gap-2.5 text-sm text-slate-700">
+                                <span
+                                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                                    style={{ background: card.accent }}
+                                />
+                                {b}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                {/* Image side */}
+                <div className="relative flex-1 min-h-[240px] sm:min-h-[300px] lg:min-h-0 overflow-hidden">
+                    {/* Gradient fade toward text side */}
+                    <div
+                        className={`absolute inset-y-0 z-10 w-16 sm:w-24 pointer-events-none`}
+                        style={{
+                            [isEven ? 'left' : 'right']: 0,
+                            background: isEven
+                                ? 'linear-gradient(to right, #ffffff, transparent)'
+                                : 'linear-gradient(to left, #ffffff, transparent)',
+                        }}
+                    />
+
+                    {/* Accent glow behind image */}
+                    <div
+                        className="absolute inset-0 opacity-20 pointer-events-none"
+                        style={{
+                            background: `radial-gradient(ellipse at center, ${card.accent} 0%, transparent 70%)`,
+                        }}
+                    />
+
+                    <Image
+                        src={card.image}
+                        alt={card.imageAlt}
+                        fill
+                        sizes="(max-width: 1024px) 100vw, 60vw"
+                        className="object-cover object-left-top"
+                        priority={index === 0}
+                    />
+                </div>
+            </div>
+        </div>
     );
 }

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
+import { audit } from '@/lib/auditLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,13 @@ export async function PATCH(
     // Another device already advanced it
     return NextResponse.json({ success: true, already_advanced: true });
   }
+
+  audit({
+    userId, siteId: order.site_id, action: 'order_kot_sent',
+    targetId: orderId,
+    details: { before: 'received', after: 'preparing' },
+    request,
+  });
 
   return NextResponse.json({ success: true });
 }

@@ -1,110 +1,173 @@
 'use client';
 
-import React, { Suspense, useEffect, useState, useCallback } from 'react';
+import React, { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { firebaseAuth } from '@/lib/firebase';
-import { supabase } from '@/lib/supabase';
+import DateRangeFilter, { useCurrentRange } from '@/components/DateRangeFilter';
+import RevenueBarChart, { type RevenueBucket } from '@/components/RevenueBarChart';
+import PaymentModeRing from '@/components/PaymentModeRing';
+import TopLowPerformers from '@/components/TopLowPerformers';
 
-type OrderStatus = 'preparing' | 'ready' | 'completed';
-
-interface Order {
-    id: string;
-    order_number: string;
-    customer_name: string | null;
-    items: { qty: number; name: string; variantSize?: string }[];
-    subtotal: number;
-    payment_method: 'online' | 'counter';
-    payment_status: 'pending' | 'paid';
-    status: OrderStatus;
-    created_at: string;
+// Insights metrics — populated by GET /api/manage/insights, which is the SINGLE
+// SOURCE OF TRUTH for revenue numbers. Reads from `transactions` (Success rows
+// only), not from `orders`, so revenue = money actually collected, not money
+// merely promised by an unpaid counter customer.
+interface Insights {
+    range: { key: string; label: string; start: string; end: string; timezone: string; bucket: 'hour' | 'day' | 'week' | 'month' };
+    revenue:            number;
+    pending:            number;
+    orders:             number;
+    completed:          number;
+    active:             number;
+    dine_in_count:      number;
+    takeaway_count:     number;
+    avg_order_value:    number;
+    by_payment_mode:    Record<string, number>;
+    revenue_prior:      number;
+    revenue_change_pct: number | null;
+    orders_prior:       number;
+    orders_change_pct:  number | null;
+    series:             RevenueBucket[];
 }
 
-const STATUS_STYLES: Record<OrderStatus, { color: string; bg: string; label: string }> = {
-    preparing: { color: '#F97316', bg: '#FFF7ED', label: 'Preparing' },
-    ready:     { color: '#16A34A', bg: '#F0FDF4', label: 'Ready' },
-    completed: { color: '#5137EF', bg: '#EEEEFF', label: 'Completed' },
-};
-
-function formatTime(iso: string) {
-    return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-}
-
-function todayMidnight() {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString();
-}
 
 /* ══════════════════════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════════════════════ */
 function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string; siteId: string; initialStoreOpen: boolean }) {
-    const { isPayEat, isTrialExpired, planLoading } = usePlan();
+    const { isPayEat, isQrOrder, isTrialExpired, planLoading } = usePlan();
     const [storeOpen, setStoreOpen] = useState(initialStoreOpen);
     const [toggling, setToggling] = useState(false);
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [ordersLoading, setOrdersLoading] = useState(true);
+    const [insights, setInsights] = useState<Insights | null>(null);
+    const [insightsLoading, setInsightsLoading] = useState(true);
+    const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+    const [manualRefreshing, setManualRefreshing] = useState(false);
+    const range = useCurrentRange();
 
-    // ── Fetch today's orders ────────────────────────────────────────────────
-    const fetchOrders = useCallback(async () => {
-        if (!siteId || !isPayEat) { setOrdersLoading(false); return; }
-        setOrdersLoading(true);
-        const { data } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('site_id', siteId)
-            .gte('created_at', todayMidnight())
-            .order('created_at', { ascending: false });
-        setOrders((data as Order[]) ?? []);
-        setOrdersLoading(false);
-    }, [siteId, isPayEat]);
+    const canViewInsights = isPayEat || isQrOrder;
 
-    useEffect(() => { fetchOrders(); }, [fetchOrders]);
+    // ── Fetch insights server-side (transactions-backed; not orders-backed) ──
+    // Server reads from `transactions` so revenue = money actually collected.
+    // `range` is reflected back in the response so we can render the right label.
+    // Stale-while-revalidate: we DON'T clear `insights` on refetch — old numbers
+    // stay visible while the new ones load, so filter clicks feel instant.
+    const fetchInsights = useCallback(async (initial: boolean) => {
+        if (!siteId || !canViewInsights) { if (initial) setInsightsLoading(false); return; }
+        if (initial) setInsightsLoading(true);
+        try {
+            const token = await firebaseAuth.currentUser?.getIdToken();
+            if (!token) return;
+            const qs = new URLSearchParams({ site_id: siteId, range });
+            const res = await fetch(`/api/manage/insights?${qs.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store',
+            });
+            if (!res.ok) return;
+            const json = await res.json() as Insights;
+            setInsights(json);
+            setLastSyncedAt(Date.now());
+        } catch (err) {
+            console.error('[dashboard] fetchInsights error:', err);
+        } finally {
+            if (initial) setInsightsLoading(false);
+        }
+    }, [siteId, canViewInsights, range]);
 
-    // ── Realtime subscription ───────────────────────────────────────────────
+    // Manual refresh — bumps the timestamp + shows spin while running.
+    const handleManualRefresh = useCallback(async () => {
+        if (manualRefreshing) return;
+        setManualRefreshing(true);
+        try { await fetchInsights(false); } finally { setManualRefreshing(false); }
+    }, [fetchInsights, manualRefreshing]);
+
+    // Tick once a minute so the "Updated X ago" text stays current without
+    // re-fetching. Cheap render-only refresh.
+    const [, setNowTick] = useState(0);
     useEffect(() => {
-        if (!siteId || !isPayEat) return;
-        const channel = supabase
-            .channel(`dashboard-orders-${siteId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `site_id=eq.${siteId}` }, payload => {
-                if (payload.eventType === 'INSERT') {
-                    setOrders(prev => [payload.new as Order, ...prev]);
-                } else if (payload.eventType === 'UPDATE') {
-                    const updated = payload.new as Order;
-                    setOrders(prev => prev.map(o => o.id === updated.id ? { ...o, ...updated } : o));
-                }
-            })
-            .subscribe();
-        return () => { supabase.removeChannel(channel); };
-    }, [siteId, isPayEat]);
+        const id = setInterval(() => setNowTick(n => n + 1), 30_000);
+        return () => clearInterval(id);
+    }, []);
 
-    // ── Derived insight numbers ─────────────────────────────────────────────
-    const totalOrders   = orders.length;
-    const totalRevenue  = orders.reduce((s, o) => s + Number(o.subtotal), 0);
-    const activeOrders  = orders.filter(o => o.status === 'preparing' || o.status === 'ready').length;
-    const completedOrders = orders.filter(o => o.status === 'completed').length;
-    const liveOrders    = orders.filter(o => o.status !== 'completed').slice(0, 5);
+    // Refetch any time the range changes (URL ?range= update).
+    useEffect(() => { fetchInsights(true); }, [fetchInsights]);
+
+    // Shared authed fetch — passed to children that need their own data
+    // (e.g. TopLowPerformers) so they reuse Firebase ID token handling.
+    const authedFetch = useCallback(async (url: string, init: RequestInit = {}): Promise<Response> => {
+        const token = await firebaseAuth.currentUser?.getIdToken();
+        return fetch(url, {
+            ...init,
+            headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token ?? ''}` },
+        });
+    }, []);
+
+    // Live polling — only for the "today" range (other ranges are historical, no need).
+    useEffect(() => {
+        if (!siteId || !canViewInsights || range !== 'today') return;
+        let id: ReturnType<typeof setInterval> | null = null;
+        const start = () => { if (!id) id = setInterval(() => fetchInsights(false), 30_000); };
+        const stop  = () => { if (id) { clearInterval(id); id = null; } };
+        const onVisibility = () => document.visibilityState === 'visible' ? (fetchInsights(false), start()) : stop();
+        // Don't poll while the tab is in the background.
+        if (document.visibilityState === 'visible') start();
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
+    }, [siteId, canViewInsights, range, fetchInsights]);
+
+    // Inline delta renderer: '↑12%' green / '↓5%' red / '—' neutral.
+    const renderDelta = (pct: number | null | undefined) => {
+        if (pct === null || pct === undefined) return null;
+        const up = pct >= 0;
+        return (
+            <span style={{
+                fontSize: 11, fontWeight: 600,
+                color: up ? '#16A34A' : '#DC2626',
+                background: up ? '#F0FDF4' : '#FEF2F2',
+                padding: '2px 6px', borderRadius: 999,
+                marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 2,
+            }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>
+                    {up ? 'arrow_upward' : 'arrow_downward'}
+                </span>
+                {Math.abs(pct).toFixed(0)}%
+            </span>
+        );
+    };
 
     // ── Store toggle ────────────────────────────────────────────────────────
+    // Optimistic flip with rollback on failure. Without the rollback + toast,
+    // a failed network request leaves the UI showing "Open" while the server
+    // still has the store closed — owners think they're taking orders when
+    // they aren't.
     const handleToggleStore = async () => {
         if (toggling || !siteId || isTrialExpired) return;
+        const prev = storeOpen;
         const next = !storeOpen;
         setStoreOpen(next);
         setToggling(true);
+        const rollback = (message: string) => {
+            setStoreOpen(prev);
+            toast.error(message);
+        };
         try {
             const token = await firebaseAuth.currentUser?.getIdToken();
-            if (!token) { setStoreOpen(!next); setToggling(false); return; }
+            if (!token) { rollback('Session expired. Please sign in again.'); setToggling(false); return; }
             const res = await fetch('/api/sites/toggle-live', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ siteId, is_live: next }),
             });
-            if (!res.ok) setStoreOpen(!next);
+            if (!res.ok) {
+                rollback(next ? "Couldn't open the store. Try again." : "Couldn't close the store. Try again.");
+            } else {
+                toast.success(next ? 'Store is now open' : 'Store is now closed');
+            }
         } catch {
-            setStoreOpen(!next);
+            rollback('Network error — store status unchanged.');
         }
         setToggling(false);
     };
@@ -160,7 +223,7 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                         <span className="hidden sm:inline" style={{ fontSize: 12, fontWeight: 500, color: storeOpen ? '#16A34A' : '#71717A' }}>
-                            {storeOpen ? (isPayEat ? 'Open & Accepting Orders' : 'Open, users can view now') : 'Closed'}
+                            {storeOpen ? (canViewInsights ? 'Open & Accepting Orders' : 'Open, users can view now') : 'Closed'}
                         </span>
                         <button
                             onClick={handleToggleStore}
@@ -174,109 +237,168 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
             )}
 
             {/* ── INSIGHTS ─────────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 17 }}>Insights</h2>
-                {isPayEat && <span style={{ fontSize: 12, color: '#71717A' }}>Today</span>}
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <h2 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 17 }}>Insights</h2>
+                    {canViewInsights && (
+                        <SyncIndicator
+                            syncedAt={lastSyncedAt}
+                            loading={insightsLoading || manualRefreshing}
+                            onRefresh={handleManualRefresh}
+                        />
+                    )}
+                </div>
+                {canViewInsights && <DateRangeFilter variant="chips" />}
             </div>
 
-            {!isPayEat ? (
+            {!canViewInsights ? (
                 <div className="flex flex-col items-center justify-center text-center mb-6 md:mb-8" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '36px 24px', background: '#FAFAFA' }}>
                     <div className="flex items-center justify-center" style={{ width: 52, height: 52, borderRadius: '50%', background: '#EEEEFF', marginBottom: 16 }}>
                         <span className="material-symbols-outlined" style={{ fontSize: 26, color: '#5137EF' }}>bar_chart</span>
                     </div>
-                    <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 16, marginBottom: 6 }}>Insights — Pay-Eat Plan Required</p>
+                    <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 16, marginBottom: 6 }}>Insights — QR Ordering Plan Required</p>
                     <p className="text-[#71717A]" style={{ fontSize: 13, maxWidth: 320 }}>
                         Sales analytics and order insights are available on the QR Ordering plan.
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 md:mb-8">
-                    {[
-                        { label: 'Orders Today',  value: ordersLoading ? '—' : String(totalOrders),   icon: 'receipt_long',      color: '#5137EF', bg: '#EEEEFF' },
-                        { label: 'Revenue Today', value: ordersLoading ? '—' : `₹${totalRevenue}`,    icon: 'payments',          color: '#16A34A', bg: '#F0FDF4' },
-                        { label: 'Active Orders', value: ordersLoading ? '—' : String(activeOrders),  icon: 'local_fire_department', color: '#F97316', bg: '#FFF7ED' },
-                        { label: 'Completed',     value: ordersLoading ? '—' : String(completedOrders), icon: 'check_circle',    color: '#0EA5E9', bg: '#F0F9FF' },
-                    ].map(card => (
-                        <div key={card.label} style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: '16px', background: '#FFFFFF' }}>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div style={{ width: 32, height: 32, borderRadius: 8, background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: 17, color: card.color, fontVariationSettings: "'FILL' 1" }}>{card.icon}</span>
-                                </div>
-                                <span style={{ fontSize: 12, color: '#71717A', fontWeight: 500 }}>{card.label}</span>
-                            </div>
-                            <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: 1 }}>{card.value}</p>
+                <>
+                    {/* All revenue figures below come from confirmed transactions
+                        (status='Success'), not from placed orders. Money customers
+                        promised but haven't paid yet shows in the separate Pending card. */}
+                    <div className="flex items-center justify-between gap-2 mb-3 flex-wrap" style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '8px 12px' }}>
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#0284C7', flexShrink: 0 }}>info</span>
+                            <p style={{ fontSize: 12, color: '#075985', margin: 0 }}>
+                                Revenue = money <strong>actually collected</strong>. Pending = money <strong>owed</strong> by customers who haven&apos;t paid yet.
+                            </p>
                         </div>
-                    ))}
-                </div>
-            )}
-
-            {/* ── LIVE ORDERS ───────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 17 }}>Live Orders</h2>
-                {isPayEat && (
-                    <Link href="/manage/orders" style={{ fontSize: 13, fontWeight: 500, color: '#5137EF', textDecoration: 'none' }}>View All</Link>
-                )}
-            </div>
-
-            {!isPayEat && (
-                <div className="flex flex-col items-center justify-center text-center" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '48px 24px', background: '#FAFAFA' }}>
-                    <div className="flex items-center justify-center" style={{ width: 52, height: 52, borderRadius: '50%', background: '#EEEEFF', marginBottom: 16 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 26, color: '#5137EF' }}>lock</span>
+                        {insights?.range?.label && (
+                            <span style={{ fontSize: 11, color: '#0369A1', fontWeight: 600 }}>
+                                {insights.range.label}
+                            </span>
+                        )}
                     </div>
-                    <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 16, marginBottom: 6 }}>Live Orders — Pay-Eat Plan Required</p>
-                    <p className="text-[#71717A]" style={{ fontSize: 13, marginBottom: 20, maxWidth: 320 }}>
-                        Real-time order management is available on the QR Ordering plan.
-                    </p>
-                    <Link href="/manage/subscription" className="flex items-center gap-1.5 text-white hover:opacity-90 transition-opacity" style={{ background: '#5137EF', borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>arrow_upward</span>
-                        Upgrade Plan
-                    </Link>
-                </div>
-            )}
-
-            {isPayEat && (
-                ordersLoading ? (
-                    <div className="flex items-center justify-center py-10">
-                        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-                        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '3px solid #E4E4E7', borderTopColor: '#5137EF', animation: 'spin 0.7s linear infinite' }} />
-                    </div>
-                ) : liveOrders.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center text-center" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '48px 24px', background: '#FAFAFA' }}>
-                        <span className="material-symbols-outlined text-[#D4D4D8] mb-3" style={{ fontSize: 38 }}>receipt_long</span>
-                        <p className="font-semibold text-[#52525C]" style={{ fontSize: 15 }}>No active orders</p>
-                        <p className="text-[#71717A] mt-1" style={{ fontSize: 13 }}>Orders placed by customers will appear here in real time.</p>
-                    </div>
-                ) : (
-                    <div style={{ border: '1px solid #E4E4E7', borderRadius: 14, overflow: 'hidden' }}>
-                        {liveOrders.map((order, idx) => {
-                            const st = STATUS_STYLES[order.status] ?? STATUS_STYLES.preparing;
-                            const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
-                            const firstName = order.items[0]?.name ?? '—';
-                            const summary = itemCount > 1 ? `${firstName} +${itemCount - 1} more` : firstName;
-                            return (
-                                <div
-                                    key={order.id}
-                                    className="flex items-center justify-between gap-3"
-                                    style={{ padding: '14px 16px', background: '#FFFFFF', borderBottom: idx < liveOrders.length - 1 ? '1px solid #E4E4E7' : 'none' }}
-                                >
-                                    <div style={{ minWidth: 0 }}>
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A' }}>#{order.order_number}</span>
-                                            <span style={{ fontSize: 12, color: '#71717A' }}>{order.customer_name ?? '—'}</span>
-                                        </div>
-                                        <p style={{ fontSize: 12, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 md:mb-5">
+                        {[
+                            { key:'revenue',  label: 'Revenue',  value: insightsLoading || !insights ? '—' : `₹${insights.revenue.toLocaleString('en-IN')}`,   delta: insights?.revenue_change_pct, icon: 'payments',     color: '#16A34A', bg: '#F0FDF4' },
+                            { key:'pending',  label: 'Pending',  value: insightsLoading || !insights ? '—' : `₹${insights.pending.toLocaleString('en-IN')}`,   delta: null,                          icon: 'pending',      color: '#F97316', bg: '#FFF7ED' },
+                            { key:'orders',   label: 'Orders',   value: insightsLoading || !insights ? '—' : String(insights.orders),                          delta: insights?.orders_change_pct,  icon: 'receipt_long', color: '#5137EF', bg: '#EEEEFF' },
+                            { key:'done',     label: 'Completed',value: insightsLoading || !insights ? '—' : String(insights.completed),                       delta: null,                          icon: 'check_circle', color: '#0EA5E9', bg: '#F0F9FF' },
+                        ].map(card => (
+                            <div key={card.key} style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: '16px', background: '#FFFFFF' }}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div style={{ width: 32, height: 32, borderRadius: 8, background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 17, color: card.color, fontVariationSettings: "'FILL' 1" }}>{card.icon}</span>
                                     </div>
-                                    <div className="flex items-center gap-3 shrink-0">
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{order.subtotal}</span>
-                                        <span style={{ fontSize: 11, fontWeight: 600, color: st.color, background: st.bg, borderRadius: 6, padding: '3px 8px' }}>{st.label}</span>
-                                        <span style={{ fontSize: 11, color: '#99A1AF' }}>{formatTime(order.created_at)}</span>
-                                    </div>
+                                    <span style={{ fontSize: 12, color: '#71717A', fontWeight: 500 }}>{card.label}</span>
                                 </div>
-                            );
-                        })}
+                                <div className="flex items-baseline">
+                                    <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: 1 }}>{card.value}</p>
+                                    {!insightsLoading && card.delta !== null && card.delta !== undefined && renderDelta(card.delta)}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                )
+
+                    {/* Revenue bar chart — re-keyed on range so animation replays */}
+                    {!insightsLoading && insights?.series && (
+                        <div className="mb-4">
+                            <RevenueBarChart
+                                key={insights.range.key}
+                                series={insights.series}
+                                bucket={insights.range.bucket}
+                                timezone={insights.range.timezone}
+                            />
+                        </div>
+                    )}
+                    {insightsLoading && (
+                        // Chart-area skeleton so the dashboard doesn't visibly "jump" when
+                        // the chart pops in. Heights chosen to match RevenueBarChart's
+                        // default 200 px + 56 px label band.
+                        <div className="mb-4" style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: '16px 20px 12px', background: '#FFFFFF' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 200, paddingTop: 24 }}>
+                                {Array.from({ length: 12 }).map((_, i) => (
+                                    <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                        <div style={{
+                                            width: '70%', maxWidth: 32, minWidth: 14,
+                                            height: `${30 + ((i * 17) % 60)}%`,
+                                            background: '#F4F4F5', borderRadius: '6px 6px 0 0',
+                                            animation: 'dash-pulse 1.4s ease-in-out infinite',
+                                        }} />
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, marginTop: 8, height: 14 }} />
+                            <style>{`@keyframes dash-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
+                        </div>
+                    )}
+
+                    {/* Second row: operational + by-mode breakdown */}
+                    {!insightsLoading && insights && (insights.completed > 0 || Object.keys(insights.by_payment_mode).length > 0) && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6 md:mb-8">
+                            {/* Order-type donut (QR Order plan) or Avg-order-value card (other plans).
+                                The QR Order without-payment plan cares about table-mode vs takeaway
+                                split — Active Orders moved to the Orders page where it belongs. */}
+                            <div style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: '14px 16px', background: '#FFFFFF' }}>
+                                {isQrOrder ? (
+                                    <>
+                                        <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+                                            <p style={{ fontSize: 11, color: '#71717A', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>Order Type</p>
+                                            <p style={{ fontSize: 11, color: '#99A1AF', margin: 0 }}>
+                                                Avg ₹{insights.avg_order_value.toLocaleString('en-IN')}
+                                            </p>
+                                        </div>
+                                        <PaymentModeRing
+                                            key={insights.range.key}
+                                            breakdown={{
+                                                'Dine-in': insights.dine_in_count,
+                                                Takeaway:  insights.takeaway_count,
+                                            }}
+                                            totalLabel="Orders"
+                                            formatValue={(n) => `${n} ${n === 1 ? 'order' : 'orders'}`}
+                                            formatTotal={(n) => String(n)}
+                                            emptyMessage="No orders in this period yet."
+                                        />
+                                    </>
+                                ) : (
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p style={{ fontSize: 11, color: '#71717A', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>Avg Order Value</p>
+                                            <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 20, lineHeight: 1, marginTop: 4 }}>₹{insights.avg_order_value.toLocaleString('en-IN')}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Payment-mode donut — Cash / UPI / Card split.
+                                Re-keyed on range so the arcs re-animate when filter changes. */}
+                            <div style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: '14px 16px', background: '#FFFFFF' }}>
+                                <p style={{ fontSize: 11, color: '#71717A', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0, marginBottom: 12 }}>Revenue by Mode</p>
+                                <PaymentModeRing
+                                    key={insights.range.key}
+                                    breakdown={insights.by_payment_mode}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Top / Low performing items — item-level revenue drilldown.
+                        Self-fetches from /api/manage/insights/top-items, re-keyed by
+                        range so it re-animates when the filter changes. */}
+                    {!insightsLoading && insights && siteId && (
+                        <div className="mb-6 md:mb-8">
+                            <TopLowPerformers
+                                siteId={siteId}
+                                rangeKey={insights.range.key}
+                                rangeLabel={insights.range.label}
+                                authedFetch={authedFetch}
+                            />
+                        </div>
+                    )}
+                </>
             )}
+
         </div>
     );
 }
@@ -298,15 +420,33 @@ function DashboardContent() {
     const [showBanner, setShowBanner] = useState(false);
     const [itemCount, setItemCount] = useState(0);
 
+    // Onboarded-banner side effect: runs ONCE per mount.
+    // Previously this effect re-ran every time `searchParams` or `refreshSites`
+    // identity changed AND it unconditionally rewrote the URL to
+    // `/manage/dashboard` (no params). That wiped ?range=last7d on any
+    // re-render, making the date filter appear to reset on scroll/interaction.
+    // The fix:
+    //   1. useRef guard so the strip happens at most once.
+    //   2. Strip ONLY ?onboarded and ?items — preserve everything else
+    //      (?range, custom start/end, etc).
+    const onboardedHandled = useRef(false);
     useEffect(() => {
+        if (onboardedHandled.current) return;
         const onboarded = searchParams.get('onboarded');
+        if (onboarded !== 'true') return;
+        onboardedHandled.current = true;
+
         const items = searchParams.get('items');
-        if (onboarded === 'true') {
-            setShowBanner(true);
-            setItemCount(Number(items ?? 0));
-            refreshSites();
-            window.history.replaceState({}, '', '/manage/dashboard');
-        }
+        setShowBanner(true);
+        setItemCount(Number(items ?? 0));
+        refreshSites();
+
+        // Strip only the banner params; keep everything else (e.g., ?range=).
+        const next = new URLSearchParams(searchParams.toString());
+        next.delete('onboarded');
+        next.delete('items');
+        const qs = next.toString();
+        window.history.replaceState({}, '', qs ? `/manage/dashboard?${qs}` : '/manage/dashboard');
     }, [searchParams, refreshSites]);
 
     const siteSlug = activeSite?.slug ?? '';
@@ -342,4 +482,93 @@ function DashboardContent() {
             <RealDashboard key={siteId} siteUrl={siteUrl} siteId={siteId} initialStoreOpen={initialStoreOpen} />
         </>
     );
+}
+
+/* ══════════════════════════════════════════════════════════
+   SYNC INDICATOR
+   Small chip beside the Insights heading: status icon + relative
+   "Updated Xm ago" text + refresh button. Mirrors the pattern used
+   by Stripe Dashboard / Square / Shopify analytics — owners always
+   know how fresh the numbers on screen are, and can force a refresh
+   when they just made a change in another tab.
+══════════════════════════════════════════════════════════ */
+function SyncIndicator({
+    syncedAt, loading, onRefresh,
+}: {
+    syncedAt: number | null;
+    loading: boolean;
+    onRefresh: () => void;
+}) {
+    const rel = formatRelative(syncedAt);
+    const abs = syncedAt
+        ? new Date(syncedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+        : '';
+
+    return (
+        <div
+            className="flex items-center gap-2"
+            style={{
+                border: '1px solid #E4E4E7',
+                background: '#FFFFFF',
+                borderRadius: 10,
+                padding: '4px 4px 4px 10px',
+                height: 32,
+            }}
+            title={abs ? `Last synced: ${abs}` : 'Not synced yet'}
+        >
+            <span
+                className="material-symbols-outlined"
+                aria-hidden
+                style={{ fontSize: 14, color: loading ? '#5137EF' : '#16A34A' }}
+            >
+                {loading ? 'sync' : 'desktop_windows'}
+            </span>
+            <div className="flex flex-col leading-tight" style={{ minWidth: 0 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: '#0A0A0A', lineHeight: '14px' }}>
+                    {loading ? 'Syncing…' : 'Order Sync On'}
+                </span>
+                <span className="truncate" style={{ fontSize: 10.5, color: '#71717A', lineHeight: '13px' }}>
+                    {syncedAt ? `Updated ${rel}` : 'Awaiting first sync'}
+                </span>
+            </div>
+            <button
+                type="button"
+                onClick={onRefresh}
+                disabled={loading}
+                aria-label="Refresh insights"
+                title="Refresh now"
+                className="flex items-center justify-center hover:bg-neutral-50 transition-colors"
+                style={{
+                    width: 24, height: 24, borderRadius: 6,
+                    border: '1px solid #E4E4E7', background: '#FFFFFF',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    flexShrink: 0,
+                }}
+            >
+                <span
+                    className="material-symbols-outlined"
+                    style={{
+                        fontSize: 14, color: '#52525C',
+                        animation: loading ? 'sync-spin 0.8s linear infinite' : 'none',
+                        display: 'inline-block',
+                    }}
+                >
+                    refresh
+                </span>
+            </button>
+            <style>{`@keyframes sync-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+    );
+}
+
+function formatRelative(ts: number | null): string {
+    if (!ts) return '';
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (s < 10)      return 'just now';
+    if (s < 60)      return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60)      return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24)      return `${h}h ago`;
+    return new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
 }

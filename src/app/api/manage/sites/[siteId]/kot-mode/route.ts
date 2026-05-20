@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
+import { audit } from '@/lib/auditLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'kot_mode must be manual or automatic' }, { status: 400 });
   }
 
+  // Read the previous mode so the audit row shows the actual transition.
+  // SELECT also doubles as ownership check (no row if user_id mismatch).
+  const { data: prev } = await supabaseServer
+    .from('sites').select('kot_mode').eq('id', params.siteId).eq('user_id', userId).maybeSingle();
+  if (!prev) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { error } = await supabaseServer
     .from('sites')
     .update({ kot_mode })
@@ -40,6 +49,13 @@ export async function PATCH(
     console.error('[PATCH kot-mode] update error:', error);
     return NextResponse.json({ error: 'Failed to update KOT mode' }, { status: 500 });
   }
+
+  audit({
+    userId, siteId: params.siteId, action: 'kot_mode_change',
+    targetId: params.siteId,
+    details: { before: prev.kot_mode, after: kot_mode },
+    request,
+  });
 
   return NextResponse.json({ success: true, kot_mode });
 }

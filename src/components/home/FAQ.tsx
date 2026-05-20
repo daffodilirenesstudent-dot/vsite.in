@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useInView } from '@/hooks/useInView';
 
 const faqs = [
     {
@@ -27,43 +28,66 @@ const faqs = [
 
 export default function FAQ() {
     const [open, setOpen] = useState<number | null>(null);
+    const { ref: headerRef, visible: headerVisible } = useInView(0.2);
+    const { ref: listRef, visible: listVisible } = useInView(0.08);
 
     return (
-        <section id="faq" className="py-14 sm:py-24 px-4 bg-background-light">
+        <section id="faq" className="py-14 sm:py-20 lg:py-28 px-4 bg-slate-50">
             <div className="mx-auto max-w-3xl">
+
                 {/* Header */}
-                <div className="text-center mb-14">
-                    <span className="text-xs font-bold uppercase tracking-widest text-primary">FAQ</span>
-                    <h2 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display text-slate-900 leading-tight">
+                <div
+                    ref={headerRef}
+                    className={`text-center mb-10 sm:mb-14 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+                        ${headerVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.98]'}`}
+                >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 mb-4">FAQ</p>
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
                         Questions You Might Have
                     </h2>
-                    <p className="mt-5 text-lg text-slate-500">
+                    <p className="mt-4 sm:mt-5 text-sm sm:text-base lg:text-lg text-slate-500">
                         Everything you need to know before getting started.
                     </p>
                 </div>
 
                 {/* Accordion */}
-                <div className="space-y-3">
+                <div ref={listRef} className="space-y-2 sm:space-y-3">
                     {faqs.map((faq, i) => (
                         <div
                             key={i}
-                            className="bg-white rounded-2xl border border-slate-200 overflow-hidden"
+                            className={`bg-white rounded-xl sm:rounded-2xl border overflow-hidden
+                                transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
+                                ${open === i ? 'border-slate-200 shadow-sm' : 'border-slate-100 hover:border-slate-200'}
+                                ${listVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
+                            style={{ transitionDelay: listVisible ? `${i * 70}ms` : '0ms' }}
                         >
                             <button
                                 onClick={() => setOpen(open === i ? null : i)}
-                                className="w-full flex items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-5 text-left"
+                                className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 lg:px-6 py-4 sm:py-5 text-left group min-h-[52px] sm:min-h-[60px]"
                             >
-                                <span className="font-bold text-slate-900 text-base leading-snug">{faq.q}</span>
-                                <span className="material-symbols-outlined text-primary text-xl shrink-0 transition-transform duration-200"
-                                    style={{ transform: open === i ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                                <span className={`font-semibold text-sm sm:text-base leading-snug transition-colors duration-200
+                                    ${open === i ? 'text-primary' : 'text-slate-800 group-hover:text-slate-900'}`}>
+                                    {faq.q}
+                                </span>
+                                <span
+                                    className={`material-symbols-outlined text-slate-400 text-lg sm:text-xl shrink-0 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]
+                                        ${open === i ? 'text-primary rotate-180' : 'rotate-0'}`}
+                                >
                                     expand_more
                                 </span>
                             </button>
-                            {open === i && (
-                                <div className="px-4 sm:px-6 pb-4 sm:pb-5 text-slate-600 text-sm leading-relaxed border-t border-slate-100 pt-4">
-                                    {faq.a}
+
+                            {/* Smooth expand via CSS grid trick */}
+                            <div
+                                className="grid transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                                style={{ gridTemplateRows: open === i ? '1fr' : '0fr' }}
+                            >
+                                <div className="overflow-hidden">
+                                    <div className="px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5 text-slate-600 text-sm sm:text-base leading-relaxed border-t border-slate-100 pt-3 sm:pt-4">
+                                        {faq.a}
+                                    </div>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     ))}
                 </div>

@@ -1,152 +1,77 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { useInView } from '@/hooks/useInView';
 
 const steps = [
-    {
-        number: '01',
-        title: 'Customers scan your QR',
-        desc: 'They scan the QR code on the table using their phone.',
-        image: '/step1-HIW.png',
-        imageAlt: 'QR code stand on restaurant table',
-    },
-    {
-        number: '02',
-        title: 'Menu opens instantly',
-        desc: 'Your digital menu opens instantly with photos, prices & descriptions.',
-        image: '/step2-HIW.png',
-        imageAlt: 'Digital menu on phone screen',
-    },
-    {
-        number: '03',
-        title: 'They place the order',
-        desc: 'Customers place order and pay securely via UPI, GPay or cash.',
-        image: '/step3-HTW.png',
-        imageAlt: 'Customer placing order on phone',
-    },
-    {
-        number: '04',
-        title: 'You get the order, they enjoy!',
-        desc: 'You receive the order instantly & serve happy customers.',
-        image: '/step4-HIW.png',
-        imageAlt: 'Kitchen display showing new order',
-    },
-];
-
-const benefits = [
-    { icon: 'rocket_launch', title: 'Faster Service', desc: 'Reduce wait time and serve more tables.' },
-    { icon: 'bar_chart', title: 'More Orders', desc: 'Upsell easily with photos, combos & recommendations.' },
-    { icon: 'savings', title: 'Lower Costs', desc: 'No commission. Keep more of what you earn.' },
-    { icon: 'settings', title: 'Easy to Use', desc: 'Setup in minutes. Manage everything from your phone.' },
-    { icon: 'verified_user', title: 'Safe & Contactless', desc: 'Perfect for modern customers who prefer contactless ordering.' },
+    { number: '01', title: 'Customers scan your QR', desc: 'They scan the QR code on the table using their phone.', image: '/step1-HIW.png', imageAlt: 'QR code stand on restaurant table' },
+    { number: '02', title: 'Menu opens instantly', desc: 'Your digital menu opens instantly with photos, prices & descriptions.', image: '/step2-HIW.png', imageAlt: 'Digital menu on phone screen' },
+    { number: '03', title: 'They place the order', desc: 'Customers place order and pay securely via UPI, GPay or cash.', image: '/step3-HTW.png', imageAlt: 'Customer placing order on phone' },
+    { number: '04', title: 'You get the order, they enjoy!', desc: 'You receive the order instantly & serve happy customers.', image: '/step4-HIW.png', imageAlt: 'Kitchen display showing new order' },
 ];
 
 export default function CustomerExperience() {
-    const videoRef = useRef<HTMLVideoElement>(null);
-
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!video) return;
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    video.currentTime = 0;
-                    video.play().catch(() => {});
-                } else {
-                    video.pause();
-                }
-            },
-            { threshold: 0.3 }
-        );
-
-        observer.observe(video);
-        return () => observer.disconnect();
-    }, []);
+    const { ref: headerRef, visible: headerVisible } = useInView(0.2);
+    const { ref: cardsRef, visible: cardsVisible } = useInView(0.08);
 
     return (
-        <section className="py-14 sm:py-24 px-4 bg-white relative overflow-hidden">
-            <div className="relative z-10 mx-auto max-w-6xl">
+        <section className="py-14 sm:py-20 lg:py-28 px-4 bg-white">
+            <div className="mx-auto max-w-6xl">
+
                 {/* Header */}
-                <div className="text-center mb-10 sm:mb-14">
-                    <span className="inline-block text-xs font-bold uppercase tracking-widest text-primary bg-primary/10 px-4 py-1.5 rounded-full mb-4">
-                        How Customers Use It
-                    </span>
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display text-slate-900 leading-tight">
-                        4 Simple Steps.<br />
+                <div
+                    ref={headerRef}
+                    className={`text-center mb-8 sm:mb-12 lg:mb-14 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+                        ${headerVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.98]'}`}
+                >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 mb-4">How Customers Use It</p>
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
+                        4 Simple Steps.<br className="hidden sm:block" />{' '}
                         Happy Customers.{' '}
                         <span className="text-primary">More Orders.</span>
                     </h2>
-                    <p className="mt-4 text-base sm:text-lg text-slate-500 max-w-xl mx-auto">
-                        Contactless ordering that increases speed, efficiency and sales — built for Tamil Nadu restaurants.
-                    </p>
                 </div>
 
                 {/* Step cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-10">
-                    {steps.map((step) => (
+                <div ref={cardsRef} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                    {steps.map((step, i) => (
                         <div
                             key={step.number}
-                            className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-sm"
+                            className={`bg-white border border-slate-100 rounded-xl sm:rounded-2xl overflow-hidden flex flex-col shadow-sm
+                                hover:shadow-lg hover:-translate-y-1 hover:border-slate-200
+                                transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
+                                ${cardsVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-[0.96]'}`}
+                            style={{ transitionDelay: cardsVisible ? `${i * 90}ms` : '0ms' }}
                         >
-                            {/* Top content */}
-                            <div className="p-4 sm:p-5 flex-1">
-                                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center mb-4 shadow-md shadow-primary/30">
-                                    <span className="text-white font-bold text-xs">{step.number}</span>
+                            <div className="p-3 sm:p-4 lg:p-5 flex-1">
+                                <div
+                                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-primary flex items-center justify-center mb-3 sm:mb-4 shadow-md shadow-primary/30
+                                        transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                                        ${cardsVisible ? 'scale-100' : 'scale-50'}`}
+                                    style={{ transitionDelay: cardsVisible ? `${i * 90 + 180}ms` : '0ms' }}
+                                >
+                                    <span className="text-white font-bold text-[10px] sm:text-xs">{step.number}</span>
                                 </div>
-                                <h3 className="font-extrabold font-display text-slate-900 text-sm sm:text-base leading-snug mb-2">
+                                <h3 className="font-bold text-slate-900 text-xs sm:text-sm lg:text-base leading-snug mb-1 sm:mb-2">
                                     {step.title}
                                 </h3>
-                                <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+                                <p className="text-slate-500 text-[11px] sm:text-xs lg:text-sm leading-relaxed">
                                     {step.desc}
                                 </p>
                             </div>
-
-                            {/* Step image — 4:3 on mobile, 16:9 on tablet+ */}
-                            <div className="relative w-full aspect-[4/3] sm:aspect-video bg-white/5">
+                            <div className="relative w-full aspect-[4/3] overflow-hidden">
                                 <Image
                                     src={step.image}
                                     alt={step.imageAlt}
                                     fill
                                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                                    className="object-cover"
+                                    className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
                                 />
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* Why Restaurants Love It */}
-                <div className="rounded-2xl bg-primary/8 border border-primary/15 px-6 sm:px-10 py-8 mb-10">
-                    <h3 className="text-center font-extrabold font-display text-primary text-lg sm:text-xl mb-7">
-                        Why Restaurants Love It
-                    </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5 sm:gap-6">
-                        {benefits.map((b) => (
-                            <div key={b.title} className="flex flex-col items-center text-center gap-2">
-                                <div className="w-11 h-11 rounded-full bg-white border border-primary/20 flex items-center justify-center shadow-sm">
-                                    <span className="material-symbols-outlined text-primary text-xl">{b.icon}</span>
-                                </div>
-                                <div className="font-bold text-slate-900 text-sm">{b.title}</div>
-                                <p className="text-slate-500 text-xs leading-relaxed">{b.desc}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Video — 16:9 aspect ratio (YouTube standard) */}
-                <div className="rounded-2xl sm:rounded-3xl border border-slate-200 overflow-hidden bg-black relative aspect-video w-full">
-                    <video
-                        ref={videoRef}
-                        src="/customer-flow.mp4"
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                        className="absolute inset-0 w-full h-full object-cover"
-                    />
-                </div>
             </div>
         </section>
     );

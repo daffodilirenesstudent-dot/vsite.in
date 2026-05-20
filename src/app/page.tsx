@@ -4,14 +4,12 @@ import HeroSection from '@/components/home/HeroSection';
 import CategoryStrip from '@/components/home/CategoryStrip';
 import PainSection from '@/components/home/PainSection';
 import ProductCards from '@/components/home/ProductCards';
-import HowItWorks from '@/components/home/HowItWorks';
+import SetupSteps from '@/components/home/SetupSteps';
 import CustomerExperience from '@/components/home/CustomerExperience';
-import AIFeatures from '@/components/home/AIFeatures';
 import LossAversion from '@/components/home/LossAversion';
 import Pricing from '@/components/home/Pricing';
 import SocialProof from '@/components/home/SocialProof';
 import FAQ from '@/components/home/FAQ';
-import FinalCTA from '@/components/home/FinalCTA';
 import FooterCTA from '@/components/home/FooterCTA';
 
 const BASE_URL = 'https://vsite.in';
@@ -139,16 +137,14 @@ export default function Home() {
         <Navbar />
         <HeroSection />
         <CategoryStrip />
-        <PainSection />
         <ProductCards />
-        <HowItWorks />
+        <PainSection />
+        <SetupSteps />
         <CustomerExperience />
-        <AIFeatures />
         <LossAversion />
         <Pricing />
         <SocialProof />
         <FAQ />
-        <FinalCTA />
         <FooterCTA />
       </main>
     </>

@@ -106,7 +106,7 @@ export async function DELETE(request: NextRequest) {
         sameSite: 'lax',
         path: '/',
         maxAge: 0,
-        expires: new Date(0),     // belt-and-suspenders for browsers that mishandle maxAge: 0
+        expires: new Date(0),     // belt-and-suspenders for browsers that mishandle maxAge: 0 
     });
     return response;
 }

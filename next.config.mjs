@@ -1,3 +1,6 @@
+// @ts-check
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 
 // Content-Security-Policy:
@@ -20,7 +23,7 @@ const csp = [
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://www.google-analytics.com https://www.googletagmanager.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.google-analytics.com",
+    "connect-src 'self' blob: data: http://127.0.0.1:7878 https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.google-analytics.com https://o4511393511636992.ingest.us.sentry.io",
     "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.google.com https://www.gstatic.com",
     "form-action 'self'",
     "upgrade-insecure-requests",
@@ -64,4 +67,17 @@ const nextConfig = {
     },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: 'vsite',
+  project: 'javascript-nextjs',
+  // Suppresses source map upload logs during build
+  silent: !process.env.CI,
+  // Upload source maps so Sentry shows real TypeScript line numbers
+  widenClientFileUpload: true,
+  // Hides source maps from the browser bundle (they're uploaded to Sentry only)
+  hideSourceMaps: true,
+  // Automatically tree-shake Sentry logger statements
+  disableLogger: true,
+  // Automatically instrument Vercel cron monitors
+  automaticVercelMonitors: true,
+});
