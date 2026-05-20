@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { exchangeCode, getMode } from '@/lib/server/razorpayOAuth';
 import { encryptToken } from '@/lib/server/paymentsCrypto';
+import { notify } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -103,6 +104,15 @@ export async function GET(request: NextRequest) {
     console.error('[razorpay/callback] upsert failed:', upsertErr);
     return redirectWith(origin, { error: 'persist_failed' });
   }
+
+  notify({
+    userId: stateRow.user_id,
+    siteId: stateRow.site_id,
+    type:   'razorpay_connected',
+    title:  'Razorpay account connected',
+    body:   `Customers can now pay online (${getMode()} mode). Funds settle to ${accountId}.`,
+    link:   '/manage/settings',
+  });
 
   return redirectWith(origin, { connected: '1' });
 }

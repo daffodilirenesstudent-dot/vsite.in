@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useSite } from './SiteContext';
 import { usePlan } from './PlanContext';
 import PrinterStatusIndicator from './PrinterStatusIndicator';
+import NotificationBell from './NotificationBell';
 
 const TRIAL_STORE_LIMIT = 2;
 const PAID_STORE_LIMIT  = 5;
@@ -283,14 +284,7 @@ export default function DashboardHeader() {
                 <div className="flex items-center gap-2 shrink-0">
                     {/* Printer status — bridge connection + per-role health */}
                     <PrinterStatusIndicator />
-                    <button
-                        type="button"
-                        aria-label="Notifications"
-                        className="flex items-center justify-center"
-                        style={{ width: 32, height: 32 }}
-                    >
-                        <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 20 }} aria-hidden>notifications</span>
-                    </button>
+                    <NotificationBell />
 
                     {/* Profile button + dropdown */}
                     <div className="relative" ref={profileMenuRef}>

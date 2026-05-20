@@ -6,12 +6,14 @@ import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { firebaseAuth } from '@/lib/firebase';
 
-const SETUP_FEE = 1999;
-const QR_MENU_MONTHLY = 399;
-const QR_ORDERING_MONTHLY = 799;
-const QR_ORDERING_MOCK_PRICE = 5;
-const QR_ORDER_MONTHLY = 599;
-const QR_ORDER_MOCK_PRICE = 5;
+// Flat ₹300/month for every plan. No setup fee. 30-day cycle.
+const PLAN_PRICE = 300;
+const SETUP_FEE = 0;
+const QR_MENU_MONTHLY    = PLAN_PRICE;
+const QR_ORDERING_MONTHLY = PLAN_PRICE;
+const QR_ORDERING_MOCK_PRICE = PLAN_PRICE;
+const QR_ORDER_MONTHLY    = PLAN_PRICE;
+const QR_ORDER_MOCK_PRICE = PLAN_PRICE;
 
 type ModalType = 'payment' | 'qr_ordering_payment' | 'qr_order_payment' | 'coming_soon' | null;
 type PaymentState = 'idle' | 'creating' | 'activating' | 'slow' | 'success' | 'failed';
@@ -94,7 +96,7 @@ export default function SubscriptionPage() {
     // Was previously a paying customer (store_expires_at was set), plan now expired
     const isPlanExpired = !!sub?.store_expires_at && !isQrMenuActive && !isQrOrderingActive;
     const isRenewal = isPlanExpired;
-    const dueToday = isRenewal ? QR_MENU_MONTHLY : SETUP_FEE + QR_MENU_MONTHLY;
+    const dueToday = QR_MENU_MONTHLY; // no setup fee
 
     const expiryLabel = sub?.store_expires_at
         ? new Date(sub.store_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -122,18 +124,20 @@ export default function SubscriptionPage() {
         }, 2000);
     };
 
-    // Detect plan activation during polling
+    // Detect plan activation during polling — any plan, not just qr_menu.
     React.useEffect(() => {
-        if (paymentState === 'activating' && isQrMenuActive) {
+        const anyActive = isQrMenuActive || isQrOrderingActive || isQrOrderActive;
+        if (paymentState === 'activating' && anyActive) {
             stopPolling();
             setPaymentState('success');
+            try { localStorage.setItem('subscription_just_activated', '1'); } catch { /* quota */ }
             setTimeout(() => {
                 setModalType(null);
                 setPaymentState('idle');
             }, 2500);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isQrMenuActive, paymentState]);
+    }, [isQrMenuActive, isQrOrderingActive, isQrOrderActive, paymentState]);
 
     // Cleanup on unmount
     React.useEffect(() => () => stopPolling(), []);
@@ -210,7 +214,7 @@ export default function SubscriptionPage() {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ siteId: activeSite.id }),
+                body: JSON.stringify({ siteId: activeSite.id, plan: 'qr_menu' }),
             });
 
             const data = await res.json();
@@ -229,7 +233,7 @@ export default function SubscriptionPage() {
                 amount: data.amount,
                 currency: data.currency,
                 name: 'vsite',
-                description: data.isRenewal ? 'Smart QR Menu — Monthly Renewal' : 'Smart QR Menu — Setup + First Month',
+                description: 'Smart QR Menu — Monthly',
                 prefill: {
                     name: firebaseUser.displayName ?? '',
                     contact: firebaseUser.phoneNumber ?? '',
@@ -253,68 +257,69 @@ export default function SubscriptionPage() {
         }
     };
 
-    const handleQrOrderingActivate = async () => {
-        if (!user || !activeSite || qrOrderingState !== 'idle') return;
-        setQrOrderingState('creating');
-
+    // Generic Razorpay activator. All three plans (qr_menu / pay_eat / qr_order)
+    // flow through /api/subscription/create-subscription with the chosen plan
+    // value, then Razorpay Checkout, then verify-payment.
+    const runPaidActivation = async (
+        plan: 'pay_eat' | 'qr_order',
+        setLocalState: (s: PaymentState) => void,
+        planLabel: string,
+    ) => {
+        if (!user || !activeSite) return;
+        setLocalState('creating');
         try {
             const firebaseUser = firebaseAuth.currentUser;
-            if (!firebaseUser) { setQrOrderingState('failed'); return; }
+            if (!firebaseUser) { setLocalState('failed'); return; }
 
-            const token = await firebaseUser.getIdToken();
+            const [token, loaded] = await Promise.all([
+                firebaseUser.getIdToken(),
+                loadRazorpayScript(),
+            ]);
+            if (!loaded) { setLocalState('failed'); return; }
 
-            const res = await fetch('/api/subscription/activate-qr-ordering', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ siteId: activeSite.id }),
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                console.error('[subscription] activate-qr-ordering failed:', data);
-                setQrOrderingState('failed');
-                return;
-            }
-
-            // Refresh plan data
-            await refreshPlan();
-            setQrOrderingState('success');
-            setTimeout(() => {
-                setModalType(null);
-                setQrOrderingState('idle');
-            }, 2500);
-        } catch (err) {
-            console.error('[subscription] handleQrOrderingActivate error:', err);
-            setQrOrderingState('failed');
-        }
-    };
-
-    const handleQrOrderActivate = async () => {
-        if (!user || !activeSite || qrOrderState !== 'idle') return;
-        setQrOrderState('creating');
-        try {
-            const firebaseUser = firebaseAuth.currentUser;
-            if (!firebaseUser) { setQrOrderState('failed'); return; }
-            const token = await firebaseUser.getIdToken();
-            const res = await fetch('/api/subscription/activate-qr-order', {
+            const res = await fetch('/api/subscription/create-subscription', {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ siteId: activeSite.id }),
+                body: JSON.stringify({ siteId: activeSite.id, plan }),
             });
             const data = await res.json();
-            if (!res.ok) { console.error('[subscription] activate-qr-order failed:', data); setQrOrderState('failed'); return; }
-            await refreshPlan();
-            setQrOrderState('success');
-            setTimeout(() => { setModalType(null); setQrOrderState('idle'); }, 2500);
+            if (!res.ok) { console.error(`[subscription] create-subscription (${plan}) failed:`, data); setLocalState('failed'); return; }
+
+            const siteId = activeSite.id;
+            const rzp = new window.Razorpay({
+                key: data.keyId,
+                order_id: data.orderId,
+                amount: data.amount,
+                currency: data.currency,
+                name: 'vsite',
+                description: `${planLabel} — Monthly`,
+                prefill: { name: firebaseUser.displayName ?? '', contact: firebaseUser.phoneNumber ?? '' },
+                theme: { color: '#5452F6' },
+                handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+                    setLocalState('activating');
+                    try {
+                        await fetch('/api/subscription/verify-payment', {
+                            method: 'POST',
+                            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ...response, siteId }),
+                        });
+                    } catch (err) { console.error('[subscription] verify-payment error:', err); }
+                    await refreshPlan();
+                    setLocalState('success');
+                    try { localStorage.setItem('subscription_just_activated', '1'); } catch { /* quota */ }
+                    setTimeout(() => { setModalType(null); setLocalState('idle'); }, 2500);
+                },
+                modal: { ondismiss: () => setLocalState('idle') },
+            });
+            rzp.open();
         } catch (err) {
-            console.error('[subscription] handleQrOrderActivate error:', err);
-            setQrOrderState('failed');
+            console.error(`[subscription] runPaidActivation(${plan}) error:`, err);
+            setLocalState('failed');
         }
     };
+
+    const handleQrOrderingActivate = () => runPaidActivation('pay_eat',  setQrOrderingState, 'QR Ordering');
+    const handleQrOrderActivate    = () => runPaidActivation('qr_order', setQrOrderState,    'QR Order');
 
     const isDataLoading = sitesLoading || planLoading;
     const isProcessing = paymentState === 'creating' || paymentState === 'activating';
@@ -462,9 +467,9 @@ export default function SubscriptionPage() {
                                 <span style={{ fontSize: 30, fontWeight: 800, color: '#0A0A0A', lineHeight: 1 }}>₹{QR_MENU_MONTHLY}</span>
                                 <span style={{ fontSize: 14, color: '#71717A' }}>/month</span>
                             </div>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#F4F4F5', border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: '#52525C' }}>
-                                <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 14 }}>info</span>
-                                One-time setup fee: <span style={{ fontWeight: 700, color: '#0A0A0A', marginLeft: 2 }}>₹{SETUP_FEE.toLocaleString('en-IN')}</span>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: '#047857' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>verified</span>
+                                No setup fee · Billed every 30 days
                             </div>
                         </div>
                         <div style={{ flex: 1, marginBottom: 20 }}>
@@ -521,12 +526,12 @@ export default function SubscriptionPage() {
                                 QR Ordering (No Payment)
                             </span>
                             <div className="flex items-baseline gap-1 mb-3">
-                                <span style={{ fontSize: 30, fontWeight: 800, color: '#0A0A0A', lineHeight: 1 }}>₹{QR_ORDER_MOCK_PRICE}</span>
-                                <span style={{ fontSize: 14, color: '#71717A' }}>/mock</span>
+                                <span style={{ fontSize: 30, fontWeight: 800, color: '#0A0A0A', lineHeight: 1 }}>₹{QR_ORDER_MONTHLY}</span>
+                                <span style={{ fontSize: 14, color: '#71717A' }}>/month</span>
                             </div>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: '#92400E' }}>
-                                <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#F97316' }}>info</span>
-                                Mock payment — real price ₹{QR_ORDER_MONTHLY}/mo after launch
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: '#047857' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>verified</span>
+                                No setup fee · Billed every 30 days
                             </div>
                         </div>
                         <div style={{ flex: 1, marginBottom: 20 }}>
@@ -552,7 +557,7 @@ export default function SubscriptionPage() {
                                 ? 'Current Plan'
                                 : isTrialActive
                                     ? `Available after trial (${trialDaysLeft}d left)`
-                                    : `Activate — ₹${QR_ORDER_MOCK_PRICE} (Mock)`}
+                                    : `Activate — ₹${QR_ORDER_MONTHLY}/mo`}
                         </button>
                     </div>
 
@@ -568,12 +573,12 @@ export default function SubscriptionPage() {
                                 QR Ordering + Payment
                             </span>
                             <div className="flex items-baseline gap-1 mb-3" style={{ marginTop: 4 }}>
-                                <span style={{ fontSize: 30, fontWeight: 800, color: '#FFFFFF', lineHeight: 1 }}>₹{QR_ORDERING_MOCK_PRICE}</span>
-                                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>/mock</span>
+                                <span style={{ fontSize: 30, fontWeight: 800, color: '#FFFFFF', lineHeight: 1 }}>₹{QR_ORDERING_MONTHLY}</span>
+                                <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>/month</span>
                             </div>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
-                                <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>info</span>
-                                Mock payment — real price ₹{QR_ORDERING_MONTHLY}/mo after launch
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)' }}>verified</span>
+                                No setup fee · Billed every 30 days
                             </div>
                         </div>
                         <div style={{ flex: 1, marginBottom: 20 }}>
@@ -599,7 +604,7 @@ export default function SubscriptionPage() {
                                 ? 'Current Plan'
                                 : isTrialActive
                                     ? `Available after trial (${trialDaysLeft}d left)`
-                                    : `Activate — ₹${QR_ORDERING_MOCK_PRICE} (Mock)`}
+                                    : `Activate — ₹${QR_ORDERING_MONTHLY}/mo`}
                         </button>
                     </div>
                 </div>
@@ -805,7 +810,7 @@ export default function SubscriptionPage() {
                                 <div style={{ background: '#F8F7FF', border: '1px solid #E4E4E7', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
                                     <p style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A', marginBottom: 12 }}>QR Ordering + Payment</p>
                                     <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-                                        <span style={{ fontSize: 13, color: '#52525C' }}>Mock payment (testing)</span>
+                                        <span style={{ fontSize: 13, color: '#52525C' }}>Monthly subscription</span>
                                         <span style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{QR_ORDERING_MOCK_PRICE}</span>
                                     </div>
                                     <div style={{ borderTop: '1px dashed #E4E4E7', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -839,14 +844,14 @@ export default function SubscriptionPage() {
                                     ) : (
                                         <>
                                             <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>lock</span>
-                                            Pay ₹{QR_ORDERING_MOCK_PRICE} &amp; Activate
+                                            Pay ₹{QR_ORDERING_MONTHLY} &amp; Activate
                                         </>
                                     )}
                                 </button>
 
                                 <div className="flex items-center justify-center gap-2 mt-3">
                                     <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 13 }}>info</span>
-                                    <p style={{ fontSize: 11, color: '#71717A' }}>Mock payment — no real charge. Plan activates instantly for 30 days.</p>
+                                    <p style={{ fontSize: 11, color: '#71717A' }}>Secured by Razorpay · Plan stays active for 30 days.</p>
                                 </div>
 
                                 {!isQrOrderingProcessing && (
@@ -911,7 +916,7 @@ export default function SubscriptionPage() {
                                 <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
                                     <p style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A', marginBottom: 12 }}>QR Ordering (No Payment)</p>
                                     <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-                                        <span style={{ fontSize: 13, color: '#52525C' }}>Mock payment (testing)</span>
+                                        <span style={{ fontSize: 13, color: '#52525C' }}>Monthly subscription</span>
                                         <span style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{QR_ORDER_MOCK_PRICE}</span>
                                     </div>
                                     <div style={{ borderTop: '1px dashed #FED7AA', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -919,7 +924,7 @@ export default function SubscriptionPage() {
                                         <span style={{ fontSize: 16, fontWeight: 800, color: '#F97316' }}>₹{QR_ORDER_MOCK_PRICE}</span>
                                     </div>
                                     <p style={{ fontSize: 11, color: '#92400E', marginTop: 8 }}>
-                                        Mock payment — no real charge. Real pricing ₹{QR_ORDER_MONTHLY}/mo after launch.
+                                        Secured by Razorpay · Plan stays active for 30 days.
                                     </p>
                                 </div>
                                 <button
@@ -930,12 +935,12 @@ export default function SubscriptionPage() {
                                     {qrOrderState === 'creating' ? (
                                         <><span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} /><span>Activating...</span></>
                                     ) : (
-                                        <><span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>lock</span>Pay ₹{QR_ORDER_MOCK_PRICE} &amp; Activate</>
+                                        <><span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>lock</span>Pay ₹{QR_ORDER_MONTHLY} &amp; Activate</>
                                     )}
                                 </button>
                                 <div className="flex items-center justify-center gap-2 mt-3">
                                     <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 13 }}>info</span>
-                                    <p style={{ fontSize: 11, color: '#71717A' }}>Mock payment — no real charge. Plan activates instantly for 30 days.</p>
+                                    <p style={{ fontSize: 11, color: '#71717A' }}>Secured by Razorpay · Plan stays active for 30 days.</p>
                                 </div>
                                 <button onClick={closeModal} style={{ width: '100%', height: 40, borderRadius: 10, fontSize: 14, fontWeight: 500, border: '1px solid #E4E4E7', background: '#FFFFFF', color: '#52525C', cursor: 'pointer', marginTop: 8 }}>Cancel</button>
                             </>

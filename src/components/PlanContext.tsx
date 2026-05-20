@@ -42,7 +42,8 @@ const PlanContext = createContext<PlanContextType>({
     refreshPlan: async () => {},
 });
 
-const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
+// 7-day free trial from store creation.
+const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function PlanProvider({ children }: { children: React.ReactNode }) {
     const { activeSite, sitesLoading, refreshSites } = useSite();

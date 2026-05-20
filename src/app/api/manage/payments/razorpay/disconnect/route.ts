@@ -9,6 +9,7 @@ import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { decryptToken } from '@/lib/server/paymentsCrypto';
 import { revokeToken } from '@/lib/server/razorpayOAuth';
+import { notify } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -65,6 +66,15 @@ export async function POST(request: NextRequest) {
     console.error('[razorpay/disconnect] update failed:', updErr);
     return NextResponse.json({ error: 'Failed to disconnect' }, { status: 500 });
   }
+
+  notify({
+    userId,
+    siteId,
+    type:   'razorpay_revoked',
+    title:  'Razorpay account disconnected',
+    body:   'Online payment has been turned off for this store. Reconnect anytime from Settings.',
+    link:   '/manage/settings',
+  });
 
   return NextResponse.json({ success: true });
 }

@@ -9,9 +9,11 @@ import { rateLimit } from '@/lib/rateLimit';
 export const maxDuration = 15;
 export const runtime = 'nodejs';
 
-// Keep amounts in sync with the frontend (page.tsx constants).
-const SETUP_FEE_INR = 1999;
-const MONTHLY_FEE_INR = 399;
+// Keep in sync with /manage/subscription/page.tsx and PlanContext.tsx.
+// Flat ₹300/month for all three plans; no setup fee.
+const MONTHLY_FEE_INR = 300;
+const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const VALID_PLANS = new Set(['qr_menu', 'qr_order', 'pay_eat']);
 
 export async function POST(request: NextRequest) {
     const t0 = Date.now();
@@ -42,16 +44,18 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Parse body ───────────────────────────────────────────────────────
-        let body: { siteId?: string };
+        let body: { siteId?: string; plan?: string };
         try {
             body = await request.json();
         } catch {
             return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
         }
-        const { siteId } = body;
+        const { siteId, plan } = body;
         if (!siteId || typeof siteId !== 'string') {
             return NextResponse.json({ error: 'siteId is required' }, { status: 400 });
         }
+        // Default to qr_menu if the client doesn't pass a plan (back-compat).
+        const chosenPlan = plan && VALID_PLANS.has(plan) ? plan : 'qr_menu';
 
         // ── Parallel DB queries ──────────────────────────────────────────────
         const t1 = Date.now();
@@ -75,30 +79,23 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Store not found' }, { status: 404 });
         }
 
-        // ── Block purchase during free trial ─────────────────────────────────
-        const TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
-        if (Date.now() < new Date(site.created_at).getTime() + TRIAL_MS) {
-            return NextResponse.json(
-                { error: 'Your free trial is still active. You can subscribe once it ends.' },
-                { status: 403 }
-            );
-        }
+        // ── Free trial guard ─────────────────────────────────────────────────
+        // We *allow* purchase during the trial — restaurants who want to lock
+        // in a plan early shouldn't be blocked. The 30-day paid window starts
+        // from payment confirmation, on top of any remaining trial.
+        // (Previously blocked while trial was active.)
+        void TRIAL_DURATION_MS; // referenced for the new 7-day window; logic lives in PlanContext
+        void site.created_at;
 
-        // ── Block if already subscribed ──────────────────────────────────────
+        // Allow purchase even when a subscription is already active — the user
+        // may be renewing early or upgrading to a different plan. verify-payment
+        // adds 30 days starting from MAX(now, current store_expires_at) so the
+        // remaining time isn't lost.
         const existingSub = subResult.data;
-        if (existingSub?.store_expires_at && new Date(existingSub.store_expires_at).getTime() > Date.now()) {
-            return NextResponse.json(
-                { error: 'This store already has an active subscription.' },
-                { status: 409 }
-            );
-        }
 
-        // ── Determine first-time vs renewal ──────────────────────────────────
-        // If store_expires_at was ever set (even if expired now), setup fee was
-        // already collected on the first purchase — only charge monthly.
+        // ── Flat ₹300/month for all plans, no setup fee ───────────────────────
         const isRenewal = !!existingSub?.store_expires_at;
-        const amountInr = isRenewal ? MONTHLY_FEE_INR : (SETUP_FEE_INR + MONTHLY_FEE_INR);
-        const amountPaise = amountInr * 100;
+        const amountPaise = MONTHLY_FEE_INR * 100;
 
         const razorpay = new Razorpay({
             key_id: process.env.RAZORPAY_KEY_ID!,
@@ -116,7 +113,7 @@ export async function POST(request: NextRequest) {
                 notes: {
                     siteId,
                     userId,
-                    plan: 'qr_menu',
+                    plan: chosenPlan,
                     type: isRenewal ? 'renewal' : 'first_time',
                 },
             });
@@ -139,7 +136,12 @@ export async function POST(request: NextRequest) {
                 {
                     site_id: siteId,
                     user_id: userId,
-                    store_plan: 'qr_menu',
+                    // pending_plan records what the user picked at order time.
+                    // verify-payment reads this back after capture so we never
+                    // depend on Razorpay's notes round-trip. store_plan keeps
+                    // whatever was previously active until verify-payment
+                    // promotes pending_plan into store_plan.
+                    pending_plan: chosenPlan,
                     razorpay_subscription_id: order.id,
                     razorpay_status: 'created',
                     updated_at: new Date().toISOString(),
@@ -154,6 +156,7 @@ export async function POST(request: NextRequest) {
             keyId: process.env.RAZORPAY_KEY_ID,
             amount: amountPaise,
             currency: 'INR',
+            plan: chosenPlan,
             isRenewal,
         });
     } catch (err) {

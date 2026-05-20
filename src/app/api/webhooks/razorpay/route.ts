@@ -96,7 +96,7 @@ async function findSiteByOrderId(orderId: string) {
     // razorpay_subscription_id column is reused to store the order_id
     const { data, error } = await supabaseServer
         .from('site_subscriptions')
-        .select('site_id, user_id')
+        .select('site_id, user_id, store_plan, pending_plan, store_expires_at, razorpay_status')
         .eq('razorpay_subscription_id', orderId)
         .maybeSingle();
 
@@ -115,20 +115,43 @@ async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
     const site = await findSiteByOrderId(orderId);
     if (!site) return;
 
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const siteRow = site as unknown as {
+        site_id: string;
+        user_id: string;
+        store_plan: string | null;
+        pending_plan: string | null;
+        store_expires_at: string | null;
+        razorpay_status: string | null;
+    };
+    const planNameForBilling = (siteRow.pending_plan ?? siteRow.store_plan ?? 'qr_menu');
 
-    await supabaseServer.from('site_subscriptions').upsert(
-        {
-            site_id: site.site_id,
-            user_id: site.user_id,
-            store_plan: 'qr_menu',
-            store_expires_at: expiresAt,
-            razorpay_subscription_id: orderId,
-            razorpay_status: 'active',
-            updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'site_id' }
-    );
+    // Activate site_subscriptions ONLY if verify-payment hasn't already done
+    // it (razorpay_status != 'active' for THIS order). This makes the webhook
+    // a true safety net: if the customer's browser dies mid-flow, the
+    // subscription still activates here. If verify-payment already won the
+    // race, this branch is a no-op and we don't overwrite anything.
+    if (siteRow.pending_plan && siteRow.razorpay_status !== 'active') {
+        const planToActivate = siteRow.pending_plan;
+        const currentExpiryMs = siteRow.store_expires_at ? new Date(siteRow.store_expires_at).getTime() : 0;
+        const baseMs = Math.max(Date.now(), currentExpiryMs);
+        const expiresAt = new Date(baseMs + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const { error: actErr } = await supabaseServer
+            .from('site_subscriptions')
+            .update({
+                store_plan: planToActivate,
+                store_expires_at: expiresAt,
+                razorpay_status: 'active',
+                pending_plan: null,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('site_id', siteRow.site_id)
+            .eq('razorpay_status', 'created');  // belt-and-suspenders: only activate from 'created' state
+        if (actErr) {
+            console.error('[razorpay-webhook] activation update failed:', actErr);
+        } else {
+            console.log(`[razorpay-webhook] activated plan=${planToActivate} for site=${siteRow.site_id} (fallback)`);
+        }
+    }
 
     if (payment) {
         // Deduplicate by checking first
@@ -141,7 +164,7 @@ async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
             const amountInr = Math.round(payment.amount / 100);
             const { error } = await supabaseServer.from('billing_history').insert({
                 user_id: site.user_id,
-                plan_name: `Smart QR Menu — Payment (webhook)`,
+                plan_name: `${planNameForBilling === 'qr_menu' ? 'Smart QR Menu' : planNameForBilling === 'qr_order' ? 'QR Ordering' : 'Pay & Eat'} — Payment (webhook)`,
                 amount: amountInr,
                 currency: payment.currency,
                 status: 'Success',

@@ -10,7 +10,7 @@ import { SiteProvider, useSite } from './SiteContext';
 import { NotificationProvider } from './NotificationContext';
 import { PrinterStatusProvider } from './PrinterStatusContext';
 import DashboardHeader from './DashboardHeader';
-import TrialBanner from './manage/TrialBanner';
+import SubscriptionNotifications from './SubscriptionNotifications';
 import { supabase } from '@/lib/supabase';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -92,7 +92,9 @@ function ManageShell({ children }: { children: React.ReactNode }) {
                 <Sidebar />
                 <main className="flex-1 h-full overflow-y-auto pb-20 md:pb-0">
                     <DashboardHeader />
-                    <TrialBanner />
+                    <div className="px-4 md:px-8 pt-4">
+                        <SubscriptionNotifications />
+                    </div>
                     {children}
                 </main>
                 <MobileNav />

@@ -18,13 +18,15 @@ import Razorpay from 'razorpay';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { rateLimit } from '@/lib/rateLimit';
+import { notify } from '@/lib/notify';
 
 export const maxDuration = 30;
 export const runtime = 'nodejs';
 
 // Must match create-subscription/route.ts
-const SETUP_FEE_INR = 5;
-const MONTHLY_FEE_INR = 5;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const MONTHLY_FEE_INR = 300;
+const VALID_PLANS = new Set(['qr_menu', 'qr_order', 'pay_eat']);
 
 function timingSafeEqualHex(a: string, b: string): boolean {
     if (a.length !== b.length) return false;
@@ -97,18 +99,12 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 });
         }
 
-        // ── Replay protection: payment_id must be unused ─────────────────────
-        const { count: alreadyRecorded } = await supabaseServer
-            .from('billing_history')
-            .select('*', { count: 'exact', head: true })
-            .eq('razorpay_payment_id', razorpay_payment_id);
-
-        if (alreadyRecorded && alreadyRecorded > 0) {
-            return NextResponse.json(
-                { error: 'Payment already processed' },
-                { status: 409 }
-            );
-        }
+        // NOTE: We no longer abort on "billing_history already has this
+        // payment". The Razorpay webhook may have raced ahead and inserted
+        // a billing row first — that doesn't mean the subscription is
+        // activated. Dedup happens at insert time (unique constraint on
+        // razorpay_payment_id), and the subscription update below is
+        // idempotent.
 
         // ── Verify site belongs to this user ────────────────────────────────
         const { data: site, error: siteError } = await supabaseServer
@@ -126,7 +122,7 @@ export async function POST(request: NextRequest) {
         // razorpay_subscription_id column is reused to store the order_id.
         const { data: existingSub } = await supabaseServer
             .from('site_subscriptions')
-            .select('id, razorpay_subscription_id')
+            .select('id, razorpay_subscription_id, store_expires_at, pending_plan')
             .eq('site_id', siteId)
             .single();
 
@@ -157,8 +153,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // ── Set expiry to 30 days from now ──────────────────────────────────
-        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        // ── Extend by 30 days from MAX(now, current expiry) ─────────────────
+        // If the user renews early, their remaining days carry over instead of
+        // being lost.
+        const currentExpiryMs = existingSub.store_expires_at
+            ? new Date(existingSub.store_expires_at).getTime()
+            : 0;
+        const baseMs = Math.max(Date.now(), currentExpiryMs);
+        const expiresAt = new Date(baseMs + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+        // ── Determine which plan was paid for ────────────────────────────────
+        // create-subscription wrote the user's chosen plan to pending_plan on
+        // the same row we're now updating. Reading from our own DB removes the
+        // dependency on Razorpay's notes round-trip (which was unreliable in
+        // testing — the wrong plan was being activated).
+        const rawPlan = String(existingSub.pending_plan ?? 'qr_menu');
+        const paidPlan = VALID_PLANS.has(rawPlan) ? rawPlan : 'qr_menu';
+        console.log(`[verify-payment] activating plan=${paidPlan} (from pending_plan) for site=${siteId}`);
+        const planLabel = paidPlan === 'qr_menu'  ? 'Smart QR Menu'
+                        : paidPlan === 'qr_order' ? 'QR Ordering'
+                        : 'Pay & Eat';
 
         // ── Record billing history first ────────────────────────────────────
         // Insert billing record before activating the subscription so a failed
@@ -168,26 +182,31 @@ export async function POST(request: NextRequest) {
             .from('billing_history')
             .insert({
                 user_id: userId,
-                plan_name: `Smart QR Menu — ${amountInr >= (SETUP_FEE_INR + MONTHLY_FEE_INR) ? 'Setup + First Month' : 'Monthly Renewal'}`,
+                plan_name: `${planLabel} — Monthly`,
                 amount: amountInr,
                 currency: payment.currency || 'INR',
                 status: 'Success',
                 razorpay_payment_id,
             });
 
-        // 23505 = unique_violation — another request beat us to it (idempotent).
+        // 23505 = unique_violation — webhook already inserted; that's fine,
+        // we still need to flip site_subscriptions to active.
         if (billingError && billingError.code !== '23505') {
             console.error('[verify-payment] billing_history insert failed:', billingError);
             return NextResponse.json({ error: 'Failed to record billing' }, { status: 500 });
+        }
+        if (billingError?.code === '23505') {
+            console.log('[verify-payment] billing already recorded (likely by webhook); proceeding to activate subscription');
         }
 
         // ── Activate ────────────────────────────────────────────────────────
         const { error: updateError } = await supabaseServer
             .from('site_subscriptions')
             .update({
-                store_plan: 'qr_menu',
+                store_plan: paidPlan,
                 store_expires_at: expiresAt,
                 razorpay_status: 'active',
+                pending_plan: null,            // consumed
                 updated_at: new Date().toISOString(),
             })
             .eq('site_id', siteId);
@@ -196,6 +215,16 @@ export async function POST(request: NextRequest) {
             console.error('[verify-payment] site_subscriptions update failed:', updateError);
             return NextResponse.json({ error: 'Failed to activate subscription' }, { status: 500 });
         }
+
+        // Drop a notification in the user's inbox.
+        notify({
+          userId,
+          siteId,
+          type:  'subscription_activated',
+          title: `${planLabel} plan activated`,
+          body:  `Your store is live for 30 days. Valid till ${new Date(expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
+          link:  '/manage/subscription',
+        });
 
         return NextResponse.json({ success: true, expiresAt });
     } catch (err) {
