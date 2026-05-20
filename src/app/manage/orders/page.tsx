@@ -5,6 +5,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
+import { usePrinterStatus } from '@/components/PrinterStatusContext';
 import { firebaseAuth } from '@/lib/firebase';
 
 type OrderStatus = 'received' | 'preparing' | 'ready' | 'completed';
@@ -100,13 +101,36 @@ function itemsSummary(items: OrderItem[]): string {
   return rest > 0 ? `${first3.join(', ')} +${rest} more` : first3.join(', ');
 }
 
-async function getToken(): Promise<string | null> {
-  return firebaseAuth.currentUser?.getIdToken() ?? null;
+async function getToken(forceRefresh = false): Promise<string | null> {
+  try {
+    return await firebaseAuth.currentUser?.getIdToken(forceRefresh) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch wrapper that retries once with a force-refreshed token on 401.
+async function authedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  let token = await getToken();
+  const makeReq = (t: string | null) => fetch(url, {
+    ...init,
+    headers: { ...init.headers, ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+  });
+  const res = await makeReq(token);
+  if (res.status === 401) {
+    // Token expired — force refresh once and retry
+    token = await getToken(true);
+    return makeReq(token);
+  }
+  return res;
 }
 
 export default function OrdersPage() {
   const { isPayEat, isQrOrder } = usePlan();
   const { activeSite } = useSite();
+  // Bridge status comes from the global PrinterStatusProvider — the header
+  // owns polling and surfaces status; orders page just reads.
+  const { bridgeToken } = usePrinterStatus();
 
   const [orders,      setOrders]      = useState<Order[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -137,9 +161,11 @@ export default function OrdersPage() {
   const [recentlyCompleted, setRecentlyCompleted] = useState<Record<string, number>>({});
 
   // ── KOT state ──────────────────────────────────────────────────────────────
-  const [kotMode,       setKotMode]       = useState<string>('manual');
-  const [isKotStation,  setIsKotStation]  = useState(false);
-  const [kotDevMode,    setKotDevMode]    = useState(false);
+  const [kotMode,         setKotMode]         = useState<string>('manual');
+  const [kotDevMode,      setKotDevMode]      = useState(false);
+  const [kotPrinterName,  setKotPrinterName]  = useState<string | null>(null);
+  const [billPrinterName, setBillPrinterName] = useState<string | null>(null);
+
   // kotPrintOrder: the order whose KOT slip should be printed right now
   const [kotPrintOrder, setKotPrintOrder] = useState<Order | null>(null);
   // kotSentRef: order IDs that have already triggered KOT (prevents double auto-print)
@@ -170,8 +196,6 @@ export default function OrdersPage() {
       if (po) setPrintedOrders(new Set(JSON.parse(po) as string[]));
       const rc = localStorage.getItem(`qr_rc_${siteId}_${date}`);
       if (rc) setRecentlyCompleted(JSON.parse(rc) as Record<string, number>);
-      // KOT station + dev mode flags
-      setIsKotStation(localStorage.getItem(`kot_station_${siteId}`) === '1');
       setKotDevMode(localStorage.getItem('kot_dev_mode') === '1' || process.env.NODE_ENV !== 'production');
     } catch { /* localStorage unavailable or corrupt — start fresh */ }
   }, [siteId]);
@@ -226,12 +250,7 @@ export default function OrdersPage() {
     if (!siteId) return;
     setLoading(true);
     try {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch(`/api/manage/orders?site_id=${encodeURIComponent(siteId)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
+      const res = await authedFetch(`/api/manage/orders?site_id=${encodeURIComponent(siteId)}`, { cache: 'no-store' });
       if (!res.ok) return;
       const json = await res.json();
       const rows: Order[] = json.orders ?? [];
@@ -241,6 +260,8 @@ export default function OrdersPage() {
       setTodayStart(json.todayStart ?? null);
       if (json.tableCount !== undefined) setTableCount(json.tableCount);
       if (json.kotMode !== undefined) setKotMode(json.kotMode);
+      if (json.kotPrinterName  !== undefined) setKotPrinterName(json.kotPrinterName ?? null);
+      if (json.billPrinterName !== undefined) setBillPrinterName(json.billPrinterName ?? null);
       if (json.billRequests !== undefined) setBillRequests(json.billRequests ?? []);
       // Anchor delta polling from the newest row's updated_at
       if (rows.length > 0) {
@@ -261,12 +282,10 @@ export default function OrdersPage() {
   const pollDelta = useCallback(async () => {
     if (!siteId || !lastPollRef.current) return;
     try {
-      const token = await getToken();
-      if (!token) return;
       const since = lastPollRef.current;
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/manage/orders?site_id=${encodeURIComponent(siteId)}&since=${encodeURIComponent(since)}`,
-        { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
+        { cache: 'no-store' },
       );
       if (!res.ok) return;
       const json = await res.json();
@@ -286,14 +305,20 @@ export default function OrdersPage() {
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
+  // Bridge token + per-role printer health now live in PrinterStatusContext
+  // (mounted at /manage layout). The header indicator surfaces status — this
+  // page reads `bridgeToken` for POST /print and lets the global popover
+  // handle visibility of offline / degraded printers.
+
   // Poll every 4 s, pause when tab hidden
   useEffect(() => {
     if (!siteId) return;
     let id: ReturnType<typeof setInterval> | null = null;
-    const start = () => { id = setInterval(pollDelta, 4_000); };
+    const start = () => { if (!id) id = setInterval(pollDelta, 4_000); };
     const stop  = () => { if (id) { clearInterval(id); id = null; } };
     const onVis = () => document.visibilityState === 'visible' ? (pollDelta(), start()) : stop();
-    start();
+    // 4 s order polling is expensive — never start it in a background tab.
+    if (document.visibilityState === 'visible') start();
     document.addEventListener('visibilitychange', onVis);
     return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   }, [siteId, pollDelta]);
@@ -320,11 +345,9 @@ export default function OrdersPage() {
     if (!siteId || !oldestTs || loadingMore) return;
     setLoadingMore(true);
     try {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/manage/orders?site_id=${encodeURIComponent(siteId)}&before=${encodeURIComponent(oldestTs)}`,
-        { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
+        { cache: 'no-store' },
       );
       if (!res.ok) return;
       const json = await res.json();
@@ -356,11 +379,9 @@ export default function OrdersPage() {
     if (selectedOrder?.id === order.id) setSelectedOrder(s => s ? { ...s, status: newStatus } : s);
 
     try {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch(`/api/orders/${order.id}`, {
+      const res = await authedFetch(`/api/orders/${order.id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus, expected_status: expectedStatus }),
       });
 
@@ -402,25 +423,43 @@ export default function OrdersPage() {
       o.id === order.id ? { ...o, status: 'preparing', updated_at: new Date().toISOString() } : o,
     ));
 
-    // Fire print (or toast in dev mode)
-    if (kotDevMode) {
-      const label = order.table_number ? `Table T${order.table_number}` : (order.token_number ?? 'Takeaway');
-      const items = consolidateItems(order.items)
-        .map(i => `${i.qty}× ${i.name}${i.variantSize ? ` (${i.variantSize})` : ''}`)
-        .join('\n');
-      toast(`🖨 KOT — ${label}\n${items}`, { duration: 6000, style: { whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: 13 } });
+    // Fire print — Windows bridge → APK bridge → dev toast → browser print
+    const kotLabel = order.table_number ? `Table T${order.table_number}` : (order.token_number ?? 'Takeaway');
+    const kotItems = consolidateItems(order.items).map(i => ({ qty: i.qty, name: i.name, variant: i.variantSize ?? null }));
+
+    if (kotPrinterName) {
+      fetch('http://127.0.0.1:7878/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-BYS-Token': bridgeToken },
+        body: JSON.stringify({
+          role: 'kot',
+          type: 'kot',
+          orderId: order.id, // enables server-side dedup of KOT re-fires
+          data: {
+            siteName: activeSite?.name ?? 'Kitchen',
+            label: kotLabel,
+            orderNumber: order.order_number,
+            createdAt: order.created_at,
+            items: kotItems,
+          },
+        }),
+      }).catch(() => toast.error('Print bridge not running — check Settings'));
+    } else if (typeof window !== 'undefined' && window.KOTPrint) {
+      window.KOTPrint.print(JSON.stringify({
+        type: 'kot', site: activeSite?.name ?? 'Kitchen',
+        label: kotLabel, order_number: order.order_number,
+        created_at: order.created_at, items: kotItems,
+      }));
+    } else if (kotDevMode) {
+      const items = kotItems.map(i => `${i.qty}× ${i.name}${i.variant ? ` (${i.variant})` : ''}`).join('\n');
+      toast(`🖨 KOT — ${kotLabel}\n${items}`, { duration: 6000, style: { whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: 13 } });
     } else {
       setKotPrintOrder(order);
       requestAnimationFrame(() => { window.print(); });
     }
 
     try {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch(`/api/manage/orders/${order.id}/kot`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authedFetch(`/api/manage/orders/${order.id}/kot`, { method: 'PATCH' });
       if (!res.ok && res.status !== 409) {
         // Rollback on unexpected error
         setOrders(prev => prev.map(o =>
@@ -439,26 +478,66 @@ export default function OrdersPage() {
       // Clear print target after a short delay (enough for print dialog)
       setTimeout(() => setKotPrintOrder(null), 3000);
     }
-  }, [kotDevMode]);
+  }, [kotDevMode, kotPrinterName]);
+
+  // ── Send Bill receipt to bill printer ────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const sendBill = useCallback(async (order: Order) => {
+    const label = order.table_number ? `Table T${order.table_number}` : (order.token_number ?? 'Takeaway');
+    const items = consolidateItems(order.items).map(i => {
+      const price = i.price ?? 0;
+      const total = price * i.qty;
+      return { qty: i.qty, name: i.name, variant: i.variantSize ?? null, price, total };
+    });
+    const grandTotal = order.subtotal ?? items.reduce((s, i) => s + i.total, 0);
+
+    if (billPrinterName) {
+      fetch('http://127.0.0.1:7878/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-BYS-Token': bridgeToken },
+        body: JSON.stringify({
+          role: 'bill',
+          type: 'bill',
+          orderId: order.id, // dedup re-fires of bill prints for the same order
+          data: {
+            siteName:    activeSite?.name ?? 'Store',
+            label,
+            orderNumber: order.order_number,
+            createdAt:   order.created_at,
+            items,
+            subtotal:  grandTotal,
+            grandTotal,
+            currencySymbol: 'Rs.',
+          },
+        }),
+      })
+        .then(r => { if (r.ok) toast.success('Bill printed'); else toast.error('Bill print failed'); })
+        .catch(() => toast.error('Print bridge not running — check Settings'));
+    } else if (kotDevMode) {
+      toast(`Bill — ${label} — Total Rs.${grandTotal}`, { duration: 4000, style: { fontFamily: 'monospace', fontSize: 13 } });
+    } else {
+      toast.error('No bill printer assigned — go to Settings to assign one');
+    }
+  }, [billPrinterName, kotDevMode]);
 
   // ── Auto-print KOT in automatic mode ──────────────────────────────────────
+  // Fires whenever a new received order arrives — uses whatever print method is configured
+  // (Windows bridge → APK → dev toast → browser print).
   useEffect(() => {
-    if (kotMode !== 'automatic' || !isKotStation) return;
+    if (kotMode !== 'automatic') return;
     const receivedOrders = orders.filter(o => o.status === 'received' && !kotSentRef.current.has(o.id));
     for (const order of receivedOrders) {
       sendKot(order);
     }
-  }, [orders, kotMode, isKotStation, sendKot]);
+  }, [orders, kotMode, sendKot]);
 
   // ── Confirm counter payment ─────────────────────────────────────────────────
   const confirmCounterPayment = useCallback(async (order: Order) => {
     setConfirmingId(order.id);
     try {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch(`/api/orders/${order.id}`, {
+      const res = await authedFetch(`/api/orders/${order.id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'confirm_counter_payment' }),
       });
       if (res.ok) {
@@ -479,21 +558,45 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // ── Acknowledge a bill request ──────────────────────────────────────────────
-  const acknowledgeBillRequest = useCallback(async (id: string) => {
+  // Acknowledge a bill request. Reason is REQUIRED by the API (I8 hardening)
+  // so the audit log captures why a manual dismissal happened — without a
+  // reason the cashier can't quietly clear a bill request that should have
+  // become a checkout. Auto-callers (e.g. bill-printed flow) pass a synthetic
+  // reason so the audit row shows the chain of events.
+  const acknowledgeBillRequest = useCallback(async (id: string, reason: string) => {
     try {
-      const token = await getToken();
-      if (!token) return;
-      await fetch(`/api/manage/bill-requests/${id}`, {
+      const res = await authedFetch(`/api/manage/bill-requests/${id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'acknowledge' }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error((d as { error?: string }).error ?? 'Could not dismiss bill request');
+        return;
+      }
       setBillRequests(prev => prev.filter(br => br.id !== id));
     } catch (err) {
       console.error('[orders] acknowledgeBillRequest:', err);
     }
   }, []);
+
+  // Manual UI handler — prompts the cashier for a reason. The browser `prompt`
+  // is intentionally non-dismissable: cancelling = no ack. Replace with a
+  // custom modal once the design system has one.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const promptDismissBillRequest = useCallback((id: string) => {
+    const reason = typeof window !== 'undefined'
+      ? window.prompt('Why are you dismissing this bill request?\n\nThis will be recorded in the audit log. Examples: "customer changed mind", "false request", "already paid in cash".')
+      : null;
+    if (!reason) return; // cancelled
+    const clean = reason.trim();
+    if (clean.length < 3) {
+      toast.error('Reason must be at least 3 characters');
+      return;
+    }
+    acknowledgeBillRequest(id, clean);
+  }, [acknowledgeBillRequest]);
 
   // ── Table grid helpers ─────────────────────────────────────────────────────
   const getTableOrders = (n: number) =>
@@ -541,7 +644,7 @@ export default function OrdersPage() {
       const ids = new Set(tableOrds.map(o => o.id));
       setPrintedTableOrders(prev => ({ ...prev, [String(n)]: ids }));
       const br = billRequests.find(b => b.table_number === String(n) && b.status === 'pending');
-      if (br) acknowledgeBillRequest(br.id);
+      if (br) acknowledgeBillRequest(br.id, 'auto:bill_printed');
     });
   };
 
@@ -560,11 +663,9 @@ export default function OrdersPage() {
     if (!checkoutTarget || !siteId) return;
     setCheckoutLoading(true);
     try {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch('/api/manage/table-checkout', {
+      const res = await authedFetch('/api/manage/table-checkout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ site_id: siteId, table_number: String(checkoutTarget.num), payment_method: checkoutPayMethod }),
       });
       if (res.ok) {
@@ -593,11 +694,9 @@ export default function OrdersPage() {
     if (!checkoutOrderTarget || !siteId) return;
     setCheckoutLoading(true);
     try {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch('/api/manage/table-checkout', {
+      const res = await authedFetch('/api/manage/table-checkout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           site_id:     siteId,
           order_id:    checkoutOrderTarget.id,
@@ -646,19 +745,24 @@ export default function OrdersPage() {
         </p>
       </div>
 
+      {/* Print bridge status moved to the global header (PrinterStatusIndicator).
+          Per-role health + offline state surface there as a printer icon with a
+          coloured dot; clicking opens the per-printer popover. */}
+
       {isPayEat && !loading && (
-        <div className="flex items-center gap-8 mb-5" style={{ borderBottom: '1px solid #E4E4E7', paddingBottom: 16 }}>
-          {[
-            { label: 'Today Orders',    value: orders.length },
-            { label: 'Active Orders',   value: orders.filter(o => o.status !== 'completed').length },
-            { label: 'Completed',       value: orders.filter(o => o.status === 'completed').length },
-          ].map(stat => (
-            <div key={stat.label}>
-              <p style={{ fontSize: 22, fontWeight: 700, color: '#0A0A0A', lineHeight: 1 }}>{stat.value}</p>
-              <p style={{ fontSize: 13, color: '#71717A', marginTop: 4 }}>{stat.label}</p>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="flex items-center gap-8 mb-5" style={{ borderBottom: '1px solid #E4E4E7', paddingBottom: 16 }}>
+            {[
+              { label: 'Today Orders',    value: orders.length },
+              { label: 'Active Orders',   value: orders.filter(o => o.status !== 'completed').length },
+              { label: 'Completed',       value: orders.filter(o => o.status === 'completed').length },
+            ].map(stat => (
+              <div key={stat.label}>
+                <p style={{ fontSize: 22, fontWeight: 700, color: '#0A0A0A', lineHeight: 1 }}>{stat.value}</p>
+                <p style={{ fontSize: 13, color: '#71717A', marginTop: 4 }}>{stat.label}</p>
+              </div>
+            ))}
+          </div></>
       )}
 
       {!isPayEat && !isQrOrder && (
@@ -756,7 +860,6 @@ export default function OrdersPage() {
               ))}
             </div>
           )}
-
           {/* ── Loading ── */}
           {loading && (
             <div className="flex items-center justify-center py-16">
@@ -933,49 +1036,59 @@ export default function OrdersPage() {
                         )}
 
                         {/* Action buttons */}
-                        {!isEmpty && (
-                          <div style={{ position: 'absolute', bottom: 10, right: 10, display: 'flex', gap: 6 }}>
-                            <button
-                              onClick={() => setInfoTableNum(n)}
-                              title="View items"
-                              style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            >
-                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#52525C' }}>info</span>
-                            </button>
+                        {!isEmpty && (() => {
+                          // kotReady = all active orders have been KOT'd (no received pending)
+                          //            OR mode is automatic (auto handles them)
+                          const hasReceived  = tableHasReceived(n);
+                          const kotReady     = !hasReceived || kotMode === 'automatic';
+                          return (
+                            <div style={{ position: 'absolute', bottom: 10, right: 10, display: 'flex', gap: 6 }}>
+                              {/* Info */}
+                              <button
+                                onClick={() => setInfoTableNum(n)}
+                                title="View items"
+                                style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#52525C' }}>info</span>
+                              </button>
 
-                            {/* KOT button — send all received orders for this table to kitchen */}
-                            {tableHasReceived(n) && kotMode === 'manual' && (
-                              <button
-                                onClick={() => {
-                                  const receivedOrds = getTableOrders(n).filter(o => o.status === 'received');
-                                  receivedOrds.forEach(o => sendKot(o));
-                                }}
-                                title="Send KOT to kitchen"
-                                style={{ width: 30, height: 30, borderRadius: 6, background: '#D97706', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              >
-                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#fff' }}>receipt_long</span>
-                              </button>
-                            )}
+                              {/* KOT — always available when there are received orders so admin has full control */}
+                              {hasReceived && (
+                                <button
+                                  onClick={() => {
+                                    getTableOrders(n).filter(o => o.status === 'received').forEach(o => sendKot(o));
+                                  }}
+                                  title={kotMode === 'automatic' ? 'Re-send KOT (override)' : 'Send KOT to kitchen'}
+                                  style={{ width: 30, height: 30, borderRadius: 6, background: '#D97706', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#fff' }}>receipt_long</span>
+                                </button>
+                              )}
 
-                            {isPrinted ? (
-                              <button
-                                onClick={() => handleCheckout(n)}
-                                title="Checkout"
-                                style={{ width: 30, height: 30, borderRadius: 6, background: '#16A34A', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              >
-                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#fff' }}>point_of_sale</span>
-                              </button>
-                            ) : !tableHasReceived(n) ? (
-                              <button
-                                onClick={() => handlePrint(n)}
-                                title={isNewAfterPrint ? 'Reprint bill (new items added)' : 'Print bill'}
-                                style={{ width: 30, height: 30, borderRadius: 6, background: '#F59E0B', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              >
-                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#fff' }}>print</span>
-                              </button>
-                            ) : null}
-                          </div>
-                        )}
+                              {/* Bill print — available once KOT is done; always available in automatic mode */}
+                              {kotReady && (
+                                <button
+                                  onClick={() => handlePrint(n)}
+                                  title={isPrinted ? (isNewAfterPrint ? 'Reprint bill (new items)' : 'Reprint bill') : 'Print bill'}
+                                  style={{ width: 30, height: 30, borderRadius: 6, background: isPrinted ? '#16A34A' : '#F59E0B', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#fff' }}>{isPrinted ? 'receipt' : 'print'}</span>
+                                </button>
+                              )}
+
+                              {/* Checkout — available once KOT is done; always available in automatic mode */}
+                              {kotReady && (
+                                <button
+                                  onClick={() => handleCheckout(n)}
+                                  title="Checkout table"
+                                  style={{ width: 30, height: 30, borderRadius: 6, background: '#5137EF', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#fff' }}>point_of_sale</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -1357,15 +1470,15 @@ export default function OrdersPage() {
                           <span style={{ color: '#fff', fontSize: 16, lineHeight: 1 }}>✓</span>
                         </button>
                       ) : order.status === 'received' ? (
-                        <button onClick={() => sendKot(order)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 6, background: '#FFFBEB', border: '1px solid #F59E0B', color: '#D97706', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                        <button type="button" aria-label={`Send KOT for order ${order.order_number}`} onClick={() => sendKot(order)}
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '7px 12px', borderRadius: 6, background: '#FFFBEB', border: '1px solid #F59E0B', color: '#D97706', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0, minHeight: 32 }}>
                           KOT
                         </button>
                       ) : order.status !== 'completed' ? (
-                        <button onClick={() => !isUpdating && cycleStatus(order)} disabled={isUpdating}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 6, background: s.bg, border: s.border, color: s.color, fontSize: 12, fontWeight: 500, cursor: isUpdating ? 'default' : 'pointer', flexShrink: 0 }}>
+                        <button type="button" aria-label={`Advance order ${order.order_number} status`} onClick={() => !isUpdating && cycleStatus(order)} disabled={isUpdating}
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '7px 12px', borderRadius: 6, background: s.bg, border: s.border, color: s.color, fontSize: 12, fontWeight: 500, cursor: isUpdating ? 'default' : 'pointer', flexShrink: 0, minHeight: 32 }}>
                           {STATUS_LABEL[order.status]}
-                          {s.chevron && !isUpdating && <span className="material-symbols-outlined" style={{ fontSize: 13 }}>keyboard_arrow_down</span>}
+                          {s.chevron && !isUpdating && <span className="material-symbols-outlined" style={{ fontSize: 13 }} aria-hidden>keyboard_arrow_down</span>}
                         </button>
                       ) : (
                         <span style={{ fontSize: 12, fontWeight: 600, color: '#5137EF', background: '#EEEEFF', padding: '3px 9px', borderRadius: 6, flexShrink: 0 }}>Done</span>

@@ -52,8 +52,8 @@ export default function SettingsPage() {
     const BRIDGE_URL = 'http://127.0.0.1:7878';
     const [bridgeOnline,       setBridgeOnline]       = useState<boolean | null>(null);
     const [bridgePrinters,     setBridgePrinters]     = useState<Array<{ name: string; isDefault: boolean; isVirtual: boolean }>>([]);
-    const [kotPrinterName,     setKotPrinterName]     = useState<string | null>(null);
-    const [billPrinterName,    setBillPrinterName]    = useState<string | null>(null);
+    const [, setKotPrinterName]  = useState<string | null>(null);
+    const [, setBillPrinterName] = useState<string | null>(null);
     const [savingPrinter,      setSavingPrinter]      = useState(false);
     // Local bridge config (role → printer name assignments stored on the PC)
     const [bridgeRoles,        setBridgeRoles]        = useState<{ kot: string | null; bill: string | null; admin: string | null }>({ kot: null, bill: null, admin: null });
