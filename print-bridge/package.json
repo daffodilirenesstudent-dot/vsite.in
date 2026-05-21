@@ -1,6 +1,6 @@
 {
   "name": "bys-print-bridge",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Local Windows print bridge for BuildYourStore thermal printing",
   "main": "src/server.js",
   "scripts": {

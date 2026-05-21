@@ -52,28 +52,34 @@ const PORT    = 7878;
 const VERSION = '2.3.0';
 const app     = express();
 
-// ── CORS — restricted to known origins ───────────────────────────────────────
-// Previously `origin: '*'` let any website queue print jobs. We now allow only
-// the production app, localhost dev, and same-origin requests (no Origin header).
-const ALLOWED_ORIGIN_RE = [
-  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i,
-  /^https:\/\/([a-z0-9-]+\.)*buildyoustore\.com$/i,
-  /^https:\/\/([a-z0-9-]+\.)*vercel\.app$/i, // preview deploys
-];
-
-app.use(cors({
-  origin: (origin, cb) => {
-    // No origin header → same-origin / curl / native fetch — allow.
-    if (!origin) return cb(null, true);
-    if (ALLOWED_ORIGIN_RE.some(re => re.test(origin))) return cb(null, true);
-    // Reject cleanly. Returning (null, false) makes cors() omit the
-    // Access-Control-Allow-Origin header instead of throwing, so Express
-    // returns a normal response without a 500 HTML error page. The browser
-    // blocks the request as a same-origin violation, which is what we want.
-    return cb(null, false);
-  },
+// ── CORS — permissive by design ──────────────────────────────────────────────
+// The bridge is reachable from any origin. The REAL security boundary is the
+// per-install token (X-BYS-Token) enforced on every mutating endpoint via
+// requireToken() — see below. Origin-based gating was previously used as
+// defense-in-depth but caused real pain whenever the web app's hosting moved
+// (Vercel → Netlify → custom domain), forcing every restaurant to reinstall
+// the bridge. With token auth as the gate, that's no longer necessary.
+//
+// What an unauthed caller from any website CAN do:
+//   GET /status   — see bridge is online + printer health
+//   GET /printers — list printer names
+//   GET /config   — read (no secrets)
+//   GET /autostart
+// What they CANNOT do without the token:
+//   POST /print, POST /print/test, PUT /config, PUT /autostart, …
+// Print job spam from a malicious site is impossible without the token, which
+// only flows from the legit web app's bridge integration code path.
+const corsCfg = {
+  origin: '*',
   credentials: false,
-}));
+  // X-BYS-Token is a custom request header → browsers preflight it; list it
+  // explicitly so the preflight OPTIONS response permits it. Without this,
+  // Chrome blocks the POST even though we'd allow it server-side.
+  allowedHeaders: ['Content-Type', 'X-BYS-Token', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+};
+app.use(cors(corsCfg));
+app.options('*', cors(corsCfg));
 
 app.use(express.json({ limit: '256kb' }));
 

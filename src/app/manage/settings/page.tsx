@@ -36,10 +36,21 @@ export default function SettingsPage() {
     const [deleting, setDeleting] = useState(false);
 
     // ── Payments (Razorpay OAuth) state ───────────────────────────────────────
-    interface RzpStatus { connected: boolean; accountId?: string; mode?: 'test' | 'live'; expiresAt?: string }
+    type RzpHealth = 'not_connected' | 'active' | 'expiring_soon' | 'expired' | 'revoked';
+    interface RzpStatus {
+        connected:      boolean;
+        health:         RzpHealth;
+        accountId?:     string;
+        mode?:          'test' | 'live';
+        expiresAt?:     string;
+        expiresInDays?: number;
+        connectedAt?:   string;
+        lastUpdatedAt?: string;
+        checkedAt?:     string;
+    }
     const [rzpStatus,        setRzpStatus]        = useState<RzpStatus | null>(null);
     const [rzpStatusLoading, setRzpStatusLoading] = useState(true);
-    const [rzpBusy,          setRzpBusy]          = useState<'connect' | 'disconnect' | null>(null);
+    const [rzpBusy,          setRzpBusy]          = useState<'connect' | 'disconnect' | 'change' | null>(null);
     const [rzpBanner,        setRzpBanner]        = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
     // ── KOT settings state ────────────────────────────────────────────────────
@@ -190,26 +201,48 @@ export default function SettingsPage() {
     };
 
     // ── Razorpay OAuth handlers ───────────────────────────────────────────────
-    const loadRzpStatus = async (sid: string) => {
-        setRzpStatusLoading(true);
+    // Quiet refresh = update state without flashing the loading skeleton.
+    // Used by the 20s poller + tab-visibility refresh so the UI doesn't blink.
+    const loadRzpStatus = async (sid: string, quiet = false) => {
+        if (!quiet) setRzpStatusLoading(true);
         try {
             const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch(`/api/manage/payments/razorpay/status?siteId=${sid}`, {
                 headers: { Authorization: `Bearer ${token}` },
+                cache:   'no-store',
             });
             if (res.ok) setRzpStatus(await res.json());
-            else setRzpStatus({ connected: false });
+            else setRzpStatus({ connected: false, health: 'not_connected' });
         } catch {
-            setRzpStatus({ connected: false });
+            // Network blips: don't clobber existing status, just retry on next poll.
+            if (!quiet) setRzpStatus({ connected: false, health: 'not_connected' });
         } finally {
-            setRzpStatusLoading(false);
+            if (!quiet) setRzpStatusLoading(false);
         }
     };
 
+    // Initial load + live polling. Polls every 20s while the tab is visible,
+    // refreshes immediately when the tab regains focus. This catches:
+    //   - Razorpay revoking the integration via webhook
+    //   - Token auto-refresh extending the expiry
+    //   - Manual changes by another admin on the same site
     useEffect(() => {
         if (!siteId) return;
         loadRzpStatus(siteId);
+        const intervalId = setInterval(() => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+                loadRzpStatus(siteId, true);
+            }
+        }, 20_000);
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') loadRzpStatus(siteId, true);
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
     }, [siteId]);
 
     // Show banner from OAuth callback redirect query params (?connected=1 | ?error=…).
@@ -285,6 +318,56 @@ export default function SettingsPage() {
             } else {
                 toast.error('Failed to disconnect');
             }
+        } finally {
+            setRzpBusy(null);
+        }
+    };
+
+    // "Change account" — atomic-ish: revoke the current account's tokens with
+    // Razorpay, then immediately kick off the OAuth flow for a new account.
+    // The admin should sign into the *new* Razorpay account when redirected.
+    const handleChangeRazorpay = async () => {
+        if (!siteId) return;
+        const ok = confirm(
+            'Switch to a different Razorpay account?\n\n' +
+            'Your current account will be disconnected, then you\'ll be redirected to Razorpay to sign in with the new account.\n\n' +
+            'Avoid doing this while customers are mid-checkout — any in-flight payments may need a manual refund.',
+        );
+        if (!ok) return;
+
+        setRzpBusy('change');
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) { toast.error('Please sign in again'); return; }
+
+            // 1. Revoke current account.
+            const dRes = await fetch('/api/manage/payments/razorpay/disconnect', {
+                method:  'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ siteId }),
+            });
+            if (!dRes.ok && dRes.status !== 200) {
+                const d = await dRes.json().catch(() => ({}));
+                toast.error(d.error ?? 'Could not disconnect the current account');
+                return;
+            }
+
+            // 2. Immediately start OAuth for the new account.
+            const cRes = await fetch('/api/manage/payments/razorpay/connect', {
+                method:  'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ siteId }),
+            });
+            const cData = await cRes.json();
+            if (!cRes.ok || !cData.url) {
+                toast.error(cData.error ?? 'Could not start the new connection');
+                await loadRzpStatus(siteId); // status will now show disconnected
+                return;
+            }
+            window.location.href = cData.url;
+        } catch {
+            toast.error('Could not switch Razorpay accounts');
+            await loadRzpStatus(siteId);
         } finally {
             setRzpBusy(null);
         }
@@ -840,62 +923,134 @@ export default function SettingsPage() {
                     </div>
                 )}
 
-                <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
-                    <div style={{ minWidth: 0 }}>
-                        {rzpStatusLoading ? (
-                            <p style={{ fontSize: 13, color: '#71717A' }}>Checking connection…</p>
-                        ) : rzpStatus?.connected ? (
-                            <>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16A34A' }} />
-                                    <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Connected</p>
-                                    {rzpStatus.mode && (
-                                        <span style={{ fontSize: 10, fontWeight: 600, color: rzpStatus.mode === 'live' ? '#047857' : '#B45309', background: rzpStatus.mode === 'live' ? '#D1FAE5' : '#FEF3C7', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase' }}>
-                                            {rzpStatus.mode}
-                                        </span>
+                {/* ── Live status card ────────────────────────────────────────── */}
+                {(() => {
+                    // Single source of truth for the colored health pill. Driven by
+                    // the `health` field returned by /status (polled every 20s).
+                    const health = rzpStatus?.health ?? 'not_connected';
+                    const cfg = {
+                        active:         { dot: '#16A34A', label: 'Connected · Working',           tone: '#065F46' },
+                        expiring_soon:  { dot: '#D97706', label: `Connected · Refresh in ${rzpStatus?.expiresInDays ?? '?'}d`, tone: '#92400E' },
+                        expired:        { dot: '#DC2626', label: 'Connected · Token expired',     tone: '#991B1B' },
+                        revoked:        { dot: '#DC2626', label: 'Disconnected · Revoked',        tone: '#991B1B' },
+                        not_connected:  { dot: '#99A1AF', label: 'Not connected',                 tone: '#3F3F46' },
+                    }[health];
+
+                    return (
+                <div className="flex flex-col gap-3 p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                    {/* Top row: health pill + action buttons */}
+                    <div className="flex items-start justify-between gap-3">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            {rzpStatusLoading ? (
+                                <p style={{ fontSize: 13, color: '#71717A' }}>Checking connection…</p>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.dot }} />
+                                        <p style={{ fontSize: 14, fontWeight: 600, color: cfg.tone }}>{cfg.label}</p>
+                                        {rzpStatus?.mode && (
+                                            <span style={{
+                                                fontSize: 10, fontWeight: 600,
+                                                color: rzpStatus.mode === 'live' ? '#047857' : '#B45309',
+                                                background: rzpStatus.mode === 'live' ? '#D1FAE5' : '#FEF3C7',
+                                                borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase',
+                                            }}>
+                                                {rzpStatus.mode}
+                                            </span>
+                                        )}
+                                        {/* "Live" green dot when polling confirmed a fresh status. */}
+                                        {rzpStatus?.checkedAt && (
+                                            <span title={`Last checked ${new Date(rzpStatus.checkedAt).toLocaleTimeString()}`}
+                                                  style={{ fontSize: 10, color: '#71717A' }}>
+                                                · live
+                                            </span>
+                                        )}
+                                    </div>
+                                    {rzpStatus?.accountId && (
+                                        <p style={{ fontSize: 12, color: '#71717A', fontFamily: 'monospace' }}>
+                                            {rzpStatus.accountId}
+                                        </p>
                                     )}
-                                </div>
-                                <p style={{ fontSize: 12, color: '#71717A', fontFamily: 'monospace' }}>{rzpStatus.accountId}</p>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#99A1AF' }} />
-                                    <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Not connected</p>
-                                </div>
-                                <p style={{ fontSize: 12, color: '#71717A' }}>Customers won&rsquo;t see the &ldquo;Pay Online&rdquo; option until you connect.</p>
-                            </>
-                        )}
+                                    {!rzpStatus?.accountId && health === 'not_connected' && (
+                                        <p style={{ fontSize: 12, color: '#71717A' }}>
+                                            Customers won&rsquo;t see &ldquo;Pay Online&rdquo; until you connect.
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        <div className="flex flex-col items-end gap-2" style={{ flexShrink: 0 }}>
+                            {rzpStatus?.connected ? (
+                                <>
+                                    <button
+                                        onClick={handleChangeRazorpay}
+                                        disabled={rzpBusy !== null}
+                                        style={{
+                                            padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                                            border: 'none', background: '#2563EB', color: '#FFFFFF',
+                                            cursor: rzpBusy ? 'wait' : 'pointer',
+                                            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>swap_horiz</span>
+                                        {rzpBusy === 'change' ? 'Switching…' : 'Change account'}
+                                    </button>
+                                    <button
+                                        onClick={handleDisconnectRazorpay}
+                                        disabled={rzpBusy !== null}
+                                        style={{
+                                            padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                                            border: 'none', background: 'transparent', color: '#B91C1C',
+                                            cursor: rzpBusy ? 'wait' : 'pointer', textDecoration: 'underline',
+                                        }}
+                                    >
+                                        {rzpBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={handleConnectRazorpay}
+                                    disabled={rzpBusy !== null || rzpStatusLoading}
+                                    style={{
+                                        padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                                        border: 'none', background: '#2563EB', color: '#FFFFFF',
+                                        cursor: rzpBusy ? 'wait' : 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {rzpBusy === 'connect' ? 'Redirecting…' : (
+                                        <>{health === 'revoked' ? 'Reconnect' : 'Connect Razorpay Account'} <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span></>
+                                    )}
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    <div style={{ flexShrink: 0 }}>
-                        {rzpStatus?.connected ? (
-                            <button
-                                onClick={handleDisconnectRazorpay}
-                                disabled={rzpBusy !== null}
-                                style={{
-                                    padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                                    border: '1px solid #FECACA', background: '#FFFFFF', color: '#B91C1C',
-                                    cursor: rzpBusy ? 'wait' : 'pointer',
-                                }}
-                            >
-                                {rzpBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
-                            </button>
-                        ) : (
-                            <button
-                                onClick={handleConnectRazorpay}
-                                disabled={rzpBusy !== null || rzpStatusLoading}
-                                style={{
-                                    padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                                    border: 'none', background: '#2563EB', color: '#FFFFFF',
-                                    cursor: rzpBusy ? 'wait' : 'pointer',
-                                    display: 'flex', alignItems: 'center', gap: 6,
-                                }}
-                            >
-                                {rzpBusy === 'connect' ? 'Redirecting…' : (<>Connect Razorpay Account <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span></>)}
-                            </button>
-                        )}
-                    </div>
+
+                    {/* Conditional warnings — only render when something needs attention. */}
+                    {health === 'expiring_soon' && (
+                        <div style={{ padding: '8px 12px', borderRadius: 8, background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>schedule</span>
+                            We&rsquo;ll auto-refresh your token before it expires. No action needed.
+                        </div>
+                    )}
+                    {(health === 'revoked' || health === 'expired') && (
+                        <div style={{ padding: '8px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', fontSize: 12, color: '#991B1B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>error</span>
+                            {health === 'revoked'
+                                ? 'This integration was revoked. Online payments are turned off until you reconnect.'
+                                : 'Token expired and could not be refreshed. Reconnect to restore online payments.'}
+                        </div>
+                    )}
+                    {health === 'active' && rzpStatus?.connectedAt && (
+                        <p style={{ fontSize: 11, color: '#71717A' }}>
+                            Connected on {new Date(rzpStatus.connectedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            {' · '}Funds settle directly to your Razorpay account
+                        </p>
+                    )}
                 </div>
+                    );
+                })()}
             </div>
 
             {/* ── Danger Zone ── */}

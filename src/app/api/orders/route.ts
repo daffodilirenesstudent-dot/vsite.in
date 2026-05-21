@@ -16,7 +16,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { buildOrderConfirmationEmail } from '@/lib/orderEmail';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { buildOrderConfirmationEmail as _unusedEmail } from '@/lib/orderEmail';
 import { verifyTableSig } from '@/lib/qrSignature';
 import { getActiveIntegration, createRazorpayOrder } from '@/lib/server/razorpayOAuth';
 import crypto from 'crypto';
@@ -167,6 +168,160 @@ export async function POST(request: NextRequest) {
       ? sha256Short(`${siteId}:${idemRaw}`)
       : '';
 
+    // ╔══════════════════════════════════════════════════════════════════════╗
+    // ║  ONLINE PAYMENTS — DEFERRED ORDER CREATION                          ║
+    // ║                                                                      ║
+    // ║  We do NOT write to the `orders` table here. Instead we:             ║
+    // ║   1. validate items + prices against products (no write)             ║
+    // ║   2. create a Razorpay order on the restaurant's merchant account    ║
+    // ║   3. stash the cart in `pending_online_orders` keyed by rzp order id ║
+    // ║   4. return Razorpay handoff data to the client                      ║
+    // ║                                                                      ║
+    // ║  After the customer pays, `/api/orders/finalize-payment` pops the    ║
+    // ║  pending row and calls `process_order_v2` — only THEN does the       ║
+    // ║  order appear in the admin panel. Abandoned payments leave only a    ║
+    // ║  short-lived `pending_online_orders` row, never an admin-visible    ║
+    // ║  order. (Cleaned up by a cron later.)                                ║
+    // ╚══════════════════════════════════════════════════════════════════════╝
+    if (paymentMethod === 'online') {
+      // 1. Idempotent retry — return the existing Razorpay order if this idem
+      //    key already has a pending row.
+      if (idemKey) {
+        const { data: existing } = await supabaseServer
+          .from('pending_online_orders')
+          .select('razorpay_order_id, subtotal, site_id')
+          .eq('site_id', siteId)
+          .eq('idempotency_key', idemKey)
+          .maybeSingle();
+        if (existing) {
+          const integration = await getActiveIntegration(existing.site_id);
+          if (integration) {
+            return NextResponse.json({
+              success:               true,
+              deferredFinalization:  true,
+              razorpayOrderId:       existing.razorpay_order_id,
+              razorpayKey:           integration.publicToken,
+              amount:                Math.round(Number(existing.subtotal) * 100),
+              replayed:              true,
+            });
+          }
+        }
+      }
+
+      // 2. Site liveness + plan check
+      const { data: site } = await supabaseServer
+        .from('sites')
+        .select('id, name, slug, is_live, is_open')
+        .eq('id', siteId)
+        .maybeSingle();
+      if (!site)                  return NextResponse.json({ error: 'Store not found' },              { status: 404 });
+      if (site.is_live === false) return NextResponse.json({ error: 'This store is currently offline' }, { status: 403 });
+      if (site.is_open === false) return NextResponse.json({ error: 'This store is currently closed' },  { status: 403 });
+
+      // 3. Validate items + compute subtotal against the products table.
+      //    Variant prices live in metadata.variants — pick those when set.
+      const productIds = items.map(i => i.id);
+      const { data: products } = await supabaseServer
+        .from('products')
+        .select('id, name, selling_price, is_live, metadata, food_type')
+        .in('id', productIds)
+        .eq('site_id', siteId);
+      if (!products || products.length === 0) {
+        return NextResponse.json({ error: 'No menu items found' }, { status: 400 });
+      }
+      const productMap = new Map(products.map(p => [p.id as string, p]));
+
+      let subtotal = 0;
+      const verifiedItems: Array<{ id: string; name: string; qty: number; price: number; variantSize: string | null }> = [];
+      for (const it of items) {
+        const product = productMap.get(it.id);
+        if (!product) {
+          return NextResponse.json({ error: 'An item in your cart is no longer available.' }, { status: 400 });
+        }
+        if ((product as { is_live?: boolean }).is_live === false) {
+          return NextResponse.json({ error: `${product.name} is currently unavailable.` }, { status: 400 });
+        }
+
+        let unitPrice = Number(product.selling_price);
+        if (it.variantSize) {
+          const meta = (product as { metadata?: Record<string, unknown> }).metadata ?? {};
+          const variants = Array.isArray((meta as { variants?: unknown }).variants)
+            ? (meta as { variants: Array<{ size?: string; price?: number | string }> }).variants
+            : [];
+          const variant = variants.find(v => v.size === it.variantSize);
+          if (!variant || variant.price === undefined) {
+            return NextResponse.json({ error: `Variant '${it.variantSize}' not available for ${product.name}.` }, { status: 400 });
+          }
+          unitPrice = Number(variant.price);
+        }
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+          return NextResponse.json({ error: `Invalid price for ${product.name}.` }, { status: 500 });
+        }
+
+        subtotal += unitPrice * it.qty;
+        verifiedItems.push({ id: it.id, name: product.name, qty: it.qty, price: unitPrice, variantSize: it.variantSize ?? null });
+      }
+      subtotal = Math.round(subtotal * 100) / 100;
+      if (subtotal <= 0) {
+        return NextResponse.json({ error: 'Invalid order total' }, { status: 400 });
+      }
+
+      // 4. Razorpay integration must be connected for this restaurant.
+      const integration = await getActiveIntegration(siteId);
+      if (!integration) {
+        return NextResponse.json(
+          { error: 'Online payment is not available for this store right now.', code: 'RAZORPAY_NOT_CONNECTED' },
+          { status: 409 },
+        );
+      }
+
+      // 5. Create Razorpay order on the merchant's account.
+      let rzpOrder: { id: string; amount: number; currency: string };
+      try {
+        rzpOrder = await createRazorpayOrder(integration.accessToken, {
+          amount:   Math.round(subtotal * 100),
+          currency: 'INR',
+          receipt:  `pending-${(idemKey || crypto.randomBytes(6).toString('hex')).slice(0, 32)}`,
+          notes:    { site_id: siteId },
+        });
+      } catch (err) {
+        console.error('[POST /api/orders] razorpay create order (online pending) failed:', err);
+        return NextResponse.json(
+          { error: 'Could not initiate payment. Please try again.', code: 'RAZORPAY_ORDER_FAILED' },
+          { status: 502 },
+        );
+      }
+
+      // 6. Stash cart in pending_online_orders for the finalize endpoint to pop.
+      const { error: pendingErr } = await supabaseServer
+        .from('pending_online_orders')
+        .insert({
+          razorpay_order_id: rzpOrder.id,
+          site_id:           siteId,
+          customer_name:     cleanName,
+          customer_email:    cleanEmail || null,
+          customer_phone:    cleanPhone || null,
+          items:             verifiedItems,
+          subtotal,
+          table_number:      tableNumber ?? null,
+          idempotency_key:   idemKey || null,
+          client_ip_hash:    ipHash,
+        });
+      if (pendingErr) {
+        console.error('[POST /api/orders] pending insert failed:', pendingErr);
+        return NextResponse.json({ error: 'Failed to initiate payment. Please try again.' }, { status: 500 });
+      }
+
+      // 7. Hand off to client → opens Razorpay Checkout → /finalize-payment.
+      return NextResponse.json({
+        success:              true,
+        deferredFinalization: true,
+        razorpayOrderId:      rzpOrder.id,
+        razorpayKey:          integration.publicToken,
+        amount:               Math.round(subtotal * 100),
+      });
+    }
+
     // ── Single consolidated RPC call (1 DB round trip) ────────────────────────
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
@@ -213,82 +368,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 });
     }
     if (status === 'replayed') {
-      // H5: re-attempt email enqueue if the first try silently failed.
-      // The replayed branch returns only id/number/token, not items — so we
-      // re-fetch from DB and check email_queue. If nothing is queued for this
-      // order yet, build + enqueue the confirmation email.
-      const replayOrderId = rpcData.order_id as string;
-      if (paymentMethod === 'online' && replayOrderId && cleanEmail) {
-        try {
-          const { count } = await supabaseServer
-            .from('email_queue')
-            .select('id', { count: 'exact', head: true })
-            .eq('to_email', cleanEmail)
-            .ilike('subject', `%${rpcData.order_number ?? ''}%`);
-          if (!count) {
-            const { data: ord } = await supabaseServer
-              .from('orders')
-              .select('items, subtotal, site_id, sites:sites(slug, name)')
-              .eq('id', replayOrderId)
-              .single();
-            if (ord) {
-              const items = Array.isArray(ord.items)
-                ? (ord.items as Array<{ name: string; qty: number; price: number; variantSize?: string }>)
-                : [];
-              const siteJoined = (ord as unknown as { sites?: { slug?: string; name?: string } }).sites ?? {};
-              const { subject, htmlbody } = buildOrderConfirmationEmail({
-                customerName:  cleanName,
-                orderNumber:   String(rpcData.order_number ?? ''),
-                orderId:       replayOrderId,
-                tokenNumber:   (rpcData.token_number as string | null) ?? null,
-                shopSlug:      siteJoined.slug ?? siteId,
-                shopName:      siteJoined.name ?? 'Your Store',
-                subtotal:      Number(ord.subtotal),
-                paymentMethod: 'online',
-                items,
-              });
-              supabaseServer
-                .from('email_queue')
-                .insert({ to_email: cleanEmail, subject, htmlbody })
-                .then(({ error: e }) => { if (e) console.error('[POST /api/orders] replay email enqueue:', e); });
-            }
-          }
-        } catch (e) {
-          console.error('[POST /api/orders] replay email recovery:', e);
-        }
-      }
-      // For online replays, return the previously issued Razorpay order id +
-      // public token so the client can re-open Checkout without creating a
-      // second Razorpay order on the merchant account.
-      let replayRzp: { razorpayOrderId?: string; razorpayKey?: string; amount?: number } = {};
-      if (paymentMethod === 'online' && replayOrderId) {
-        try {
-          const { data: ord } = await supabaseServer
-            .from('orders')
-            .select('razorpay_order_id, subtotal, site_id')
-            .eq('id', replayOrderId)
-            .maybeSingle();
-          if (ord?.razorpay_order_id) {
-            const integration = await getActiveIntegration(ord.site_id as string);
-            if (integration) {
-              replayRzp = {
-                razorpayOrderId: ord.razorpay_order_id as string,
-                razorpayKey:     integration.publicToken,
-                amount:          Math.round(Number(ord.subtotal) * 100),
-              };
-            }
-          }
-        } catch (e) {
-          console.error('[POST /api/orders] replay rzp lookup:', e);
-        }
-      }
+      // Replay path is now only for counter / no_payment — online never
+      // reaches here (it returns early at the top). Just hand back the same
+      // ids and let the client redisplay the order.
       return NextResponse.json({
         success:     true,
         orderId:     rpcData.order_id,
         orderNumber: rpcData.order_number,
         ...(rpcData.counter_number ? { counterNumber: rpcData.counter_number } : {}),
         ...(rpcData.token_number   ? { tokenNumber:   rpcData.token_number   } : {}),
-        ...replayRzp,
         replayed:    true,
       });
     }
@@ -356,85 +444,10 @@ export async function POST(request: NextRequest) {
       name: string; qty: number; price: number; variantSize?: string;
     }>;
 
-    if (paymentMethod === 'online') {
-      try {
-        const { subject, htmlbody } = buildOrderConfirmationEmail({
-          customerName:  cleanName,
-          orderNumber,
-          orderId,
-          tokenNumber,
-          shopSlug:      siteSlug ?? siteId,
-          shopName:      siteName ?? 'Your Store',
-          subtotal,
-          paymentMethod: 'online',
-          items:         verifiedItems ?? [],
-        });
-        supabaseServer.from('email_queue').insert({
-          to_email: cleanEmail,
-          subject,
-          htmlbody,
-        }).then(({ error }) => {
-          if (error) console.error('[POST /api/orders] email enqueue:', error);
-        });
-      } catch (emailBuildErr) {
-        console.error('[POST /api/orders] email build:', emailBuildErr);
-      }
-    }
-
-    // ── Razorpay order creation (online payments only) ─────────────────────
-    // We do this AFTER process_order_v2 so the local order id is the canonical
-    // record. If Razorpay rejects the create, we mark the local order
-    // payment_status='failed' and return 502 — the customer sees a clean error
-    // and process_order_v2's idempotency replay protects against duplicate
-    // local orders on retry.
-    let razorpayOrderId: string | undefined;
-    let razorpayPublicToken: string | undefined;
-    if (paymentMethod === 'online') {
-      const integration = await getActiveIntegration(siteId);
-      if (!integration) {
-        await supabaseServer
-          .from('orders')
-          .update({ payment_status: 'unavailable' })
-          .eq('id', orderId);
-        return NextResponse.json(
-          { error: 'Online payment is not available for this store right now.', code: 'RAZORPAY_NOT_CONNECTED' },
-          { status: 409 },
-        );
-      }
-
-      try {
-        const rzpOrder = await createRazorpayOrder(integration.accessToken, {
-          // Razorpay amounts are in the smallest currency unit (paise for INR).
-          amount:   Math.round(Number(subtotal) * 100),
-          currency: 'INR',
-          receipt:  String(orderNumber).slice(0, 40),
-          notes:    { site_id: siteId, order_id: orderId },
-        });
-        razorpayOrderId     = rzpOrder.id;
-        razorpayPublicToken = integration.publicToken;
-
-        const { error: linkErr } = await supabaseServer
-          .from('orders')
-          .update({
-            razorpay_order_id: rzpOrder.id,
-            payment_status:    'pending',
-          })
-          .eq('id', orderId);
-        if (linkErr) {
-          console.error('[POST /api/orders] failed to link razorpay_order_id:', linkErr);
-        }
-      } catch (err) {
-        console.error('[POST /api/orders] razorpay create order failed:', err);
-        await supabaseServer
-          .from('orders')
-          .update({ payment_status: 'failed' })
-          .eq('id', orderId);
-        return NextResponse.json(
-          { error: 'Could not initiate payment. Please try again.', code: 'RAZORPAY_ORDER_FAILED' },
-          { status: 502 },
-        );
-      }
-    }
+    // Online payments never reach here — they exit at the early-return above.
+    // This branch is counter / no_payment only: order is already in the DB,
+    // just enqueue the confirmation email (for counter) and respond.
+    void verifiedItems; void siteSlug; void siteName; void subtotal;
 
     return NextResponse.json({
       success:     true,
@@ -442,9 +455,6 @@ export async function POST(request: NextRequest) {
       orderNumber,
       ...(rpcData.counter_number ? { counterNumber: rpcData.counter_number } : {}),
       ...(tokenNumber            ? { tokenNumber }                           : {}),
-      ...(razorpayOrderId        ? { razorpayOrderId }                       : {}),
-      ...(razorpayPublicToken    ? { razorpayKey: razorpayPublicToken }      : {}),
-      ...(paymentMethod === 'online' ? { amount: Math.round(Number(subtotal) * 100) } : {}),
     });
   } catch (err) {
     console.error('[POST /api/orders] unexpected:', err);

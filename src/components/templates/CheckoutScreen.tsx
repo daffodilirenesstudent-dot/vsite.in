@@ -94,13 +94,16 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
   // info (and Razorpay handoff fields) so the caller can either finalize
   // (counter / no_payment) or open the Razorpay Checkout modal.
   interface PlaceOrderResult {
-    orderId:         string;
-    orderNumber:     string;
+    // counter / no_payment branch — order is created immediately
+    orderId?:        string;
+    orderNumber?:    string;
     counterNumber?:  string;
     tokenNumber?:    string;
-    razorpayOrderId?: string;
-    razorpayKey?:    string;
-    amount?:         number;
+    // online branch — no order yet, only a Razorpay handoff
+    razorpayOrderId?:     string;
+    razorpayKey?:         string;
+    amount?:              number;
+    deferredFinalization?: boolean;
   }
 
   async function placeOrder(): Promise<PlaceOrderResult | null> {
@@ -139,7 +142,7 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
     setLoading(true);
     try {
       const data = await placeOrder();
-      if (!data) { setLoading(false); return; }
+      if (!data || !data.orderId || !data.orderNumber) { setLoading(false); return; }
       onOrderPlaced(data.orderId, data.orderNumber, paymentMethod, data.counterNumber, data.tokenNumber);
     } catch {
       setError('Network error. Please check your connection and try again.');
@@ -194,6 +197,10 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
         return;
       }
 
+      // NOTE: there's no local orderId yet — the order isn't created until the
+      // customer actually pays. /api/orders just returned a Razorpay order id;
+      // we open Checkout, and on success /finalize-payment is what creates the
+      // real `orders` row and gives us back an order number / token number.
       const RazorpayCtor = window.Razorpay as unknown as new (options: RazorpayCheckoutOptions) => { open: () => void };
       const rzp = new RazorpayCtor({
         key:         data.razorpayKey,
@@ -201,13 +208,13 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
         amount:      data.amount,
         currency:    'INR',
         name:        'Order Payment',
-        description: `Order #${data.orderNumber}`,
+        description: 'Order Payment',
         prefill: { name: name.trim(), email: email.trim() },
-        notes:   { order_id: data.orderId, site_id: siteId },
+        notes:   { site_id: siteId },
         theme:   { color: C.pink },
         handler: async (resp) => {
           try {
-            const v = await fetch(`/api/orders/${encodeURIComponent(data.orderId)}/verify-payment`, {
+            const v = await fetch('/api/orders/finalize-payment', {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -217,12 +224,12 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
               }),
             });
             const vData = await v.json();
-            if (!v.ok && !vData.alreadyPaid) {
-              setError(vData.error ?? 'Payment could not be verified. Please contact the store.');
+            if (!v.ok) {
+              setError(vData.error ?? 'Payment could not be confirmed. Please contact the store.');
               setLoading(false);
               return;
             }
-            onOrderPlaced(data.orderId, data.orderNumber, 'online', undefined, data.tokenNumber);
+            onOrderPlaced(vData.orderId, vData.orderNumber, 'online', undefined, vData.tokenNumber);
           } catch {
             setError('Could not confirm your payment. Please contact the store with your payment id.');
             setLoading(false);
@@ -230,9 +237,9 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
         },
         modal: {
           ondismiss: () => {
-            // Customer closed the modal without paying. Order remains pending
-            // server-side; if they retry, the idempotency key returns the same
-            // razorpay_order_id so we don't create duplicates.
+            // Customer closed the modal without paying. No order was created;
+            // the only DB trace is a short-lived `pending_online_orders` row
+            // that a cron cleans up. Nothing reaches the admin panel.
             setLoading(false);
           },
         },
