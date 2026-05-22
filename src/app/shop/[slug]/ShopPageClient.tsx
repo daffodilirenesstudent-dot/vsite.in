@@ -43,12 +43,19 @@ export default function ShopPageClient({
   banners: initialBanners,
   tier,
   tableNumber,
+  gstRatePct = 0,
+  whatsappOrderTaking = false,
+  currencyCode = 'INR',
 }: {
   shop: Shop;
   menuProducts: MenuProduct[];
   banners: ShopBanner[];
   tier: 'view' | 'order' | 'order_no_pay';
   tableNumber?: number;
+  /** Preview-only — server is authoritative. 0 = no GST collected. */
+  gstRatePct?: number;
+  whatsappOrderTaking?: boolean;
+  currencyCode?: 'INR' | 'AED';
 }) {
   // Hydrated from server — kept in state so realtime updates can mutate the
   // customer's view without a full page reload (the bedrock UX requirement
@@ -141,6 +148,9 @@ export default function ShopPageClient({
         shopId={shop.id}
         shopSlug={shop.slug}
         tableNumber={tableNumber}
+        gstRatePct={gstRatePct}
+        whatsappOrderTaking={whatsappOrderTaking}
+        currencyCode={currencyCode}
       />
     </Suspense>
   );

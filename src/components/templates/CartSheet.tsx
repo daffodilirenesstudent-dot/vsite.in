@@ -120,11 +120,17 @@ interface CartSheetProps {
   /** Restaurant has Razorpay connected. When false the "Pay Online" option
    *  is hidden and the cart defaults to "Pay at Counter". */
   onlineEnabled?: boolean;
+  /** GST rate (5 / 18 / 0). When > 0, CGST/SGST split shown and total = subtotal + tax. */
+  gstRatePct?: number;
+  currencyCode?: 'INR' | 'AED';
+  /** True when the store has WhatsApp order-taking enabled — relabels the CTA. */
+  whatsappMode?: boolean;
   onAddMore?: () => void;
   onEditItem?: (item: CartItem) => void;
 }
 
-export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onCheckout, paymentMode, onlineEnabled = true, onAddMore, onEditItem }: CartSheetProps) {
+export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onCheckout, paymentMode, onlineEnabled = true, gstRatePct = 0, currencyCode = 'INR', whatsappMode = false, onAddMore, onEditItem }: CartSheetProps) {
+  const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
   const initialMethod: 'online' | 'counter' | 'no_payment' = paymentMode
     ?? (onlineEnabled ? 'online' : 'counter');
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'counter' | 'no_payment'>(initialMethod);
@@ -134,6 +140,12 @@ export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onChe
   }, [onlineEnabled, paymentMethod]);
 
   const subtotal = Math.round(items.reduce((sum, i) => sum + i.price * i.qty, 0) * 100) / 100;
+  // Preview only — the server-side RPC re-computes the authoritative tax.
+  const taxAmount   = gstRatePct > 0 ? Math.round(subtotal * gstRatePct) / 100 : 0;
+  const cgstAmount  = Math.round(taxAmount * 50) / 100;          // half, 2dp
+  const sgstAmount  = Math.round((taxAmount - cgstAmount) * 100) / 100;
+  const grandTotal  = Math.round((subtotal + taxAmount) * 100) / 100;
+  const splitRate   = gstRatePct / 2;
 
   return (
     <div
@@ -236,7 +248,7 @@ export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onChe
                         onMinus={() => item.qty === 1 ? onRemove(item.id, item.variantSize) : onUpdateQty(item.id, item.variantSize, -1)}
                         onPlus={() => onUpdateQty(item.id, item.variantSize, 1)}
                       />
-                      <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.gray800 }}>₹{item.price * item.qty}</span>
+                      <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.gray800 }}>{CURR}{item.price * item.qty}</span>
                     </div>
                   </div>
                 </div>
@@ -351,7 +363,7 @@ export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onChe
                     <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray800, flex: 1, marginRight: 8 }}>
                       {item.name}{item.variantSize ? ` (${item.variantSize})` : ''} × {item.qty}
                     </span>
-                    <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 13, color: C.gray800 }}>₹{item.price * item.qty}</span>
+                    <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 13, color: C.gray800 }}>{CURR}{item.price * item.qty}</span>
                   </div>
                 ))}
 
@@ -359,11 +371,23 @@ export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onChe
 
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.black }}>Item total</span>
-                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.black }}>₹{subtotal}</span>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.black }}>{CURR}{subtotal}</span>
                 </div>
+                {gstRatePct > 0 && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray800 }}>CGST ({splitRate}%)</span>
+                      <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray800 }}>{CURR}{cgstAmount.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray800 }}>SGST ({splitRate}%)</span>
+                      <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray800 }}>{CURR}{sgstAmount.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.black }}>Order total</span>
-                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.black }}>₹{subtotal}</span>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14, color: C.black }}>{CURR}{grandTotal.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -373,7 +397,7 @@ export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onChe
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.white }}>Amount Payable</span>
-                <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.white }}>₹{subtotal}</span>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.white }}>{CURR}{grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
@@ -412,12 +436,14 @@ export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onChe
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 14, color: C.white }}>₹{subtotal}</span>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>Total</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 14, color: C.white }}>{CURR}{grandTotal.toFixed(2)}</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
+                {gstRatePct > 0 ? 'Total (incl. GST)' : 'Total'}
+              </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 14, color: C.white, whiteSpace: 'nowrap' }}>
-                {paymentMethod === 'online' ? 'Place Order' : paymentMethod === 'no_payment' ? 'Place Order' : 'Check out'}
+                {whatsappMode ? 'Order on WhatsApp' : paymentMethod === 'online' ? 'Place Order' : paymentMethod === 'no_payment' ? 'Place Order' : 'Check out'}
               </span>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path d="M5 12h14M12 5l7 7-7 7" stroke={C.white} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

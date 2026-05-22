@@ -76,6 +76,14 @@ interface QRMenuTemplateProps {
   shopId: string;
   shopSlug: string;
   tableNumber?: number;
+  /** Server-snapshotted GST rate (5 / 18 / 0). Used only to preview tax on the cart;
+   *  the server recomputes authoritatively at order creation. */
+  gstRatePct?: number;
+  /** When true and tier === 'order_no_pay', placing an order writes a lightweight
+   *  row and redirects to wa.me instead of going through the token / confirm flow. */
+  whatsappOrderTaking?: boolean;
+  /** Display currency code — only changes the symbol shown; numbers are the same. */
+  currencyCode?: 'INR' | 'AED';
   onAddToCart?: (product: MenuProduct, qty: number, variantSize?: string) => void;
 }
 
@@ -166,7 +174,7 @@ function RadioCircle({ selected }: { selected: boolean }) {
 
 // ── PRODUCT DETAIL BOTTOM SHEET ───────────────────────────────────────────────
 function ProductDetailSheet({
-  product, tier, onClose, onAddToCart, editingCartItem, onReplaceCartItem,
+  product, tier, onClose, onAddToCart, editingCartItem, onReplaceCartItem, currencyCode = 'INR',
 }: {
   product: MenuProduct | null;
   tier: Tier;
@@ -174,8 +182,10 @@ function ProductDetailSheet({
   onAddToCart?: (product: MenuProduct, qty: number, variantSize?: string, priceOverride?: number) => void;
   editingCartItem?: CartItem | null;
   onReplaceCartItem?: (old: CartItem, product: MenuProduct, qty: number, variantSize?: string, priceOverride?: number) => void;
+  currencyCode?: 'INR' | 'AED';
 }) {
   useBodyScrollLock();
+  const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
 
   const meta = product?.metadata ?? {};
   const variants = Array.isArray(meta.variants) && (meta.variants as unknown[]).length > 0
@@ -350,7 +360,7 @@ function ProductDetailSheet({
                     <span style={{
                       fontFamily: "'Poppins',sans-serif", fontWeight: 500,
                       fontSize: 12, color: '#999999',
-                    }}>₹{v.price}</span>
+                    }}>{CURR}{v.price}</span>
                   </div>
                   <RadioCircle selected={i === selectedVariantIdx} />
                 </button>
@@ -390,7 +400,7 @@ function ProductDetailSheet({
                             <span style={{
                               fontFamily: "'Poppins',sans-serif", fontWeight: 500,
                               fontSize: 12, color: '#999999',
-                            }}>+₹{toppingPrice}</span>
+                            }}>+{CURR}{toppingPrice}</span>
                           )}
                         </div>
                         <RadioCircle selected={i === selectedToppingIdx} />
@@ -462,7 +472,7 @@ function ProductDetailSheet({
                   <span style={{
                     fontFamily: "'Poppins',sans-serif", fontWeight: 600,
                     fontSize: 14, lineHeight: '21px', color: T.white,
-                  }}>₹{totalPrice}</span>
+                  }}>{CURR}{totalPrice}</span>
                   <span style={{
                     fontFamily: "'Poppins',sans-serif", fontWeight: 400,
                     fontSize: 12, lineHeight: '18px', color: T.white,
@@ -549,7 +559,7 @@ function ProductDetailSheet({
                 <span style={{
                   fontFamily: "'Poppins',sans-serif", fontWeight: 600,
                   fontSize: 24, lineHeight: '36px', letterSpacing: '0.0161em', color: '#000000',
-                }}>₹{product.selling_price}</span>
+                }}>{CURR}{product.selling_price}</span>
                 {discountOn && (
                   <span style={{
                     fontFamily: "'Poppins',sans-serif", fontWeight: 400,
@@ -588,7 +598,7 @@ function ProductDetailSheet({
                 <span style={{
                   fontFamily: "'Poppins',sans-serif", fontWeight: 600,
                   fontSize: 24, lineHeight: '36px', letterSpacing: '0.0161em', color: '#000000',
-                }}>₹{product.selling_price}</span>
+                }}>{CURR}{product.selling_price}</span>
                 {discountOn && (
                   <span style={{
                     fontFamily: "'Poppins',sans-serif", fontWeight: 400,
@@ -664,7 +674,7 @@ function ProductDetailSheet({
               <span style={{
                 fontFamily: "'Poppins',sans-serif", fontWeight: 500,
                 fontSize: 16, lineHeight: '24px', letterSpacing: '0.0161em', color: '#FFFFFF',
-              }}>{isEditing ? 'Update Cart' : 'Add to Cart'} · ₹{totalPrice}</span>
+              }}>{isEditing ? 'Update Cart' : 'Add to Cart'} · {CURR}{totalPrice}</span>
             </button>
           </div>
         )}
@@ -675,13 +685,14 @@ function ProductDetailSheet({
 
 // ── BROWSE OVERLAY ────────────────────────────────────────────────────────────
 function SearchOverlay({
-  products, categories, onClose, onSelectProduct, tier,
+  products, categories, onClose, onSelectProduct, tier, currencyCode = 'INR',
 }: {
   products: MenuProduct[];
   categories: string[];
   onClose: () => void;
   onSelectProduct: (p: MenuProduct) => void;
   tier: Tier;
+  currencyCode?: 'INR' | 'AED';
 }) {
   useBodyScrollLock();
 
@@ -866,7 +877,7 @@ function SearchOverlay({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {results.map(p => (
-                <BrowseResultCard key={p.id} product={p} tier={tier} onSelect={handleSelect} />
+                <BrowseResultCard key={p.id} product={p} tier={tier} onSelect={handleSelect} currencyCode={currencyCode} />
               ))}
             </div>
           )
@@ -884,12 +895,14 @@ function SearchOverlay({
 
 // ── BROWSE RESULT CARD ────────────────────────────────────────────────────────
 function BrowseResultCard({
-  product: p, tier, onSelect,
+  product: p, tier, onSelect, currencyCode = 'INR',
 }: {
   product: MenuProduct;
   tier: Tier;
   onSelect: (p: MenuProduct) => void;
+  currencyCode?: 'INR' | 'AED';
 }) {
+  const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
   const desc = p.metadata?.variants ? getVariantDishDesc(p.description) : p.description;
 
   return (
@@ -946,7 +959,7 @@ function BrowseResultCard({
         position: 'absolute', left: 8, bottom: 8, margin: 0,
         fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 16,
         lineHeight: '24px', color: T.pink,
-      }}>₹{p.selling_price}</p>
+      }}>{CURR}{p.selling_price}</p>
 
       {/* ADD button */}
       {(tier === 'order' || tier === 'order_no_pay') && (
@@ -970,8 +983,9 @@ function BrowseResultCard({
 
 // ── MAIN TEMPLATE ─────────────────────────────────────────────────────────────
 export default function QRMenuTemplate({
-  shopName, shopTagline, logoUrl, menuProducts, banners, tier, shopId, shopSlug, tableNumber,
+  shopName, shopTagline, logoUrl, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
 }: QRMenuTemplateProps) {
+  const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
   const canOrder = tier === 'order' || tier === 'order_no_pay';
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeProduct, setActiveProduct] = useState<MenuProduct | null>(null);
@@ -1517,7 +1531,7 @@ export default function QRMenuTemplate({
                         <div style={{ position: 'absolute', left: 11, bottom: 8, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                             <span style={{ fontFamily: "'Manrope',sans-serif", fontWeight: 800, fontSize: 18, lineHeight: '25px', letterSpacing: '0.0161em', color: T.pink }}>
-                              ₹{p.selling_price}
+                              {CURR}{p.selling_price}
                             </span>
                             <span style={{ fontFamily: "'Manrope',sans-serif", fontWeight: 400, fontSize: 10, lineHeight: '14px', textDecoration: 'line-through', color: T.descColor, alignSelf: 'center' }}>
                               MRP {numMeta(p.metadata?.original_price)}
@@ -1535,7 +1549,7 @@ export default function QRMenuTemplate({
                           position: 'absolute', left: 8, bottom: 8, margin: 0,
                           fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 16,
                           lineHeight: '24px', color: T.pink,
-                        }}>₹{p.selling_price}</p>
+                        }}>{CURR}{p.selling_price}</p>
                       )}
 
                       {/* ADD / Qty stepper */}
@@ -1731,7 +1745,7 @@ export default function QRMenuTemplate({
               <span style={{
                 fontFamily: "'Poppins',sans-serif", fontWeight: 600,
                 fontSize: 14, lineHeight: '21px', color: '#FFFFFF',
-              }}>₹{cartSubtotal}</span>
+              }}>{CURR}{cartSubtotal}</span>
               <span style={{
                 fontFamily: "'Poppins',sans-serif", fontWeight: 400,
                 fontSize: 12, lineHeight: '18px', color: '#FFFFFF',
@@ -1759,6 +1773,7 @@ export default function QRMenuTemplate({
           tier={tier}
           onClose={closeSearch}
           onSelectProduct={p => { openProduct(p); setSearchOpen(false); }}
+          currencyCode={currencyCode}
         />
       )}
 
@@ -1771,6 +1786,7 @@ export default function QRMenuTemplate({
           onAddToCart={addToCart}
           editingCartItem={editingCartItem}
           onReplaceCartItem={replaceInCart}
+          currencyCode={currencyCode}
         />
       )}
 
@@ -1784,6 +1800,9 @@ export default function QRMenuTemplate({
           onAddMore={() => setCartOpen(false)}
           paymentMode={tier === 'order_no_pay' ? 'no_payment' : undefined}
           onlineEnabled={onlineEnabled}
+          gstRatePct={gstRatePct}
+          currencyCode={currencyCode}
+          whatsappMode={whatsappOrderTaking && tier === 'order_no_pay'}
           onCheckout={(pm) => { if (pm !== 'no_payment') setSelectedPaymentMethod(pm); setCartOpen(false); setCheckoutOpen(true); }}
           onEditItem={(item) => {
             const product = menuProducts.find(p => p.id === item.id);
@@ -1799,6 +1818,9 @@ export default function QRMenuTemplate({
           siteId={shopId}
           paymentMethod={effectivePaymentMethod}
           tableNumber={tableNumber}
+          gstRatePct={gstRatePct}
+          currencyCode={currencyCode}
+          whatsappMode={whatsappOrderTaking && tier === 'order_no_pay'}
           onClose={() => setCheckoutOpen(false)}
           onOrderPlaced={(id, number, pm, counterNumber, tokenNumber) => {
             setCheckoutOpen(false);
@@ -1843,6 +1865,8 @@ export default function QRMenuTemplate({
           paymentMethod={confirmedOrder.paymentMethod}
           tokenNumber={confirmedOrder.tokenNumber}
           tableNumber={tableNumber}
+          gstRatePct={gstRatePct}
+          currencyCode={currencyCode}
           onDone={() => { clearCart(); setConfirmedOrder(null); }}
         />
       )}

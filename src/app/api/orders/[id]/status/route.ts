@@ -65,7 +65,7 @@ export async function GET(
 
   // Unauthenticated: only fetch non-PII columns. Signed link: fetch full receipt.
   const selectCols = signedToken
-    ? 'counter_number,token_number,table_number,payment_status,payment_method,status,order_number,items,subtotal,customer_name'
+    ? 'counter_number,token_number,table_number,payment_status,payment_method,status,order_number,items,subtotal,tax_amount,cgst_amount,sgst_amount,gst_rate_pct,gstin_snapshot,total_amount,customer_name'
     : 'counter_number,token_number,table_number,payment_status,payment_method,status,order_number';
   const url = `${supabaseUrl}/rest/v1/orders?select=${selectCols}&id=eq.${encodeURIComponent(id)}&limit=1`;
   const res = await fetch(url, {
@@ -91,6 +91,12 @@ export async function GET(
     order_number: string;
     items: { name: string; qty: number; price: number; variantSize?: string }[] | null;
     subtotal: number | null;
+    tax_amount?: number | null;
+    cgst_amount?: number | null;
+    sgst_amount?: number | null;
+    gst_rate_pct?: number | null;
+    gstin_snapshot?: string | null;
+    total_amount?: number | null;
     customer_name: string | null;
   }[] = await res.json();
 
@@ -98,12 +104,22 @@ export async function GET(
     return respond({ error: 'Order not found' }, { status: 404 });
   }
 
-  const { counter_number, token_number, table_number, payment_status, payment_method, status, order_number, items, subtotal, customer_name } = rows[0];
+  const r = rows[0];
+  const { counter_number, token_number, table_number, payment_status, payment_method, status, order_number, items, subtotal, customer_name } = r;
 
   // Unauthenticated callers get minimal status only — never PII or item data.
-  // Signed email links get the full receipt.
+  // Signed email links get the full receipt + tax breakup.
   const payload = signedToken
-    ? { counter_number, token_number, table_number, payment_status, payment_method, status, order_number, items, subtotal, customer_name }
+    ? {
+        counter_number, token_number, table_number, payment_status, payment_method, status, order_number,
+        items, subtotal, customer_name,
+        tax_amount:     r.tax_amount     ?? 0,
+        cgst_amount:    r.cgst_amount    ?? 0,
+        sgst_amount:    r.sgst_amount    ?? 0,
+        gst_rate_pct:   r.gst_rate_pct   ?? 0,
+        gstin_snapshot: r.gstin_snapshot ?? null,
+        total_amount:   r.total_amount   ?? r.subtotal,
+      }
     : { counter_number, token_number, table_number, payment_status, payment_method, status, order_number };
 
   return respond(

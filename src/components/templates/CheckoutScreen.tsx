@@ -69,11 +69,18 @@ interface CheckoutScreenProps {
   siteId: string;
   paymentMethod: 'online' | 'counter' | 'no_payment';
   tableNumber?: number;
+  /** GST rate snapshot used for the preview amount shown on the pay-now screen. */
+  gstRatePct?: number;
+  currencyCode?: 'INR' | 'AED';
+  /** When true, "Place Order" calls /api/orders/whatsapp and redirects to wa.me
+   *  instead of going through the token / confirmation flow. */
+  whatsappMode?: boolean;
   onClose: () => void;
   onOrderPlaced: (orderId: string, orderNumber: string, paymentMethod: 'online' | 'counter' | 'no_payment', counterNumber?: string, tokenNumber?: string) => void;
 }
 
-export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumber, onClose, onOrderPlaced }: CheckoutScreenProps) {
+export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumber, gstRatePct = 0, currencyCode = 'INR', whatsappMode = false, onClose, onOrderPlaced }: CheckoutScreenProps) {
+  const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
   const [name, setName]   = useState('');
   const [email, setEmail] = useState('');
   // Phone is collected only for no_payment (qr_order) — Pay-Eat keeps email.
@@ -88,6 +95,9 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
   if (!idempotencyKeyRef.current) idempotencyKeyRef.current = makeIdempotencyKey();
 
   const subtotal = Math.round(items.reduce((sum, i) => sum + i.price * i.qty, 0) * 100) / 100;
+  // Preview-only; server recomputes the canonical tax + total.
+  const taxAmount = gstRatePct > 0 ? Math.round(subtotal * gstRatePct) / 100 : 0;
+  const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
   // Place the order server-side. For online payments this only *creates* the
   // local + Razorpay order — the customer hasn't paid yet. Returns the order
@@ -150,6 +160,45 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
     }
   }
 
+  // WhatsApp ordering: write a lightweight order to the DB (so insights /
+  // transactions / My Orders all work) and redirect the customer to wa.me
+  // with a prefilled message. No token, no confirmation screen.
+  async function submitWhatsappOrder() {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/orders/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId,
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          items: items.map(i => ({ id: i.id, qty: i.qty, variantSize: i.variantSize })),
+          ...(tableNumber ? { tableNumber } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.whatsappUrl) {
+        setError(data.error ?? 'Failed to place order. Please try again.');
+        setLoading(false);
+        return;
+      }
+      // Persist the order id locally so the "My Orders" icon picks it up,
+      // then redirect to WhatsApp. The customer can come back to the menu.
+      try {
+        const existing = JSON.parse(localStorage.getItem('byo:orders') ?? '[]');
+        existing.unshift({ orderId: data.orderId, orderNumber: data.orderNumber, ts: Date.now(), siteId });
+        localStorage.setItem('byo:orders', JSON.stringify(existing.slice(0, 20)));
+      } catch { /* quota / privacy mode — non-fatal */ }
+      // Open in same tab so iOS Safari doesn't block the navigation as a popup.
+      window.location.href = data.whatsappUrl;
+    } catch {
+      setError('Network error. Please check your connection and try again.');
+      setLoading(false);
+    }
+  }
+
   // Step 1: validate, then for online show gateway / for counter submit directly
   async function handlePlaceOrder() {
     if (!name.trim()) { setError('Please enter your name.'); return; }
@@ -167,7 +216,9 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
     }
     setError('');
 
-    if (paymentMethod === 'counter' || paymentMethod === 'no_payment') {
+    if (whatsappMode) {
+      await submitWhatsappOrder();
+    } else if (paymentMethod === 'counter' || paymentMethod === 'no_payment') {
       await submitNonOnlineOrder();
     } else {
       setShowGateway(true);
@@ -285,7 +336,7 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
             fontFamily: "'Poppins',sans-serif", fontWeight: 600,
             fontSize: 18, color: C.dark,
             margin: '0 0 32px', textAlign: 'center',
-          }}>₹{subtotal}</p>
+          }}>{CURR}{totalAmount.toFixed(2)}{gstRatePct > 0 ? <span style={{ fontSize: 12, fontWeight: 400, color: '#676767' }}> (incl. GST)</span> : null}</p>
 
           {error && (
             <p style={{

@@ -32,7 +32,12 @@ export type AuditAction =
     | 'kot_mode_change'
     | 'qr_mode_change'
     | 'printer_settings_change'
-    | 'kot_device_assign';
+    | 'kot_device_assign'
+    | 'gst_set_registered'
+    | 'gst_set_not_registered'
+    | 'gst_reset'
+    | 'whatsapp_order_taking_change'
+    | 'currency_change';
 
 export interface AuditEntry {
     userId: string;

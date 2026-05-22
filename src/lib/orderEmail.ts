@@ -60,6 +60,13 @@ export interface BuildOrderEmailParams {
   shopSlug: string;
   shopName: string;
   subtotal: number;
+  /** GST snapshot — when ratePct > 0 the email shows CGST/SGST + total incl. GST. */
+  gstRatePct?: number;
+  taxAmount?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  gstinSnapshot?: string | null;
+  totalAmount?: number;
   paymentMethod: 'online' | 'counter';
   items: OrderEmailItem[];
 }
@@ -70,8 +77,14 @@ export function buildOrderConfirmationEmail(params: BuildOrderEmailParams): {
   subject: string;
   htmlbody: string;
 } {
-  const { customerName, orderNumber, orderId, tokenNumber, shopSlug, shopName, subtotal, items } =
-    params;
+  const { customerName, orderNumber, orderId, tokenNumber, shopSlug, shopName, subtotal, items } = params;
+  const gstRatePct  = Number(params.gstRatePct ?? 0);
+  const taxAmount   = Number(params.taxAmount  ?? 0);
+  const cgstAmount  = Number(params.cgstAmount ?? (gstRatePct > 0 ? Math.round(taxAmount * 50) / 100 : 0));
+  const sgstAmount  = Number(params.sgstAmount ?? (gstRatePct > 0 ? Math.round((taxAmount - cgstAmount) * 100) / 100 : 0));
+  const totalAmount = Number(params.totalAmount ?? (subtotal + taxAmount));
+  const showGst     = gstRatePct > 0 && taxAmount > 0;
+  const splitRate   = gstRatePct / 2;
 
   const signedToken  = signOrderToken(orderId);
   const orderLink    = `${BASE_URL}/shop/${shopSlug}/order/${orderId}?t=${signedToken}`;
@@ -122,10 +135,33 @@ export function buildOrderConfirmationEmail(params: BuildOrderEmailParams): {
           <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#0A0A0A;text-transform:uppercase;letter-spacing:0.5px;">Order Items</p>
           <table width="100%" cellpadding="0" cellspacing="0">
             ${itemRows}
+            ${showGst ? `
+            <tr>
+              <td style="padding:12px 0 4px;font-size:13px;color:#52525C;">Subtotal</td>
+              <td align="right" style="padding:12px 0 4px;font-size:13px;color:#0A0A0A;">&#8377;${subtotal.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 0;font-size:13px;color:#52525C;">CGST (${splitRate}%)</td>
+              <td align="right" style="padding:2px 0;font-size:13px;color:#0A0A0A;">&#8377;${cgstAmount.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 0;font-size:13px;color:#52525C;">SGST (${splitRate}%)</td>
+              <td align="right" style="padding:2px 0;font-size:13px;color:#0A0A0A;">&#8377;${sgstAmount.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding:8px 0 0;"><div style="border-top:1px solid #E4E4E7;"></div></td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0 0;font-size:15px;font-weight:700;color:#0A0A0A;">Total <span style="font-size:11px;font-weight:400;color:#71717A;">(incl. GST)</span></td>
+              <td align="right" style="padding:8px 0 0;font-size:18px;font-weight:800;color:#5137EF;">&#8377;${totalAmount.toFixed(2)}</td>
+            </tr>
+            ${params.gstinSnapshot ? `<tr><td colspan="2" align="right" style="padding:6px 0 0;font-size:11px;font-family:monospace;color:#71717A;">GSTIN: ${esc(params.gstinSnapshot)}</td></tr>` : ''}
+            ` : `
             <tr>
               <td style="padding:14px 0 0;font-size:15px;font-weight:700;color:#0A0A0A;">Total</td>
               <td align="right" style="padding:14px 0 0;font-size:18px;font-weight:800;color:#5137EF;">&#8377;${subtotal.toFixed(2)}</td>
             </tr>
+            `}
           </table>
         </td></tr>
         <tr><td style="padding:20px 32px 0;"><div style="height:1px;background:#E4E4E7;"></div></td></tr>

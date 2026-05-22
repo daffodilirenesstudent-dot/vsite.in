@@ -8,7 +8,7 @@ import { firebaseAuth } from '@/lib/firebase';
 import DateRangeFilter, { useCurrentRange } from '@/components/DateRangeFilter';
 
 type TxnStatus = 'Success' | 'Failed' | 'Pending' | 'Refunded';
-type PaymentMode = 'Card' | 'UPI' | 'Cash' | 'NetBanking' | 'Wallet';
+type PaymentMode = 'Card' | 'UPI' | 'Cash' | 'NetBanking' | 'Wallet' | 'Manual Pay';
 
 interface OrderItemSummary { qty: number; name: string; price?: number; variantSize?: string }
 

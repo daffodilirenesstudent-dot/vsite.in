@@ -20,6 +20,12 @@ interface OrderStatus {
   order_number: string;
   items: OrderItem[] | null;
   subtotal: string | number | null;
+  tax_amount?: string | number | null;
+  cgst_amount?: string | number | null;
+  sgst_amount?: string | number | null;
+  gst_rate_pct?: string | number | null;
+  gstin_snapshot?: string | null;
+  total_amount?: string | number | null;
   customer_name: string | null;
 }
 
@@ -84,9 +90,16 @@ function OrderStatusContent() {
 
   const meta  = status?.token_number ? tokenMeta(status.token_number) : null;
   const items = status?.items ?? [];
-  const total = status?.subtotal != null
+  const subtotalNum = status?.subtotal != null
     ? parseFloat(String(status.subtotal))
     : Math.round(items.reduce((s, i) => s + i.price * i.qty, 0) * 100) / 100;
+  const taxNum   = status?.tax_amount   != null ? parseFloat(String(status.tax_amount))   : 0;
+  const cgstNum  = status?.cgst_amount  != null ? parseFloat(String(status.cgst_amount))  : 0;
+  const sgstNum  = status?.sgst_amount  != null ? parseFloat(String(status.sgst_amount))  : 0;
+  const rateNum  = status?.gst_rate_pct != null ? parseFloat(String(status.gst_rate_pct)) : 0;
+  const total    = status?.total_amount != null ? parseFloat(String(status.total_amount)) : (subtotalNum + taxNum);
+  const showGst  = taxNum > 0;
+  const splitRate = rateNum / 2;
 
   return (
     <div style={{
@@ -279,13 +292,32 @@ function OrderStatusContent() {
                     </div>
                   ))}
 
+                  {showGst && (
+                    <div style={{ padding: '10px 16px', borderTop: '1px solid #F4F4F5', background: '#FFFFFF', fontSize: 13, color: '#52525C' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                        <span>Subtotal</span><span>₹{subtotalNum.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                        <span>CGST ({splitRate}%)</span><span>₹{cgstNum.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                        <span>SGST ({splitRate}%)</span><span>₹{sgstNum.toFixed(2)}</span>
+                      </div>
+                      {status?.gstin_snapshot && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: '#71717A', fontFamily: 'monospace' }}>
+                          GSTIN: {status.gstin_snapshot}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Total row */}
                   <div style={{
                     padding: '12px 16px', borderTop: '1px solid #E4E4E7', background: '#F9F9F9',
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#0A0A0A' }}>Total</span>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0A0A0A' }}>₹{total}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#0A0A0A' }}>Total {showGst && <span style={{ fontSize: 11, fontWeight: 400, color: '#71717A' }}>(incl. GST)</span>}</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0A0A0A' }}>₹{Number(total).toFixed(2)}</span>
                   </div>
                 </div>
               )}

@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
       if (idemKey) {
         const { data: existing } = await supabaseServer
           .from('pending_online_orders')
-          .select('razorpay_order_id, subtotal, site_id')
+          .select('razorpay_order_id, subtotal, total_amount, site_id')
           .eq('site_id', siteId)
           .eq('idempotency_key', idemKey)
           .maybeSingle();
@@ -201,17 +201,22 @@ export async function POST(request: NextRequest) {
               deferredFinalization:  true,
               razorpayOrderId:       existing.razorpay_order_id,
               razorpayKey:           integration.publicToken,
-              amount:                Math.round(Number(existing.subtotal) * 100),
+              // Use total_amount (subtotal + tax) when set, fall back to subtotal
+              // for legacy pending rows created before GST columns existed.
+              amount:                Math.round(Number(existing.total_amount ?? existing.subtotal) * 100),
               replayed:              true,
             });
           }
         }
       }
 
-      // 2. Site liveness + plan check
+      // 2. Site liveness + plan check + GST snapshot.
+      //    Read the rate alongside the liveness fields so we lock the rate at
+      //    the moment we ask Razorpay to charge — any subsequent admin rate
+      //    change won't affect this in-flight order.
       const { data: site } = await supabaseServer
         .from('sites')
-        .select('id, name, slug, is_live, is_open')
+        .select('id, name, slug, is_live, is_open, gst_status, gst_rate_pct, gstin')
         .eq('id', siteId)
         .maybeSingle();
       if (!site)                  return NextResponse.json({ error: 'Store not found' },              { status: 404 });
@@ -266,6 +271,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid order total' }, { status: 400 });
       }
 
+      // GST snapshot — only collect tax when the store has actually completed
+      // GST onboarding as 'registered'. A NULL rate or any other status means 0%.
+      const gstRatePct: number = (site.gst_status === 'registered' && site.gst_rate_pct)
+        ? Number(site.gst_rate_pct)
+        : 0;
+      const gstinSnapshot: string | null = gstRatePct > 0 ? (site.gstin ?? null) : null;
+      const taxAmount: number = Math.round(subtotal * gstRatePct) / 100;
+      const totalAmount: number = Math.round((subtotal + taxAmount) * 100) / 100;
+
       // 4. Razorpay integration must be connected for this restaurant.
       const integration = await getActiveIntegration(siteId);
       if (!integration) {
@@ -279,10 +293,10 @@ export async function POST(request: NextRequest) {
       let rzpOrder: { id: string; amount: number; currency: string };
       try {
         rzpOrder = await createRazorpayOrder(integration.accessToken, {
-          amount:   Math.round(subtotal * 100),
+          amount:   Math.round(totalAmount * 100),
           currency: 'INR',
           receipt:  `pending-${(idemKey || crypto.randomBytes(6).toString('hex')).slice(0, 32)}`,
-          notes:    { site_id: siteId },
+          notes:    { site_id: siteId, gst_rate_pct: String(gstRatePct), tax_amount: String(taxAmount) },
         });
       } catch (err) {
         console.error('[POST /api/orders] razorpay create order (online pending) failed:', err);
@@ -303,6 +317,10 @@ export async function POST(request: NextRequest) {
           customer_phone:    cleanPhone || null,
           items:             verifiedItems,
           subtotal,
+          tax_amount:        taxAmount,
+          total_amount:      totalAmount,
+          gst_rate_pct:      gstRatePct,
+          gstin_snapshot:    gstinSnapshot,
           table_number:      tableNumber ?? null,
           idempotency_key:   idemKey || null,
           client_ip_hash:    ipHash,
@@ -318,7 +336,11 @@ export async function POST(request: NextRequest) {
         deferredFinalization: true,
         razorpayOrderId:      rzpOrder.id,
         razorpayKey:          integration.publicToken,
-        amount:               Math.round(subtotal * 100),
+        amount:               Math.round(totalAmount * 100),
+        subtotal,
+        taxAmount,
+        totalAmount,
+        gstRatePct,
       });
     }
 
@@ -332,7 +354,6 @@ export async function POST(request: NextRequest) {
         p_site_id:        siteId,
         p_customer_name:  cleanName,
         p_customer_email: cleanEmail,
-        p_customer_phone: cleanPhone,
         p_payment_method: paymentMethod,
         p_items_json:     items.map(it => ({
           id:          it.id,

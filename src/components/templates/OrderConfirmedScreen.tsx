@@ -28,6 +28,9 @@ interface OrderConfirmedScreenProps {
   paymentMethod: 'online' | 'counter' | 'no_payment';
   tokenNumber?: string;
   tableNumber?: number;
+  /** Same rate used by the server. Display-only — server is authoritative. */
+  gstRatePct?: number;
+  currencyCode?: 'INR' | 'AED';
   onDone: () => void;
 }
 
@@ -46,9 +49,16 @@ function consolidateItems(items: CartItem[]): CartItem[] {
 }
 
 export default function OrderConfirmedScreen({
-  orderNumber, shopName, items, subtotal, paymentMethod, tokenNumber, tableNumber, onDone,
+  orderNumber, shopName, items, subtotal, paymentMethod, tokenNumber, tableNumber, gstRatePct = 0, currencyCode = 'INR', onDone,
 }: OrderConfirmedScreenProps) {
+  const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
   const displayItems = consolidateItems(items);
+  const showGst    = gstRatePct > 0;
+  const taxAmount  = showGst ? Math.round(subtotal * gstRatePct) / 100 : 0;
+  const cgstAmount = Math.round(taxAmount * 50) / 100;
+  const sgstAmount = Math.round((taxAmount - cgstAmount) * 100) / 100;
+  const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100;
+  const splitRate  = gstRatePct / 2;
   const [phase, setPhase] = useState<'success' | 'details'>('success');
   const [downloading, setDownloading] = useState(false);
   const billRef = useRef<HTMLDivElement>(null);
@@ -360,9 +370,29 @@ export default function OrderConfirmedScreen({
 
             <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 14 }} />
 
+            {showGst && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray500 }}>Subtotal</span>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 13, color: C.dark }}>{CURR}{subtotal.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray500 }}>CGST ({splitRate}%)</span>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 13, color: C.dark }}>{CURR}{cgstAmount.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 13, color: C.gray500 }}>SGST ({splitRate}%)</span>
+                  <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 13, color: C.dark }}>{CURR}{sgstAmount.toFixed(2)}</span>
+                </div>
+                <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 14 }} />
+              </>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.dark }}>Total</span>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 20, color: C.dark }}>₹{subtotal}</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: C.dark }}>
+                Total {showGst && <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 11, color: C.gray400 }}>(incl. GST)</span>}
+              </span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 20, color: C.dark }}>{CURR}{grandTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>

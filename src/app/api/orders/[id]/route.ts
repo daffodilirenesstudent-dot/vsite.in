@@ -53,7 +53,7 @@ export async function PATCH(
     // ── Verify ownership: order must belong to a site this user owns ──────────
     const { data: order, error: orderErr } = await supabaseServer
       .from('orders')
-      .select('id, site_id, status, payment_status, payment_method, customer_name, customer_email, order_number, items, subtotal')
+      .select('id, site_id, status, payment_status, payment_method, customer_name, customer_email, order_number, items, subtotal, tax_amount, cgst_amount, sgst_amount, gst_rate_pct, gstin_snapshot, total_amount')
       .eq('id', orderId)
       .single();
 
@@ -131,6 +131,10 @@ export async function PATCH(
         const itemsArr = Array.isArray(order.items)
           ? (order.items as { name: string; qty: number; price: number; variantSize?: string }[])
           : [];
+        const ord = order as typeof order & {
+          tax_amount?: number | null; cgst_amount?: number | null; sgst_amount?: number | null;
+          gst_rate_pct?: number | null; gstin_snapshot?: string | null; total_amount?: number | null;
+        };
         const { subject, htmlbody } = buildOrderConfirmationEmail({
           customerName:  order.customer_name,
           orderNumber:   order.order_number,
@@ -139,6 +143,12 @@ export async function PATCH(
           shopSlug:      site.slug ?? order.site_id,
           shopName:      site.name ?? 'Your Store',
           subtotal:      Number(order.subtotal),
+          gstRatePct:    Number(ord.gst_rate_pct ?? 0),
+          taxAmount:     Number(ord.tax_amount   ?? 0),
+          cgstAmount:    Number(ord.cgst_amount  ?? 0),
+          sgstAmount:    Number(ord.sgst_amount  ?? 0),
+          totalAmount:   Number(ord.total_amount ?? ord.subtotal),
+          gstinSnapshot: ord.gstin_snapshot ?? null,
           paymentMethod: 'counter',
           items:         itemsArr.map(i => ({ name: i.name, qty: i.qty, price: i.price, variantSize: i.variantSize })),
         });

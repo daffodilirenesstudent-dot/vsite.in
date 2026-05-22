@@ -51,6 +51,10 @@ interface PendingRow {
   customer_phone:    string | null;
   items:             Array<{ id: string; name: string; qty: number; price: number; variantSize: string | null }>;
   subtotal:          number;
+  tax_amount:        number | null;
+  total_amount:      number | null;
+  gst_rate_pct:      number | null;
+  gstin_snapshot:    string | null;
   table_number:      number | null;
   idempotency_key:   string | null;
   client_ip_hash:    string | null;
@@ -118,7 +122,10 @@ export async function POST(request: NextRequest) {
   if (payment.status !== 'captured' && payment.status !== 'authorized') {
     return NextResponse.json({ error: `Payment not completed (status: ${payment.status})` }, { status: 400 });
   }
-  const expectedAmount = Math.round(Number(pending.subtotal) * 100);
+  // Razorpay was asked to charge subtotal + GST. Legacy pending rows (created
+  // before migration 046) have null total_amount — fall back to subtotal.
+  const expectedRupees  = pending.total_amount ?? pending.subtotal;
+  const expectedAmount  = Math.round(Number(expectedRupees) * 100);
   if (Number(payment.amount) !== expectedAmount) {
     console.error('[finalize-payment] amount mismatch', { expected: expectedAmount, actual: payment.amount });
     return NextResponse.json({ error: 'Amount mismatch' }, { status: 400 });
@@ -135,7 +142,6 @@ export async function POST(request: NextRequest) {
       p_site_id:         pending.site_id,
       p_customer_name:   pending.customer_name,
       p_customer_email:  pending.customer_email ?? '',
-      p_customer_phone:  pending.customer_phone ?? '',
       p_payment_method:  'online',
       p_items_json:      items,
       p_table_number:    pending.table_number ?? null,
@@ -147,6 +153,12 @@ export async function POST(request: NextRequest) {
       p_rl_window_ms:    60_000,
       p_rl_site_limit:   999_999, // bypass — customer has already paid
       p_rl_ip_limit:     999_999,
+      // Lock the tax to the rate that was active when Razorpay was charged.
+      // If admin changes the store's rate between Razorpay redirect and capture,
+      // we must still snapshot the *original* rate so the recorded tax matches
+      // what the customer actually paid.
+      p_gst_rate_override: pending.gst_rate_pct ?? 0,
+      p_gstin_override:    pending.gstin_snapshot,
     });
     if (error) throw error;
     rpcData = (data as Record<string, unknown>) ?? {};
@@ -204,6 +216,10 @@ export async function POST(request: NextRequest) {
         shopSlug:      siteSlug || pending.site_id,
         shopName:      siteName,
         subtotal:      Number(pending.subtotal),
+        gstRatePct:    Number(pending.gst_rate_pct ?? 0),
+        taxAmount:     Number(pending.tax_amount   ?? 0),
+        totalAmount:   Number(pending.total_amount ?? pending.subtotal),
+        gstinSnapshot: pending.gstin_snapshot,
         paymentMethod: 'online',
         items:         pending.items.map(it => ({
           name: it.name, qty: it.qty, price: it.price, variantSize: it.variantSize ?? undefined,

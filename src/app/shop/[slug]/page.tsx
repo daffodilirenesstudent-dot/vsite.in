@@ -51,11 +51,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
 }
 
-async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuProduct[]; banners: ShopBanner[]; canGoLive: boolean; tier: 'view' | 'order' | 'order_no_pay'; qrMode: string; tableCount: number } | null> {
+async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuProduct[]; banners: ShopBanner[]; canGoLive: boolean; tier: 'view' | 'order' | 'order_no_pay'; qrMode: string; tableCount: number; gstRatePct: number; whatsappOrderTaking: boolean; currencyCode: 'INR' | 'AED' } | null> {
     // 1. Fetch Site
     const { data: site, error: siteError } = await supabaseServer
         .from('sites')
-        .select('id, slug, name, description, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, image_url, tagline, social_links, type, is_live, created_at, user_id, qr_mode, table_count')
+        .select('id, slug, name, description, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, image_url, tagline, social_links, type, is_live, created_at, user_id, qr_mode, table_count, gst_status, gst_rate_pct, whatsapp_order_taking, whatsapp_order_number, currency_code')
         .eq('slug', slug)
         .single();
 
@@ -138,7 +138,16 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
         is_live: site.is_live,
     };
 
-    return { shop: shopData, menuProducts: (products || []) as MenuProduct[], banners: (bannersData || []) as ShopBanner[], canGoLive, tier, qrMode: (site.qr_mode ?? 'common') as string, tableCount: (site.table_count ?? 50) as number };
+    // GST preview rate — only show tax on the cart when the store has completed
+    // GST onboarding as 'registered'. The server still recomputes authoritatively.
+    const siteRow = site as Record<string, unknown>;
+    const gstRatePct = (siteRow.gst_status === 'registered' && siteRow.gst_rate_pct != null)
+      ? Number(siteRow.gst_rate_pct)
+      : 0;
+    const whatsappOrderTaking = siteRow.whatsapp_order_taking === true && !!siteRow.whatsapp_order_number;
+    const currencyCode: 'INR' | 'AED' = siteRow.currency_code === 'AED' ? 'AED' : 'INR';
+
+    return { shop: shopData, menuProducts: (products || []) as MenuProduct[], banners: (bannersData || []) as ShopBanner[], canGoLive, tier, qrMode: (site.qr_mode ?? 'common') as string, tableCount: (site.table_count ?? 50) as number, gstRatePct, whatsappOrderTaking, currencyCode };
 }
 
 export default async function ShopPage({ params, searchParams }: PageProps) {
@@ -153,7 +162,7 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
         notFound();
     }
 
-    const { shop, menuProducts, banners, canGoLive, tier, qrMode, tableCount } = result;
+    const { shop, menuProducts, banners, canGoLive, tier, qrMode, tableCount, gstRatePct, whatsappOrderTaking, currencyCode } = result;
 
     // Check if shop is live (also gates on trial/subscription)
     if (shop.is_live === false || !canGoLive) {
@@ -211,5 +220,5 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
     // pay_eat = common QR only — ignore any ?table= param that may appear in the URL
     const effectiveTableNumber = tier === 'order' ? undefined : validTableNumber;
 
-    return <ShopPageClient shop={shop} menuProducts={menuProducts} banners={banners} tier={tier} tableNumber={effectiveTableNumber} />;
+    return <ShopPageClient shop={shop} menuProducts={menuProducts} banners={banners} tier={tier} tableNumber={effectiveTableNumber} gstRatePct={gstRatePct} whatsappOrderTaking={whatsappOrderTaking} currencyCode={currencyCode} />;
 }

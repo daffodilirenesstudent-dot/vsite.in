@@ -23,7 +23,7 @@ export const fetchCache = 'force-no-store';
 const PAGE_SIZE = 100;
 
 const SELECT_COLS =
-  'id, site_id, order_number, customer_name, table_number, items, subtotal, payment_method, payment_status, status, counter_number, token_number, created_at, updated_at';
+  'id, site_id, order_number, customer_name, table_number, items, subtotal, tax_amount, cgst_amount, sgst_amount, gst_rate_pct, gstin_snapshot, total_amount, payment_method, payment_status, status, counter_number, token_number, created_at, updated_at';
 
 export async function GET(request: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────────

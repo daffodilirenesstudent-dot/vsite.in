@@ -20,6 +20,12 @@ interface Order {
   table_number: string | null;
   items: OrderItem[];
   subtotal: number;
+  tax_amount?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  gst_rate_pct?: number;
+  gstin_snapshot?: string | null;
+  total_amount?: number;
   payment_method: 'online' | 'counter' | 'no_payment';
   payment_status: 'pending' | 'paid';
   status: OrderStatus;
@@ -489,7 +495,11 @@ export default function OrdersPage() {
       const total = price * i.qty;
       return { qty: i.qty, name: i.name, variant: i.variantSize ?? null, price, total };
     });
-    const grandTotal = order.subtotal ?? items.reduce((s, i) => s + i.total, 0);
+    const subtotalAmt = order.subtotal ?? items.reduce((s, i) => s + i.total, 0);
+    const taxAmt      = Number(order.tax_amount ?? 0);
+    const grandTotal  = order.total_amount ?? (subtotalAmt + taxAmt);
+    const ratePct     = Number(order.gst_rate_pct ?? 0);
+    const gstin       = order.gstin_snapshot ?? null;
 
     if (billPrinterName) {
       fetch('http://127.0.0.1:7878/print', {
@@ -505,7 +515,13 @@ export default function OrdersPage() {
             orderNumber: order.order_number,
             createdAt:   order.created_at,
             items,
-            subtotal:  grandTotal,
+            subtotal:    subtotalAmt,
+            taxLabel:    ratePct > 0 ? `GST (${ratePct}%)` : undefined,
+            taxAmount:   ratePct > 0 ? taxAmt : undefined,
+            cgstAmount:  ratePct > 0 ? Number(order.cgst_amount ?? 0) : undefined,
+            sgstAmount:  ratePct > 0 ? Number(order.sgst_amount ?? 0) : undefined,
+            gstRatePct:  ratePct,
+            gstin,
             grandTotal,
             currencySymbol: 'Rs.',
           },
@@ -815,7 +831,7 @@ export default function OrdersPage() {
               <hr style={{ borderTop: '1px dashed #999', margin: '8px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16, margin: '8px 0' }}>
                 <span>TOTAL</span>
-                <span>₹{Math.round(billPrintTarget.orders.reduce((s, o) => s + o.subtotal, 0) * 100) / 100}</span>
+                <span>₹{Math.round(billPrintTarget.orders.reduce((s, o) => s + (o.total_amount ?? o.subtotal), 0) * 100) / 100}</span>
               </div>
               <p style={{ textAlign: 'center', fontSize: 12, marginTop: 24 }}>Thank you for dining with us!</p>
             </div>
@@ -920,7 +936,7 @@ export default function OrdersPage() {
                           >
                             <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Takeaway</p>
                             <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0A0A0A' }}>{twNum}</p>
-                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isPrinted ? '#15803D' : '#92400E' }}>₹{order.subtotal}</p>
+                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isPrinted ? '#15803D' : '#92400E' }}>₹{order.total_amount ?? order.subtotal}</p>
 
                             <div style={{ position: 'absolute', bottom: 10, right: 10, display: 'flex', gap: 6 }}>
                               <button
@@ -966,7 +982,7 @@ export default function OrdersPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
                   {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => {
                     const tableOrds = getTableOrders(n);
-                    const total     = Math.round(tableOrds.reduce((s, o) => s + o.subtotal, 0) * 100) / 100;
+                    const total     = Math.round(tableOrds.reduce((s, o) => s + (o.total_amount ?? o.subtotal), 0) * 100) / 100;
                     const state          = getTableState(n);
                     const isEmpty        = state === 'empty';
                     const isPrinted      = state === 'bill_printed';
@@ -1113,7 +1129,7 @@ export default function OrdersPage() {
                     const tableOrds = getTableOrders(infoTableNum).slice().sort(
                       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
                     );
-                    const total = Math.round(tableOrds.reduce((s, o) => s + o.subtotal, 0) * 100) / 100;
+                    const total = Math.round(tableOrds.reduce((s, o) => s + (o.total_amount ?? o.subtotal), 0) * 100) / 100;
                     return (
                       <>
                         {tableOrds.map((ord, idx) => (
@@ -1186,7 +1202,7 @@ export default function OrdersPage() {
                   </div>
                   <div style={{ borderTop: '1px solid #E4E4E7', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 700, fontSize: 16 }}>Total</span>
-                    <span style={{ fontWeight: 800, fontSize: 20 }}>₹{infoOrder.subtotal}</span>
+                    <span style={{ fontWeight: 800, fontSize: 20 }}>₹{infoOrder.total_amount ?? infoOrder.subtotal}</span>
                   </div>
                   <p style={{ fontSize: 12, color: '#99A1AF', marginTop: 6 }}>
                     {infoOrder.customer_name} · {formatTime(infoOrder.created_at)}
@@ -1198,7 +1214,7 @@ export default function OrdersPage() {
 
           {/* ── Checkout modal ── */}
           {checkoutTarget && (() => {
-            const liveTotal = Math.round(getTableOrders(checkoutTarget.num).reduce((s, o) => s + o.subtotal, 0) * 100) / 100;
+            const liveTotal = Math.round(getTableOrders(checkoutTarget.num).reduce((s, o) => s + (o.total_amount ?? o.subtotal), 0) * 100) / 100;
             return (
             <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={() => !checkoutLoading && setCheckoutTarget(null)}>
               <div className="bg-white mx-4" style={{ width: '100%', maxWidth: 340, borderRadius: 16, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
@@ -1254,7 +1270,7 @@ export default function OrdersPage() {
               <div className="bg-white mx-4" style={{ width: '100%', maxWidth: 340, borderRadius: 16, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: '#71717A', margin: '0 0 2px' }}>Takeaway Checkout</p>
                 <p style={{ fontSize: 22, fontWeight: 800, color: '#0A0A0A', margin: '0 0 4px' }}>{checkoutOrderTarget.token_number ?? 'Takeaway'}</p>
-                <p style={{ fontSize: 28, fontWeight: 900, color: '#0A0A0A', margin: '0 0 20px' }}>₹{checkoutOrderTarget.subtotal}</p>
+                <p style={{ fontSize: 28, fontWeight: 900, color: '#0A0A0A', margin: '0 0 20px' }}>₹{checkoutOrderTarget.total_amount ?? checkoutOrderTarget.subtotal}</p>
 
                 <p style={{ fontSize: 12, color: '#71717A', marginBottom: 8 }}>Payment method</p>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
@@ -1376,7 +1392,7 @@ export default function OrdersPage() {
 
                     <div style={{ fontSize: 13, color: '#52525C' }}>{formatTime(order.created_at)}</div>
 
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{order.subtotal}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>₹{order.total_amount ?? order.subtotal}</div>
 
                     <div style={{ fontSize: 11, fontWeight: 600, color: order.payment_status === 'paid' ? '#16A34A' : '#F97316', display: 'flex', alignItems: 'center', gap: 6 }}>
                       {order.payment_method === 'counter' && order.payment_status === 'pending' ? (
@@ -1486,7 +1502,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span style={{ fontSize: 12, color: '#52525C' }}>{order.customer_name}{order.table_number ? ` · T-${order.table_number}` : ''}</span>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>₹{order.subtotal}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>₹{order.total_amount ?? order.subtotal}</span>
                     </div>
                     <p style={{ fontSize: 11, color: '#99A1AF', marginTop: 3 }}>{formatTime(order.created_at)}</p>
                   </div>
@@ -1520,8 +1536,26 @@ export default function OrdersPage() {
                 <div style={{ padding: '20px 24px' }}>
                   <div className="flex items-start justify-between" style={{ marginBottom: 4 }}>
                     <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 24 }}>{orderIdLabel(selectedOrder)}</p>
-                    <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 24 }}>₹{selectedOrder.subtotal}</p>
+                    <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 24 }}>₹{selectedOrder.total_amount ?? selectedOrder.subtotal}</p>
                   </div>
+                  {(selectedOrder.tax_amount ?? 0) > 0 && (
+                    <div style={{ background: '#FAFAFA', border: '1px solid #E4E4E7', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#52525C', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>₹{Number(selectedOrder.subtotal).toFixed(2)}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>CGST ({Number(selectedOrder.gst_rate_pct ?? 0) / 2}%)</span>
+                        <span>₹{Number(selectedOrder.cgst_amount ?? 0).toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>SGST ({Number(selectedOrder.gst_rate_pct ?? 0) / 2}%)</span>
+                        <span>₹{Number(selectedOrder.sgst_amount ?? 0).toFixed(2)}</span>
+                      </div>
+                      {selectedOrder.gstin_snapshot && (
+                        <div style={{ marginTop: 4, fontFamily: 'monospace', fontSize: 10, color: '#71717A' }}>
+                          GSTIN: {selectedOrder.gstin_snapshot}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
                     <div>
                       <p className="text-[#52525C]" style={{ fontSize: 14 }}>{selectedOrder.customer_name}</p>

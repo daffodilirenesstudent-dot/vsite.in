@@ -8,11 +8,14 @@ import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/utils/compressImage';
 import { useSite } from '@/components/SiteContext';
 import { useAuth } from '@/components/AuthContext';
+import { usePlan } from '@/components/PlanContext';
+import GstWizard, { type GstProfile } from './_components/GstWizard';
 
 export default function SettingsPage() {
     const router = useRouter();
     const { activeSite, refreshSites } = useSite();
     const { user, signOut } = useAuth();
+    const { isQrOrder } = usePlan();
 
     const handleSignOut = async () => {
         await signOut();
@@ -53,6 +56,21 @@ export default function SettingsPage() {
     const [rzpBusy,          setRzpBusy]          = useState<'connect' | 'disconnect' | 'change' | null>(null);
     const [rzpBanner,        setRzpBanner]        = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
+    // ── WhatsApp order taking ─────────────────────────────────────────────────
+    const [whatsappEnabled,    setWhatsappEnabled]    = useState(false);
+    const [whatsappNumber,     setWhatsappNumber]     = useState('');
+    const [whatsappSaving,     setWhatsappSaving]     = useState(false);
+
+    // ── Display currency ──────────────────────────────────────────────────────
+    const [currencyCode,       setCurrencyCode]       = useState<'INR' | 'AED'>('INR');
+    const [currencySaving,     setCurrencySaving]     = useState(false);
+
+    // ── GST compliance state ──────────────────────────────────────────────────
+    const [gstProfile,        setGstProfile]        = useState<GstProfile | null>(null);
+    const [gstLoading,        setGstLoading]        = useState(true);
+    const [gstWizardOpen,     setGstWizardOpen]     = useState(false);
+    const [gstResetting,      setGstResetting]      = useState(false);
+
     // ── KOT settings state ────────────────────────────────────────────────────
     const [kotMode,         setKotModeState]   = useState<'manual' | 'automatic'>('manual');
     const [kotModeLoaded,   setKotModeLoaded]  = useState(false);
@@ -84,7 +102,7 @@ export default function SettingsPage() {
         setLogoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
         supabase
             .from('sites')
-            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name')
+            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -103,6 +121,10 @@ export default function SettingsPage() {
                     setKotModeLoaded(true);
                     setKotPrinterName((data as Record<string, unknown>).kot_printer_name as string | null ?? null);
                     setBillPrinterName((data as Record<string, unknown>).bill_printer_name as string | null ?? null);
+                    const d = data as Record<string, unknown>;
+                    setWhatsappEnabled(d.whatsapp_order_taking === true);
+                    setWhatsappNumber((d.whatsapp_order_number as string | null) ?? '');
+                    setCurrencyCode((d.currency_code === 'AED' ? 'AED' : 'INR'));
                     try {
                         setKotDevMode(localStorage.getItem('kot_dev_mode') === '1');
                     } catch { /* ignore */ }
@@ -244,6 +266,90 @@ export default function SettingsPage() {
             document.removeEventListener('visibilitychange', onVisibility);
         };
     }, [siteId]);
+
+    // ── GST profile load ──────────────────────────────────────────────────────
+    const loadGstProfile = async (sid: string) => {
+        setGstLoading(true);
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch(`/api/manage/sites/${sid}/gst`, {
+                headers: { Authorization: `Bearer ${token}` },
+                cache:   'no-store',
+            });
+            if (res.ok) setGstProfile(await res.json());
+            else setGstProfile(null);
+        } catch {
+            setGstProfile(null);
+        } finally {
+            setGstLoading(false);
+        }
+    };
+    useEffect(() => {
+        if (!siteId) return;
+        loadGstProfile(siteId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [siteId]);
+
+    const saveWhatsapp = async (enabled: boolean, number: string) => {
+        if (!siteId || whatsappSaving) return;
+        setWhatsappSaving(true);
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch(`/api/manage/sites/${siteId}/whatsapp-orders`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ enabled, whatsapp_number: number }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { toast.error(data.error ?? 'Failed to save'); return; }
+            setWhatsappEnabled(data.whatsapp_order_taking);
+            setWhatsappNumber(data.whatsapp_order_number ?? '');
+            toast.success(enabled ? 'WhatsApp ordering enabled' : 'WhatsApp ordering disabled');
+        } finally {
+            setWhatsappSaving(false);
+        }
+    };
+
+    const saveCurrency = async (code: 'INR' | 'AED') => {
+        if (!siteId || currencySaving || code === currencyCode) return;
+        setCurrencySaving(true);
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch(`/api/manage/sites/${siteId}/currency`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ currency_code: code }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { toast.error(data.error ?? 'Failed to switch currency'); return; }
+            setCurrencyCode(data.currency_code);
+            toast.success(`Currency set to ${code}`);
+        } finally {
+            setCurrencySaving(false);
+        }
+    };
+
+    const handleEditGst = async () => {
+        if (!siteId || gstResetting) return;
+        if (!confirm('Edit your GST setup? Your current GSTIN and rate will be cleared and you\'ll go through the wizard again. Past orders keep their original GST.')) return;
+        setGstResetting(true);
+        try {
+            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            if (!token) return;
+            const res = await fetch(`/api/manage/sites/${siteId}/gst/reset`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) { toast.error('Failed to reset GST profile'); return; }
+            await loadGstProfile(siteId);
+            setGstWizardOpen(true);
+        } finally {
+            setGstResetting(false);
+        }
+    };
 
     // Show banner from OAuth callback redirect query params (?connected=1 | ?error=…).
     useEffect(() => {
@@ -1053,6 +1159,226 @@ export default function SettingsPage() {
                 })()}
             </div>
 
+            {/* ── GST Compliance ── */}
+            <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
+                <div className="flex items-start gap-3 mb-5">
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#047857' }}>verified_user</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <h2 className="font-semibold" style={{ fontSize: 16, lineHeight: '24px', color: '#0A0A0A' }}>GST Compliance</h2>
+                        <p style={{ fontSize: 13, color: '#71717A', lineHeight: '20px', marginTop: 2 }}>
+                            Verify your GSTIN and choose your collection rate. Tax is added automatically to every customer bill.
+                        </p>
+                    </div>
+                </div>
+
+                {gstLoading || !gstProfile ? (
+                    <div className="flex items-center justify-center p-4" style={{ background: '#FAFAFA', borderRadius: 12, border: '1px solid #E4E4E7' }}>
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-[#5137EF]" />
+                    </div>
+                ) : gstProfile.gst_status === 'pending' ? (
+                    <div className="flex items-center justify-between gap-3 p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                        <div>
+                            <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Not set up yet</p>
+                            <p style={{ fontSize: 12, color: '#71717A' }}>This step is required before GST can appear on customer bills.</p>
+                        </div>
+                        <button
+                            onClick={() => setGstWizardOpen(true)}
+                            className="hover:opacity-90"
+                            style={{ background: '#5137EF', color: '#fff', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                            Set up GST
+                        </button>
+                    </div>
+                ) : gstProfile.gst_status === 'not_registered' ? (
+                    <div className="flex items-center justify-between gap-3 p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#047857' }}>check_circle</span>
+                            <div>
+                                <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A' }}>Marked as not GST-registered</p>
+                                <p style={{ fontSize: 12, color: '#71717A' }}>No GST will be added to customer bills.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleEditGst}
+                            disabled={gstResetting}
+                            className="hover:bg-neutral-50"
+                            style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, color: '#0A0A0A', background: '#fff', cursor: gstResetting ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                            Change
+                        </button>
+                    </div>
+                ) : (
+                    /* gst_status === 'registered' */
+                    <div className="rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                        <div className="flex items-center justify-between gap-3 p-4" style={{ borderBottom: '1px solid #E4E4E7' }}>
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#047857' }}>verified</span>
+                                <div>
+                                    <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A' }}>
+                                        GST registered · {Number(gstProfile.gst_rate_pct ?? 0)}% collection rate
+                                    </p>
+                                    <p style={{ fontSize: 12, color: '#71717A' }}>
+                                        Verified {gstProfile.gst_verified_at
+                                            ? new Date(gstProfile.gst_verified_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                            : ''}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleEditGst}
+                                disabled={gstResetting}
+                                className="hover:bg-white"
+                                style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, color: '#0A0A0A', background: '#fff', cursor: gstResetting ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                                {gstResetting ? 'Resetting…' : 'Edit'}
+                            </button>
+                        </div>
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3" style={{ fontSize: 13 }}>
+                            <div>
+                                <p style={{ fontSize: 11, color: '#71717A', textTransform: 'uppercase', letterSpacing: 0.3 }}>GSTIN</p>
+                                <p style={{ color: '#0A0A0A', fontFamily: 'monospace', marginTop: 2 }}>{gstProfile.gstin}</p>
+                            </div>
+                            <div>
+                                <p style={{ fontSize: 11, color: '#71717A', textTransform: 'uppercase', letterSpacing: 0.3 }}>Legal name</p>
+                                <p style={{ color: '#0A0A0A', marginTop: 2 }}>{gstProfile.gst_legal_name ?? '—'}</p>
+                            </div>
+                            <div>
+                                <p style={{ fontSize: 11, color: '#71717A', textTransform: 'uppercase', letterSpacing: 0.3 }}>Owner</p>
+                                <p style={{ color: '#0A0A0A', marginTop: 2 }}>{gstProfile.gst_owner_name ?? '—'}</p>
+                            </div>
+                            <div>
+                                <p style={{ fontSize: 11, color: '#71717A', textTransform: 'uppercase', letterSpacing: 0.3 }}>State</p>
+                                <p style={{ color: '#0A0A0A', marginTop: 2 }}>{gstProfile.gst_state ?? '—'}</p>
+                            </div>
+                            <div className="md:col-span-2">
+                                <p style={{ fontSize: 11, color: '#71717A', textTransform: 'uppercase', letterSpacing: 0.3 }}>Registered address</p>
+                                <p style={{ color: '#0A0A0A', marginTop: 2 }}>{gstProfile.gst_address ?? '—'} {gstProfile.gst_pincode ? `– ${gstProfile.gst_pincode}` : ''}</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ── WhatsApp Order Taking — QR-Order plan only ── */}
+            {isQrOrder && (
+            <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
+                <div className="flex items-start gap-3 mb-5">
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#25D366' }}>chat</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <h2 className="font-semibold" style={{ fontSize: 16, lineHeight: '24px', color: '#0A0A0A' }}>WhatsApp Order Taking</h2>
+                        <p style={{ fontSize: 13, color: '#71717A', lineHeight: '20px', marginTop: 2 }}>
+                            For stores on the QR-Order (no-payment) plan. When on, customers go straight to your WhatsApp with a prefilled order message — no in-app token or counter step.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-xl mb-3" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
+                    <div>
+                        <p className="font-medium" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Send orders to my WhatsApp</p>
+                        <p style={{ fontSize: 12, color: '#71717A' }}>
+                            {whatsappEnabled ? 'On — customer orders open a WhatsApp chat to you' : 'Off — orders use the in-app token flow'}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => {
+                            const next = !whatsappEnabled;
+                            if (next && !whatsappNumber.trim()) {
+                                toast.error('Enter your WhatsApp number first');
+                                return;
+                            }
+                            saveWhatsapp(next, whatsappNumber);
+                        }}
+                        disabled={whatsappSaving}
+                        style={{
+                            padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: whatsappSaving ? 'wait' : 'pointer',
+                            border: whatsappEnabled ? '2px solid #16A34A' : '1px solid #E4E4E7',
+                            background: whatsappEnabled ? '#DCFCE7' : '#fff',
+                            color: whatsappEnabled ? '#15803D' : '#52525C',
+                        }}
+                    >
+                        {whatsappEnabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                </div>
+
+                <div>
+                    <label style={labelStyle}>WhatsApp number {whatsappEnabled && <span style={{ color: '#E7000B' }}>*</span>}</label>
+                    <div className="flex gap-2">
+                        <input
+                            value={whatsappNumber}
+                            onChange={e => setWhatsappNumber(e.target.value)}
+                            placeholder="+91 98765 43210"
+                            disabled={whatsappSaving}
+                            style={{ ...inputStyle, flex: 1 }}
+                        />
+                        <button
+                            onClick={() => saveWhatsapp(whatsappEnabled, whatsappNumber)}
+                            disabled={whatsappSaving || !whatsappNumber.trim()}
+                            className="hover:opacity-90"
+                            style={{ background: '#5137EF', color: '#fff', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                            {whatsappSaving ? 'Saving…' : 'Save'}
+                        </button>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#99A1AF', marginTop: 6 }}>
+                        Include the country code (e.g. +91 for India, +971 for UAE). Spaces and dashes are allowed.
+                    </p>
+                </div>
+            </div>
+            )}
+
+            {/* ── Display Currency ── */}
+            <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
+                <div className="flex items-start gap-3 mb-5">
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#D97706' }}>payments</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <h2 className="font-semibold" style={{ fontSize: 16, lineHeight: '24px', color: '#0A0A0A' }}>Display Currency</h2>
+                        <p style={{ fontSize: 13, color: '#71717A', lineHeight: '20px', marginTop: 2 }}>
+                            The symbol shown to customers on the menu and bill. Past orders keep their original currency.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    {([
+                        { code: 'INR' as const, label: 'Indian Rupee', symbol: '₹' },
+                        { code: 'AED' as const, label: 'UAE Dirham',   symbol: 'AED' },
+                    ]).map(opt => (
+                        <button
+                            key={opt.code}
+                            onClick={() => saveCurrency(opt.code)}
+                            disabled={currencySaving}
+                            style={{
+                                padding: '14px 16px', borderRadius: 12, cursor: currencySaving ? 'wait' : 'pointer',
+                                border: currencyCode === opt.code ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                                background: currencyCode === opt.code ? '#EEEEFF' : '#fff',
+                                textAlign: 'left',
+                                display: 'flex', alignItems: 'center', gap: 12,
+                            }}
+                        >
+                            <div style={{
+                                width: 44, height: 44, borderRadius: 10,
+                                background: currencyCode === opt.code ? '#5137EF' : '#F4F4F5',
+                                color: currencyCode === opt.code ? '#fff' : '#52525C',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: opt.code === 'AED' ? 13 : 20, fontWeight: 700,
+                            }}>
+                                {opt.symbol}
+                            </div>
+                            <div>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>{opt.label}</p>
+                                <p style={{ fontSize: 12, color: '#71717A' }}>{opt.code}</p>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             {/* ── Danger Zone ── */}
             <div style={{ border: '1px solid #FECACA', borderRadius: 14, padding: '24px', background: '#FFFBFB' }}>
                 <div className="flex items-start gap-3 mb-4">
@@ -1084,6 +1410,16 @@ export default function SettingsPage() {
                     </button>
                 </div>
             </div>
+
+            {gstWizardOpen && siteId && (
+                <GstWizard
+                    siteId={siteId}
+                    onClose={(updated) => {
+                        setGstWizardOpen(false);
+                        if (updated) setGstProfile(updated);
+                    }}
+                />
+            )}
 
             {/* ── Delete Confirmation Modal ── */}
             {deleteModalOpen && (

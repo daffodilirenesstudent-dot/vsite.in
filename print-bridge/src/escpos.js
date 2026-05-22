@@ -84,6 +84,10 @@ function buildBill({
   subtotal,
   taxLabel,
   taxAmount,
+  cgstAmount,
+  sgstAmount,
+  gstRatePct,
+  gstin,
   grandTotal,
   currencySymbol = 'Rs.',
   footerText,
@@ -158,7 +162,13 @@ function buildBill({
   if (subtotal !== undefined && subtotal !== null) {
     text(twoCol('Subtotal', `${currencySymbol} ${fmt(subtotal)}`, W));
   }
-  if (taxAmount !== undefined && taxAmount !== null && taxAmount !== 0) {
+  // Prefer CGST/SGST split when provided (GST-compliant invoice format),
+  // fall back to the single tax line for non-GST stores or legacy callers.
+  if (cgstAmount !== undefined && cgstAmount !== null && Number(cgstAmount) !== 0) {
+    const half = gstRatePct ? (Number(gstRatePct) / 2) : null;
+    text(twoCol(`CGST${half != null ? ` (${half}%)` : ''}`, `${currencySymbol} ${fmt(cgstAmount)}`, W));
+    text(twoCol(`SGST${half != null ? ` (${half}%)` : ''}`, `${currencySymbol} ${fmt(sgstAmount)}`, W));
+  } else if (taxAmount !== undefined && taxAmount !== null && taxAmount !== 0) {
     const lbl = taxLabel || 'Tax';
     text(twoCol(lbl, `${currencySymbol} ${fmt(taxAmount)}`, W));
   }
@@ -170,6 +180,13 @@ function buildBill({
   push([GS,  0x21, 0x00]);
   push([ESC, 0x45, 0x00]);
   line();
+
+  // GSTIN footer (statutory requirement when GST is collected)
+  if (gstin) {
+    push([ESC, 0x61, 0x01]);  // center
+    text(`GSTIN: ${gstin}`);
+    push([ESC, 0x61, 0x00]);
+  }
 
   // Footer
   push([ESC, 0x61, 0x01]);    // center

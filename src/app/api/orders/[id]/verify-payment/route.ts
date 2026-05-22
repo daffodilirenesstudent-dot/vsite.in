@@ -44,7 +44,7 @@ export async function POST(
   // Look up local order. Must match the razorpay_order_id we issued.
   const { data: order } = await supabaseServer
     .from('orders')
-    .select('id, site_id, razorpay_order_id, razorpay_payment_id, payment_status, subtotal')
+    .select('id, site_id, razorpay_order_id, razorpay_payment_id, payment_status, subtotal, total_amount')
     .eq('id', orderId)
     .maybeSingle();
   if (!order) {
@@ -86,7 +86,9 @@ export async function POST(
       { status: 400 },
     );
   }
-  const expectedAmount = Math.round(Number(order.subtotal) * 100);
+  // Razorpay was charged the full amount (subtotal + tax). Compare against
+  // total_amount; fall back to subtotal for legacy orders pre-GST.
+  const expectedAmount = Math.round(Number(order.total_amount ?? order.subtotal) * 100);
   if (Number(payment.amount) !== expectedAmount) {
     console.error('[verify-payment] amount mismatch', { expected: expectedAmount, actual: payment.amount });
     return NextResponse.json({ error: 'Amount mismatch' }, { status: 400 });
