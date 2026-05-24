@@ -42,7 +42,12 @@ const RPC_TIMEOUT_MS  = 8_000;
 // and double-encodes when rendered as HTML. Email templates HTML-escape at render time.
 function sanitizeName(s: string, max: number): string {
   return s
-    .replace(/[\x00-\x1F\x7F-\x9F]/g, '')  // strip control chars
+    .replace(/[\x00-\x1F\x7F-\x9F]/g, '')                              // C0/C1 controls
+    // M4: drop bidi overrides + zero-width chars (U+200B-U+200F, U+202A-U+202E,
+    // U+2066-U+2069, U+FEFF). Without this, names like "<U+202E>evil.com"
+    // render reversed on the admin KOT and in the order popover, enabling
+    // cosmetic spoofing of order origin.
+    .replace(/[​-‏‪-‮⁦-⁩﻿]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, max);
@@ -354,6 +359,7 @@ export async function POST(request: NextRequest) {
         p_site_id:        siteId,
         p_customer_name:  cleanName,
         p_customer_email: cleanEmail,
+        p_customer_phone: cleanPhone || null,
         p_payment_method: paymentMethod,
         p_items_json:     items.map(it => ({
           id:          it.id,

@@ -201,7 +201,7 @@ export async function createRazorpayOrder(
 export async function fetchRazorpayPayment(
   accessToken: string,
   paymentId: string,
-): Promise<{ id: string; status: string; amount: number; order_id: string }> {
+): Promise<{ id: string; status: string; amount: number; currency: string; order_id: string }> {
   const res = await fetch(`${API_BASE}/v1/payments/${encodeURIComponent(paymentId)}`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });

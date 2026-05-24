@@ -212,7 +212,8 @@ function ActionBtn({
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function QRPage() {
   const { activeSite } = useSite();
-  const { isQrOrder, isPayEat } = usePlan();
+  const { isQrOrder, isPayEat, isQrMenu } = usePlan();
+  const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
 
   const [baseUrl, setBaseUrl]         = useState('');
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -313,7 +314,7 @@ export default function QRPage() {
         if (res.ok) {
           const d = await res.json();
           // pay_eat = common QR only; qr_order = table QR only; others follow DB
-          const m = (isQrOrder ? 'table' : isPayEat ? 'common' : (d.qr_mode ?? 'common')) as 'common' | 'table';
+          const m = (isQrOrder ? 'table' : (isPayEat || qrMenuOnly) ? 'common' : (d.qr_mode ?? 'common')) as 'common' | 'table';
           const c = d.table_count ?? 4;
           setQrMode(m); setSavedQrMode(m);
           setTableCount(c); setSavedTableCount(c);
@@ -322,7 +323,7 @@ export default function QRPage() {
         }
       } catch { /* ignore */ } finally { setLoaded(true); }
     })();
-  }, [siteId, isQrOrder, isPayEat]);
+  }, [siteId, isQrOrder, isPayEat, qrMenuOnly]);
 
   useEffect(() => {
     if (!switchAt) { setTimeLeft(''); return; }
@@ -601,7 +602,7 @@ export default function QRPage() {
                     )}
                   </div>
                 </div>
-                {!hasPending && !isQrOrder && !isPayEat && (
+                {!hasPending && !isQrOrder && !isPayEat && !qrMenuOnly && (
                   <button
                     onClick={() => setShowSwitchPanel(p => !p)}
                     style={{

@@ -24,6 +24,8 @@ interface Transaction {
         items?:         OrderItemSummary[] | null;
         created_at?:    string;
         customer_name?: string | null;
+        customer_email?: string | null;
+        customer_phone?: string | null;
     } | null;
     transacted_at:  string;
     customer_email: string | null;
@@ -276,7 +278,7 @@ function TransactionsContent() {
                                     ))}
                                 </div>
                                 {transactions.map((txn, idx) => {
-                                    const contact = txn.customer_phone || txn.customer_email || '—';
+                                    const contact = txn.customer_phone || txn.customer_email || txn.orders?.customer_phone || txn.orders?.customer_email || '—';
                                     return (
                                         <div key={txn.id} className="grid items-center"
                                             style={{ gridTemplateColumns: '160px 130px 190px 1fr 90px 120px 80px 44px', padding: '0 24px', minHeight: 50, background: '#FFFFFF', borderBottom: idx < transactions.length - 1 ? '1px solid #E4E4E7' : 'none' }}>
@@ -305,7 +307,7 @@ function TransactionsContent() {
                             {/* Mobile cards */}
                             <div className="lg:hidden overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
                                 {transactions.map((txn, idx) => {
-                                    const contact = txn.customer_phone || txn.customer_email || '—';
+                                    const contact = txn.customer_phone || txn.customer_email || txn.orders?.customer_phone || txn.orders?.customer_email || '—';
                                     return (
                                         <button
                                             key={txn.id}
@@ -367,7 +369,7 @@ function TransactionDetail({ txn, onClose }: { txn: Transaction | null; onClose:
     const order   = txn.orders;
     const items   = order?.items ?? [];
     const placed  = order?.created_at ?? txn.transacted_at;
-    const contact = txn.customer_phone || txn.customer_email || '—';
+    const contact = txn.customer_phone || txn.customer_email || txn.orders?.customer_phone || txn.orders?.customer_email || '—';
 
     return (
         <div

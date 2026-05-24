@@ -7,3 +7,9 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Daily 03:30 UTC (~09:00 IST) — fires the T-3-day plan-expiry reminder sweep.
+# The function is a thin wrapper that calls /api/cron/expiry-reminder with the
+# CRON_SECRET. See netlify/functions/expiry-reminder.mts.
+[functions."expiry-reminder"]
+  schedule = "30 3 * * *"

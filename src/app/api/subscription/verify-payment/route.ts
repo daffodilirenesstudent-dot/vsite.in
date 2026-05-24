@@ -19,13 +19,14 @@ import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { rateLimit } from '@/lib/rateLimit';
 import { notify } from '@/lib/notify';
+import { sendPlanInvoiceEmail } from '@/lib/email/planEmails';
 
 export const maxDuration = 30;
 export const runtime = 'nodejs';
 
-// Must match create-subscription/route.ts
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const MONTHLY_FEE_INR = 300;
+// Pricing is enforced upstream in create-subscription/route.ts. Here we just
+// validate the plan name; the actual amount paid comes back from Razorpay
+// (payment.amount) and is recorded as-is in billing_history.
 const VALID_PLANS = new Set(['qr_menu', 'qr_order', 'pay_eat']);
 
 function timingSafeEqualHex(a: string, b: string): boolean {
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
         // ── Verify site belongs to this user ────────────────────────────────
         const { data: site, error: siteError } = await supabaseServer
             .from('sites')
-            .select('id, name')
+            .select('id, name, notification_emails')
             .eq('id', siteId)
             .eq('user_id', userId)
             .single();
@@ -200,6 +201,9 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Activate ────────────────────────────────────────────────────────
+        // Clear expiry_reminder_sent_at so the T-3 reminder fires fresh for
+        // the new billing cycle (the cron only sends when this is NULL).
+        const activatedAt = new Date().toISOString();
         const { error: updateError } = await supabaseServer
             .from('site_subscriptions')
             .update({
@@ -207,7 +211,8 @@ export async function POST(request: NextRequest) {
                 store_expires_at: expiresAt,
                 razorpay_status: 'active',
                 pending_plan: null,            // consumed
-                updated_at: new Date().toISOString(),
+                expiry_reminder_sent_at: null, // reset for new cycle
+                updated_at: activatedAt,
             })
             .eq('site_id', siteId);
 
@@ -225,6 +230,52 @@ export async function POST(request: NextRequest) {
           body:  `Your store is live for 30 days. Valid till ${new Date(expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
           link:  '/manage/subscription',
         });
+
+        // ── Invoice email (best-effort, never blocks activation) ────────────
+        // Recipients = merchant-managed notification_emails ∪ Firebase auth
+        // email (via X-User-Email header) ∪ profiles.contact_email fallback.
+        // The fallback guarantees the account owner always gets the invoice
+        // even before they've configured Settings → Billing notifications.
+        // Failures are logged and swallowed: the payment is already captured
+        // and the subscription is already active.
+        try {
+            const headerEmail = (request.headers.get('X-User-Email') ?? '').trim();
+
+            const { data: profile } = await supabaseServer
+                .from('profiles')
+                .select('contact_email')
+                .eq('id', userId)
+                .maybeSingle();
+            const ownerEmail = (profile?.contact_email ?? '').trim();
+
+            const recipients = Array.from(new Set([
+                ...((site.notification_emails as string[] | null) ?? []),
+                headerEmail,
+                ownerEmail,
+            ].map(s => s.trim()).filter(Boolean)));
+
+            console.log(`[verify-payment] invoice recipients (${recipients.length}):`, recipients);
+
+            if (recipients.length > 0) {
+                const mailResult = await sendPlanInvoiceEmail({
+                    recipients: recipients.map(address => ({ address, name: site.name })),
+                    shopName: site.name,
+                    plan: paidPlan,
+                    amount: amountInr,
+                    currency: payment.currency || 'INR',
+                    razorpayPaymentId: razorpay_payment_id,
+                    activatedAt,
+                    expiresAt,
+                });
+                if (!mailResult.ok) {
+                    console.error('[verify-payment] invoice email rejected:', mailResult.status, mailResult.error);
+                }
+            } else {
+                console.warn('[verify-payment] no recipients for invoice email; skipping send');
+            }
+        } catch (mailErr) {
+            console.error('[verify-payment] invoice email send failed (non-fatal):', mailErr);
+        }
 
         return NextResponse.json({ success: true, expiresAt });
     } catch (err) {

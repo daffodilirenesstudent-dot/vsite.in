@@ -251,19 +251,22 @@ export default function BannerManagementPage() {
         <div className="px-4 lg:px-8 py-6 lg:py-8">
 
             {/* Page header */}
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-6">
                 <div>
-                    <h1 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 30, lineHeight: '36px' }}>Banner Management</h1>
-                    <p className="text-[#52525C] mt-1" style={{ fontSize: 16, fontWeight: 400, lineHeight: '24px' }}>
+                    <h1 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: '28px' }}>
+                        <span className="md:hidden">Banners</span>
+                        <span className="hidden md:inline" style={{ fontSize: 30, lineHeight: '36px' }}>Banner Management</span>
+                    </h1>
+                    <p className="text-[#52525C] mt-1" style={{ fontSize: 14, fontWeight: 400, lineHeight: '20px' }}>
                         Create and manage promotional banners to highlight your offers
                     </p>
                 </div>
                 <button
                     onClick={openDrawer}
-                    className="flex items-center gap-2 text-white hover:opacity-90 transition-opacity"
-                    style={{ background: '#5137EF', borderRadius: 8, padding: '10px 18px', fontSize: 14, fontWeight: 500 }}
+                    className="flex items-center justify-center gap-2 text-white hover:opacity-90 transition-opacity w-full md:w-auto"
+                    style={{ background: '#5137EF', borderRadius: 10, padding: '12px 18px', fontSize: 14, fontWeight: 500, minHeight: 44 }}
                 >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
                     Add Banner
                 </button>
             </div>
@@ -282,7 +285,53 @@ export default function BannerManagementPage() {
                     </button>
                 </div>
             ) : (
-                <div className="overflow-x-auto">
+                <>
+                {/* ── MOBILE CARDS (below md) ── */}
+                <div className="md:hidden flex flex-col gap-3">
+                    {banners.map(banner => (
+                        <div key={banner.id} style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: 12, background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div className="flex items-center gap-3">
+                                {banner.image_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={banner.image_url} alt={banner.name} style={{ width: 88, height: 56, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+                                ) : (
+                                    <div className="flex items-center justify-center" style={{ width: 88, height: 56, borderRadius: 8, background: '#F4F4F5', flexShrink: 0 }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#99A1AF' }}>image</span>
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A', margin: 0 }}>{banner.name}</p>
+                                    <p className="truncate" style={{ fontSize: 12, color: '#71717A', margin: '2px 0 0' }}>{banner.description ?? '—'}</p>
+                                    <p style={{ fontSize: 11, color: '#A1A1AA', margin: '4px 0 0' }}>{formatDate(banner.created_at)}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between" style={{ borderTop: '1px solid #F4F4F5', paddingTop: 10 }}>
+                                <button
+                                    onClick={() => handleToggleActive(banner)}
+                                    disabled={togglingId === banner.id}
+                                    className="flex items-center gap-2 disabled:opacity-60"
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 500, color: banner.is_active ? '#16A34A' : '#71717A' }}
+                                >
+                                    <span style={{ position: 'relative', width: 36, height: 20, borderRadius: 10, background: banner.is_active ? '#5137EF' : '#D1D5DB', display: 'inline-block' }}>
+                                        <span style={{ position: 'absolute', top: 2, left: banner.is_active ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#FFFFFF', transition: 'left 0.15s' }} />
+                                    </span>
+                                    {banner.is_active ? 'Visible' : 'Hidden'}
+                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button type="button" aria-label={`Edit ${banner.name}`} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => openEditDrawer(banner)}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#0A0A0A' }}>edit</span>
+                                    </button>
+                                    <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => setDeleteTarget({ id: banner.id, name: banner.name })}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }}>delete</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* ── DESKTOP TABLE (md+) ── */}
+                <div className="hidden md:block overflow-x-auto">
                     <div className="overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14, minWidth: 700 }}>
                         {/* Header */}
                         <div className="grid" style={{ gridTemplateColumns: '180px 130px 1fr 160px 80px 120px', background: '#F4F4F4', borderBottom: '1px solid #E4E4E7', padding: '0 24px' }}>
@@ -366,12 +415,13 @@ export default function BannerManagementPage() {
                         ))}
                     </div>
                 </div>
+                </>
             )}
 
             {/* ── DELETE MODAL ── */}
             {deleteTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
-                    <div className="bg-white flex flex-col items-center" style={{ width: 400, borderRadius: 16, padding: '32px 28px 24px', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                    <div className="bg-white flex flex-col items-center" style={{ width: '100%', maxWidth: 400, borderRadius: 16, padding: '28px 22px 22px', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
                         <button onClick={() => setDeleteTarget(null)} className="absolute flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ top: 16, right: 16, width: 28, height: 28, borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#71717A' }}>close</span>
                         </button>

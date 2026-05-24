@@ -184,10 +184,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email not configured' }, { status: 500 });
   }
 
+  // Only include reply_to when userEmail is a valid address. Defaulting to
+  // 'unknown' (the placeholder used in the HTML body) causes ZeptoMail to
+  // reject the request with TM_4001 / SM_113 "Invalid email address".
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail);
   const payload = {
     from: { address: ZEPTOMAIL_FROM_EMAIL, name: ZEPTOMAIL_FROM_NAME },
     to: [{ email_address: { address: 'official@vsite.in', name: 'Vsite Team' } }],
-    reply_to: userEmail ? [{ address: userEmail, name: shopName }] : undefined,
+    reply_to: isValidEmail ? [{ address: userEmail, name: shopName }] : undefined,
     subject: `QR Card Request — ${shopName} (${cardCount} card${cardCount > 1 ? 's' : ''}, ₹${totalPrice})`,
     htmlbody: html,
   };

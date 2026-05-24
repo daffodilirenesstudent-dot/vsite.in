@@ -18,7 +18,8 @@ export default function DashboardHeader() {
     const { user, signOut } = useAuth();
     const router = useRouter();
     const { activeSite, allSites, setActiveSiteId } = useSite();
-    const { planLoading } = usePlan();
+    const { planLoading, isQrMenu, isQrOrder, isPayEat } = usePlan();
+    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
 
     const [profile, setProfile] = useState<{ full_name: string; phone_number: string | null } | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -283,7 +284,7 @@ export default function DashboardHeader() {
                 {/* Bell + User */}
                 <div className="flex items-center gap-2 shrink-0">
                     {/* Printer status — bridge connection + per-role health */}
-                    <PrinterStatusIndicator />
+                    {!qrMenuOnly && <PrinterStatusIndicator />}
                     <NotificationBell />
 
                     {/* Profile button + dropdown */}

@@ -553,26 +553,31 @@ export default function ProductInventoryPage() {
             <style>{`@keyframes pi-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
 
             {/* Page header */}
-            <div className="flex items-start justify-between mb-5 lg:mb-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-5 lg:mb-6">
                 <div>
-                    <h1 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 26, lineHeight: '32px' }}>Product Inventory</h1>
-                    <p className="text-[#52525C] mt-1" style={{ fontSize: 14, lineHeight: '22px', fontWeight: 400 }}>Manage your Store Products &amp; Menu</p>
+                    <h1 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: '28px' }}>
+                        <span className="md:hidden">Products</span>
+                        <span className="hidden md:inline" style={{ fontSize: 26, lineHeight: '32px' }}>Product Inventory</span>
+                    </h1>
+                    <p className="text-[#52525C] mt-1" style={{ fontSize: 13, lineHeight: '20px', fontWeight: 400 }}>Manage your Store Products &amp; Menu</p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                {/* Buttons stack vertically below md, sit side-by-side from md+ */}
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:shrink-0 w-full md:w-auto">
                     <button
-                        className="flex items-center gap-1.5 hover:opacity-90 transition-opacity"
-                        style={{ background: '#FFFFFF', border: '1.5px solid #5137EF', color: '#5137EF', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500 }}
+                        aria-label="Add bulk products"
+                        className="flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity w-full md:w-auto"
+                        style={{ background: '#FFFFFF', border: '1.5px solid #5137EF', color: '#5137EF', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 500, minHeight: 44 }}
                         onClick={() => setBulkModalOpen(true)}
                     >
-                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>photo_library</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>photo_library</span>
                         Add Bulk Products
                     </button>
                     <button
-                        className="flex items-center gap-1.5 text-white hover:opacity-90 transition-opacity"
-                        style={{ background: '#5137EF', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500 }}
+                        className="flex items-center justify-center gap-1.5 text-white hover:opacity-90 transition-opacity w-full md:w-auto"
+                        style={{ background: '#5137EF', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 500, minHeight: 44 }}
                         onClick={openDrawer}
                     >
-                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
                         Add Product
                     </button>
                 </div>

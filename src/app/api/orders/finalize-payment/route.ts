@@ -31,7 +31,7 @@ import {
   getActiveIntegration,
   fetchRazorpayPayment,
 } from '@/lib/server/razorpayOAuth';
-import { buildOrderConfirmationEmail } from '@/lib/orderEmail';
+import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/orderEmail';
 import crypto from 'crypto';
 
 export const dynamic    = 'force-dynamic';
@@ -90,7 +90,12 @@ export async function POST(request: NextRequest) {
       .select('id, order_number, token_number, payment_status')
       .eq('razorpay_order_id', razorpay_order_id)
       .maybeSingle();
-    if (existing) {
+    // C4 hardening: only report success when the order is actually marked
+    // paid. Row existence alone isn't enough — a prior finalize that crashed
+    // between order insert and the paid-link UPDATE could leave an unpaid
+    // row here, and reporting "success" would print a token without the
+    // customer ever being charged.
+    if (existing && existing.payment_status === 'paid') {
       return NextResponse.json({
         success:      true,
         alreadyPaid:  true,
@@ -98,6 +103,13 @@ export async function POST(request: NextRequest) {
         orderNumber:  existing.order_number,
         tokenNumber:  existing.token_number,
       });
+    }
+    if (existing) {
+      console.error('[finalize-payment] orphan order without paid status', { orderId: existing.id, razorpay_order_id });
+      return NextResponse.json(
+        { error: 'Order found but payment not confirmed. Contact the store with your payment id.' },
+        { status: 409 },
+      );
     }
     return NextResponse.json({ error: 'No pending order found for this payment' }, { status: 404 });
   }
@@ -122,6 +134,14 @@ export async function POST(request: NextRequest) {
   if (payment.status !== 'captured' && payment.status !== 'authorized') {
     return NextResponse.json({ error: `Payment not completed (status: ${payment.status})` }, { status: 400 });
   }
+  // C5: assert currency. The amount field is integer minor-units regardless
+  // of currency, so a numeric-only match would accept a captured-in-IDR
+  // payment as equivalent to INR. INR-only today; pin it so the moment
+  // multi-currency capture lands this check still holds.
+  if (payment.currency !== 'INR') {
+    console.error('[finalize-payment] currency mismatch', { expected: 'INR', actual: payment.currency });
+    return NextResponse.json({ error: 'Currency mismatch' }, { status: 400 });
+  }
   // Razorpay was asked to charge subtotal + GST. Legacy pending rows (created
   // before migration 046) have null total_amount — fall back to subtotal.
   const expectedRupees  = pending.total_amount ?? pending.subtotal;
@@ -142,6 +162,7 @@ export async function POST(request: NextRequest) {
       p_site_id:         pending.site_id,
       p_customer_name:   pending.customer_name,
       p_customer_email:  pending.customer_email ?? '',
+      p_customer_phone:  pending.customer_phone ?? null,
       p_payment_method:  'online',
       p_items_json:      items,
       p_table_number:    pending.table_number ?? null,
@@ -164,6 +185,15 @@ export async function POST(request: NextRequest) {
     rpcData = (data as Record<string, unknown>) ?? {};
   } catch (err) {
     console.error('[finalize-payment] process_order_v2 RPC failed:', err);
+    // H4: customer has paid but the order failed to materialize. Drop a row
+    // into payment_reconciliation so an admin / cron can settle it instead of
+    // relying on the customer reading the error message and emailing support.
+    await supabaseServer.from('payment_reconciliation').upsert({
+      site_id: pending.site_id, razorpay_order_id, razorpay_payment_id,
+      amount: expectedAmount, currency: payment.currency,
+      pending_id: pending.id, reason: 'rpc_threw',
+      detail: (err instanceof Error ? err.message : String(err)).slice(0, 1000),
+    }, { onConflict: 'razorpay_payment_id' }).then(({ error }) => { if (error) console.error('[finalize-payment] reconciliation upsert failed:', error); });
     return NextResponse.json(
       { error: 'Payment confirmed but order could not be created. Contact the store with your payment id.', razorpay_payment_id },
       { status: 500 },
@@ -172,6 +202,12 @@ export async function POST(request: NextRequest) {
 
   if (rpcData.status !== 'ok' && rpcData.status !== 'replayed') {
     console.error('[finalize-payment] process_order_v2 returned non-ok status:', rpcData);
+    await supabaseServer.from('payment_reconciliation').upsert({
+      site_id: pending.site_id, razorpay_order_id, razorpay_payment_id,
+      amount: expectedAmount, currency: payment.currency,
+      pending_id: pending.id, reason: 'rpc_status_' + String(rpcData.status).slice(0, 40),
+      detail: JSON.stringify(rpcData).slice(0, 1000),
+    }, { onConflict: 'razorpay_payment_id' }).then(({ error }) => { if (error) console.error('[finalize-payment] reconciliation upsert failed:', error); });
     return NextResponse.json(
       { error: 'Payment confirmed but order could not be created. Contact the store with your payment id.', razorpay_payment_id, status: rpcData.status },
       { status: 500 },
@@ -184,7 +220,12 @@ export async function POST(request: NextRequest) {
   const siteSlug     = (rpcData.site_slug as string | undefined) ?? '';
   const siteName     = (rpcData.site_name as string | undefined) ?? 'Your Store';
 
-  // 5. Mark the order paid + link to Razorpay ids.
+  // 5. Mark the order paid + link to Razorpay ids, and flip the txn to
+  //    Success with the real gateway_ref. process_order_v2 now writes the
+  //    txn as Pending with NULL gateway_ref (C3 hardening) — this step is
+  //    what actually records the money as collected. If either update fails
+  //    the books are inconsistent, so log loudly and surface a 500 so the
+  //    client retries (idempotent via razorpay_order_id lookup at step 2).
   const { error: linkErr } = await supabaseServer
     .from('orders')
     .update({
@@ -195,8 +236,25 @@ export async function POST(request: NextRequest) {
     .eq('id', orderId);
   if (linkErr) {
     console.error('[finalize-payment] order update (paid) failed:', linkErr);
-    // Don't fail the request — the order exists and the customer has paid.
-    // An admin reconciliation will surface this.
+    return NextResponse.json(
+      { error: 'Payment confirmed but order link failed. Contact the store with your payment id.', razorpay_payment_id },
+      { status: 500 },
+    );
+  }
+
+  const { error: txnErr } = await supabaseServer
+    .from('transactions')
+    .update({ status: 'Success', payment_mode: 'UPI', gateway_ref: razorpay_payment_id })
+    .eq('order_id', orderId);
+  if (txnErr) {
+    console.error('[finalize-payment] transaction settle failed:', txnErr);
+    // Order is paid + linked; ledger row is still Pending. Surface so a
+    // retry / admin reconciliation can flip it — better than silently
+    // diverging order.payment_status from transaction.status.
+    return NextResponse.json(
+      { error: 'Payment confirmed but ledger settle failed. Contact the store with your payment id.', razorpay_payment_id },
+      { status: 500 },
+    );
   }
 
   // 6. Consume the pending row.
@@ -225,10 +283,18 @@ export async function POST(request: NextRequest) {
           name: it.name, qty: it.qty, price: it.price, variantSize: it.variantSize ?? undefined,
         })),
       });
-      supabaseServer
-        .from('email_queue')
-        .insert({ to_email: pending.customer_email, subject, htmlbody })
-        .then(({ error }) => { if (error) console.error('[finalize-payment] email enqueue failed:', error); });
+      // Send the email directly in fire-and-forget mode so it arrives instantly
+      // (Vercel cron only fires in production — dev would never drain a queue-
+      // only email). On failure, fall back to the queue so the cron retries.
+      const toEmail = pending.customer_email;
+      sendEmailDirect({ to: toEmail, customerName: pending.customer_name, subject, htmlbody })
+        .catch((sendErr) => {
+          console.error('[finalize-payment] direct send failed, queueing for retry:', sendErr);
+          supabaseServer
+            .from('email_queue')
+            .insert({ to_email: toEmail, subject, htmlbody })
+            .then(({ error }) => { if (error) console.error('[finalize-payment] email enqueue fallback failed:', error); });
+        });
     } catch (emailErr) {
       console.error('[finalize-payment] email build failed:', emailErr);
     }

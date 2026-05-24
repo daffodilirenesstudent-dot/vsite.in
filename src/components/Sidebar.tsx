@@ -21,8 +21,12 @@ const LS_KEY = 'sidebar_collapsed';
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const { plan, isPayEat, isQrOrder } = usePlan();
+    const { plan, isPayEat, isQrMenu, isQrOrder } = usePlan();
     const { missingImageCount, settingsIncomplete, bannerDot } = useNotifications();
+
+    // qr_menu / base plan: hide gated nav items entirely (Orders, Transactions).
+    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
+    const navItems = qrMenuOnly ? NAV_ITEMS.filter(i => !i.gated) : NAV_ITEMS;
 
     const [collapsed, setCollapsed] = useState(false);
 
@@ -86,7 +90,7 @@ export default function Sidebar() {
             </div>
 
             <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, width: '100%', padding: '0 8px' }}>
-                {NAV_ITEMS.map((item) => {
+                {navItems.map((item) => {
                     const locked = item.gated && !isPayEat && !isQrOrder;
                     const href   = locked ? '/manage/subscription' : item.href;
                     const active =
@@ -167,7 +171,7 @@ export default function Sidebar() {
                             <p className="px-2 font-medium text-[#99A1AF]" style={{ fontSize: 12, lineHeight: '16px' }}>GENERAL</p>
                         </div>
                         <nav className="flex flex-col gap-0.5">
-                            {NAV_ITEMS.map((item) => {
+                            {navItems.map((item) => {
                                 const locked = item.gated && !isPayEat && !isQrOrder;
                                 const active =
                                     !locked && (

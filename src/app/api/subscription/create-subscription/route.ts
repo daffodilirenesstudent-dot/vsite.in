@@ -10,10 +10,14 @@ export const maxDuration = 15;
 export const runtime = 'nodejs';
 
 // Keep in sync with /manage/subscription/page.tsx and PlanContext.tsx.
-// Flat ₹300/month for all three plans; no setup fee.
-const MONTHLY_FEE_INR = 300;
+// Per-plan monthly pricing in INR; no setup fee. 30-day cycle.
+const PLAN_PRICES_INR: Record<string, number> = {
+    qr_menu:  249,   // Smart QR Menu
+    qr_order: 749,   // QR Ordering (no payment)
+    pay_eat:  849,   // Pay & Eat (with payment)
+};
 const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
-const VALID_PLANS = new Set(['qr_menu', 'qr_order', 'pay_eat']);
+const VALID_PLANS = new Set(Object.keys(PLAN_PRICES_INR));
 
 export async function POST(request: NextRequest) {
     const t0 = Date.now();
@@ -93,9 +97,9 @@ export async function POST(request: NextRequest) {
         // remaining time isn't lost.
         const existingSub = subResult.data;
 
-        // ── Flat ₹300/month for all plans, no setup fee ───────────────────────
+        // ── Per-plan pricing in paise (1 INR = 100 paise), no setup fee ───────
         const isRenewal = !!existingSub?.store_expires_at;
-        const amountPaise = MONTHLY_FEE_INR * 100;
+        const amountPaise = (PLAN_PRICES_INR[chosenPlan] ?? PLAN_PRICES_INR.qr_menu) * 100;
 
         const razorpay = new Razorpay({
             key_id: process.env.RAZORPAY_KEY_ID!,

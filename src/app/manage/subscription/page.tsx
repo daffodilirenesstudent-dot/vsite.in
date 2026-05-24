@@ -6,14 +6,14 @@ import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { firebaseAuth } from '@/lib/firebase';
 
-// Flat ₹300/month for every plan. No setup fee. 30-day cycle.
-const PLAN_PRICE = 300;
+// Per-plan monthly pricing. Keep in sync with create-subscription/route.ts.
+// 30-day cycle, no setup fee.
 const SETUP_FEE = 0;
-const QR_MENU_MONTHLY    = PLAN_PRICE;
-const QR_ORDERING_MONTHLY = PLAN_PRICE;
-const QR_ORDERING_MOCK_PRICE = PLAN_PRICE;
-const QR_ORDER_MONTHLY    = PLAN_PRICE;
-const QR_ORDER_MOCK_PRICE = PLAN_PRICE;
+const QR_MENU_MONTHLY     = 249;   // Smart QR Menu
+const QR_ORDER_MONTHLY    = 749;   // QR Ordering (no payment)
+const QR_ORDER_MOCK_PRICE = QR_ORDER_MONTHLY;
+const QR_ORDERING_MONTHLY = 849;   // Pay & Eat (with payment)
+const QR_ORDERING_MOCK_PRICE = QR_ORDERING_MONTHLY;
 
 type ModalType = 'payment' | 'qr_ordering_payment' | 'qr_order_payment' | 'coming_soon' | null;
 type PaymentState = 'idle' | 'creating' | 'activating' | 'slow' | 'success' | 'failed';
@@ -168,9 +168,14 @@ export default function SubscriptionPage() {
         siteId: string,
     ) => {
         try {
+            const userEmail = firebaseAuth.currentUser?.email ?? '';
             const res = await fetch('/api/subscription/verify-payment', {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    ...(userEmail ? { 'X-User-Email': userEmail } : {}),
+                },
                 body: JSON.stringify({ ...response, siteId }),
             });
             if (res.ok) {
@@ -298,9 +303,14 @@ export default function SubscriptionPage() {
                 handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
                     setLocalState('activating');
                     try {
+                        const userEmail = firebaseAuth.currentUser?.email ?? '';
                         await fetch('/api/subscription/verify-payment', {
                             method: 'POST',
-                            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                                ...(userEmail ? { 'X-User-Email': userEmail } : {}),
+                            },
                             body: JSON.stringify({ ...response, siteId }),
                         });
                     } catch (err) { console.error('[subscription] verify-payment error:', err); }
@@ -405,7 +415,7 @@ export default function SubscriptionPage() {
                             <>
                                 <p style={{ fontSize: 15, fontWeight: 600, color: '#166534' }}>Smart QR Menu — Active</p>
                                 <p style={{ fontSize: 13, color: '#14532D', marginTop: 2 }}>
-                                    {expiryLabel ? `Renews on ${expiryLabel}` : 'Subscription active'}
+                                    {expiryLabel ? `Expires on ${expiryLabel} · Renew to extend` : 'Subscription active'}
                                 </p>
                             </>
                         )}
@@ -413,7 +423,7 @@ export default function SubscriptionPage() {
                             <>
                                 <p style={{ fontSize: 15, fontWeight: 600, color: '#166534' }}>QR Ordering + Payment — Active</p>
                                 <p style={{ fontSize: 13, color: '#14532D', marginTop: 2 }}>
-                                    {expiryLabel ? `Renews on ${expiryLabel}` : 'Subscription active'}
+                                    {expiryLabel ? `Expires on ${expiryLabel} · Renew to extend` : 'Subscription active'}
                                 </p>
                             </>
                         )}
@@ -421,7 +431,7 @@ export default function SubscriptionPage() {
                             <>
                                 <p style={{ fontSize: 15, fontWeight: 600, color: '#166534' }}>QR Ordering (No Payment) — Active</p>
                                 <p style={{ fontSize: 13, color: '#14532D', marginTop: 2 }}>
-                                    {expiryLabel ? `Renews on ${expiryLabel}` : 'Subscription active'}
+                                    {expiryLabel ? `Expires on ${expiryLabel} · Renew to extend` : 'Subscription active'}
                                 </p>
                             </>
                         )}

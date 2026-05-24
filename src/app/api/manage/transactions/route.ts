@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     // info popover (food items + ordered time). `orders.created_at` is the
     // canonical order placement time; `transacted_at` is when money settled,
     // which can be hours later for table-mode checkouts.
-    .select('id, txn_id, order_id, transacted_at, customer_email, customer_phone, amount, status, payment_mode, orders(order_number, token_number, counter_number, table_number, items, created_at, customer_name)')
+    .select('id, txn_id, order_id, transacted_at, customer_email, customer_phone, amount, status, payment_mode, orders(order_number, token_number, counter_number, table_number, items, created_at, customer_name, customer_email, customer_phone)')
     .eq('site_id', siteId)
     .gte('transacted_at', range.start.toISOString())
     .lt('transacted_at',  range.end.toISOString())

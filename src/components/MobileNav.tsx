@@ -6,11 +6,20 @@ import { usePathname } from 'next/navigation';
 import { usePlan } from './PlanContext';
 import { useNotifications } from './NotificationContext';
 
-const NAV_ITEMS = [
+const DEFAULT_NAV = [
     { label: 'Dashboard',  icon: 'bar_chart',   href: '/manage/dashboard',         gated: false },
     { label: 'Orders',     icon: 'description',  href: '/manage/orders',            gated: true  },
     { label: 'Products',   icon: 'package_2',    href: '/manage/product-inventory', gated: false },
     { label: 'Settings',   icon: 'settings',     href: '/manage/settings',          gated: false },
+];
+
+// qr_menu / base plan: no orders/transactions — surface QR directly in the bottom bar.
+const QR_MENU_NAV = [
+    { label: 'Home',      icon: 'home',       href: '/manage/dashboard',         gated: false },
+    { label: 'Products',  icon: 'package_2',  href: '/manage/product-inventory', gated: false },
+    { label: 'QR Codes',  icon: 'qr_code_2',  href: '/manage/qr',                gated: false },
+    { label: 'Banners',   icon: 'image',      href: '/manage/banner-management', gated: false },
+    { label: 'Settings',  icon: 'settings',   href: '/manage/settings',          gated: false },
 ];
 
 const ACTIVE_COLOR  = '#5137EF';
@@ -18,16 +27,23 @@ const DEFAULT_COLOR = '#71717A';
 
 export default function MobileNav() {
     const pathname = usePathname();
-    const { isPayEat } = usePlan();
+    const { isPayEat, isQrMenu, isQrOrder } = usePlan();
     const { missingImageCount, settingsIncomplete, bannerDot } = useNotifications();
 
-    // Settings tab is also "active" for sub-pages reachable from Settings on mobile
-    const isSettingsActive =
-        pathname === '/manage/settings' ||
-        pathname.startsWith('/manage/banner-management') ||
-        pathname.startsWith('/manage/transactions') ||
-        pathname.startsWith('/manage/qr') ||
-        pathname.startsWith('/manage/subscription');
+    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
+    const NAV_ITEMS = qrMenuOnly ? QR_MENU_NAV : DEFAULT_NAV;
+
+    // Settings tab is also "active" for sub-pages reachable from Settings on mobile.
+    // For qr_menu plan, QR and Banners have their own tabs so they shouldn't fold into Settings.
+    const isSettingsActive = qrMenuOnly
+        ? (pathname === '/manage/settings' || pathname.startsWith('/manage/subscription'))
+        : (
+            pathname === '/manage/settings' ||
+            pathname.startsWith('/manage/banner-management') ||
+            pathname.startsWith('/manage/transactions') ||
+            pathname.startsWith('/manage/qr') ||
+            pathname.startsWith('/manage/subscription')
+        );
 
     return (
         <nav

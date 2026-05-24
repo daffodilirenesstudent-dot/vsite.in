@@ -15,7 +15,8 @@ export default function SettingsPage() {
     const router = useRouter();
     const { activeSite, refreshSites } = useSite();
     const { user, signOut } = useAuth();
-    const { isQrOrder } = usePlan();
+    const { isQrOrder, isQrMenu, isPayEat } = usePlan();
+    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
 
     const handleSignOut = async () => {
         await signOut();
@@ -23,9 +24,40 @@ export default function SettingsPage() {
         window.location.replace('/login');
     };
 
+    // ── Active tab (persisted via ?tab=…) ─────────────────────────────────────
+    type TabId = 'store' | 'printing' | 'payments' | 'gst' | 'orders' | 'danger';
+    const [activeTab, setActiveTabState] = useState<TabId>('store');
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const t = new URLSearchParams(window.location.search).get('tab');
+        const valid: TabId[] = qrMenuOnly
+            ? ['store', 'danger']
+            : ['store', 'printing', 'payments', 'gst', 'orders', 'danger'];
+        if (t && (valid as string[]).includes(t)) setActiveTabState(t as TabId);
+        else if (qrMenuOnly) setActiveTabState('store');
+    }, [qrMenuOnly]);
+    const setActiveTab = (id: TabId) => {
+        setActiveTabState(id);
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', id);
+            // Strip Razorpay callback params so they don't re-trigger the banner
+            // when the admin re-clicks the Payments tab.
+            url.searchParams.delete('connected');
+            url.searchParams.delete('error');
+            window.history.replaceState({}, '', url.toString());
+        }
+    };
+
     const [siteId, setSiteId]     = useState('');
     const [siteSlug, setSiteSlug] = useState('');
     const [form, setForm] = useState({ businessName: '', phoneNumber: '', description: '', timing: '' });
+
+    // Billing-notification emails (up to 3). Receives plan invoices on
+    // activation/renewal and a T-3-day expiry reminder.
+    const [notificationEmails, setNotificationEmails] = useState<string[]>([]);
+    const MAX_NOTIFY_EMAILS = 3;
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const [logoUrl, setLogoUrl]       = useState<string | null>(null);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [loading, setLoading]       = useState(true);
@@ -102,7 +134,7 @@ export default function SettingsPage() {
         setLogoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
         supabase
             .from('sites')
-            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code')
+            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -125,6 +157,8 @@ export default function SettingsPage() {
                     setWhatsappEnabled(d.whatsapp_order_taking === true);
                     setWhatsappNumber((d.whatsapp_order_number as string | null) ?? '');
                     setCurrencyCode((d.currency_code === 'AED' ? 'AED' : 'INR'));
+                    const ne = Array.isArray(d.notification_emails) ? (d.notification_emails as string[]) : [];
+                    setNotificationEmails(ne.slice(0, MAX_NOTIFY_EMAILS));
                     try {
                         setKotDevMode(localStorage.getItem('kot_dev_mode') === '1');
                     } catch { /* ignore */ }
@@ -175,6 +209,17 @@ export default function SettingsPage() {
         if (!siteId) return;
         if (!form.businessName.trim()) { toast.error('Business name is required'); return; }
 
+        // Notification emails: trim, drop blanks, validate format, dedupe.
+        const cleanedEmails = Array.from(new Set(
+            notificationEmails.map(s => s.trim()).filter(Boolean)
+        ));
+        const invalid = cleanedEmails.find(e => !EMAIL_RE.test(e));
+        if (invalid) { toast.error(`Invalid email: ${invalid}`); return; }
+        if (cleanedEmails.length > MAX_NOTIFY_EMAILS) {
+            toast.error(`At most ${MAX_NOTIFY_EMAILS} notification emails`);
+            return;
+        }
+
         setSaving(true);
         const { error } = await supabase
             .from('sites')
@@ -184,12 +229,17 @@ export default function SettingsPage() {
                 contact_number: form.phoneNumber.trim() || null,
                 timing: form.timing.trim() || null,
                 image_url: logoUrl,
+                notification_emails: cleanedEmails,
             })
             .eq('id', siteId);
 
         setSaving(false);
         if (error) { toast.error('Failed to save changes'); }
-        else { toast.success('Settings saved'); refreshSites(); }
+        else {
+            setNotificationEmails(cleanedEmails);
+            toast.success('Settings saved');
+            refreshSites();
+        }
     };
 
     // ── KOT mode toggle ───────────────────────────────────────────────────────
@@ -680,14 +730,21 @@ export default function SettingsPage() {
     return (
         <div className="px-4 md:px-8 py-6 md:py-8 max-w-2xl">
 
-            {/* Mobile-only quick nav */}
+            {/* Mobile-only quick nav.
+                qr_menu plan already has QR & Banners in the bottom tab bar, and
+                Transactions is gated — so only show Subscription here. */}
             <div className="lg:hidden mb-5 rounded-xl overflow-hidden" style={{ border: '1px solid #E4E4E7' }}>
-                {[
-                    { label: 'QR Code & Poster',  icon: 'qr_code_2',         href: '/manage/qr',                desc: 'Download your menu QR code' },
-                    { label: 'Banner Management', icon: 'image',             href: '/manage/banner-management', desc: 'Manage your store banners' },
-                    { label: 'Transactions',       icon: 'credit_card',       href: '/manage/transactions',      desc: 'View payment history' },
-                    { label: 'Subscription',       icon: 'workspace_premium', href: '/manage/subscription',      desc: 'Manage your plan' },
-                ].map((item, idx, arr) => (
+                {(qrMenuOnly
+                    ? [
+                        { label: 'Subscription', icon: 'workspace_premium', href: '/manage/subscription', desc: 'Manage your plan' },
+                      ]
+                    : [
+                        { label: 'QR Code & Poster',  icon: 'qr_code_2',         href: '/manage/qr',                desc: 'Download your menu QR code' },
+                        { label: 'Banner Management', icon: 'image',             href: '/manage/banner-management', desc: 'Manage your store banners' },
+                        { label: 'Transactions',       icon: 'credit_card',       href: '/manage/transactions',      desc: 'View payment history' },
+                        { label: 'Subscription',       icon: 'workspace_premium', href: '/manage/subscription',      desc: 'Manage your plan' },
+                      ]
+                ).map((item, idx, arr) => (
                     <Link
                         key={item.href}
                         href={item.href}
@@ -703,25 +760,96 @@ export default function SettingsPage() {
                         <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#99A1AF' }}>chevron_right</span>
                     </Link>
                 ))}
-                {/* Sign Out */}
-                <div style={{ borderTop: '1px solid #E4E4E7' }}>
-                    <button
-                        onClick={handleSignOut}
-                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#FFFFFF', width: '100%', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                    >
-                        <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }}>logout</span>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            <p style={{ fontSize: 14, fontWeight: 500, color: '#E7000B', lineHeight: '20px' }}>Sign Out</p>
-                            <p style={{ fontSize: 12, color: '#71717A', lineHeight: '16px' }}>Sign out of your account</p>
-                        </div>
-                    </button>
-                </div>
+                {/* Sign Out — hidden for qr_menu plan (Subscription only) */}
+                {!qrMenuOnly && (
+                    <div style={{ borderTop: '1px solid #E4E4E7' }}>
+                        <button
+                            onClick={handleSignOut}
+                            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#FFFFFF', width: '100%', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                        >
+                            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }}>logout</span>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <p style={{ fontSize: 14, fontWeight: 500, color: '#E7000B', lineHeight: '20px' }}>Sign Out</p>
+                                <p style={{ fontSize: 12, color: '#71717A', lineHeight: '16px' }}>Sign out of your account</p>
+                            </div>
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Page header */}
-            <div className="mb-6">
+            {/* Page header — breadcrumb + horizontal tab nav */}
+            {(() => {
+                const ALL_TABS: Array<{ id: TabId; label: string; show?: boolean }> = [
+                    { id: 'store',    label: 'Store details' },
+                    { id: 'printing', label: 'Printing' },
+                    { id: 'payments', label: 'Payments' },
+                    { id: 'gst',      label: 'GST details' },
+                    { id: 'orders',   label: 'Order taking' },
+                    { id: 'danger',   label: 'Danger zone' },
+                ];
+                // qr_menu / base plan: only profile (store details) + danger zone
+                const TABS = qrMenuOnly
+                    ? ALL_TABS.filter(t => t.id === 'store' || t.id === 'danger')
+                    : ALL_TABS;
+                const activeLabel = TABS.find(t => t.id === activeTab)?.label ?? '';
+                return (
+                    <>
+                        {/* Breadcrumb */}
+                        <div className="mb-3 flex items-center gap-2" style={{ fontSize: 14 }}>
+                            <button
+                                onClick={() => router.push('/manage/dashboard')}
+                                aria-label="Back to dashboard"
+                                className="hover:bg-[#F4F4F5] transition-colors"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, padding: 0, color: '#52525C' }}
+                            >
+                                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
+                            </button>
+                            <span style={{ color: '#52525C', fontWeight: 500 }}>Account &amp; Settings</span>
+                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#A1A1AA' }}>chevron_right</span>
+                            <span style={{ color: '#5137EF', fontWeight: 500 }}>{activeLabel}</span>
+                        </div>
+
+                        {/* Horizontal tab bar */}
+                        <div
+                            className="mb-6 -mx-4 md:-mx-8 px-4 md:px-8"
+                            style={{ borderBottom: '1px solid #E4E4E7', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+                        >
+                            <div role="tablist" aria-label="Settings sections" style={{ display: 'flex', gap: 28, whiteSpace: 'nowrap' }}>
+                                {TABS.map(t => {
+                                    const selected = activeTab === t.id;
+                                    return (
+                                        <button
+                                            key={t.id}
+                                            role="tab"
+                                            aria-selected={selected}
+                                            onClick={() => setActiveTab(t.id)}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                padding: '12px 0',
+                                                fontSize: 14,
+                                                fontWeight: selected ? 600 : 500,
+                                                color: selected ? '#0A0A0A' : '#71717A',
+                                                cursor: 'pointer',
+                                                borderBottom: selected ? '2px solid #0A0A0A' : '2px solid transparent',
+                                                marginBottom: -1,
+                                                transition: 'color 0.15s, border-color 0.15s',
+                                            }}
+                                        >
+                                            {t.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </>
+                );
+            })()}
+
+            {/* Hidden — preserved for the existing layout container width */}
+            <div className="mb-6 hidden">
                 <h1 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 30, lineHeight: '36px' }}>Settings</h1>
                 <p className="text-[#52525C] mt-1" style={{ fontSize: 16, fontWeight: 400, lineHeight: '24px' }}>
                     Update your store details
@@ -729,6 +857,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Store Details card */}
+            {activeTab === 'store' && (
             <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
                 <h2 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 18, lineHeight: '28px', marginBottom: 20 }}>
                     Store Details
@@ -772,16 +901,75 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* ── Billing Notification Emails (up to 3) ── */}
+                <div className="mt-7 pt-6" style={{ borderTop: '1px solid #E4E4E7' }}>
+                    <div className="flex items-start justify-between mb-1 gap-3">
+                        <div>
+                            <h3 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 15, lineHeight: '22px' }}>Billing notifications</h3>
+                            <p className="text-[#71717A]" style={{ fontSize: 12, lineHeight: '18px', marginTop: 2 }}>
+                                Get plan invoices and a reminder 3 days before your plan expires. Up to {MAX_NOTIFY_EMAILS} emails.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 mt-3">
+                        {notificationEmails.length === 0 ? (
+                            <p style={{ fontSize: 12, color: '#A1A1AA' }}>No emails added yet.</p>
+                        ) : notificationEmails.map((email, i) => {
+                            const trimmed = email.trim();
+                            const showError = trimmed.length > 0 && !EMAIL_RE.test(trimmed);
+                            return (
+                                <div key={i} className="flex items-center gap-2">
+                                    <input
+                                        type="email"
+                                        inputMode="email"
+                                        autoComplete="email"
+                                        value={email}
+                                        placeholder="billing@example.com"
+                                        disabled={saving}
+                                        onChange={e => setNotificationEmails(prev => prev.map((v, idx) => idx === i ? e.target.value : v))}
+                                        style={{ ...inputStyle, flex: 1, border: showError ? '1px solid #E7000B' : '1px solid #E4E4E7' }}
+                                    />
+                                    <button
+                                        type="button"
+                                        aria-label="Remove email"
+                                        onClick={() => setNotificationEmails(prev => prev.filter((_, idx) => idx !== i))}
+                                        disabled={saving}
+                                        className="flex items-center justify-center hover:bg-red-50 transition-colors"
+                                        style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid #E4E4E7', background: '#FFFFFF', cursor: 'pointer', flexShrink: 0 }}
+                                    >
+                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }}>close</span>
+                                    </button>
+                                </div>
+                            );
+                        })}
+
+                        {notificationEmails.length < MAX_NOTIFY_EMAILS && (
+                            <button
+                                type="button"
+                                onClick={() => setNotificationEmails(prev => [...prev, ''])}
+                                disabled={saving}
+                                className="flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-colors w-full sm:w-auto"
+                                style={{ border: '1.5px dashed #C4C4C4', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 500, color: '#5137EF', background: '#FFFFFF', cursor: 'pointer', minHeight: 44 }}
+                            >
+                                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+                                Add email ({notificationEmails.length}/{MAX_NOTIFY_EMAILS})
+                            </button>
+                        )}
+                    </div>
+                </div>
+
                 {/* Save button */}
-                <div className="mt-6 flex justify-end">
-                    <button onClick={handleSave} disabled={saving || uploadingLogo} className="flex items-center gap-2 text-white transition-opacity hover:opacity-90 disabled:opacity-60" style={{ background: '#5137EF', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 500, cursor: saving ? 'wait' : 'pointer' }}>
+                <div className="mt-6 flex justify-stretch md:justify-end">
+                    <button onClick={handleSave} disabled={saving || uploadingLogo} className="flex w-full md:w-auto items-center justify-center gap-2 text-white transition-opacity hover:opacity-90 disabled:opacity-60" style={{ background: '#5137EF', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 500, minHeight: 46, cursor: saving ? 'wait' : 'pointer' }}>
                         {saving ? (<><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Saving…</>) : 'Save Changes'}
                     </button>
                 </div>
             </div>
+            )}
 
             {/* ── Kitchen Printing (KOT) ── */}
-            {kotModeLoaded && (
+            {activeTab === 'printing' && kotModeLoaded && (
             <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
                 <div className="flex items-start gap-3 mb-5">
                     <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
@@ -1000,6 +1188,7 @@ export default function SettingsPage() {
             )}
 
             {/* ── Payments (Razorpay OAuth) ── */}
+            {activeTab === 'payments' && (
             <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
                 <div className="flex items-start gap-3 mb-5">
                     <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
@@ -1158,8 +1347,10 @@ export default function SettingsPage() {
                     );
                 })()}
             </div>
+            )}
 
             {/* ── GST Compliance ── */}
+            {activeTab === 'gst' && (
             <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
                 <div className="flex items-start gap-3 mb-5">
                     <div style={{ width: 36, height: 36, borderRadius: 8, background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
@@ -1260,9 +1451,10 @@ export default function SettingsPage() {
                     </div>
                 )}
             </div>
+            )}
 
             {/* ── WhatsApp Order Taking — QR-Order plan only ── */}
-            {isQrOrder && (
+            {activeTab === 'orders' && isQrOrder && (
             <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
                 <div className="flex items-start gap-3 mb-5">
                     <div style={{ width: 36, height: 36, borderRadius: 8, background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
@@ -1331,6 +1523,7 @@ export default function SettingsPage() {
             )}
 
             {/* ── Display Currency ── */}
+            {activeTab === 'orders' && (
             <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
                 <div className="flex items-start gap-3 mb-5">
                     <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
@@ -1378,8 +1571,10 @@ export default function SettingsPage() {
                     ))}
                 </div>
             </div>
+            )}
 
             {/* ── Danger Zone ── */}
+            {activeTab === 'danger' && (
             <div style={{ border: '1px solid #FECACA', borderRadius: 14, padding: '24px', background: '#FFFBFB' }}>
                 <div className="flex items-start gap-3 mb-4">
                     <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
@@ -1393,7 +1588,7 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-4 p-4 rounded-xl" style={{ background: '#FFFFFF', border: '1px solid #FECACA' }}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 rounded-xl" style={{ background: '#FFFFFF', border: '1px solid #FECACA' }}>
                     <div>
                         <p className="font-semibold" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Delete this store</p>
                         <p style={{ fontSize: 12, color: '#71717A', lineHeight: '18px' }}>
@@ -1402,14 +1597,15 @@ export default function SettingsPage() {
                     </div>
                     <button
                         onClick={() => { setDeleteConfirmText(''); setDeleteModalOpen(true); }}
-                        className="flex items-center gap-1.5 shrink-0 hover:opacity-90 transition-opacity"
-                        style={{ background: '#E7000B', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        className="flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 hover:opacity-90 transition-opacity"
+                        style={{ background: '#E7000B', color: '#FFFFFF', border: 'none', borderRadius: 10, padding: '12px 18px', fontSize: 14, fontWeight: 500, minHeight: 44, cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
-                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>delete_forever</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete_forever</span>
                         Delete Store
                     </button>
                 </div>
             </div>
+            )}
 
             {gstWizardOpen && siteId && (
                 <GstWizard

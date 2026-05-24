@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
-import { buildOrderConfirmationEmail } from '@/lib/orderEmail';
+import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/orderEmail';
 import { audit } from '@/lib/auditLog';
 
 export const dynamic    = 'force-dynamic';
@@ -82,8 +82,10 @@ export async function PATCH(
       // allocates a token, and updates — all in one transaction.
       // Eliminates the phantom-token race where concurrent confirms each called
       // allocate_token() independently before the idempotency check could fire.
+      // H2: bind to site_id so the RPC double-checks the order belongs to
+      // the verified-owner site, defense-in-depth against future grant slips.
       const { data: rows, error: rpcErr } = await supabaseServer
-        .rpc('confirm_counter_payment_atomic', { p_order_id: orderId });
+        .rpc('confirm_counter_payment_atomic', { p_order_id: orderId, p_site_id: order.site_id });
 
       if (rpcErr) {
         if (rpcErr.message?.includes('order_not_found')) {
@@ -152,11 +154,17 @@ export async function PATCH(
           paymentMethod: 'counter',
           items:         itemsArr.map(i => ({ name: i.name, qty: i.qty, price: i.price, variantSize: i.variantSize })),
         });
-        supabaseServer.from('email_queue').insert({
-          to_email: order.customer_email,
-          subject,
-          htmlbody,
-        }).then(({ error }) => { if (error) console.error('[PATCH] email enqueue:', error); });
+        // Direct send for instant delivery; queue is the failure fallback so the
+        // cron can retry (dev never runs Vercel cron — queue-only would never send).
+        const toEmail = order.customer_email;
+        if (toEmail) {
+          sendEmailDirect({ to: toEmail, customerName: order.customer_name ?? '', subject, htmlbody })
+            .catch((sendErr) => {
+              console.error('[PATCH] direct send failed, queueing for retry:', sendErr);
+              supabaseServer.from('email_queue').insert({ to_email: toEmail, subject, htmlbody })
+                .then(({ error }) => { if (error) console.error('[PATCH] email enqueue fallback:', error); });
+            });
+        }
       } catch (emailErr) {
         console.error('[PATCH] email build:', emailErr);
       }
@@ -199,20 +207,25 @@ export async function PATCH(
       );
     }
 
-    // expected_status: the status the client read before clicking.
-    // If provided, we use it as a WHERE clause — so concurrent updates are safe.
+    // expected_status: the status the client read before clicking. Required —
+    // without it the WHERE clause is just `id = orderId` and a stale tab can
+    // force-jump statuses (H3 hardening). The KOT endpoint handles the
+    // received → preparing transition and does not come through here.
     const expectedStatus = body.expected_status as OrderStatus | undefined;
-
-    let updateQuery = supabaseServer
-      .from('orders')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', orderId);
-
-    if (expectedStatus && VALID_STATUSES.has(expectedStatus)) {
-      updateQuery = updateQuery.eq('status', expectedStatus);
+    if (!expectedStatus || !VALID_STATUSES.has(expectedStatus)) {
+      return NextResponse.json(
+        { error: 'expected_status is required (send the status you last read from the server)' },
+        { status: 400 },
+      );
     }
 
-    const { data: rows, error: updateErr } = await updateQuery.select('id, status').maybeSingle();
+    const { data: rows, error: updateErr } = await supabaseServer
+      .from('orders')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .eq('status', expectedStatus)
+      .select('id, status')
+      .maybeSingle();
 
     if (updateErr) {
       console.error('[PATCH /api/orders/[id]] status update:', updateErr);
