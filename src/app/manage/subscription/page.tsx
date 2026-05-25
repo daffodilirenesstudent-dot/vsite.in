@@ -94,7 +94,7 @@ export default function SubscriptionPage() {
     })();
 
     // Was previously a paying customer (store_expires_at was set), plan now expired
-    const isPlanExpired = !!sub?.store_expires_at && !isQrMenuActive && !isQrOrderingActive;
+    const isPlanExpired = !!sub?.store_expires_at && !isQrMenuActive && !isQrOrderingActive && !isQrOrderActive;
     const isRenewal = isPlanExpired;
     const dueToday = QR_MENU_MONTHLY; // no setup fee
 

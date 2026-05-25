@@ -8,7 +8,7 @@
 //   • Bounded RPC concurrency (10 in flight)
 //   • .maybeSingle() on all single-row queries to avoid 406 on empty tables
 //   • withRetry on insert
-//   • Quota: 10 photos/user/month tracked in bulk_import_usage
+//   • Quota: 15 photos/user/day tracked in bulk_import_usage
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
@@ -20,7 +20,7 @@ import OpenAI from 'openai';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
-const MONTHLY_PHOTO_LIMIT = 10;
+const DAILY_PHOTO_LIMIT = 15;
 const MAX_ITEMS = 300;
 const MAX_VARIANTS = 10;
 const SIM_THRESHOLD = 0.45;
@@ -96,9 +96,9 @@ function inferTiers(item: Record<string, unknown>): {
   return { star_rating, profit_tier, prep_complexity_tier };
 }
 
-function currentMonth(): string {
+function currentDay(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -305,21 +305,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
 
     // Quota check — maybeSingle() avoids 406 for first-time users
-    const month = currentMonth();
+    const day = currentDay();
     const { data: usageRow } = await supabaseServer
       .from('bulk_import_usage')
       .select('photos_used')
       .eq('user_id', userId)
-      .eq('month', month)
+      .eq('month', day)
       .maybeSingle();
     const photosUsed = (usageRow as { photos_used: number } | null)?.photos_used ?? 0;
 
-    if (photosUsed + photosCount > MONTHLY_PHOTO_LIMIT) {
+    if (photosUsed + photosCount > DAILY_PHOTO_LIMIT) {
       return NextResponse.json({
-        error: `Monthly limit reached. You've used ${photosUsed} of ${MONTHLY_PHOTO_LIMIT} photos this month.`,
+        error: `Daily limit reached. You've used ${photosUsed} of ${DAILY_PHOTO_LIMIT} photos today.`,
         code: 'QUOTA_EXCEEDED',
         photosUsed,
-        limit: MONTHLY_PHOTO_LIMIT,
+        limit: DAILY_PHOTO_LIMIT,
       }, { status: 429 });
     }
 
@@ -416,7 +416,7 @@ export async function POST(request: NextRequest) {
 
     // Update quota — upsert is safe on concurrent retry
     await supabaseServer.from('bulk_import_usage').upsert(
-      { user_id: userId, month, photos_used: photosUsed + photosCount },
+      { user_id: userId, month: day, photos_used: photosUsed + photosCount },
       { onConflict: 'user_id,month' }
     );
 

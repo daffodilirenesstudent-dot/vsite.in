@@ -27,8 +27,8 @@ interface ExtractedItem {
 
 type Phase = 'upload' | 'processing' | 'review' | 'inserting' | 'results' | 'error';
 
-const MONTHLY_LIMIT = 10;
-const SESSION_MAX = 3;
+const DAILY_LIMIT = 15;
+const SESSION_MAX = 5;
 const MAX_STAR_SELECT = 3;
 const MAX_PROFIT_SELECT = 3;
 const SELECTED_TIER = 4;
@@ -40,15 +40,15 @@ const STEP_MESSAGES = [
   'Matching product images…',
 ];
 
-function currentMonth(): string {
+function currentDay(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function nextMonthLabel(): string {
+function tomorrowLabel(): string {
   const now = new Date();
-  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  return next.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return next.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
 function FoodDot({ type }: { type: ExtractedItem['food_type'] }) {
@@ -86,15 +86,15 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
         .from('bulk_import_usage')
         .select('photos_used')
         .eq('user_id', userId)
-        .eq('month', currentMonth())
+        .eq('month', currentDay())
         .maybeSingle();
       if (!cancelled) setQuotaUsed((data as { photos_used: number } | null)?.photos_used ?? 0);
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const quotaExhausted = quotaUsed !== null && quotaUsed >= MONTHLY_LIMIT;
-  const sessionMax = Math.min(SESSION_MAX, quotaUsed !== null ? MONTHLY_LIMIT - quotaUsed : SESSION_MAX);
+  const quotaExhausted = quotaUsed !== null && quotaUsed >= DAILY_LIMIT;
+  const sessionMax = Math.min(SESSION_MAX, quotaUsed !== null ? DAILY_LIMIT - quotaUsed : SESSION_MAX);
   const canClose = phase !== 'processing' && phase !== 'inserting';
 
   // ── File handling ─────────────────────────────────────────────────────────
@@ -302,26 +302,26 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                   <div style={{ height: 26, width: 180, background: '#F4F4F5', borderRadius: 6 }} />
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span style={{ fontSize: 13, color: '#52525C' }}>Monthly quota:</span>
+                    <span style={{ fontSize: 13, color: '#52525C' }}>Today&apos;s quota:</span>
                     <span style={{
                       background: quotaExhausted ? '#FEE2E2' : '#F0EDFF',
                       color: quotaExhausted ? '#E7000B' : purple,
                       borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600,
                     }}>
-                      {quotaUsed} / {MONTHLY_LIMIT} photos used
+                      {quotaUsed} / {DAILY_LIMIT} photos used
                     </span>
                   </div>
                 )}
                 {quotaUsed !== null && !quotaExhausted && (
-                  <span style={{ fontSize: 11, color: '#99A1AF' }}>Resets {nextMonthLabel()}</span>
+                  <span style={{ fontSize: 11, color: '#99A1AF' }}>Resets {tomorrowLabel()}</span>
                 )}
               </div>
 
               {quotaExhausted ? (
                 <div style={{ border: '1px solid #FED7AA', borderRadius: 10, padding: '24px 16px', background: '#FFF7ED', textAlign: 'center', marginBottom: 20 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 32, color: '#EA580C', display: 'block', marginBottom: 8 }}>event_busy</span>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#9A3412', marginBottom: 4 }}>Monthly limit reached</p>
-                  <p style={{ fontSize: 12, color: '#C2410C' }}>You&apos;ve used all {MONTHLY_LIMIT} photos this month. Resets on {nextMonthLabel()}.</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#9A3412', marginBottom: 4 }}>Daily limit reached</p>
+                  <p style={{ fontSize: 12, color: '#C2410C' }}>You&apos;ve used all {DAILY_LIMIT} photos today. Resets tomorrow ({tomorrowLabel()}).</p>
                 </div>
               ) : (
                 <>

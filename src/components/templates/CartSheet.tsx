@@ -415,33 +415,35 @@ export default function CartSheet({ items, onClose, onUpdateQty, onRemove, onChe
           padding: '12px 16px 28px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         }}>
-          {/* Passive payment readout */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 10, color: C.gray600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              {paymentMethod === 'online' ? 'Paying via' : paymentMethod === 'no_payment' ? 'Order type' : 'Pay after order'}
-            </span>
-            <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 13, color: C.gray800 }}>
-              {paymentMethod === 'online' ? 'Online / UPI' : paymentMethod === 'no_payment' ? 'Table Order' : 'At Counter'}
-            </span>
-          </div>
+          {/* Passive payment readout — hidden in WhatsApp mode */}
+          {!whatsappMode && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 10, color: C.gray600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {paymentMethod === 'online' ? 'Paying via' : paymentMethod === 'no_payment' ? 'Order type' : 'Pay after order'}
+              </span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 13, color: C.gray800 }}>
+                {paymentMethod === 'online' ? 'Online / UPI' : paymentMethod === 'no_payment' ? 'Table Order' : 'At Counter'}
+              </span>
+            </div>
+          )}
 
           {/* Checkout button */}
           <button
             onClick={() => onCheckout(paymentMethod)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '0 16px', height: 52, flex: 1, maxWidth: 220,
+              padding: '0 16px', height: 52, flex: 1, minWidth: 0,
               background: C.pink, borderRadius: 8,
-              border: 'none', cursor: 'pointer',
+              border: 'none', cursor: 'pointer', gap: 8,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 14, color: C.white }}>{CURR}{grandTotal.toFixed(2)}</span>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0 }}>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 14, color: C.white, whiteSpace: 'nowrap' }}>{CURR}{grandTotal.toFixed(2)}</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 11, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
                 {gstRatePct > 0 ? 'Total (incl. GST)' : 'Total'}
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 14, color: C.white, whiteSpace: 'nowrap' }}>
                 {whatsappMode ? 'Order on WhatsApp' : paymentMethod === 'online' ? 'Place Order' : paymentMethod === 'no_payment' ? 'Place Order' : 'Check out'}
               </span>

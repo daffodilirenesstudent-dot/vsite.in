@@ -7,10 +7,29 @@ import CounterWaitingScreen from './CounterWaitingScreen';
 import OrderConfirmedScreen from './OrderConfirmedScreen';
 
 // ── VARIANT DESCRIPTION HELPERS ──────────────────────────────────────────────
+// When a description is stored as "variant-info || dish-description", returns
+// the dish-description part. Falls back to the full text when no separator is
+// present (owner just typed a regular description).
 function getVariantDishDesc(desc: string | null | undefined): string {
   if (!desc) return '';
   const idx = desc.indexOf(' || ');
-  return idx >= 0 ? desc.slice(idx + 4).trim() : '';
+  return (idx >= 0 ? desc.slice(idx + 4) : desc).trim();
+}
+
+function hasRealVariants(meta: Record<string, unknown> | null | undefined): boolean {
+  const v = meta?.variants;
+  return Array.isArray(v) && v.length > 0;
+}
+
+/** Convert a "|"-delimited description into a clean readable paragraph. */
+function toParagraph(desc: string | null | undefined): string {
+  if (!desc) return '';
+  const parts = desc.split('|')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => s.replace(/[.!?]+$/, ''));
+  if (!parts.length) return '';
+  return parts.join('. ') + '.';
 }
 
 // ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
@@ -203,6 +222,9 @@ function ProductDetailSheet({
   const [qty, setQty] = useState(1);
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [selectedToppingIdx, setSelectedToppingIdx] = useState<number | null>(null);
+  // Re-entry guard — prevents a rapid double-tap from adding the item twice
+  // while the parent's history.back() close animation is still in flight.
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (editingCartItem?.variantSize && variants) {
@@ -213,6 +235,7 @@ function ProductDetailSheet({
     }
     setQty(editingCartItem?.qty ?? 1);
     setSelectedToppingIdx(null);
+    submittingRef.current = false;
   }, [product?.id, editingCartItem?.variantSize]);
 
   useEffect(() => {
@@ -303,25 +326,52 @@ function ProductDetailSheet({
           {/* ── SCROLLABLE GRAY BODY ── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
 
-            {/* Discount badge */}
-            {discountOn && discountPct > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center',
-                  padding: '2px 8px', background: '#13801C', borderRadius: 3,
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                  fontSize: 11, lineHeight: '16px', color: '#FFFFFF',
-                }}>Flat {discountPct}% Off</span>
-              </div>
-            )}
+            {/* Offer banner — prioritized when discount is active */}
+            {discountOn && discountPct > 0 && (() => {
+              const orig = numMeta(meta.original_price);
+              const baseSelling = Number(product.selling_price);
+              const savings = Math.max(0, orig - baseSelling);
+              return (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: 'linear-gradient(90deg, #ECFDF5 0%, #F7FEE7 100%)',
+                  border: '1px dashed #16A34A', borderRadius: 8,
+                  padding: '10px 12px', marginBottom: 12,
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%', background: '#16A34A',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <circle cx="7" cy="7" r="1.2" fill="#FFFFFF"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, lineHeight: '18px', color: '#15803D' }}>Flat {discountPct}% OFF applied</p>
+                    {savings > 0 && (
+                      <p style={{ margin: '1px 0 0', fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 11, lineHeight: '15px', color: '#166534' }}>You save {CURR}{savings} on this item</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
-            {/* Description */}
-            {dishDesc && (
-              <p style={{
-                fontFamily: "'Manrope',sans-serif", fontWeight: 500, fontSize: 12,
-                lineHeight: '18px', color: '#666666', margin: '0 0 14px',
-              }}>{dishDesc}</p>
-            )}
+            {/* Description — paragraph; muted when an offer is taking priority */}
+            {dishDesc && (() => {
+              const paragraph = toParagraph(dishDesc);
+              const offerActive = discountOn && discountPct > 0;
+              return (
+                <p style={{
+                  fontFamily: "'Poppins',sans-serif",
+                  fontWeight: 400,
+                  fontSize: offerActive ? 12 : 13,
+                  lineHeight: offerActive ? '18px' : '20px',
+                  color: offerActive ? '#6B7280' : '#4B5563',
+                  margin: '0 0 14px',
+                }}>{paragraph}</p>
+              );
+            })()}
 
             {/* Prefer Quantity */}
             <p style={{
@@ -453,6 +503,8 @@ function ProductDetailSheet({
               {/* Add / Update button */}
               <button
                 onClick={() => {
+                  if (submittingRef.current) return;
+                  submittingRef.current = true;
                   const variantSize = variants[selectedVariantIdx]?.size;
                   const pricePerItem = selectedVariantPrice + selectedToppingPrice;
                   if (isEditing) {
@@ -505,115 +557,160 @@ function ProductDetailSheet({
         animation: 'qrFadeIn 0.15s ease',
       }}
     >
-      {/* Close button — floats above sheet with gap, like Zomato */}
+      {/* Floating close button — centered above sheet, Zomato/Swiggy pattern */}
       <button
         onClick={onClose}
         aria-label="Close"
         style={{
-          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-          background: 'rgba(30,30,30,0.85)', border: 'none', marginBottom: 12,
+          width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+          background: '#FFFFFF', border: 'none', marginBottom: 14,
           display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
         }}
       >
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-          <path d="M1 1l12 12M13 1L1 13" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
+          <path d="M1 1l12 12M13 1L1 13" stroke="#1A1A1A" strokeWidth="2.2" strokeLinecap="round"/>
         </svg>
       </button>
 
       <div style={{
         width: '100%', maxWidth: 560,
-        background: T.white, borderRadius: '24px 24px 0 0',
+        background: T.white, borderRadius: '20px 20px 0 0',
         animation: 'qrSlideUp 0.28s cubic-bezier(0.34,1.2,0.64,1)',
         maxHeight: '92dvh', display: 'flex', flexDirection: 'column',
         position: 'relative', overflow: 'hidden',
       }}>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ padding: '12px 0 0', display: 'flex', justifyContent: 'center' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 100, background: T.border }} />
+        {/* Image with overlay close button (Swiggy/Zomato pattern) */}
+        <div style={{ position: 'relative' }}>
+          {product.image_url
+            ? <img src={product.image_url} alt={product.name}
+                style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+            : <div style={{
+                width: '100%', aspectRatio: '4/3',
+                background: 'linear-gradient(135deg,#fce4ee,#f9e8f2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <ImgPlaceholder size={80} />
+              </div>
+          }
+          {/* Drag handle pinned to top of image */}
+          <div style={{
+            position: 'absolute', left: '50%', top: 10, transform: 'translateX(-50%)',
+            width: 44, height: 4, borderRadius: 100, background: 'rgba(255,255,255,0.85)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+          }} />
+          {/* Bestseller chip — top-left of image */}
+          {product.ks_quadrant === 'star' && (
+            <div style={{
+              position: 'absolute', top: 12, left: 12,
+              background: 'rgba(255,255,255,0.96)', borderRadius: 6,
+              padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B">
+                <path d="M12 2l2.9 6.9L22 10l-5.5 4.8L18 22l-6-3.6L6 22l1.5-7.2L2 10l7.1-1.1L12 2z"/>
+              </svg>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 11, color: '#92400E' }}>Bestseller</span>
+            </div>
+          )}
         </div>
 
-        {product.image_url
-          ? <img src={product.image_url} alt={product.name}
-              style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
-          : <div style={{
-              width: '100%', aspectRatio: '4/3',
-              background: 'linear-gradient(135deg,#fce4ee,#f9e8f2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <ImgPlaceholder size={80} />
+        <div style={{ padding: '18px 16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <div style={{ paddingTop: 6 }}>
+              <VegDot foodType={product.food_type} />
             </div>
-        }
-
-        <div style={{ padding: '14px 16px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <VegDot foodType={product.food_type} />
-            <span style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-              fontSize: 16, lineHeight: '24px', color: '#333333',
-            }}>{product.name}</span>
+            <h2 style={{
+              fontFamily: "'Poppins',sans-serif", fontWeight: 700,
+              fontSize: 22, lineHeight: '30px', color: '#1A1A1A', margin: 0, flex: 1,
+            }}>{product.name}</h2>
           </div>
 
-          {productType === 'single' && (
-            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          {/* Price row — unified for single & combo */}
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{
+              fontFamily: "'Poppins',sans-serif", fontWeight: 700,
+              fontSize: 20, lineHeight: '28px', color: '#1A1A1A',
+            }}>{CURR}{product.selling_price}</span>
+            {discountOn && (
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 500,
+                fontSize: 13, lineHeight: '18px',
+                textDecoration: 'line-through', color: '#9CA3AF',
+              }}>{CURR}{numMeta(meta.original_price)}</span>
+            )}
+            {discountOn && discountPct > 0 && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', padding: '3px 8px',
+                background: '#DCFCE7', borderRadius: 4,
+              }}>
                 <span style={{
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 600,
-                  fontSize: 24, lineHeight: '36px', letterSpacing: '0.0161em', color: '#000000',
-                }}>{CURR}{product.selling_price}</span>
-                {discountOn && (
-                  <span style={{
-                    fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                    fontSize: 10, lineHeight: '15px', letterSpacing: '0.0161em',
-                    textDecoration: 'line-through', color: '#808080',
-                    alignSelf: 'flex-end', paddingBottom: 4,
-                  }}>MRP {numMeta(meta.original_price)}</span>
-                )}
+                  fontFamily: "'Poppins',sans-serif", fontWeight: 700,
+                  fontSize: 11, color: '#15803D', letterSpacing: '0.02em',
+                }}>{discountPct}% OFF</span>
               </div>
-              {discountOn && discountPct > 0 && (
+            )}
+          </div>
+
+          {/* Offer banner — prioritized when discount is active (works for single & combo) */}
+          {discountOn && discountPct > 0 && (() => {
+            const orig = numMeta(meta.original_price);
+            const savings = Math.max(0, orig - Number(product.selling_price));
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: 'linear-gradient(90deg, #ECFDF5 0%, #F7FEE7 100%)',
+                border: '1px dashed #16A34A', borderRadius: 8,
+                padding: '10px 12px',
+              }}>
                 <div style={{
-                  display: 'flex', flexDirection: 'row', justifyContent: 'center',
-                  alignItems: 'center', padding: '2px 6px',
-                  background: '#13801C', borderRadius: 3,
+                  width: 28, height: 28, borderRadius: '50%', background: '#16A34A',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <span style={{
-                    fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                    fontSize: 11, lineHeight: '16px', letterSpacing: '0.0161em', color: '#FFFFFF',
-                  }}>Flat {discountPct}% Off</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="7" cy="7" r="1.2" fill="#FFFFFF"/>
+                  </svg>
                 </div>
-              )}
-            </div>
-          )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{
+                    margin: 0, fontFamily: "'Poppins',sans-serif", fontWeight: 700,
+                    fontSize: 13, lineHeight: '18px', color: '#15803D',
+                  }}>Flat {discountPct}% OFF applied</p>
+                  {savings > 0 && (
+                    <p style={{
+                      margin: '1px 0 0', fontFamily: "'Poppins',sans-serif", fontWeight: 500,
+                      fontSize: 11, lineHeight: '15px', color: '#166534',
+                    }}>You save {CURR}{savings} on this {productType === 'combo' ? 'combo' : 'item'}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
-          {product.description && (
-            <p style={{
-              fontFamily: "'Manrope',sans-serif", fontWeight: 500, fontSize: 12,
-              lineHeight: '18px', letterSpacing: '0.0161em', color: '#666666', margin: 0,
-            }}>{product.description}</p>
-          )}
+          {/* Description paragraph — muted when an offer is taking priority */}
+          {product.description && (() => {
+            const paragraph = toParagraph(product.description);
+            const offerActive = discountOn && discountPct > 0;
+            return (
+              <p style={{
+                fontFamily: "'Poppins',sans-serif",
+                fontWeight: 400,
+                fontSize: offerActive ? 12 : 13,
+                lineHeight: offerActive ? '18px' : '20px',
+                color: offerActive ? '#6B7280' : '#4B5563',
+                margin: 0,
+              }}>{paragraph}</p>
+            );
+          })()}
 
+          {/* Combo items — "What's included" list */}
           {productType === 'combo' && comboItems && (
             <>
-              <div style={{ height: 1, background: T.border, margin: '0 0 14px' }} />
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-                <span style={{
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 600,
-                  fontSize: 24, lineHeight: '36px', letterSpacing: '0.0161em', color: '#000000',
-                }}>{CURR}{product.selling_price}</span>
-                {discountOn && (
-                  <span style={{
-                    fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                    fontSize: 10, lineHeight: '15px', textDecoration: 'line-through',
-                    color: '#808080', alignSelf: 'center',
-                  }}>MRP {numMeta(meta.original_price)}</span>
-                )}
-                {discountOn && discountPct > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', padding: '2px 6px', background: '#13801C', borderRadius: 3 }}>
-                    <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 11, color: '#FFFFFF' }}>Flat {discountPct}% Off</span>
-                  </div>
-                )}
-              </div>
-              <p style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 13, color: T.dark, margin: '0 0 8px' }}>What&apos;s included</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 14 }}>
+              <div style={{ height: 1, background: '#F1F1F1', margin: '4px 0 2px' }} />
+              <p style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, color: '#1A1A1A', margin: '0 0 4px', letterSpacing: '0.02em' }}>What&apos;s included</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {comboItems.map((item) => (
                   <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -631,33 +728,36 @@ function ProductDetailSheet({
 
         {(tier === 'order' || tier === 'order_no_pay') && (
           <div style={{
-            width: '100%', height: 79, flexShrink: 0,
-            background: 'linear-gradient(271.36deg, #FFFFFF 1.97%, #FFF6EB 126.56%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 16px', gap: 16,
+            width: '100%', flexShrink: 0,
+            background: T.white, borderTop: `1px solid ${T.border}`,
+            boxShadow: '0 -4px 14px rgba(0,0,0,0.06)',
+            display: 'flex', alignItems: 'center',
+            padding: '12px 16px 20px', gap: 12,
           }}>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              width: 128, height: 46, border: `1px solid ${T.pink}`, borderRadius: 100,
-              padding: '0 12px', flexShrink: 0,
+              width: 112, height: 48, border: `1.5px solid ${T.pink}`, borderRadius: 10,
+              padding: '0 10px', flexShrink: 0, background: T.white,
             }}>
               <button onClick={() => setQty(q => Math.max(1, q - 1))} aria-label="Decrease quantity"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 12h14" stroke={T.pink} strokeWidth="2" strokeLinecap="round" />
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 4px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h14" stroke={T.pink} strokeWidth="2.4" strokeLinecap="round" />
                 </svg>
               </button>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 18, color: T.pink }}>{qty}</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 17, color: T.pink, minWidth: 16, textAlign: 'center' }}>{qty}</span>
               <button onClick={() => setQty(q => Math.min(99, q + 1))} aria-label="Increase quantity"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 5v14M5 12h14" stroke={T.pink} strokeWidth="2" strokeLinecap="round" />
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 4px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 5v14M5 12h14" stroke={T.pink} strokeWidth="2.4" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
 
             <button
               onClick={() => {
+                if (submittingRef.current) return;
+                submittingRef.current = true;
                 if (isEditing) {
                   onReplaceCartItem!(editingCartItem!, product, qty, undefined, undefined);
                 } else {
@@ -666,15 +766,18 @@ function ProductDetailSheet({
                 onClose();
               }}
               style={{
-                width: 208, height: 48, background: T.pink, border: 'none',
-                borderRadius: 100, cursor: 'pointer',
+                flex: 1, height: 48, background: T.pink, border: 'none',
+                borderRadius: 10, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(239,89,161,0.35)',
+                padding: '0 12px',
               }}
             >
               <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 500,
-                fontSize: 16, lineHeight: '24px', letterSpacing: '0.0161em', color: '#FFFFFF',
-              }}>{isEditing ? 'Update Cart' : 'Add to Cart'} · {CURR}{totalPrice}</span>
+                fontFamily: "'Poppins',sans-serif", fontWeight: 700,
+                fontSize: 15, lineHeight: '20px', color: '#FFFFFF',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{isEditing ? 'Update' : 'Add Item'} · {CURR}{totalPrice}</span>
             </button>
           </div>
         )}
@@ -768,17 +871,17 @@ function SearchOverlay({
             </svg>
           </button>
 
-          {/* Text input */}
+          {/* Text input — 15px prevents iOS auto-zoom on focus */}
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Find your Craving's Partner"
+            placeholder="Search for dishes, cuisines…"
             style={{
               flex: 1, border: 'none', background: 'transparent', outline: 'none',
-              fontFamily: "'Manrope',sans-serif", fontWeight: 500,
-              fontSize: 12, lineHeight: '16px', color: '#191919',
+              fontFamily: "'Poppins',sans-serif", fontWeight: 500,
+              fontSize: 15, lineHeight: '20px', color: '#191919',
             }}
           />
 
@@ -810,32 +913,22 @@ function SearchOverlay({
           display: 'flex', flexDirection: 'row', alignItems: 'center',
           gap: 12, width: 'max-content',
         }}>
-          {/* Filters chip with icons */}
+          {/* "All" chip — clears category filter; honest about its behavior (no fake dropdown) */}
           <button
             onClick={() => setActiveChip(null)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 12px', height: 36,
-              border: `0.65px solid ${!activeChip ? T.dark : '#D1D5DC'}`,
-              borderRadius: 40, background: !activeChip ? '#F5F5F5' : T.white,
+              display: 'flex', alignItems: 'center',
+              padding: '8px 16px', height: 36,
+              border: `0.65px solid ${!activeChip ? T.pink : '#D1D5DC'}`,
+              borderRadius: 40, background: !activeChip ? '#FFF0F8' : T.white,
               cursor: 'pointer', flexShrink: 0,
             }}
           >
-            {/* Filter icon */}
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 4h12M4 8h8M6 12h4" stroke="#0A0A0A" strokeWidth="1.33"
-                strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
             <span style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 400,
+              fontFamily: "'Poppins',sans-serif", fontWeight: !activeChip ? 600 : 400,
               fontSize: 14, lineHeight: '20px', letterSpacing: '-0.15px',
-              color: '#0A0A0A', whiteSpace: 'nowrap',
-            }}>Filters</span>
-            {/* Chevron down */}
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M4 6l4 4 4-4" stroke="#0A0A0A" strokeWidth="1.33"
-                strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+              color: !activeChip ? T.pink : '#0A0A0A', whiteSpace: 'nowrap',
+            }}>All</span>
           </button>
 
           {/* Category chips */}
@@ -903,14 +996,14 @@ function BrowseResultCard({
   currencyCode?: 'INR' | 'AED';
 }) {
   const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
-  const desc = p.metadata?.variants ? getVariantDishDesc(p.description) : p.description;
+  const desc = hasRealVariants(p.metadata) ? getVariantDishDesc(p.description) : p.description;
 
   return (
     <div
       className="qr-card"
       onClick={() => onSelect(p)}
       style={{
-        position: 'relative', width: '100%', height: 102,
+        position: 'relative', width: '100%', height: 138,
         background: T.cardBg, border: `1px solid ${T.border}`,
         borderRadius: 6, cursor: 'pointer',
       }}
@@ -918,20 +1011,20 @@ function BrowseResultCard({
       {/* Thumbnail */}
       <div style={{
         position: 'absolute', right: 8, top: 8,
-        width: 75, height: 75, borderRadius: 8, overflow: 'hidden',
+        width: 108, height: 108, borderRadius: 10, overflow: 'hidden',
         background: T.white,
       }}>
         {p.image_url
           ? <img src={p.image_url} alt={p.name} loading="lazy" decoding="async"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          : <ImgPlaceholder size={75} />
+          : <ImgPlaceholder size={108} />
         }
         <QuadrantBadge quadrant={p.ks_quadrant} />
       </div>
 
       {/* Veg dot + Name */}
       <div style={{
-        position: 'absolute', left: 8, top: 8, right: 91,
+        position: 'absolute', left: 8, top: 8, right: 124,
         display: 'flex', alignItems: 'center', gap: 6,
       }}>
         <VegDot foodType={p.food_type} />
@@ -946,7 +1039,7 @@ function BrowseResultCard({
       {/* Description */}
       {desc && (
         <p style={{
-          position: 'absolute', left: 8, top: 33, right: 91, margin: 0,
+          position: 'absolute', left: 8, top: 33, right: 124, margin: 0,
           fontFamily: "'Poppins',sans-serif", fontWeight: 300, fontSize: 10,
           lineHeight: '16px', letterSpacing: '0.0161em', color: T.descColor,
           display: '-webkit-box', WebkitLineClamp: 2,
@@ -967,12 +1060,12 @@ function BrowseResultCard({
           onClick={e => { e.stopPropagation(); onSelect(p); }}
           aria-label={`Add ${p.name} to cart`}
           style={{
-            position: 'absolute', right: 8, bottom: 8,
+            position: 'absolute', right: 33, bottom: 6,
             width: 57, height: 26, borderRadius: 14,
             border: `1px solid ${T.pink}`, background: T.white, color: T.pink,
             fontFamily: "'Manrope',sans-serif", fontWeight: 700,
             fontSize: 12, cursor: 'pointer',
-            boxShadow: '0px 2px 1px rgba(0,0,0,0.08)',
+            boxShadow: '0px 2px 6px rgba(0,0,0,0.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >ADD</button>
@@ -1242,8 +1335,11 @@ export default function QRMenuTemplate({
       setCartOpen(true);
       return;
     }
+    // Unmount the modal synchronously so the user sees instant feedback and
+    // a rapid second tap can't re-trigger any handlers on a still-mounted sheet.
+    // Then call history.back() to clean up the history entry we pushed on open.
+    setActiveProduct(null);
     if (window.history.state?.qrSheet === 'product') window.history.back();
-    else setActiveProduct(null);
   };
   const closeSearch = () => {
     if (window.history.state?.qrSheet === 'search') window.history.back();
@@ -1281,6 +1377,7 @@ export default function QRMenuTemplate({
       <style>{`
         @keyframes qrFadeIn  { from{opacity:0} to{opacity:1} }
         @keyframes qrSlideUp { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes qrCartIn  { from{transform:translate(-50%,80px);opacity:0} to{transform:translate(-50%,0);opacity:1} }
         .qr-wrap * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
         .qr-wrap *::-webkit-scrollbar { display:none; }
         .qr-wrap * { scrollbar-width:none; }
@@ -1459,7 +1556,11 @@ export default function QRMenuTemplate({
         )}
 
         {/* ── PRODUCT SECTIONS ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 24 }}>
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', gap: 20,
+          // Reserve space for the floating cart bar (64px) + 14px float margin + safe-area, plus a touch of breathing room
+          paddingBottom: canOrder && cartItemCount > 0 ? 'calc(110px + env(safe-area-inset-bottom, 0px))' : 24,
+        }}>
           {sections.map(({ category, products }) => (
             <div key={category} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -1477,7 +1578,7 @@ export default function QRMenuTemplate({
                 width: '100%', padding: '0 16px',
               }}>
                 {products.map(p => {
-                  const desc = p.metadata?.variants ? getVariantDishDesc(p.description) : p.description;
+                  const desc = hasRealVariants(p.metadata) ? getVariantDishDesc(p.description) : p.description;
                   const discountActive = p.metadata?.discount_enabled && p.metadata?.original_price;
                   const discountPct = numMeta(p.metadata?.discount_pct);
 
@@ -1487,25 +1588,25 @@ export default function QRMenuTemplate({
                       className="qr-card"
                       onClick={() => openProduct(p)}
                       style={{
-                        position: 'relative', width: '100%', height: 102,
+                        position: 'relative', width: '100%', height: 138,
                         background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 6,
                       }}
                     >
                       {/* Thumbnail */}
                       <div style={{
                         position: 'absolute', right: 8, top: 8,
-                        width: 75, height: 75, borderRadius: 8, overflow: 'hidden', background: T.white,
+                        width: 108, height: 108, borderRadius: 10, overflow: 'hidden', background: T.white,
                       }}>
                         {p.image_url
                           ? <img src={p.image_url} alt={p.name} loading="lazy" decoding="async"
                               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                          : <ImgPlaceholder size={75} />
+                          : <ImgPlaceholder size={108} />
                         }
                         <QuadrantBadge quadrant={p.ks_quadrant} />
                       </div>
 
                       {/* Name row */}
-                      <div style={{ position: 'absolute', left: 8, top: 8, right: 91, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ position: 'absolute', left: 8, top: 8, right: 124, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <VegDot foodType={p.food_type} />
                         <p style={{
                           margin: 0, flex: 1,
@@ -1518,7 +1619,7 @@ export default function QRMenuTemplate({
                       {/* Description */}
                       {desc && (
                         <p style={{
-                          position: 'absolute', left: 8, top: 33, right: 91, margin: 0,
+                          position: 'absolute', left: 8, top: 33, right: 124, margin: 0,
                           fontFamily: "'Poppins',sans-serif", fontWeight: 300, fontSize: 10,
                           lineHeight: '16px', letterSpacing: '0.0161em', color: T.descColor,
                           display: '-webkit-box', WebkitLineClamp: 2,
@@ -1561,11 +1662,11 @@ export default function QRMenuTemplate({
                             <div
                               onClick={e => e.stopPropagation()}
                               style={{
-                                position: 'absolute', right: 4, bottom: 6,
+                                position: 'absolute', right: 20, bottom: 6,
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                 width: 84, height: 28, borderRadius: 14,
                                 background: T.pink,
-                                boxShadow: '0px 2px 4px rgba(239,89,161,0.4)',
+                                boxShadow: '0px 4px 10px rgba(239,89,161,0.45)',
                               }}
                             >
                               <button
@@ -1591,11 +1692,11 @@ export default function QRMenuTemplate({
                             <div
                               onClick={e => e.stopPropagation()}
                               style={{
-                                position: 'absolute', right: 4, bottom: 6,
+                                position: 'absolute', right: 20, bottom: 6,
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                 width: 84, height: 28, borderRadius: 14,
                                 background: T.pink,
-                                boxShadow: '0px 2px 4px rgba(239,89,161,0.4)',
+                                boxShadow: '0px 4px 10px rgba(239,89,161,0.45)',
                               }}
                             >
                               <button
@@ -1625,12 +1726,12 @@ export default function QRMenuTemplate({
                             }}
                             aria-label={`Add ${p.name} to cart`}
                             style={{
-                              position: 'absolute', right: 17, bottom: 6,
+                              position: 'absolute', right: 33, bottom: 6,
                               width: 57, height: 26, borderRadius: 14,
                               border: `1px solid ${T.pink}`, background: T.white, color: T.pink,
                               fontFamily: "'Manrope',sans-serif", fontWeight: 700, fontSize: 12, lineHeight: '12px',
                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              boxShadow: '0px 2px 1px rgba(0,0,0,0.08)',
+                              boxShadow: '0px 2px 6px rgba(0,0,0,0.12)',
                             }}
                           >ADD</button>
                         );
@@ -1674,15 +1775,20 @@ export default function QRMenuTemplate({
 
       </div>
 
-      {/* ── FLOATING CART BAR ── */}
+      {/* ── FLOATING CART BAR (original design — floats with edge margin) ── */}
       {canOrder && cartItemCount > 0 && !cartOpen && !checkoutOpen && !confirmedOrder && !counterWaiting && (
         <div style={{
-          position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 100, width: '100%', maxWidth: 560, height: 70,
+          position: 'fixed',
+          bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))',
+          left: '50%', transform: 'translateX(-50%)',
+          zIndex: 100,
+          width: 'calc(100% - 28px)', maxWidth: 532, height: 70,
           background: 'linear-gradient(271.56deg, #FFFFFF 1.98%, #FFF6EB 99.55%)',
+          borderRadius: 14,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '0 16px',
-          boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
+          boxShadow: '0 10px 26px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08)',
+          animation: 'qrCartIn 0.34s cubic-bezier(0.34,1.32,0.64,1)',
         }}>
           {/* Left: dish thumbnails + text */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1735,8 +1841,8 @@ export default function QRMenuTemplate({
             style={{
               display: 'flex', alignItems: 'center',
               height: 46, background: '#00A63E',
-              border: 'none', borderRadius: 6, cursor: 'pointer',
-              boxShadow: '0px 0px 6px rgba(0,0,0,0.18)',
+              border: 'none', borderRadius: 8, cursor: 'pointer',
+              boxShadow: '0px 2px 6px rgba(0,166,62,0.30)',
               padding: '0 16px', gap: 12, flexShrink: 0,
             }}
           >
