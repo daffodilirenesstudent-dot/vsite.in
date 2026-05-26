@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { useSite } from '@/components/SiteContext';
 import { useNotifications } from '@/components/NotificationContext';
@@ -766,9 +767,12 @@ export default function ProductInventoryPage() {
                 })}
             </div>
 
-            {/* ── DELETE CONFIRMATION MODAL ── */}
-            {deleteTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+            {/* ── DELETE CONFIRMATION MODAL ──
+                Rendered via portal so it escapes the <main> stacking context
+                in ManageLayoutClient — otherwise the mobile bottom-nav (z-50,
+                sibling of <main>) paints over the modal on iPhone. */}
+            {deleteTarget && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)', zIndex: 100 }}>
                     <div className="bg-white flex flex-col items-center" style={{ width: 400, borderRadius: 16, padding: '32px 28px 24px', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
 
                         {/* Close */}
@@ -826,15 +830,19 @@ export default function ProductInventoryPage() {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
 
-            {/* ── ADD PRODUCT DRAWER ── */}
-            {drawerOpen && (
+            {/* ── ADD PRODUCT DRAWER ──
+                Portaled to document.body for the same reason as the delete
+                modal: the mobile bottom-nav otherwise hides the footer's
+                Save Changes / Cancel buttons on iPhone. */}
+            {drawerOpen && typeof document !== 'undefined' && createPortal(
                 <>
-                    <div className="fixed inset-0" style={{ background: 'rgba(0,0,0,0.25)', zIndex: 55 }} onClick={closeDrawer} />
+                    <div className="fixed inset-0" style={{ background: 'rgba(0,0,0,0.25)', zIndex: 95 }} onClick={closeDrawer} />
 
-                    <div className="fixed top-0 right-0 flex flex-col bg-white" style={{ width: 'min(500px, 100vw)', height: '100dvh', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 60 }}>
+                    <div className="fixed top-0 right-0 flex flex-col bg-white" style={{ width: 'min(500px, 100vw)', height: '100dvh', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 100 }}>
 
                         {/* Header */}
                         <div style={{ padding: '22px 24px 16px', borderBottom: '1px solid #E4E4E7', flexShrink: 0 }}>
@@ -1184,7 +1192,8 @@ export default function ProductInventoryPage() {
                             </button>
                         </div>
                     </div>
-                </>
+                </>,
+                document.body,
             )}
 
             {/* ── BULK IMPORT MODAL ── */}
