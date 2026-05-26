@@ -119,6 +119,31 @@ export default function ShopPageClient({
     return () => { supabase.removeChannel(channel); };
   }, [initialShop.id]);
 
+  // Fire-and-forget menu-scan tracking. Persists a per-browser visitor_id in
+  // localStorage so the owner's dashboard can compute "distinct visitors today"
+  // rather than just raw pageloads.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const STORAGE_KEY = 'vsite_visitor_id';
+      let visitorId = window.localStorage.getItem(STORAGE_KEY);
+      if (!visitorId) {
+        visitorId = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+        window.localStorage.setItem(STORAGE_KEY, visitorId);
+      }
+      fetch('/api/track-menu-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: initialShop.id,
+          visitor_id: visitorId,
+          table_number: tableNumber != null ? String(tableNumber) : undefined,
+        }),
+        keepalive: true,
+      }).catch(() => { /* fire-and-forget */ });
+    } catch { /* localStorage / crypto unavailable — skip silently */ }
+  }, [initialShop.id, tableNumber]);
+
   const templateKey: TemplateName = DEFAULT_TEMPLATE;
   const Template = TEMPLATE_MAP[templateKey];
 

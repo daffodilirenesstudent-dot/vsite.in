@@ -9,10 +9,10 @@ import { firebaseAuth } from '@/lib/firebase';
 // Per-plan monthly pricing. Keep in sync with create-subscription/route.ts.
 // 30-day cycle, no setup fee.
 const SETUP_FEE = 0;
-const QR_MENU_MONTHLY     = 5;   // Smart QR Menu (TEST — live key)
-const QR_ORDER_MONTHLY    = 5;   // QR Ordering (TEST — live key)
+const QR_MENU_MONTHLY     = 299;
+const QR_ORDER_MONTHLY    = 499;
 const QR_ORDER_MOCK_PRICE = QR_ORDER_MONTHLY;
-const QR_ORDERING_MONTHLY = 5;   // Pay & Eat (TEST — live key)
+const QR_ORDERING_MONTHLY = 699;
 const QR_ORDERING_MOCK_PRICE = QR_ORDERING_MONTHLY;
 
 type ModalType = 'payment' | 'qr_ordering_payment' | 'qr_order_payment' | 'coming_soon' | null;
@@ -828,7 +828,7 @@ export default function SubscriptionPage() {
                                         <span style={{ fontSize: 16, fontWeight: 800, color: '#5137EF' }}>₹{QR_ORDERING_MOCK_PRICE}</span>
                                     </div>
                                     <p style={{ fontSize: 11, color: '#71717A', marginTop: 8 }}>
-                                        This is a mock payment for testing. Real pricing (₹{QR_ORDERING_MONTHLY}/mo) applies after launch.
+                                        Renew manually each month — no auto-debit.
                                     </p>
                                 </div>
 

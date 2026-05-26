@@ -380,7 +380,8 @@ export default function ProductInventoryPage() {
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         // Reset the input so picking the same file twice still triggers onChange.
-        e.target.value = '';
+        // Mobile Safari throws SyntaxError on file input value assignment — swallow it.
+        try { e.target.value = ''; } catch { /* iOS Safari rejects file-input value assignment */ }
         if (!file) return;
         // Hard guards: phone galleries are full of 20+ MB shots and exotic formats
         // that will silently choke the upload. Catch them client-side with a clear
@@ -1171,7 +1172,7 @@ export default function ProductInventoryPage() {
                         </div>
 
                         {/* Footer */}
-                        <div className="flex items-center justify-end gap-3" style={{ padding: '16px 24px', borderTop: '1px solid #E4E4E7', flexShrink: 0 }}>
+                        <div className="flex items-center justify-end gap-3" style={{ padding: '16px 24px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))', borderTop: '1px solid #E4E4E7', flexShrink: 0 }}>
                             <button onClick={closeDrawer} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}>Cancel</button>
                             <button onClick={handleSaveProduct} disabled={saving} className="hover:opacity-90 transition-opacity" style={{ background: '#5137EF', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 500, color: '#FFFFFF', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
                                 {saving ? (

@@ -12,9 +12,9 @@ export const runtime = 'nodejs';
 // Keep in sync with /manage/subscription/page.tsx and PlanContext.tsx.
 // Per-plan monthly pricing in INR; no setup fee. 30-day cycle.
 const PLAN_PRICES_INR: Record<string, number> = {
-    qr_menu:  5,   // Smart QR Menu (TEST — live key)
-    qr_order: 5,   // QR Ordering (TEST — live key)
-    pay_eat:  5,   // Pay & Eat (TEST — live key)
+    qr_menu:  299,
+    qr_order: 499,
+    pay_eat:  699,
 };
 const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 const VALID_PLANS = new Set(Object.keys(PLAN_PRICES_INR));

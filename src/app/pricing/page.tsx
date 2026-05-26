@@ -7,13 +7,13 @@ import PricingFAQ from './PricingFAQ';
 const BASE_URL = 'https://vsite.in';
 
 export const metadata: Metadata = {
-  title: 'vsite Pricing — From ₹399/month | No Commission',
+  title: 'vsite Pricing — From ₹299/month | No Commission',
   description:
-    'Simple, honest pricing for restaurants. QR Menu at ₹399/mo. Pay & Eat ordering plan available. 14-day free trial. No hidden fees.',
+    'Simple, honest pricing for restaurants. QR Menu at ₹299/mo. QR Ordering at ₹499/mo. Pay & Eat at ₹699/mo. 14-day free trial. No hidden fees.',
   alternates: { canonical: `${BASE_URL}/pricing` },
   openGraph: {
     url: `${BASE_URL}/pricing`,
-    title: 'vsite Pricing — From ₹399/month | No Commission',
+    title: 'vsite Pricing — From ₹299/month | No Commission',
     description: 'Simple, honest pricing for restaurants. 14-day free trial. No hidden fees. No commission.',
   },
 };
@@ -136,12 +136,12 @@ export default function PricingPage() {
                 </span>
                 <p className="text-slate-500 text-sm mb-5">View-only digital menu for your tables</p>
                 <div className="flex items-baseline gap-1 mb-3">
-                  <span className="text-4xl font-extrabold font-display text-slate-900">₹399</span>
+                  <span className="text-4xl font-extrabold font-display text-slate-900">₹299</span>
                   <span className="text-slate-400 text-sm">/ month</span>
                 </div>
                 <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600">
                   <span className="material-symbols-outlined text-slate-400 text-base">info</span>
-                  One-time setup fee: <span className="font-bold text-slate-800 ml-1">₹1,999</span>
+                  No setup fee · Billed every 30 days
                 </div>
               </div>
               <ul className="space-y-3 flex-1 mb-8">
@@ -176,12 +176,12 @@ export default function PricingPage() {
                 </div>
                 <p className="text-slate-500 text-sm mb-5">Full digital ordering + payment for your restaurant</p>
                 <div className="flex items-baseline gap-1 mb-3">
-                  <span className="text-4xl font-extrabold font-display text-slate-900">₹799</span>
+                  <span className="text-4xl font-extrabold font-display text-slate-900">₹699</span>
                   <span className="text-slate-400 text-sm">/ month</span>
                 </div>
                 <div className="inline-flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 text-sm text-slate-600">
                   <span className="material-symbols-outlined text-primary text-base">info</span>
-                  One-time setup fee: <span className="font-bold text-slate-800 ml-1">₹1,999</span>
+                  No setup fee · Billed every 30 days
                 </div>
               </div>
               <ul className="space-y-3 flex-1 mb-8">
@@ -233,11 +233,11 @@ export default function PricingPage() {
               <div className="px-5 py-4 text-sm font-bold text-slate-700">Feature</div>
               <div className="px-4 py-4 text-center">
                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">QR Menu</span>
-                <div className="text-sm font-extrabold text-slate-900 mt-0.5">₹399/mo</div>
+                <div className="text-sm font-extrabold text-slate-900 mt-0.5">₹299/mo</div>
               </div>
               <div className="px-4 py-4 text-center bg-primary/5">
                 <span className="text-xs font-bold text-primary uppercase tracking-wider">Pay & Eat</span>
-                <div className="text-sm font-extrabold text-primary mt-0.5">₹799/mo</div>
+                <div className="text-sm font-extrabold text-primary mt-0.5">₹699/mo</div>
               </div>
             </div>
             {comparisonRows.map((row, i) => (

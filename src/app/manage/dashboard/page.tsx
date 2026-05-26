@@ -39,7 +39,7 @@ interface Insights {
    DASHBOARD
 ══════════════════════════════════════════════════════════ */
 function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string; siteId: string; initialStoreOpen: boolean }) {
-    const { isPayEat, isQrOrder, isTrialExpired, planLoading } = usePlan();
+    const { isPayEat, isQrOrder, isQrMenu, isTrialExpired, planLoading } = usePlan();
     const [storeOpen, setStoreOpen] = useState(initialStoreOpen);
     const [toggling, setToggling] = useState(false);
     const [insights, setInsights] = useState<Insights | null>(null);
@@ -49,6 +49,9 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
     const range = useCurrentRange();
 
     const canViewInsights = isPayEat || isQrOrder;
+    // qr_menu plan gets a different, lighter insights block (menu views +
+    // inventory summary) since they don't have orders/revenue to report on.
+    const showMenuInsights = isQrMenu && !isQrOrder && !isPayEat;
 
     // ── Fetch insights server-side (transactions-backed; not orders-backed) ──
     // Server reads from `transactions` so revenue = money actually collected.
@@ -251,7 +254,9 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                 {canViewInsights && <DateRangeFilter variant="chips" />}
             </div>
 
-            {!canViewInsights ? (
+            {showMenuInsights ? (
+                <MenuInsights siteId={siteId} authedFetch={authedFetch} />
+            ) : !canViewInsights ? (
                 <div className="flex flex-col items-center justify-center text-center mb-6 md:mb-8" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '36px 24px', background: '#FAFAFA' }}>
                     <div className="flex items-center justify-center" style={{ width: 52, height: 52, borderRadius: '50%', background: '#EEEEFF', marginBottom: 16 }}>
                         <span className="material-symbols-outlined" style={{ fontSize: 26, color: '#5137EF' }}>bar_chart</span>
@@ -557,6 +562,181 @@ function SyncIndicator({
                 </span>
             </button>
             <style>{`@keyframes sync-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+    );
+}
+
+/* ══════════════════════════════════════════════════════════
+   MENU INSIGHTS  (qr_menu plan)
+   Light-weight summary block for menu-only stores: how many
+   people scanned the menu today, total inventory size, and a
+   per-category breakdown. Polls /api/manage/menu-summary every
+   30 s for near-realtime updates.
+══════════════════════════════════════════════════════════ */
+interface MenuSummary {
+    scans_today:      number;
+    scans_total:      number;
+    total_products:   number;
+    total_categories: number;
+    categories:       { name: string; count: number }[];
+    generated_at:     string;
+}
+
+function MenuInsights({
+    siteId,
+    authedFetch,
+}: {
+    siteId: string;
+    authedFetch: (url: string, init?: RequestInit) => Promise<Response>;
+}) {
+    const [summary, setSummary] = useState<MenuSummary | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    const fetchSummary = useCallback(async () => {
+        if (!siteId) return;
+        try {
+            const res = await authedFetch(`/api/manage/menu-summary?site_id=${siteId}`, { cache: 'no-store' });
+            if (!res.ok) return;
+            const json = await res.json() as MenuSummary;
+            setSummary(json);
+        } catch (err) {
+            console.error('[dashboard] fetchSummary error:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [siteId, authedFetch]);
+
+    // Initial fetch + 30s polling so the owner sees scans pile up live.
+    useEffect(() => { fetchSummary(); }, [fetchSummary]);
+    useEffect(() => {
+        if (!siteId) return;
+        let id: ReturnType<typeof setInterval> | null = null;
+        const start = () => { if (!id) id = setInterval(fetchSummary, 30_000); };
+        const stop  = () => { if (id) { clearInterval(id); id = null; } };
+        const onVisibility = () => document.visibilityState === 'visible' ? (fetchSummary(), start()) : stop();
+        if (document.visibilityState === 'visible') start();
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
+    }, [siteId, fetchSummary]);
+
+    const cards = [
+        { key: 'scans',      label: 'Scans Today',     value: summary?.scans_today,      icon: 'qr_code_scanner', color: '#5137EF', bg: '#EEEEFF', hint: 'Unique visitors' },
+        { key: 'total',      label: 'Total Visitors',  value: summary?.scans_total,      icon: 'group',           color: '#0EA5E9', bg: '#F0F9FF', hint: 'All-time unique' },
+        { key: 'products',   label: 'Total Products',  value: summary?.total_products,   icon: 'inventory_2',     color: '#16A34A', bg: '#F0FDF4', hint: 'In your menu' },
+        { key: 'categories', label: 'Total Categories',value: summary?.total_categories, icon: 'category',        color: '#F97316', bg: '#FFF7ED', hint: 'With products' },
+    ];
+
+    return (
+        <div className="mb-6 md:mb-8">
+            {/* Info strip — matches paid-plan dashboard's visual rhythm */}
+            <div className="flex items-center justify-between gap-2 mb-3 flex-wrap" style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '8px 12px' }}>
+                <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#0284C7', flexShrink: 0 }}>info</span>
+                    <p style={{ fontSize: 12, color: '#075985', margin: 0 }}>
+                        Live menu activity — updates every 30 seconds. Numbers count <strong>unique visitors</strong>, not refreshes.
+                    </p>
+                </div>
+                <span style={{ fontSize: 11, color: '#0369A1', fontWeight: 600 }}>Today</span>
+            </div>
+
+            {/* Stat cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                {cards.map(card => (
+                    <div key={card.key} style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: '16px', background: '#FFFFFF' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 17, color: card.color, fontVariationSettings: "'FILL' 1" }}>{card.icon}</span>
+                            </div>
+                            <span style={{ fontSize: 12, color: '#71717A', fontWeight: 500 }}>{card.label}</span>
+                        </div>
+                        <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: 1 }}>
+                            {loading || !summary ? '—' : (card.value ?? 0).toLocaleString('en-IN')}
+                        </p>
+                        <p style={{ fontSize: 11, color: '#99A1AF', marginTop: 6 }}>{card.hint}</p>
+                    </div>
+                ))}
+            </div>
+
+            {/* Per-category breakdown */}
+            <div style={{ border: '1px solid #E4E4E7', borderRadius: 12, background: '#FFFFFF', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #F4F4F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#5137EF' }}>category</span>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A', margin: 0 }}>Items per Category</p>
+                    </div>
+                    {summary && summary.categories.length > 0 && (
+                        <span style={{ fontSize: 11, color: '#71717A' }}>{summary.categories.length} groups</span>
+                    )}
+                </div>
+
+                {loading ? (
+                    <div style={{ padding: '16px' }}>
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="flex items-center gap-3" style={{ padding: '10px 0', borderBottom: i < 2 ? '1px solid #F4F4F5' : 'none' }}>
+                                <div style={{ width: 28, height: 28, borderRadius: 6, background: '#F4F4F5', animation: 'dash-pulse 1.4s ease-in-out infinite' }} />
+                                <div style={{ flex: 1, height: 10, background: '#F4F4F5', borderRadius: 4, animation: 'dash-pulse 1.4s ease-in-out infinite' }} />
+                                <div style={{ width: 24, height: 10, background: '#F4F4F5', borderRadius: 4, animation: 'dash-pulse 1.4s ease-in-out infinite' }} />
+                            </div>
+                        ))}
+                        <style>{`@keyframes dash-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
+                    </div>
+                ) : !summary || summary.categories.length === 0 ? (
+                    <div className="flex flex-col items-center text-center" style={{ padding: '32px 16px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 32, color: '#D4D4D8', marginBottom: 8 }}>inventory_2</span>
+                        <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 13, marginBottom: 2 }}>No products yet</p>
+                        <p style={{ fontSize: 12, color: '#71717A', maxWidth: 280 }}>
+                            Add items in <Link href="/manage/product-inventory" style={{ color: '#5137EF', fontWeight: 600 }}>Product Inventory</Link> to see them grouped here.
+                        </p>
+                    </div>
+                ) : (
+                    <div>
+                        {(() => {
+                            const max = summary.categories[0]?.count ?? 1;
+                            return summary.categories.map((cat, i) => {
+                                const pct = Math.max(6, Math.round((cat.count / max) * 100));
+                                const isUncat = cat.name === 'Uncategorized';
+                                return (
+                                    <div
+                                        key={cat.name}
+                                        style={{
+                                            padding: '12px 16px',
+                                            borderBottom: i < summary.categories.length - 1 ? '1px solid #F4F4F5' : 'none',
+                                            display: 'flex', alignItems: 'center', gap: 12,
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                                            background: isUncat ? '#F4F4F5' : '#EEEEFF',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            <span className="material-symbols-outlined" style={{ fontSize: 15, color: isUncat ? '#71717A' : '#5137EF' }}>
+                                                {isUncat ? 'help' : 'restaurant'}
+                                            </span>
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+                                                <span className="truncate" style={{ fontSize: 13, fontWeight: 500, color: isUncat ? '#71717A' : '#0A0A0A' }}>
+                                                    {cat.name}
+                                                </span>
+                                                <span style={{ fontSize: 12, fontWeight: 600, color: '#0A0A0A', flexShrink: 0, marginLeft: 8 }}>
+                                                    {cat.count} {cat.count === 1 ? 'item' : 'items'}
+                                                </span>
+                                            </div>
+                                            <div style={{ height: 4, background: '#F4F4F5', borderRadius: 999, overflow: 'hidden' }}>
+                                                <div style={{
+                                                    width: `${pct}%`, height: '100%',
+                                                    background: isUncat ? '#D4D4D8' : 'linear-gradient(90deg, #5137EF, #7C3AED)',
+                                                    borderRadius: 999, transition: 'width 0.4s ease',
+                                                }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

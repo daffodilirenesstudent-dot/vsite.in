@@ -137,9 +137,9 @@ function detectWhiteBox(template: HTMLImageElement): { x: number; y: number; w: 
   return { x: Math.round(L / sc), y: Math.round(T / sc), w: Math.round((R - L) / sc), h: Math.round((B - T) / sc) };
 }
 
-async function brandPosterBlob(qrData: string, imageDataUrl?: string): Promise<Blob | null> {
+async function brandPosterBlob(qrData: string, imageDataUrl?: string, templatePath = '/brand poster template.png'): Promise<Blob | null> {
   const [template, qrBlob] = await Promise.all([
-    loadImage('/brand poster template.png'),
+    loadImage(templatePath),
     getStyledQRBlob(qrData, imageDataUrl, 900),
   ]);
   if (!qrBlob) return null;
@@ -271,6 +271,11 @@ export default function QRPage() {
   const storeName = activeSite?.name ?? 'My Store';
   const slugLabel = slug.replace(/-/g, ' ');
 
+  // qr_menu and qr_order plans get the branded "Scan & Order" poster; pay_eat uses the default template.
+  const posterTemplate = (qrMenuOnly || isQrOrder)
+    ? '/brand poster scan order.png'
+    : '/brand poster template.png';
+
   useEffect(() => {
     if (slug) setBaseUrl(`${window.location.origin}/shop/${slug}`);
   }, [slug]);
@@ -382,7 +387,7 @@ export default function QRPage() {
     if (!previewData?.data) return;
     let cancelled = false;
     setPosterPreviewLoading(true);
-    brandPosterBlob(previewData.data, previewData.imageDataUrl).then(blob => {
+    brandPosterBlob(previewData.data, previewData.imageDataUrl, posterTemplate).then(blob => {
       if (cancelled || !blob) { if (!cancelled) setPosterPreviewLoading(false); return; }
       const url = URL.createObjectURL(blob);
       if (posterUrlRef.current) URL.revokeObjectURL(posterUrlRef.current);
@@ -391,7 +396,7 @@ export default function QRPage() {
       setPosterPreviewLoading(false);
     }).catch(() => { if (!cancelled) setPosterPreviewLoading(false); });
     return () => { cancelled = true; };
-  }, [previewData]);
+  }, [previewData, posterTemplate]);
 
   useEffect(() => () => { if (posterUrlRef.current) URL.revokeObjectURL(posterUrlRef.current); }, []);
 
@@ -444,10 +449,10 @@ export default function QRPage() {
   // ── Download handlers ─────────────────────────────────────────────────────
   const dlCommonPoster = useCallback(async () => {
     setDownloading('poster');
-    const blob = await brandPosterBlob(baseUrl, undefined);
+    const blob = await brandPosterBlob(baseUrl, undefined, posterTemplate);
     if (blob) downloadBlob(blob, `${slug}-qr-poster.png`);
     setDownloading(null);
-  }, [baseUrl, slug]);
+  }, [baseUrl, slug, posterTemplate]);
 
   const dlCommonQR = useCallback(async () => {
     setDownloading('qr');
@@ -459,10 +464,10 @@ export default function QRPage() {
   const dlTablePoster = useCallback(async (n: number) => {
     setDownloading(`poster-${n}`);
     const url = tableUrl(n);
-    const blob = await brandPosterBlob(url, tableBadges[n]);
+    const blob = await brandPosterBlob(url, tableBadges[n], posterTemplate);
     if (blob) downloadBlob(blob, `${slug}-table-${n}-poster.png`);
     setDownloading(null);
-  }, [baseUrl, slug, tableBadges]);
+  }, [baseUrl, slug, tableBadges, posterTemplate]);
 
   const dlTableQR = useCallback(async (n: number) => {
     setDownloading(`qr-${n}`);
@@ -474,10 +479,10 @@ export default function QRPage() {
 
   const dlTakeawayPoster = useCallback(async () => {
     setDownloading('takeaway-poster');
-    const blob = await brandPosterBlob(baseUrl, undefined);
+    const blob = await brandPosterBlob(baseUrl, undefined, posterTemplate);
     if (blob) downloadBlob(blob, `${slug}-takeaway-poster.png`);
     setDownloading(null);
-  }, [baseUrl, slug]);
+  }, [baseUrl, slug, posterTemplate]);
 
   const dlTakeawayQR = useCallback(async () => {
     setDownloading('takeaway-qr');
@@ -489,10 +494,10 @@ export default function QRPage() {
   const dlPreviewPoster = useCallback(async () => {
     if (!previewData) return;
     setDownloading('preview-poster');
-    const blob = await brandPosterBlob(previewData.data, previewData.imageDataUrl);
+    const blob = await brandPosterBlob(previewData.data, previewData.imageDataUrl, posterTemplate);
     if (blob) downloadBlob(blob, `${slug}-${previewData.label.toLowerCase().replace(/\s+/g, '-')}-poster.png`);
     setDownloading(null);
-  }, [previewData, slug]);
+  }, [previewData, slug, posterTemplate]);
 
   // ── Empty / loading state ─────────────────────────────────────────────────
   if (!baseUrl) {
