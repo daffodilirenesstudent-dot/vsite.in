@@ -69,6 +69,7 @@ AGENTS.md
 # Playwright test results
 test-results/
 vsite logos/
+food images 4/
 
 # Dev-only seed scripts (contain env-var usage, not needed in production)
 scripts/seed-*.mjs

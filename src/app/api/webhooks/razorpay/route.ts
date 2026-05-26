@@ -133,8 +133,9 @@ async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
     // race, this branch is a no-op and we don't overwrite anything.
     if (siteRow.pending_plan && siteRow.razorpay_status !== 'active') {
         const planToActivate = siteRow.pending_plan;
+        const isUpgrade = siteRow.store_plan && siteRow.store_plan !== planToActivate;
         const currentExpiryMs = siteRow.store_expires_at ? new Date(siteRow.store_expires_at).getTime() : 0;
-        const baseMs = Math.max(Date.now(), currentExpiryMs);
+        const baseMs = isUpgrade ? Date.now() : Math.max(Date.now(), currentExpiryMs);
         const activatedAt = new Date().toISOString();
         const expiresAt = new Date(baseMs + 30 * 24 * 60 * 60 * 1000).toISOString();
         const { data: actData, error: actErr } = await supabaseServer

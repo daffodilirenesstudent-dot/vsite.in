@@ -52,13 +52,15 @@ export async function POST(req: NextRequest) {
         // Limit query length to prevent excessively large embedding inputs
         const safeQuery = query.slice(0, 500).toLowerCase();
 
-        // 3a. Fast keyword map lookup (O(1), no API call)
+        // 3a. Fast keyword + fuzzy lookup (no API call). matchByKeyword now
+        //     tries exact → substring → 80%-fuzzy with phonetic normalisation,
+        //     so typos like "panner" → paneer match without an embedding hit.
         const kwMatch = matchByKeyword(safeQuery);
-        if (kwMatch) {
+        if (kwMatch && (kwMatch.confidence ?? 1) >= 0.95) {
             if (process.env.NODE_ENV !== 'production') {
-                console.log(`[images/match] keyword hit for "${query}"`);
+                console.log(`[images/match] keyword hit for "${query}" (confidence=${kwMatch.confidence})`);
             }
-            return NextResponse.json({ image_url: kwMatch.image_url, description: kwMatch.description, similarity: 1 });
+            return NextResponse.json({ image_url: kwMatch.image_url, description: kwMatch.description, similarity: kwMatch.confidence ?? 1 });
         }
 
         // 3b. Embed the query using text-embedding-3-small
@@ -68,37 +70,77 @@ export async function POST(req: NextRequest) {
         });
         const queryVector = embeddingRes.data[0].embedding;
 
-        // 4. Vector similarity search via Supabase RPC (pgvector cosine distance)
-        //    Threshold 0.45: short food names vs long prose descriptions land at ~0.55-0.65.
+        // 4. Vector similarity search — retrieve top-5 instead of top-1 so we
+        //    have candidates for the LLM rerank pass below.
         const { data, error } = await (supabaseServer as any).rpc('match_default_image', {
             query_embedding: queryVector,
-            match_threshold: 0.45,
-            match_count: 1,
+            match_threshold: 0.35, // wider net; rerank will pick the right one
+            match_count: 5,
         });
 
         if (error) {
-            // RPC may not exist yet (migration not run). Fail silently so the
-            // rest of onboarding still works — user just sees the upload box.
             console.error('[images/match] Supabase RPC error:', error.message);
+            // Vector failed but we may have a low-confidence fuzzy hit — surface it.
+            if (kwMatch) {
+                return NextResponse.json({ image_url: kwMatch.image_url, description: kwMatch.description, similarity: kwMatch.confidence ?? null });
+            }
             return NextResponse.json({ image_url: null, description: null, similarity: null });
         }
 
         if (!data?.length) {
+            // No vector hit — fall back to whatever fuzzy keyword we had (even low confidence)
+            if (kwMatch) {
+                return NextResponse.json({ image_url: kwMatch.image_url, description: kwMatch.description, similarity: kwMatch.confidence ?? null });
+            }
             return NextResponse.json({ image_url: null, description: null, similarity: null });
         }
 
-        const best = data[0];
+        // 5. LLM rerank — only when top-1 confidence is ambiguous (<0.65) AND
+        //    multiple candidates are close. This catches cases where the top
+        //    vector hit is wrong but the right answer is in the top-5.
+        const top = data[0];
+        const runnerUp = data[1];
+        const ambiguous = top.similarity < 0.65 && runnerUp && (top.similarity - runnerUp.similarity) < 0.10;
 
-        // Log for threshold tuning — only in non-prod to avoid leaking
-        // restaurant menu names through aggregated logs.
+        let chosen = top;
+        if (ambiguous) {
+            try {
+                const rerankPrompt = `User typed: "${query}"\n\nWhich of these dishes is the best match?\n` +
+                    data.map((d: { description: string }, i: number) => `${i}: ${d.description.split('\n')[0]}`).join('\n') +
+                    `\n\nReply with just the index number (0-${data.length - 1}). If none match well, reply "none".`;
+                const rerankRes = await openai.chat.completions.create({
+                    model: 'gpt-4o-mini',
+                    messages: [{ role: 'user', content: rerankPrompt }],
+                    temperature: 0,
+                    max_tokens: 5,
+                });
+                const reply = rerankRes.choices[0]?.message?.content?.trim() ?? '';
+                const idx = parseInt(reply, 10);
+                if (Number.isFinite(idx) && idx >= 0 && idx < data.length) {
+                    chosen = data[idx];
+                    if (process.env.NODE_ENV !== 'production') {
+                        console.log(`[images/match] rerank chose index ${idx} for "${query}"`);
+                    }
+                } else if (reply.toLowerCase().startsWith('none')) {
+                    // LLM says no good match — fall back to keyword/fuzzy, else null
+                    if (kwMatch) {
+                        return NextResponse.json({ image_url: kwMatch.image_url, description: kwMatch.description, similarity: kwMatch.confidence ?? null });
+                    }
+                    return NextResponse.json({ image_url: null, description: null, similarity: null });
+                }
+            } catch (err) {
+                console.warn('[images/match] rerank failed, using top-1:', err);
+            }
+        }
+
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`[images/match] query="${query}" → similarity=${best.similarity?.toFixed(3)}`);
+            console.log(`[images/match] query="${query}" → similarity=${chosen.similarity?.toFixed(3)}${ambiguous ? ' (reranked)' : ''}`);
         }
 
         return NextResponse.json({
-            image_url: best.image_url,
-            description: best.description,
-            similarity: best.similarity,
+            image_url: chosen.image_url,
+            description: chosen.description,
+            similarity: chosen.similarity,
         });
     } catch (err) {
         // Never crash onboarding — return null and let the UI degrade gracefully.

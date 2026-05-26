@@ -301,41 +301,71 @@ const KEYWORD_MAP: Record<string, DefaultImageEntry> = {
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
+import { bestFuzzyMatch, normaliseDishKey } from './fuzzyMatch';
+
 export interface DefaultImageMatch {
   image_url: string;
   description: string;
+  /** Confidence in [0..1]. 1.0 = exact keyword hit, 0.95 = substring, fuzzy >= 0.80. */
+  confidence?: number;
 }
 
 /**
- * Keyword-based fallback matcher.
- * Checks if the product name (lowercased) contains any known keyword.
- * Returns the image URL and description, or null if no match.
+ * Keyword-based matcher with three tiers — exact → substring → fuzzy.
+ * Returns the image URL, description, and a confidence score.
  *
- * This is used:
- *  1. During onboarding (server-side) as a cheap O(1) fallback when the
- *     vector RPC returns no result.
+ * Used:
+ *  1. Server-side during onboarding and bulk-import as a cheap fallback
+ *     before the (paid) embedding call.
  *  2. Client-side in the product inventory to fill placeholder images.
+ *
+ * Fuzzy tier (NEW) handles typos like "panner" → paneer, "biryni" → biryani,
+ * "manchao" → manchow at an 80% word-match threshold.
  */
 export function matchByKeyword(productName: string): DefaultImageMatch | null {
   const lower = productName.toLowerCase().trim();
+  if (!lower) return null;
 
-  // First: exact key match
+  // Tier 1 — exact key match
   if (KEYWORD_MAP[lower]) {
     const e = KEYWORD_MAP[lower];
-    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description };
+    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: 1.0 };
   }
 
-  // Second: substring match — longest key wins (most specific)
+  // Tier 2 — substring match (longest key wins — most specific)
   let bestKey = '';
   for (const key of Object.keys(KEYWORD_MAP)) {
-    if (lower.includes(key) && key.length > bestKey.length) {
-      bestKey = key;
-    }
+    if (lower.includes(key) && key.length > bestKey.length) bestKey = key;
   }
-
   if (bestKey) {
     const e = KEYWORD_MAP[bestKey];
-    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description };
+    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: 0.95 };
+  }
+
+  // Tier 3 — fuzzy / phonetic match (handles typos at 80%+ word similarity)
+  // We try both:
+  //   a) Full-string fuzzy match against every keyword
+  //   b) Token-by-token fuzzy match (catches "spcy panner tikka" → "paneer tikka")
+  const allKeys = Object.keys(KEYWORD_MAP);
+  const wholeMatch = bestFuzzyMatch(lower, allKeys, 0.80);
+  if (wholeMatch) {
+    const e = KEYWORD_MAP[wholeMatch.key];
+    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: wholeMatch.score };
+  }
+
+  // Token-level fuzzy — useful when the product name has extra adjectives
+  // ("Spicy Panner Masala" — fuzzy each word against keyword tokens).
+  const queryTokens = normaliseDishKey(lower).split(' ').filter(t => t.length >= 4);
+  if (queryTokens.length > 0) {
+    let tokenBest: { key: string; score: number } | null = null;
+    for (const tok of queryTokens) {
+      const m = bestFuzzyMatch(tok, allKeys, 0.85);
+      if (m && (!tokenBest || m.score > tokenBest.score)) tokenBest = m;
+    }
+    if (tokenBest) {
+      const e = KEYWORD_MAP[tokenBest.key];
+      return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: tokenBest.score * 0.9 };
+    }
   }
 
   return null;

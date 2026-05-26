@@ -86,6 +86,9 @@ export const metadata: Metadata = {
       { rel: "manifest", url: "/site.webmanifest" },
     ],
   },
+  verification: {
+    google: "512uaJRwPeBJIayuc09rSmf2cMpLgJnZnm99IoxXZeU",
+  },
   robots: {
     index: true,
     follow: true,

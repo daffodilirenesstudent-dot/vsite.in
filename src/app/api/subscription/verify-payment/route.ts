@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         // razorpay_subscription_id column is reused to store the order_id.
         const { data: existingSub } = await supabaseServer
             .from('site_subscriptions')
-            .select('id, razorpay_subscription_id, store_expires_at, pending_plan')
+            .select('id, razorpay_subscription_id, store_expires_at, store_plan, pending_plan')
             .eq('site_id', siteId)
             .single();
 
@@ -154,15 +154,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // ── Extend by 30 days from MAX(now, current expiry) ─────────────────
-        // If the user renews early, their remaining days carry over instead of
-        // being lost.
-        const currentExpiryMs = existingSub.store_expires_at
-            ? new Date(existingSub.store_expires_at).getTime()
-            : 0;
-        const baseMs = Math.max(Date.now(), currentExpiryMs);
-        const expiresAt = new Date(baseMs + 30 * 24 * 60 * 60 * 1000).toISOString();
-
         // ── Determine which plan was paid for ────────────────────────────────
         // create-subscription wrote the user's chosen plan to pending_plan on
         // the same row we're now updating. Reading from our own DB removes the
@@ -170,6 +161,18 @@ export async function POST(request: NextRequest) {
         // testing — the wrong plan was being activated).
         const rawPlan = String(existingSub.pending_plan ?? 'qr_menu');
         const paidPlan = VALID_PLANS.has(rawPlan) ? rawPlan : 'qr_menu';
+
+        // ── Calculate expiry ─────────────────────────────────────────────────
+        // Upgrade (plan change): always start fresh from today — the old plan's
+        // remaining days do not carry over to the new plan.
+        // Renewal (same plan): carry over remaining days so early renewal
+        // doesn't waste time the user already paid for.
+        const isUpgrade = existingSub.store_plan && existingSub.store_plan !== paidPlan;
+        const currentExpiryMs = existingSub.store_expires_at
+            ? new Date(existingSub.store_expires_at).getTime()
+            : 0;
+        const baseMs = isUpgrade ? Date.now() : Math.max(Date.now(), currentExpiryMs);
+        const expiresAt = new Date(baseMs + 30 * 24 * 60 * 60 * 1000).toISOString();
         console.log(`[verify-payment] activating plan=${paidPlan} (from pending_plan) for site=${siteId}`);
         const planLabel = paidPlan === 'qr_menu'  ? 'Smart QR Menu'
                         : paidPlan === 'qr_order' ? 'QR Ordering'
