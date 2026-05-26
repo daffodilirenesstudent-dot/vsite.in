@@ -210,6 +210,21 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* Microsoft Clarity — session recording + heatmaps. Lazy-loaded so it
+            doesn't compete with critical JS on 4G. */}
+        <Script
+          id="microsoft-clarity"
+          strategy="lazyOnload"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(c,l,a,r,i,t,y){
+                  c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                  t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                  y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+              })(window, document, "clarity", "script", "wx6iwpy979");
+            `,
+          }}
+        />
         {/* Load Material Symbols after page is interactive — removes render-blocking stylesheet from critical path */}
         <Script
           id="material-symbols"
