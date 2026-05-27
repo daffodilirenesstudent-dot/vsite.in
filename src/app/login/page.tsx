@@ -26,7 +26,7 @@ function LoginContent() {
   const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
     ? rawRedirect
     : '/manage/dashboard';
-  const { sendOTP, verifyOTP, resetOTP } = useAuth();
+  const { sendOTP, verifyOTP, resetOTP, user, loading: authLoading } = useAuth();
 
   // Step: 'phone' | 'otp'
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -39,10 +39,15 @@ function LoginContent() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Note: middleware already redirects logged-in users away from /login, so no
-  // client-side auth-state listener is needed here. Users who land here either
-  // have no cookie (fresh visit) or an invalid cookie (signed out) — both show
-  // the form immediately with no flash of redirect.
+  // If the user already has a valid Firebase session (restored from IndexedDB),
+  // redirect immediately. This handles the case where the cookie expired (browser
+  // deleted it) but the Firebase session is still valid — syncCookie in AuthProvider
+  // will have already re-set the cookie by the time this runs.
+  useEffect(() => {
+    if (!authLoading && user) {
+      window.location.replace(redirectTo);
+    }
+  }, [authLoading, user, redirectTo]);
 
   // Countdown timer for resend
   const startCountdown = () => {

@@ -63,21 +63,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Decode exp from JWT payload to match cookie lifetime to token expiry
-        let maxAge = 3600;
-        try {
-            const parts = token.split('.');
-            if (parts.length === 3) {
-                const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-                const padded = payloadB64 + '='.repeat((4 - payloadB64.length % 4) % 4);
-                const payload = JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
-                if (typeof payload.exp === 'number') {
-                    maxAge = Math.max(0, payload.exp - Math.floor(Date.now() / 1000));
-                }
-            }
-        } catch {
-            // malformed JWT — fall back to 1h default
-        }
+        // Cookie outlives the JWT so the browser keeps it across restarts.
+        // When the JWT inside expires, middleware detects 'expired' state and
+        // silently refreshes via /auth/refresh — no OTP needed.
+        // 30 days matches Firebase's refresh-token lifetime.
+        const maxAge = 30 * 24 * 60 * 60; // 30 days
 
         const response = NextResponse.json({ ok: true });
         response.cookies.set(COOKIE_NAME, token, {

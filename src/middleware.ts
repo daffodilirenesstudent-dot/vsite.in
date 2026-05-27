@@ -62,6 +62,13 @@ export async function middleware(request: NextRequest) {
         if (state === 'valid') {
             return NextResponse.redirect(new URL('/manage/dashboard', request.url));
         }
+        // Expired token — silently refresh instead of showing the login form.
+        // Firebase client likely still has a refreshable session in IndexedDB.
+        if (state === 'expired') {
+            const refreshUrl = new URL('/auth/refresh', request.url);
+            refreshUrl.searchParams.set('to', '/manage/dashboard');
+            return NextResponse.redirect(refreshUrl);
+        }
         return NextResponse.next();
     }
 
@@ -69,6 +76,11 @@ export async function middleware(request: NextRequest) {
     if (pathname === '/') {
         if (state === 'valid') {
             return NextResponse.redirect(new URL('/manage/dashboard', request.url));
+        }
+        if (state === 'expired') {
+            const refreshUrl = new URL('/auth/refresh', request.url);
+            refreshUrl.searchParams.set('to', '/manage/dashboard');
+            return NextResponse.redirect(refreshUrl);
         }
         return NextResponse.next();
     }

@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/components/AuthContext';
 
 export default function SignupPage() {
-  const { sendOTP, verifyOTP, resetOTP } = useAuth();
+  const { sendOTP, verifyOTP, resetOTP, user, loading: authLoading } = useAuth();
 
   const [step, setStep] = useState<'details' | 'otp'>('details');
   const [name, setName] = useState('');
@@ -19,8 +19,13 @@ export default function SignupPage() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Middleware already bounces logged-in users away from /signup, so no
-  // client-side auth-state listener is needed here.
+  // If user already has a valid Firebase session (cookie expired but session
+  // persisted in IndexedDB), redirect to dashboard immediately.
+  useEffect(() => {
+    if (!authLoading && user) {
+      window.location.replace('/manage/dashboard');
+    }
+  }, [authLoading, user]);
 
   const startCountdown = () => {
     setCountdown(60);
