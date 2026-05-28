@@ -210,7 +210,7 @@ export default function DashboardHeader() {
                                         {/* Create new store — limit-aware */}
                                         {canCreate ? (
                                             <button
-                                                onClick={() => { setDropdownOpen(false); router.push('/onboarding'); }}
+                                                onClick={() => { setDropdownOpen(false); router.push('/onboarding?new=true'); }}
                                                 className="flex w-full items-center gap-2 hover:bg-neutral-50 transition-colors"
                                                 style={{ padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer' }}
                                             >

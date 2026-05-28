@@ -52,13 +52,15 @@ export async function POST(req: NextRequest) {
         // Limit query length to prevent excessively large embedding inputs
         const safeQuery = query.slice(0, 500).toLowerCase();
 
-        // 3a. Fast keyword + fuzzy lookup (no API call). matchByKeyword now
-        //     tries exact → substring → 80%-fuzzy with phonetic normalisation,
-        //     so typos like "panner" → paneer match without an embedding hit.
+        // 3a. Specificity-first keyword match (no API call).
+        //     Tier 1 (exact=1.0), Tier 2 (filename=0.98), Tier 3 (fuzzy=0.80-0.95)
+        //     return immediately — these are confident, specific matches.
+        //     Tier 4 (generic=0.30-0.50) is kept as fallback but we still try
+        //     the vector path to see if there's a better match in the DB.
         const kwMatch = matchByKeyword(safeQuery);
-        if (kwMatch && (kwMatch.confidence ?? 1) >= 0.95) {
+        if (kwMatch && (kwMatch.confidence ?? 1) >= 0.75) {
             if (process.env.NODE_ENV !== 'production') {
-                console.log(`[images/match] keyword hit for "${query}" (confidence=${kwMatch.confidence})`);
+                console.log(`[images/match] specific match for "${query}" (confidence=${kwMatch.confidence})`);
             }
             return NextResponse.json({ image_url: kwMatch.image_url, description: kwMatch.description, similarity: kwMatch.confidence ?? 1 });
         }

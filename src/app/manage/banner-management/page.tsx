@@ -79,16 +79,20 @@ export default function BannerManagementPage() {
         dragIndex.current = null;
         setDragOverIndex(null);
 
-        // Persist sort order in a single round trip — upsert with the existing
-        // primary keys is far cheaper than N parallel UPDATEs on 4G (one TLS
-        // handshake instead of N).
-        const { error } = await supabase
-            .from('banners')
-            .upsert(
-                reordered.map(b => ({ id: b.id, sort_order: b.sort_order })),
-                { onConflict: 'id' },
-            );
-        if (error) {
+        // Persist sort order — update each banner's sort_order individually.
+        // upsert with partial columns fails because required NOT NULL columns
+        // (site_id, name) are missing from the payload, causing constraint violations.
+        const results = await Promise.allSettled(
+            reordered.map(b =>
+                supabase.from('banners').update({ sort_order: b.sort_order }).eq('id', b.id)
+            )
+        );
+        const failed = results.find(r =>
+            r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error)
+        );
+        if (failed) {
+            const err = failed.status === 'rejected' ? failed.reason : (failed as PromiseFulfilledResult<{ error: unknown }>).value.error;
+            console.error('[banner-reorder] save failed:', err);
             toast.error('Failed to save order — please reload');
         }
     };
@@ -288,8 +292,21 @@ export default function BannerManagementPage() {
                 <>
                 {/* ── MOBILE CARDS (below md) ── */}
                 <div className="md:hidden flex flex-col gap-3">
-                    {banners.map(banner => (
-                        <div key={banner.id} style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: 12, background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {banners.map((banner, idx) => (
+                        <div
+                            key={banner.id}
+                            draggable
+                            onDragStart={() => handleDragStart(idx)}
+                            onDragOver={e => handleDragOver(e, idx)}
+                            onDrop={() => handleDrop(idx)}
+                            onDragEnd={handleDragEnd}
+                            style={{
+                                border: dragOverIndex === idx ? '2px solid #5137EF' : '1px solid #E4E4E7',
+                                borderRadius: 12, padding: 12, background: dragOverIndex === idx ? '#F5F3FF' : '#FFFFFF',
+                                display: 'flex', flexDirection: 'column', gap: 10,
+                                transition: 'background 0.15s, border 0.15s',
+                            }}
+                        >
                             <div className="flex items-center gap-3">
                                 {banner.image_url ? (
                                     // eslint-disable-next-line @next/next/no-img-element
@@ -324,6 +341,9 @@ export default function BannerManagementPage() {
                                     <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => setDeleteTarget({ id: banner.id, name: banner.name })}>
                                         <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }}>delete</span>
                                     </button>
+                                    <div className="flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: 8, cursor: 'grab' }} title="Hold and drag to reorder">
+                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#71717A' }}>drag_indicator</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -301,70 +301,175 @@ const KEYWORD_MAP: Record<string, DefaultImageEntry> = {
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-import { bestFuzzyMatch, normaliseDishKey } from './fuzzyMatch';
+import { bestFuzzyMatch, normaliseDishKey, similarity } from './fuzzyMatch';
 
 export interface DefaultImageMatch {
   image_url: string;
   description: string;
-  /** Confidence in [0..1]. 1.0 = exact keyword hit, 0.95 = substring, fuzzy >= 0.80. */
+  /** Confidence in [0..1]. Higher = more specific match. */
   confidence?: number;
 }
 
+// ── Build reverse lookup: normalised filename → keyword map entry ──────────────
+// This allows direct filename matching: "chicken-biriyani.jpeg" matches
+// product name "Chicken Biriyani" without needing a hardcoded keyword entry.
+function normaliseToFilename(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+interface FilenameEntry { key: string; entry: DefaultImageEntry }
+const FILENAME_MAP: Map<string, FilenameEntry> = new Map();
+for (const [key, entry] of Object.entries(KEYWORD_MAP)) {
+  // Extract filename from path: "cafe-foods/chicken-biriyani.jpeg" → "chickenbiriyani"
+  const filename = entry.path.split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
+  const normFilename = normaliseToFilename(filename);
+  if (normFilename && !FILENAME_MAP.has(normFilename)) {
+    FILENAME_MAP.set(normFilename, { key, entry });
+  }
+}
+
+// ── Specificity helpers ───────────────────────────────────────────────────────
+// Count meaningful tokens in a string (skip noise words under 2 chars)
+function tokenCount(s: string): number {
+  return s.split(/\s+/).filter(t => t.length >= 2).length;
+}
+
+// How specific is a keyword match relative to the query?
+// "chicken biryani" (2 tokens) matching key "chicken biryani" (2 tokens) → 1.0
+// "chicken 65 biryani" (3 tokens) matching key "chicken biryani" (2 tokens) → 0.66
+// "chicken biryani" (2 tokens) matching key "biryani" (1 token) → 0.5
+function specificityRatio(queryTokens: number, keyTokens: number): number {
+  if (queryTokens === 0 || keyTokens === 0) return 0;
+  return Math.min(keyTokens / queryTokens, queryTokens / keyTokens);
+}
+
 /**
- * Keyword-based matcher with three tiers — exact → substring → fuzzy.
- * Returns the image URL, description, and a confidence score.
+ * Specificity-first image matcher. One image = one specific item.
  *
- * Used:
- *  1. Server-side during onboarding and bulk-import as a cheap fallback
- *     before the (paid) embedding call.
- *  2. Client-side in the product inventory to fill placeholder images.
+ * Priority tiers (highest → lowest):
  *
- * Fuzzy tier (NEW) handles typos like "panner" → paneer, "biryni" → biryani,
- * "manchao" → manchow at an 80% word-match threshold.
+ *   Tier 1 — EXACT keyword match (confidence 1.0)
+ *     "chicken biryani" === KEYWORD_MAP["chicken biryani"]
+ *
+ *   Tier 2 — FILENAME match (confidence 0.98)
+ *     "Chicken Biriyani" normalised → "chickenbiriyani" matches file "chicken-biriyani.jpeg"
+ *
+ *   Tier 3 — FUZZY full-name match (confidence 0.80–0.95)
+ *     "chiken biriyani" fuzzy matches "chicken biryani" (handles typos + spelling variants)
+ *     Only if specificity is high (query and key have similar word counts)
+ *
+ *   Tier 4 — GENERIC fallback (confidence 0.30–0.50)
+ *     "chicken 65 biryani" has no exact match → falls back to generic "biryani" image
+ *     Clearly low confidence so it won't override a specific match for another item
+ *
+ * Rules:
+ *   - An image for "chicken biryani" will NOT match "chicken 65 biryani" at high confidence
+ *   - Typos like "chiken biriyni" still match "chicken biryani" via fuzzy + phonetic
+ *   - Generic fallbacks only kick in at low confidence (0.3–0.5)
  */
 export function matchByKeyword(productName: string): DefaultImageMatch | null {
   const lower = productName.toLowerCase().trim();
   if (!lower) return null;
 
-  // Tier 1 — exact key match
+  const queryTokens = tokenCount(lower);
+
+  // ── Tier 1 — Exact keyword match (1.0) ──────────────────────────────────
   if (KEYWORD_MAP[lower]) {
     const e = KEYWORD_MAP[lower];
     return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: 1.0 };
   }
 
-  // Tier 2 — substring match (longest key wins — most specific)
-  let bestKey = '';
-  for (const key of Object.keys(KEYWORD_MAP)) {
-    if (lower.includes(key) && key.length > bestKey.length) bestKey = key;
-  }
-  if (bestKey) {
-    const e = KEYWORD_MAP[bestKey];
-    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: 0.95 };
+  // ── Tier 2 — Direct filename match (0.98) ───────────────────────────────
+  // Normalise product name to filename format and check against stored filenames.
+  // "Chicken Biriyani" → "chickenbiriyani" matches "chicken-biriyani.jpeg"
+  const normQuery = normaliseToFilename(lower);
+  if (normQuery && FILENAME_MAP.has(normQuery)) {
+    const { entry } = FILENAME_MAP.get(normQuery)!;
+    return { image_url: `${BUCKET_PREFIX}/${entry.path}`, description: entry.description, confidence: 0.98 };
   }
 
-  // Tier 3 — fuzzy / phonetic match (handles typos at 80%+ word similarity)
-  // We try both:
-  //   a) Full-string fuzzy match against every keyword
-  //   b) Token-by-token fuzzy match (catches "spcy panner tikka" → "paneer tikka")
+  // ── Tier 3 — Fuzzy full-name match with specificity check (0.80–0.95) ──
+  // Handles typos: "chiken biriyni" → "chicken biryani"
+  // BUT requires the query and key to have similar word counts (specificity).
+  // This prevents "chicken 65 biryani" from fuzzy-matching "chicken biryani".
   const allKeys = Object.keys(KEYWORD_MAP);
-  const wholeMatch = bestFuzzyMatch(lower, allKeys, 0.80);
-  if (wholeMatch) {
-    const e = KEYWORD_MAP[wholeMatch.key];
-    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: wholeMatch.score };
+  const normalised = normaliseDishKey(lower);
+
+  // Try fuzzy match against all keys, but only accept if specificity is high
+  let bestFuzzy: { key: string; score: number; specificity: number } | null = null;
+  for (const key of allKeys) {
+    const normKey = normaliseDishKey(key);
+    const sim = similarity(normalised, normKey);
+    if (sim < 0.80) continue;
+
+    const spec = specificityRatio(queryTokens, tokenCount(key));
+    // Require at least 60% specificity — prevents 3-token queries matching 1-token keys
+    if (spec < 0.60) continue;
+
+    const combined = sim * spec; // weight both similarity AND specificity
+    if (!bestFuzzy || combined > bestFuzzy.score * bestFuzzy.specificity) {
+      bestFuzzy = { key, score: sim, specificity: spec };
+    }
   }
 
-  // Token-level fuzzy — useful when the product name has extra adjectives
-  // ("Spicy Panner Masala" — fuzzy each word against keyword tokens).
-  const queryTokens = normaliseDishKey(lower).split(' ').filter(t => t.length >= 4);
-  if (queryTokens.length > 0) {
+  if (bestFuzzy) {
+    const e = KEYWORD_MAP[bestFuzzy.key];
+    // Final confidence = fuzzy score scaled by specificity
+    const confidence = Math.min(0.95, bestFuzzy.score * bestFuzzy.specificity);
+    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence };
+  }
+
+  // ── Tier 3b — Fuzzy filename match (0.75–0.90) ─────────────────────────
+  // Catches cases where the keyword isn't in KEYWORD_MAP but the filename matches.
+  // "chicken biryaniii" → normalised "chickenbiryaniii" fuzzy matches "chickenbiriyani"
+  if (normQuery) {
+    let bestFileScore = 0;
+    let bestFileEntry: DefaultImageEntry | null = null;
+    const filenames = Array.from(FILENAME_MAP.entries());
+    for (let i = 0; i < filenames.length; i++) {
+      const [normFile, { entry }] = filenames[i];
+      const sim = similarity(normQuery, normFile);
+      if (sim >= 0.82 && sim > bestFileScore) {
+        bestFileScore = sim;
+        bestFileEntry = entry;
+      }
+    }
+    if (bestFileEntry) {
+      return { image_url: `${BUCKET_PREFIX}/${bestFileEntry.path}`, description: bestFileEntry.description, confidence: bestFileScore * 0.92 };
+    }
+  }
+
+  // ── Tier 4 — Generic fallback (0.30–0.50) ──────────────────────────────
+  // "Chicken 65 Biryani" has no specific image → fall back to generic "biryani"
+  // at LOW confidence so it won't steal a specific item's image.
+  // Only single-token base keywords qualify as generic fallbacks.
+  let bestGeneric: { key: string; len: number } | null = null;
+  for (const key of allKeys) {
+    if (lower.includes(key) && key.length > (bestGeneric?.len ?? 0)) {
+      bestGeneric = { key, len: key.length };
+    }
+  }
+  if (bestGeneric) {
+    const e = KEYWORD_MAP[bestGeneric.key];
+    // Generic confidence: 0.30 base + up to 0.20 based on how much of the query the key covers
+    const coverage = bestGeneric.len / lower.length;
+    const confidence = Math.min(0.50, 0.30 + coverage * 0.20);
+    return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence };
+  }
+
+  // ── Tier 4b — Token-level fuzzy as last resort (0.25–0.40) ─────────────
+  // Catches items with extra adjectives: "Special Panner Masala" → "paneer" token match
+  const queryWords = normaliseDishKey(lower).split(' ').filter(t => t.length >= 4);
+  if (queryWords.length > 0) {
     let tokenBest: { key: string; score: number } | null = null;
-    for (const tok of queryTokens) {
+    for (const tok of queryWords) {
       const m = bestFuzzyMatch(tok, allKeys, 0.85);
       if (m && (!tokenBest || m.score > tokenBest.score)) tokenBest = m;
     }
     if (tokenBest) {
       const e = KEYWORD_MAP[tokenBest.key];
-      return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: tokenBest.score * 0.9 };
+      // Very low confidence — this is a generic/partial match
+      return { image_url: `${BUCKET_PREFIX}/${e.path}`, description: e.description, confidence: Math.min(0.40, tokenBest.score * 0.45) };
     }
   }
 

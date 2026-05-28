@@ -8,12 +8,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { validateImageFile } from '@/lib/fileValidation';
 import { rateLimit } from '@/lib/rateLimit';
-import { extractMenuItemsFromImages } from '@/lib/menuExtractor';
+import { extractMenuItemsFromImages, extractMenuItems } from '@/lib/menuExtractor';
+import { imageToMenuText } from '@/lib/sarvamVision';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
-const MAX_PHOTOS = 3;
+const MAX_PHOTOS = 5;
 const EXTRACT_LIMIT_PER_HR = 20;
 
 export async function POST(request: NextRequest) {
@@ -74,10 +75,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not read any photos. Please retry.' }, { status: 400 });
 
     // Run the same two-pass pipeline as onboarding:
-    //   Pass 1: compact tuple extraction (singles, variants with sizes+prices, combos)
-    //   Pass 2: South Indian style descriptions in parallel batches
-    const items = await extractMenuItemsFromImages(imageBuffers);
-    console.log(`[bulk-import/extract] extracted ${items.length} items in ${Date.now() - t0}ms`);
+    //   Pass 1: compact tuple extraction (3 imgs/batch, parallel, detail:'high')
+    //   Pass 2: gpt-4o-mini descriptions in parallel batches
+    let items = await extractMenuItemsFromImages(imageBuffers);
+    console.log(`[bulk-import/extract] fast-path: ${items.length} items in ${Date.now() - t0}ms`);
+
+    // OCR fallback — same as onboarding, if direct extraction returns 0 items
+    if (items.length === 0) {
+      console.warn('[bulk-import/extract] fast-path returned 0 items — running OCR fallback');
+      const ocrResults = await Promise.allSettled(
+        imageBuffers.map(({ buffer, mime }) => imageToMenuText(buffer, mime))
+      );
+      const aggregatedOcr = ocrResults
+        .map(r => (r.status === 'fulfilled' ? r.value : ''))
+        .filter(t => t.trim())
+        .join('\n\n---\n\n');
+      if (aggregatedOcr) {
+        items = await extractMenuItems(aggregatedOcr);
+        console.log(`[bulk-import/extract] fallback: ${items.length} items in ${Date.now() - t0}ms total`);
+      }
+    }
 
     if (items.length === 0) {
       return NextResponse.json(

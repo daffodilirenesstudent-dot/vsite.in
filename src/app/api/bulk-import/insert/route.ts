@@ -173,37 +173,65 @@ async function findImagesForItems(itemNames: string[]): Promise<Array<string | n
   return keywordHits;
 }
 
-// Same DESCRIBE prompt as menuExtractor Pass 2 — South Indian style, variant format
-const DESCRIBE_SYSTEM_PROMPT = `You write descriptions for South Indian restaurant menu items.
+// Same DESCRIBE prompt as menuExtractor Pass 2 — Tamil Nadu style, simple English
+const DESCRIBE_SYSTEM_PROMPT = `You write ONE-LINE menu descriptions for a Tamil Nadu style restaurant.
 
 You will receive a JSON array of items. Return { "descriptions": [ "...", "...", ... ] } in the same order, same length.
 
-FORMAT — depends on item_type:
+FORMAT:
+- Write exactly ONE sentence (12–20 words). Keep it short, simple, and easy to read.
+- No line breaks, no pipes, no bullet points. Just one clean sentence.
+- For VARIANT items: prepend sizes with prices, then " — " then the one-liner.
+  Example: "Half ₹160 · Full ₹320 — Spicy dum biryani with tender chicken, served hot with raita."
 
-SINGLE — exactly 4 lines joined by " | ":
-  Line 1: Main ingredient or how it is prepared
-  Line 2: Taste / texture highlight
-  Line 3: Served with / accompaniments
-  Line 4: Best occasion or extra note
-  Example: "Crispy dosa made with fermented rice batter | Golden and crunchy outside, soft inside | Served with sambar and fresh coconut chutney | Perfect for a light breakfast or snack"
+STYLE RULES:
+- Write in simple, everyday English. No fancy words. Write like a friendly shop owner describing his food.
+- Keep Tamil food terms natural: salna, kozhambu, poriyal, rasam, sambar, vadai, dosai, kothu, chutney, podimas, kuzhi, thayir, kaapi.
+- Focus on taste and feel: hot, spicy, crispy, soft, tender, fresh, smoky, tangy, creamy, crunchy.
+- Say what the dish actually is and how it tastes — not poetic descriptions.
+- Never use: "delicious", "must-try", "mouth-watering", "exquisite", "culinary", "delectable".
+- Know Tamil Nadu food deeply:
+  "Chicken 65" = crispy fried chicken with curry leaves and chilli
+  "Kothu Parotta" = chopped parotta mixed with egg/meat on a hot tawa
+  "Mutton Chukka" = dry pepper mutton roast, Chettinad style
+  "Kaara Kozhambu" = spicy tamarind gravy with onion and garlic
+  "Parotta" = flaky layered bread served with salna
+  "Eral Fry" = prawn fry with masala
+  "Meen Kulambu" = fish curry cooked in tamarind and spices
+  "Kuzhi Paniyaram" = small round snack made from idli/dosa batter
+  "Pongal" = creamy rice-lentil dish tempered with pepper and ghee
+  "Neer Dosa" = thin, soft rice crepe
+  "Bonda" = deep-fried potato dumpling
+  "Sundal" = boiled chickpeas tossed with coconut and curry leaves
+  "Payasam" = sweet milk dessert with vermicelli or dal
 
-VARIANT — size-price pairs, then dish description after " || ":
-  Format: "Size - ₹Price | Size - ₹Price || One-line dish description"
-  Use the EXACT prices from the variants array.
-  Example: "Full - ₹360 | Half - ₹160 || Tender chicken marinated in spices and chargrilled to smoky perfection"
+EXAMPLES:
+- Chicken Biryani → "Spicy dum biryani with tender chicken pieces, packed with flavour and served with raita and salna."
+- Masala Dosa → "Crispy dosa stuffed with spiced potato, served hot with sambar and coconut chutney."
+- Idli → "Soft steamed idlis served with hot sambar and fresh coconut chutney — simple and filling."
+- Medu Vada → "Crispy lentil vada, golden outside and soft inside — best with sambar and chutney."
+- Filter Coffee → "Hot filter kaapi made the Tamil way — strong, frothy, and fresh from the dabara."
+- Parotta → "Flaky layered parotta straight off the tawa, best with a hot side of chicken salna."
+- Kothu Parotta → "Chopped parotta mixed with egg and masala on a hot tawa — street-style and spicy."
+- Chicken 65 → "Crispy fried chicken tossed with curry leaves, chilli, and pepper — hot and spicy."
+- Mutton Chukka → "Dry roasted mutton with pepper, fennel, and coconut — Chettinad style, bold and spicy."
+- Chicken Biryani (variant) → "Half ₹180 · Full ₹320 — Hot dum biryani with tender chicken, served with raita."
+- Sambar Rice → "Hot sambar mixed with soft rice and a curry leaf tadka — comfort food at its best."
+- Rasam → "Tangy pepper rasam with garlic and curry leaves — light, hot, and perfect with rice."
+- Curd Rice → "Cool thayir sadam with mustard and curry leaves — the classic Tamil way to end a meal."
+- Kuzhi Paniyaram → "Crispy golden paniyaram from fermented batter, served with coconut and tomato chutney."
+- Pongal → "Creamy ven pongal with ghee, pepper, and cashews — warm, simple, and comforting."
+- Chicken Shawarma → "Juicy chicken rolled in soft bread with garlic sauce and crunchy veggies."
+- Mutton Biryani → "Slow-cooked mutton biryani with saffron rice and crispy onions — rich, spicy, and filling."
+- Meen Kulambu → "Tangy fish curry cooked in tamarind and spices — hot, bold, and made for rice."
+- Eral Fry → "Crispy prawn fry coated in spicy masala with curry leaves — fresh and flavourful."
+- Poriyal → "Fresh vegetables stir-fried with mustard, urad dal, and coconut — simple and healthy."
+- Gulab Jamun → "Soft sweet balls soaked in warm sugar syrup with a touch of cardamom."
+- Veg Fried Rice → "Hot fried rice tossed with crunchy veggies and a dash of soy — quick and tasty."
+- Kaara Kozhambu → "Spicy tamarind gravy with onion, garlic, and roasted spices — goes perfect with hot rice."
+- Sundal → "Boiled chickpeas tossed with fresh coconut, curry leaves, and mustard — light and crunchy."
 
-COMBO — 4 lines joined by " | ":
-  Line 1: Main item(s) included
-  Line 2: Sides included
-  Line 3: Drink/dessert or value highlight
-  Line 4: Serving note
-  Example: "Steamed rice, sambar and 2 curries | Served with papad, pickle and salad | Includes a sweet payasam | A satisfying South Indian meal"
-
-GUIDELINES:
-- Simple appetising English. Avoid generic filler ("a delicious dish").
-- Use authentic South Indian terms where natural: tadka, tawa, chutney, sambar, podi, rasam, appam, kothu, salna.
-- Infer accurately from the name. "Mutton Chukka" = dry mutton roast, "Karandi Omelette" = egg omelette in spoon, etc.
-- Every item must get a non-empty description.`;
+Every item MUST get a non-empty description. Never return an empty string.`;
 
 // Batched parallel description generation — same approach as menuExtractor Pass 2.
 // Chunks into 50-item batches, all batches run in parallel → wall time ≈ 1 batch.
@@ -222,7 +250,7 @@ async function generateDescriptions(items: Record<string, unknown>[]): Promise<s
 
     try {
       const res = await getOpenAI().chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: DESCRIBE_SYSTEM_PROMPT },
           { role: 'user', content: `Write descriptions for these ${payload.length} items:\n\n${JSON.stringify(payload)}` },
@@ -274,8 +302,8 @@ export async function POST(request: NextRequest) {
 
     if (!siteId || typeof siteId !== 'string')
       return NextResponse.json({ error: 'siteId required' }, { status: 400 });
-    if (typeof photosCount !== 'number' || photosCount < 1 || photosCount > 3)
-      return NextResponse.json({ error: 'photosCount must be 1–3' }, { status: 400 });
+    if (typeof photosCount !== 'number' || photosCount < 1 || photosCount > 5)
+      return NextResponse.json({ error: 'photosCount must be 1–5' }, { status: 400 });
     if (!Array.isArray(items) || items.length === 0)
       return NextResponse.json({ error: 'No items to insert' }, { status: 400 });
     if (items.length > MAX_ITEMS)

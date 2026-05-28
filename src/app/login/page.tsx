@@ -129,7 +129,7 @@ function LoginContent() {
       setError(err);
       return;
     }
-    window.location.replace(isNewUser ? '/onboarding' : redirectTo);
+    window.location.replace(isNewUser ? '/onboarding?new=true' : redirectTo);
   };
 
   const handleResend = async () => {

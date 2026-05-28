@@ -3,14 +3,14 @@
 // Two-pass pipeline for high accuracy on large menus (200–300+ items) within
 // Vercel Hobby's 60s function ceiling.
 //
-//   Pass 1 — EXTRACT (images → GPT-4o, COMPACT JSON output)
+//   Pass 1 — EXTRACT (images → GPT-4o, COMPACT JSON output, 3 imgs/batch parallel)
+//     Images are chunked into batches of 3 with detail:'high' for maximum OCR
+//     accuracy on dense menu pages. All batches run in parallel (~6-8s total).
 //     Output is a tuple-array — ["name", price, "category", typeChar, foodChar, [["sz",p]]]
-//     This cuts output tokens ~3x vs verbose JSON, so 300 items fit in 16k easily.
-//     Visual cues from images (veg/non-veg dots, section headings) are preserved.
 //
-//   Pass 2 — DESCRIBE (gpt-4o, parallel batches of 50)
-//     Writes South Indian style descriptions per item. Runs concurrently so wall
-//     time for 300 items ≈ wall time for 50 items (~6-8s).
+//   Pass 2 — DESCRIBE (gpt-4o-mini, parallel batches of 50)
+//     Writes South Indian style descriptions per item. Uses gpt-4o-mini for
+//     ~10x cost savings vs gpt-4o. Runs concurrently so wall time ≈ 6-8s.
 //
 //   Post-processing (deterministic, no LLM):
 //     • Dedup by (normalized_name, price)
@@ -52,6 +52,7 @@ const MAX_PRICE = 10_000;          // INR — flag/clamp anything above this
 const SUSPICIOUS_PRICE = 3_000;    // log a warning above this
 const MAX_VARIANTS = 10;
 const DESCRIBE_BATCH_SIZE = 50;
+const PASS1_BATCH_SIZE = 3;           // images per extraction call — sweet spot for accuracy vs cost
 const PASS1_MAX_TOKENS = 16_000;
 const PASS2_MAX_TOKENS = 8_000;
 
@@ -85,37 +86,64 @@ RULES:
 
 // ── Pass 2 prompt: description generation ────────────────────────────────────
 
-const DESCRIBE_SYSTEM_PROMPT = `You write descriptions for South Indian restaurant menu items.
+const DESCRIBE_SYSTEM_PROMPT = `You write ONE-LINE menu descriptions for a Tamil Nadu style restaurant.
 
 You will receive a JSON array of items. Return { "descriptions": [ "...", "...", ... ] } in the same order, same length.
 
-FORMAT — depends on item_type:
+FORMAT:
+- Write exactly ONE sentence (12–20 words). Keep it short, simple, and easy to read.
+- No line breaks, no pipes, no bullet points. Just one clean sentence.
+- For VARIANT items: prepend sizes with prices, then " — " then the one-liner.
+  Example: "Half ₹160 · Full ₹320 — Spicy dum biryani with tender chicken, served hot with raita."
 
-SINGLE — exactly 4 lines joined by " | ":
-  Line 1: Main ingredient or how it is prepared
-  Line 2: Taste / texture highlight
-  Line 3: Served with / accompaniments
-  Line 4: Best occasion or extra note
-  Example: "Crispy dosa made with fermented rice batter | Golden and crunchy outside, soft inside | Served with sambar and fresh coconut chutney | Perfect for a light breakfast or snack"
+STYLE RULES:
+- Write in simple, everyday English. No fancy words. Write like a friendly shop owner describing his food.
+- Keep Tamil food terms natural: salna, kozhambu, poriyal, rasam, sambar, vadai, dosai, kothu, chutney, podimas, kuzhi, thayir, kaapi.
+- Focus on taste and feel: hot, spicy, crispy, soft, tender, fresh, smoky, tangy, creamy, crunchy.
+- Say what the dish actually is and how it tastes — not poetic descriptions.
+- Never use: "delicious", "must-try", "mouth-watering", "exquisite", "culinary", "delectable".
+- Know Tamil Nadu food deeply:
+  "Chicken 65" = crispy fried chicken with curry leaves and chilli
+  "Kothu Parotta" = chopped parotta mixed with egg/meat on a hot tawa
+  "Mutton Chukka" = dry pepper mutton roast, Chettinad style
+  "Kaara Kozhambu" = spicy tamarind gravy with onion and garlic
+  "Parotta" = flaky layered bread served with salna
+  "Eral Fry" = prawn fry with masala
+  "Meen Kulambu" = fish curry cooked in tamarind and spices
+  "Kuzhi Paniyaram" = small round snack made from idli/dosa batter
+  "Pongal" = creamy rice-lentil dish tempered with pepper and ghee
+  "Neer Dosa" = thin, soft rice crepe
+  "Bonda" = deep-fried potato dumpling
+  "Sundal" = boiled chickpeas tossed with coconut and curry leaves
+  "Payasam" = sweet milk dessert with vermicelli or dal
 
-VARIANT — size-price pairs, then dish description after " || ":
-  Format: "Size - ₹Price | Size - ₹Price || One-line dish description"
-  Use the EXACT prices from the variants array.
-  Example: "Full - ₹360 | Half - ₹160 || Tender chicken marinated in spices and chargrilled to smoky perfection"
+EXAMPLES:
+- Chicken Biryani → "Spicy dum biryani with tender chicken pieces, packed with flavour and served with raita and salna."
+- Masala Dosa → "Crispy dosa stuffed with spiced potato, served hot with sambar and coconut chutney."
+- Idli → "Soft steamed idlis served with hot sambar and fresh coconut chutney — simple and filling."
+- Medu Vada → "Crispy lentil vada, golden outside and soft inside — best with sambar and chutney."
+- Filter Coffee → "Hot filter kaapi made the Tamil way — strong, frothy, and fresh from the dabara."
+- Parotta → "Flaky layered parotta straight off the tawa, best with a hot side of chicken salna."
+- Kothu Parotta → "Chopped parotta mixed with egg and masala on a hot tawa — street-style and spicy."
+- Chicken 65 → "Crispy fried chicken tossed with curry leaves, chilli, and pepper — hot and spicy."
+- Mutton Chukka → "Dry roasted mutton with pepper, fennel, and coconut — Chettinad style, bold and spicy."
+- Chicken Biryani (variant) → "Half ₹180 · Full ₹320 — Hot dum biryani with tender chicken, served with raita."
+- Sambar Rice → "Hot sambar mixed with soft rice and a curry leaf tadka — comfort food at its best."
+- Rasam → "Tangy pepper rasam with garlic and curry leaves — light, hot, and perfect with rice."
+- Curd Rice → "Cool thayir sadam with mustard and curry leaves — the classic Tamil way to end a meal."
+- Kuzhi Paniyaram → "Crispy golden paniyaram from fermented batter, served with coconut and tomato chutney."
+- Pongal → "Creamy ven pongal with ghee, pepper, and cashews — warm, simple, and comforting."
+- Chicken Shawarma → "Juicy chicken rolled in soft bread with garlic sauce and crunchy veggies."
+- Mutton Biryani → "Slow-cooked mutton biryani with saffron rice and crispy onions — rich, spicy, and filling."
+- Meen Kulambu → "Tangy fish curry cooked in tamarind and spices — hot, bold, and made for rice."
+- Eral Fry → "Crispy prawn fry coated in spicy masala with curry leaves — fresh and flavourful."
+- Poriyal → "Fresh vegetables stir-fried with mustard, urad dal, and coconut — simple and healthy."
+- Gulab Jamun → "Soft sweet balls soaked in warm sugar syrup with a touch of cardamom."
+- Veg Fried Rice → "Hot fried rice tossed with crunchy veggies and a dash of soy — quick and tasty."
+- Kaara Kozhambu → "Spicy tamarind gravy with onion, garlic, and roasted spices — goes perfect with hot rice."
+- Sundal → "Boiled chickpeas tossed with fresh coconut, curry leaves, and mustard — light and crunchy."
 
-COMBO — 4 lines joined by " | ":
-  Line 1: Main item(s) included
-  Line 2: Sides included
-  Line 3: Drink/dessert or value highlight
-  Line 4: Serving note
-  Example: "Steamed rice, sambar and 2 curries | Served with papad, pickle and salad | Includes a sweet payasam | A satisfying South Indian meal"
-
-GUIDELINES:
-- Simple appetising English. Avoid generic filler ("a delicious dish").
-- Use authentic South Indian terms where natural: tadka, tawa, chutney, sambar, podi, rasam, appam, kothu, salna.
-- Infer accurately from the name. "Mutton Chukka" = dry mutton roast, "Karandi Omelette" = egg omelette in spoon, etc.
-- If "egg" appears in the name, treat as egg-based and describe accordingly.
-- Every item must get a non-empty description.`;
+Every item MUST get a non-empty description. Never return an empty string.`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -267,7 +295,7 @@ async function generateDescriptions(
 
     try {
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: DESCRIBE_SYSTEM_PROMPT },
           { role: 'user', content: `Write descriptions for these ${payload.length} items:\n\n${JSON.stringify(payload)}` },
@@ -305,8 +333,12 @@ async function generateDescriptions(
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Pass 1+2: images → compact tuple extraction → dedup → parallel descriptions.
- * Handles 300+ items reliably within Vercel Hobby's 60s ceiling.
+ * Pass 1+2: images → batched extraction (3 imgs/call, parallel) → dedup → descriptions.
+ *
+ * Batching in groups of 3 with detail:'high' gives much better accuracy on dense
+ * menu pages vs sending all 15 images in a single call with detail:'auto'.
+ * Parallel execution keeps wall-clock time similar (~6-8s for 15 photos).
+ * Net cost is lower because Pass 2 now uses gpt-4o-mini.
  */
 export async function extractMenuItemsFromImages(
   images: Array<{ buffer: Buffer; mime: string }>
@@ -316,41 +348,51 @@ export async function extractMenuItemsFromImages(
   const openai = getOpenAI();
   const t0 = Date.now();
 
-  // Pass 1 — single GPT-4o call with all images
-  let rawTuples: Array<Omit<MenuItem, 'description'>> = [];
-  try {
-    const imageContent = images.map(({ buffer, mime }) => ({
-      type: 'image_url' as const,
-      image_url: {
-        url: `data:${mime};base64,${buffer.toString('base64')}`,
-        // 'auto' lets GPT-4o decide — uses 'high' only when text density needs it.
-        // Cuts vision token cost ~3-4x vs forcing 'high' for every image.
-        detail: 'auto' as const,
-      },
-    }));
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: [
-            ...imageContent,
-            { type: 'text', text: 'Extract every menu item from these images. Use the compact tuple format.' },
-          ],
+  // Pass 1 — parallel batched GPT-4o calls (3 images per batch)
+  const imageBatches = chunk(images, PASS1_BATCH_SIZE);
+  const batchResults = await Promise.allSettled(
+    imageBatches.map(async (batch, batchIdx) => {
+      const imageContent = batch.map(({ buffer, mime }) => ({
+        type: 'image_url' as const,
+        image_url: {
+          url: `data:${mime};base64,${buffer.toString('base64')}`,
+          detail: 'high' as const,
         },
-      ],
-      response_format: { type: 'json_object' },
-      max_tokens: PASS1_MAX_TOKENS,
-    });
+      }));
 
-    rawTuples = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
-    console.log(`[menuExtractor] Pass 1 (images): ${rawTuples.length} items in ${Date.now() - t0}ms`);
-  } catch (err) {
-    console.error('[menuExtractor] Pass 1 (image extraction) failed:', err);
-    return [];
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: [
+              ...imageContent,
+              { type: 'text', text: 'Extract every menu item from these images. Use the compact tuple format.' },
+            ],
+          },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: PASS1_MAX_TOKENS,
+      });
+
+      const items = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
+      console.log(`[menuExtractor] Pass 1 batch ${batchIdx + 1}/${imageBatches.length}: ${items.length} items`);
+      return items;
+    })
+  );
+
+  // Merge results from all batches — skip failed batches gracefully
+  const rawTuples: Array<Omit<MenuItem, 'description'>> = [];
+  for (const result of batchResults) {
+    if (result.status === 'fulfilled') {
+      rawTuples.push(...result.value);
+    } else {
+      console.error('[menuExtractor] Pass 1 batch failed:', result.reason);
+    }
   }
+
+  console.log(`[menuExtractor] Pass 1 total: ${rawTuples.length} items from ${imageBatches.length} batches in ${Date.now() - t0}ms`);
 
   if (rawTuples.length === 0) return [];
 
@@ -360,7 +402,7 @@ export async function extractMenuItemsFromImages(
     console.log(`[menuExtractor] dedup: ${rawTuples.length} → ${deduped.length}`);
   }
 
-  // Pass 2 — descriptions
+  // Pass 2 — descriptions (gpt-4o-mini, parallel batches of 50)
   const t1 = Date.now();
   const descriptions = await generateDescriptions(openai, deduped);
   console.log(`[menuExtractor] Pass 2 (descriptions): ${descriptions.filter(Boolean).length}/${deduped.length} in ${Date.now() - t1}ms`);
