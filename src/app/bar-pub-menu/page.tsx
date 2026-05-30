@@ -5,7 +5,7 @@ import { barMenuPage } from '@/content/seo-pages/data';
 const BASE_URL = 'https://vsite.in';
 const TITLE = 'Digital Bar & Pub Menu Software in India | QR Drinks Menu | vsite';
 const DESCRIPTION =
-    'QR drinks menu for bars and pubs in India — AI cocktail photos, happy-hour pricing toggles, Tamil + English. ₹399/month, no commission.';
+    'QR drinks menu for bars and pubs in India — AI cocktail photos, happy-hour pricing toggles, Tamil + English. ₹299/month, no commission.';
 
 export const metadata: Metadata = {
     title: TITLE,

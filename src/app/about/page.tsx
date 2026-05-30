@@ -4,9 +4,9 @@ import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
 
 export const metadata: Metadata = {
-  title: 'About vsite — Built for Tamil Nadu Restaurants',
+  title: "About vsite — India's Fastest-Growing Digital Menu Software",
   description:
-    'vsite is an AI-powered digital menu platform built for South Indian restaurants. Learn about our mission and story.',
+    "vsite is India's fastest-growing digital menu software — AI-powered QR menus built for South Indian restaurants. Learn about our mission and story.",
   alternates: {
     canonical: 'https://vsite.in/about',
   },
@@ -19,7 +19,7 @@ const jsonLd = {
   url: 'https://vsite.in',
   email: 'official@vsite.in',
   description:
-    'AI-powered digital menu and ordering platform for restaurants in South India.',
+    "India's fastest-growing digital menu software — AI-powered QR menus and ordering for restaurants across South India.",
   foundingLocation: { '@type': 'Place', name: 'Tamil Nadu, India' },
   areaServed: [
     { '@type': 'City', name: 'Chennai' },
@@ -34,7 +34,7 @@ const jsonLd = {
 const stats = [
   { value: '400,000+', label: 'Restaurants in Tamil Nadu' },
   { value: '3 min', label: 'Average setup time' },
-  { value: '₹399', label: 'Starting monthly price' },
+  { value: '₹299', label: 'Starting monthly price' },
   { value: '14 days', label: 'Free to try' },
 ];
 
@@ -71,9 +71,12 @@ export default function AboutPage() {
         {/* Hero */}
         <section className="bg-background-light pt-16">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-20 text-center">
-            <span className="inline-block rounded-full bg-primary/10 text-primary text-xs font-bold px-3 py-1 mb-6">
+            <span className="inline-block rounded-full bg-primary/10 text-primary text-xs font-bold px-3 py-1 mb-4">
               Made in Tamil Nadu 🇮🇳
             </span>
+            <p className="text-xs font-bold uppercase tracking-widest text-primary/60 mb-6">
+              India&apos;s Fastest-Growing Digital Menu Software
+            </p>
             <h1 className="text-4xl sm:text-5xl font-extrabold font-display text-slate-900 leading-tight mb-6">
               We Build for the Restaurant Owner, Not the Enterprise
             </h1>
@@ -82,7 +85,9 @@ export default function AboutPage() {
               Tamil Nadu was still printing paper menus that cost money, went
               outdated, and couldn&apos;t accept digital orders. We built the tool
               we wish existed: AI-powered, live in 3 minutes, priced for a
-              small business owner, made for South India.
+              small business owner, made for South India. Today, vsite is
+              India&apos;s fastest-growing digital menu software — trusted by
+              restaurants across Tamil Nadu.
             </p>
           </div>
         </section>

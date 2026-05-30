@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     template: "%s | Vsite",
   },
   description:
-    "Vsite simplifies restaurant menu management with AI-powered QR menus, real-time updates, and UPI ordering. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens. ₹399/month, no commission. Free 14-day trial.",
+    "Vsite simplifies restaurant menu management with AI-powered QR menus, real-time updates, and UPI ordering. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens. ₹299/month, no commission. Free 14-day trial.",
   keywords: [
     "digital menu for restaurant India",
     "QR menu for restaurant",
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     siteName: "Vsite",
     title: "Vsite: Digital Menu Software for Restaurants & F&B in India",
     description:
-      "Vsite simplifies menu management for India's F&B SMBs with AI-powered QR menus, real-time updates, and UPI ordering. ₹399/month, no commission, Tamil support.",
+      "Vsite simplifies menu management for India's F&B SMBs with AI-powered QR menus, real-time updates, and UPI ordering. ₹299/month, no commission, Tamil support.",
     images: [
       {
         url: `${BASE_URL}/og-image.png`,
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Vsite: Digital Menu Software for Restaurants & F&B in India",
     description:
-      "AI-powered QR menus, real-time updates, UPI ordering. ₹399/month, no commission.",
+      "AI-powered QR menus, real-time updates, UPI ordering. ₹299/month, no commission.",
     images: [`${BASE_URL}/og-image.png`],
     creator: "@vsitein",
   },

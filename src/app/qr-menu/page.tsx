@@ -5,7 +5,7 @@ import { qrMenuPage } from '@/content/seo-pages/data';
 const BASE_URL = 'https://vsite.in';
 const TITLE = 'QR Code Menu for Restaurants in India 2026 | vsite';
 const DESCRIPTION =
-    'Create a QR code menu for your restaurant in 3 minutes. AI food photos, Tamil support, zero commission. ₹399/month with a 14-day free trial.';
+    'Create a QR code menu for your restaurant in 3 minutes. AI food photos, Tamil support, zero commission. ₹299/month with a 14-day free trial.';
 
 export const metadata: Metadata = {
     title: TITLE,

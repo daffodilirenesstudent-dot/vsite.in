@@ -59,8 +59,8 @@ export default function TermsPage() {
                     <section>
                         <h2 className="text-xl font-bold text-slate-900 mb-3">Subscription &amp; Payments</h2>
                         <p>
-                            vsite is offered on a monthly subscription basis. The current prices are ₹399/month (Smart
-                            QR Menu) and ₹799/month (QR Ordering + Payment), plus a one-time ₹1,999 setup fee. A 14-day
+                            vsite is offered on a monthly subscription basis. The current prices are ₹299/month (Smart
+                            QR Menu) and ₹699/month (QR Ordering + Payment), plus a one-time ₹1,999 setup fee. A 14-day
                             free trial is available for new accounts. Subscriptions renew automatically unless cancelled.
                             We reserve the right to change pricing with 30 days&apos; notice.
                         </p>

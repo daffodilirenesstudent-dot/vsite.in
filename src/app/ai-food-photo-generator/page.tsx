@@ -5,7 +5,7 @@ import { aiFoodPhotoPage } from '@/content/seo-pages/data';
 const BASE_URL = 'https://vsite.in';
 const TITLE = 'AI Food Photo Generator for Restaurant Menus | Free with vsite';
 const DESCRIPTION =
-    'Generate professional food photos for every menu item automatically. AI-trained on Indian cuisine — biryani, dosa, mithai, cocktails. Free with vsite at ₹399/month.';
+    'Generate professional food photos for every menu item automatically. AI-trained on Indian cuisine — biryani, dosa, mithai, cocktails. Free with vsite at ₹299/month.';
 
 export const metadata: Metadata = {
     title: TITLE,

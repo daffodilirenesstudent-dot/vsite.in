@@ -5,7 +5,7 @@ import { sweetShopPage } from '@/content/seo-pages/data';
 const BASE_URL = 'https://vsite.in';
 const TITLE = 'Digital Menu for Sweet Shops & Mithai Shops in India | vsite';
 const DESCRIPTION =
-    'QR menu for sweet shops and mithai shops in India — AI photos, per-kg pricing, festival menus, gift-box ordering, Tamil naming. ₹399/month with vsite.';
+    'QR menu for sweet shops and mithai shops in India — AI photos, per-kg pricing, festival menus, gift-box ordering, Tamil naming. ₹299/month with vsite.';
 
 export const metadata: Metadata = {
     title: TITLE,

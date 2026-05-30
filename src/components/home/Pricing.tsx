@@ -56,6 +56,9 @@ export default function Pricing() {
                         One-time setup. One small monthly fee.
                         No hidden charges. No per-order commission. Your revenue stays 100% yours.
                     </p>
+                    <p className="mt-2 text-xs sm:text-sm font-semibold text-primary/80 tracking-wide">
+                        India&apos;s fastest-growing digital menu software — trusted by restaurants across Tamil Nadu.
+                    </p>
                 </div>
 
                 {/* Cards */}
@@ -73,7 +76,7 @@ export default function Pricing() {
                             </span>
                             <p className="text-slate-500 text-xs sm:text-sm mb-4 sm:mb-5">View-only digital menu for your tables</p>
                             <div className="flex items-baseline gap-1 mb-2 sm:mb-3">
-                                <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">₹399</span>
+                                <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">₹299</span>
                                 <span className="text-slate-400 text-sm">/ month</span>
                             </div>
                             <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-slate-600">
@@ -119,7 +122,7 @@ export default function Pricing() {
                             </div>
                             <p className="text-slate-500 text-xs sm:text-sm mb-4 sm:mb-5">Order now, pay when done — zero payment friction</p>
                             <div className="flex items-baseline gap-1 mb-2 sm:mb-3">
-                                <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">₹599</span>
+                                <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">₹499</span>
                                 <span className="text-slate-400 text-sm">/ month</span>
                             </div>
                             <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-slate-600">
@@ -169,7 +172,7 @@ export default function Pricing() {
                             </div>
                             <p className="text-slate-500 text-xs sm:text-sm mb-4 sm:mb-5">Full digital ordering + payment</p>
                             <div className="flex items-baseline gap-1 mb-2 sm:mb-3">
-                                <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">₹799</span>
+                                <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">₹699</span>
                                 <span className="text-slate-400 text-sm">/ month</span>
                             </div>
                             <div className="inline-flex items-center gap-1.5 bg-primary/5 border border-primary/15 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-slate-600">

@@ -17,9 +17,9 @@ const BASE_URL = 'https://vsite.in';
 // Title format mirrors how high-authority SaaS like Petpooja / Zomato render
 // in Google: "Brand: Descriptor" — the colon makes Google treat the brand as
 // the entity name and use the descriptor as the SERP title proper.
-const TITLE = 'Vsite: Digital Menu Software for Restaurants & F&B in India';
+const TITLE = "Vsite: India's Fastest-Growing Digital Menu Software for Restaurants";
 const DESCRIPTION =
-  'Vsite simplifies restaurant menu management with AI-powered QR menus, real-time updates, and UPI ordering. Built for India\'s F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹399/mo, no commission. Free 14-day trial.';
+  "India's fastest-growing digital menu software. AI-powered QR menus, real-time updates, and UPI ordering — live in 3 minutes. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹299/mo, no commission. Free 14-day trial.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -43,14 +43,14 @@ const softwareSchema = {
   operatingSystem: 'Web',
   url: BASE_URL,
   description:
-    'AI-powered digital menu and QR ordering platform for India\'s food and beverage SMBs — restaurants, cafés, bakeries, cloud kitchens, ice cream parlours, sweet shops, bars. Live in 3 minutes.',
+    "India's fastest-growing digital menu software — AI-powered QR menus and ordering for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. Live in 3 minutes.",
   offers: {
     '@type': 'Offer',
-    price: '399',
+    price: '299',
     priceCurrency: 'INR',
     priceSpecification: {
       '@type': 'UnitPriceSpecification',
-      price: '399',
+      price: '299',
       priceCurrency: 'INR',
       unitText: 'MONTH',
     },

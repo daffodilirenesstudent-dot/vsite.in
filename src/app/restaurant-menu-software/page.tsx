@@ -3,9 +3,9 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { restaurantMenuSoftwarePage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Restaurant Menu Software in India 2026 | ₹399/mo | vsite';
+const TITLE = 'Restaurant Menu Software in India 2026 | ₹299/mo | vsite';
 const DESCRIPTION =
-    'Restaurant menu software for India — QR menus, AI food photos, Tamil support, UPI payment, zero commission. ₹399/month. Free 14-day trial.';
+    'Restaurant menu software for India — QR menus, AI food photos, Tamil support, UPI payment, zero commission. ₹299/month. Free 14-day trial.';
 
 export const metadata: Metadata = {
     title: TITLE,

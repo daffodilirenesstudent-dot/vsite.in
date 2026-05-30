@@ -3,9 +3,9 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { digitalMenuIndiaPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Digital Menu for Restaurants in India | ₹399/mo | vsite';
+const TITLE = 'Digital Menu for Restaurants in India | ₹299/mo | vsite';
 const DESCRIPTION =
-    'Digital menu for Indian restaurants — Tamil language, AI food photos, UPI payment, zero commission. ₹399/month. Live in 3 minutes with vsite.';
+    'Digital menu for Indian restaurants — Tamil language, AI food photos, UPI payment, zero commission. ₹299/month. Live in 3 minutes with vsite.';
 
 export const metadata: Metadata = {
     title: TITLE,

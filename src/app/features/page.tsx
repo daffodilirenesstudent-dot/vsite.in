@@ -4,9 +4,9 @@ import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Features — AI Menu, QR Code, Orders, Analytics | vsite';
+const TITLE = "Features — India's Fastest-Growing Digital Menu Software | vsite";
 const DESCRIPTION =
-    'Every feature of vsite for Indian restaurants — AI menu builder, QR code menu, UPI payment, real-time menu updates, Tamil support, and more.';
+    "Explore every feature of vsite — India's fastest-growing digital menu software. AI menu builder, QR code menu, UPI payment, real-time updates, Tamil support, and more.";
 
 export const metadata: Metadata = {
     title: TITLE,
@@ -122,7 +122,7 @@ export default function FeaturesPage() {
                     </h1>
                     <p className="text-slate-600 mt-5 text-lg leading-relaxed">
                         Built for Indian restaurants. Priced for Indian restaurants. A complete digital menu,
-                        ordering, and payment platform at ₹399/month.
+                        ordering, and payment platform at ₹299/month.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center mt-7">
                         <Link
