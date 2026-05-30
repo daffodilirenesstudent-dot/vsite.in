@@ -11,6 +11,7 @@ import { NotificationProvider } from './NotificationContext';
 import { PrinterStatusProvider } from './PrinterStatusContext';
 import DashboardHeader from './DashboardHeader';
 import SubscriptionNotifications from './SubscriptionNotifications';
+import BrandLoader from './BrandLoader';
 import { supabase } from '@/lib/supabase';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -87,19 +88,25 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function ManageShell({ children }: { children: React.ReactNode }) {
     return (
-        <AuthGate>
-            <div className="relative flex h-screen w-full overflow-hidden bg-white font-display text-neutral-900 antialiased">
-                <Sidebar />
-                <main className="flex-1 h-full overflow-y-auto pb-20 md:pb-0">
-                    <DashboardHeader />
-                    <div className="px-4 md:px-8 pt-4">
-                        <SubscriptionNotifications />
-                    </div>
-                    {children}
-                </main>
-                <MobileNav />
-            </div>
-        </AuthGate>
+        <>
+            {/* Branded splash — fixed overlay above AuthGate so it covers the
+                screen from first paint (including AuthGate's own auth spinner),
+                then fades out to reveal whatever is ready underneath. */}
+            <BrandLoader />
+            <AuthGate>
+                <div className="relative flex h-screen w-full overflow-hidden bg-white font-display text-neutral-900 antialiased">
+                    <Sidebar />
+                    <main className="flex-1 h-full overflow-y-auto pb-20 md:pb-0">
+                        <DashboardHeader />
+                        <div className="px-4 md:px-8 pt-4">
+                            <SubscriptionNotifications />
+                        </div>
+                        {children}
+                    </main>
+                    <MobileNav />
+                </div>
+            </AuthGate>
+        </>
     );
 }
 

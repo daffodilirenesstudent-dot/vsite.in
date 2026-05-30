@@ -11,6 +11,7 @@ import DateRangeFilter, { useCurrentRange } from '@/components/DateRangeFilter';
 import RevenueBarChart, { type RevenueBucket } from '@/components/RevenueBarChart';
 import PaymentModeRing from '@/components/PaymentModeRing';
 import TopLowPerformers from '@/components/TopLowPerformers';
+import StoreSetupGuide from '@/components/StoreSetupGuide';
 
 // Insights metrics — populated by GET /api/manage/insights, which is the SINGLE
 // SOURCE OF TRUTH for revenue numbers. Reads from `transactions` (Success rows
@@ -195,6 +196,17 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                     <span className="hidden sm:inline">Preview Store</span>
                 </a>
             </div>
+
+            {/* Post-onboarding setup guide — auto-verifying checklist that retires
+                itself once the store is fully set up (or the owner dismisses it). */}
+            {!planLoading && siteId && (
+                <StoreSetupGuide
+                    siteId={siteId}
+                    isPayEat={isPayEat}
+                    storeOpen={storeOpen}
+                    onGoLive={handleToggleStore}
+                />
+            )}
 
             {/* Store Status */}
             {!planLoading && isTrialExpired ? (

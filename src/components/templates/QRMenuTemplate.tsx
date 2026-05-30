@@ -1398,20 +1398,27 @@ export default function QRMenuTemplate({
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 50,
         }}>
-          <button
-            aria-label="My orders"
-            onClick={() => { setTodayOrders(getTodayOrders()); setMyOrdersOpen(true); }}
-            style={{ position: 'relative', width: 36, height: 36, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.dark} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-              <rect x="9" y="3" width="6" height="4" rx="1"/>
-              <path d="M9 12h6M9 16h4"/>
-            </svg>
-            {todayOrders.length > 0 && (
-              <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: T.pink, border: `2px solid ${T.white}` }} />
-            )}
-          </button>
+          {/* My Orders — only meaningful when the plan allows ordering. On the
+              view-only QR menu plan there are no orders, so we render a 36×36
+              spacer instead to keep the brand centred under space-between. */}
+          {canOrder ? (
+            <button
+              aria-label="My orders"
+              onClick={() => { setTodayOrders(getTodayOrders()); setMyOrdersOpen(true); }}
+              style={{ position: 'relative', width: 36, height: 36, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.dark} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                <path d="M9 12h6M9 16h4"/>
+              </svg>
+              {todayOrders.length > 0 && (
+                <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: T.pink, border: `2px solid ${T.white}` }} />
+              )}
+            </button>
+          ) : (
+            <div aria-hidden="true" style={{ width: 36, height: 36, flexShrink: 0 }} />
+          )}
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

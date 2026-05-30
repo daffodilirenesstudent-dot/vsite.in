@@ -12,6 +12,7 @@ import BestsellersPhase from './components/BestsellersPhase';
 import ProfitablePhase from './components/ProfitablePhase';
 import SummaryPhase from './components/SummaryPhase';
 import LaunchLoadingScreen from './components/LaunchLoadingScreen';
+import ScanningOverlay from './components/ScanningOverlay';
 import type { WizardStep } from '@/components/OnboardingContext';
 import { compressImage } from '@/lib/imageCompress';
 
@@ -77,6 +78,10 @@ function OnboardingContent() {
   const [launching, setLaunching] = useState(false);
   const [launchDone, setLaunchDone] = useState(false);
   const [launchItemCount, setLaunchItemCount] = useState(0);
+  const [launchSlug, setLaunchSlug] = useState('');
+  // null while scanning; set to the real item count once extraction resolves,
+  // which drives the "Found N items" count-up in ScanningOverlay.
+  const [scanItemCount, setScanItemCount] = useState<number | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('Scanning your menu…');
   const [photos, setPhotos] = useState<PreviewPhoto[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -187,21 +192,29 @@ function OnboardingContent() {
         return;
       }
 
-      // Store extracted items in context (defaults star/profit/complexity = 2)
-      setExtractedItems(data.items ?? []);
-
-      // Animate to next step
-      transition('right', () => setStep('bestsellers'));
+      // Store extracted items in context (defaults star/profit/complexity = 2).
+      const found = data.items ?? [];
+      setExtractedItems(found);
+      // Keep the overlay up and reveal the real count — the count-up's
+      // onCountUpDone callback slides us to the Bestsellers step.
+      setScanItemCount(found.length);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setError('Scanning timed out. Please try again — if it keeps failing, try uploading 3–5 photos at a time.');
       } else {
         setError('Network error. Please try again.');
       }
+      setExtracting(false);
     } finally {
       clearTimeout(timeoutId);
-      setExtracting(false);
     }
+  };
+
+  // Called by ScanningOverlay once the "Found N items" count-up completes.
+  const handleScanRevealDone = () => {
+    setExtracting(false);
+    setScanItemCount(null);
+    transition('right', () => setStep('bestsellers'));
   };
 
   // ── "Launch My Menu": final POST with all tiers ─────────────────────────────
@@ -267,6 +280,7 @@ function OnboardingContent() {
 
       // Signal the loading screen that backend is done
       setLaunchItemCount(data.itemCount ?? 0);
+      setLaunchSlug(data.siteSlug ?? '');
       setLaunchDone(true);
     } catch {
       setError('Network error. Please try again.');
@@ -509,10 +523,17 @@ function OnboardingContent() {
         </div>
       </main>
 
+      <ScanningOverlay
+        show={extracting}
+        itemCount={scanItemCount}
+        onCountUpDone={handleScanRevealDone}
+      />
+
       <LaunchLoadingScreen
         show={launching}
         done={launchDone}
         itemCount={launchItemCount}
+        slug={launchSlug}
         onRedirect={handleLaunchRedirect}
       />
     </div>
