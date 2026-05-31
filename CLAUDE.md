@@ -62,7 +62,7 @@ Log the blocker to AGENTS.md with: symptom, what you tried, hypothesis. Move to 
 - Don't write to `/migrations`, `/.env*`, or billing/auth code without explicit goal.
 
 ## MCP Tools: code-review-graph
-This project has a knowledge graph. Prefer the `code-review-graph` MCP tools when available; fall back to Grep/Glob/Read if they're unavailable, fail, or return nothing. Never block on MCP availability.
+This project has a knowledge graph. update it when our start using it  Prefer the `code-review-graph` MCP tools when available; fall back to Grep/Glob/Read if they're unavailable, fail, or return nothing. Never block on MCP availability.
 - **Exploring code:** `semantic_search_nodes` / `query_graph` instead of Grep.
 - **Impact:** `get_impact_radius` instead of manually tracing imports.
 - **Review:** `detect_changes` + `get_review_context` instead of reading whole files.
