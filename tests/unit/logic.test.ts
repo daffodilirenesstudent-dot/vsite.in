@@ -5,7 +5,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isDefaultImage, DEFAULT_IMAGE_BUCKET, DEFAULT_IMAGE_BUCKET_PREFIX } from '@/lib/defaultImages';
+import {
+  isDefaultImage,
+  DEFAULT_IMAGE_BUCKET,
+  DEFAULT_IMAGE_BUCKET_PREFIX,
+  matchByKeyword,
+  confidentKeywordImage,
+  KEYWORD_CONFIDENCE_THRESHOLD,
+} from '@/lib/defaultImages';
 
 // ── 1. isDefaultImage ──────────────────────────────────────────────────────────
 describe('isDefaultImage', () => {
@@ -42,6 +49,90 @@ describe('isDefaultImage', () => {
   it('DEFAULT_IMAGE_BUCKET_PREFIX contains the supabase url and bucket path', () => {
     expect(DEFAULT_IMAGE_BUCKET_PREFIX).toContain(SUPABASE_URL);
     expect(DEFAULT_IMAGE_BUCKET_PREFIX).toContain('default-images');
+  });
+});
+
+// ── 1b. confidentKeywordImage — the onboarding keyword-confidence gate ─────────
+// The onboarding batch matcher must only treat a keyword hit as FINAL when it is
+// confident (mirrors the >= 0.75 gate in /api/images/match). Low-confidence
+// guesses (Tier 4 generic / Tier 4b token-fuzzy) must be discarded so the item
+// falls through to the vector DB search instead of being locked to a wrong image.
+describe('confidentKeywordImage', () => {
+  it('exposes the same 0.75 confidence threshold the inventory route uses', () => {
+    expect(KEYWORD_CONFIDENCE_THRESHOLD).toBe(0.75);
+  });
+
+  it('returns the image URL for a high-confidence exact match', () => {
+    // "chicken biryani" is an exact KEYWORD_MAP key → confidence 1.0
+    const m = matchByKeyword('Chicken Biryani');
+    expect(m).not.toBeNull();
+    expect(m!.confidence).toBeGreaterThanOrEqual(KEYWORD_CONFIDENCE_THRESHOLD);
+
+    const url = confidentKeywordImage('Chicken Biryani');
+    expect(url).toBe(m!.image_url);
+    expect(url).toContain('biriyani');
+  });
+
+  it('returns null for a low-confidence generic match so it falls through to vector', () => {
+    // "Special Fish Thokku" has no specific image — matchByKeyword only finds it
+    // via a low-confidence generic/token fallback. That guess must NOT be locked in.
+    const m = matchByKeyword('Special Fish Thokku');
+    expect(m).not.toBeNull();                                   // premise: a hit exists
+    expect(m!.confidence!).toBeLessThan(KEYWORD_CONFIDENCE_THRESHOLD); // but it's weak
+
+    expect(confidentKeywordImage('Special Fish Thokku')).toBeNull();
+  });
+
+  it('returns null when there is no keyword match at all', () => {
+    expect(confidentKeywordImage('Zzxqv Nonexistent Dish')).toBeNull();
+  });
+
+  it('honours a custom minimum-confidence argument', () => {
+    // A perfect exact match (1.0) clears any threshold <= 1.0 ...
+    expect(confidentKeywordImage('Chicken Biryani', 0.95)).not.toBeNull();
+    // ... but an impossible threshold rejects even a perfect match.
+    expect(confidentKeywordImage('Chicken Biryani', 1.01)).toBeNull();
+  });
+});
+
+// ── 1c. Biryani family — onboarding picks the most specific confident image ────
+// Verifies the three dishes the owner asked about. The gate must keep specific
+// confident matches and reject the ambiguous one (no dedicated image) so it
+// falls through to vector search instead of locking a generic guess.
+describe('biryani family — onboarding image selection', () => {
+  it('chicken biryani → confident exact match (generic biryani image, no chicken-specific art)', () => {
+    const m = matchByKeyword('chicken biryani');
+    expect(m).not.toBeNull();
+    expect(m!.confidence).toBe(1.0);
+    expect(m!.image_url).toContain('biriyani.jpeg');
+    expect(m!.image_url).not.toContain('mutton');
+    // Confident → onboarding keeps it.
+    expect(confidentKeywordImage('chicken biryani')).toBe(m!.image_url);
+  });
+
+  it('mutton biryani → confident exact match to the MUTTON-specific image', () => {
+    const m = matchByKeyword('mutton biryani');
+    expect(m).not.toBeNull();
+    expect(m!.confidence).toBe(1.0);
+    expect(m!.image_url).toContain('mutton-biriyani.jpeg');
+    // Confident → onboarding keeps the mutton-specific image.
+    expect(confidentKeywordImage('mutton biryani')).toBe(m!.image_url);
+  });
+
+  it('paneer biryani → only a low-confidence generic hit, so the gate sends it to vector', () => {
+    // There is no "paneer biryani" image in the library; the keyword matcher can
+    // only offer a generic biryani guess at low confidence.
+    const m = matchByKeyword('paneer biryani');
+    expect(m).not.toBeNull();
+    expect(m!.confidence!).toBeLessThan(KEYWORD_CONFIDENCE_THRESHOLD);
+    // Gate rejects the weak guess → null → onboarding falls through to vector search.
+    expect(confidentKeywordImage('paneer biryani')).toBeNull();
+  });
+
+  it('the three dishes do NOT all collapse to the same keyword image', () => {
+    const chicken = matchByKeyword('chicken biryani')!.image_url;
+    const mutton = matchByKeyword('mutton biryani')!.image_url;
+    expect(mutton).not.toBe(chicken); // mutton is correctly distinct
   });
 });
 

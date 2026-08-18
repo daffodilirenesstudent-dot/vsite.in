@@ -475,3 +475,28 @@ export function matchByKeyword(productName: string): DefaultImageMatch | null {
 
   return null;
 }
+
+/**
+ * Confidence below which a keyword match is treated as a weak guess rather than
+ * a final answer. Mirrors the gate in /api/images/match (the per-item
+ * "Use Professional Image" path), so onboarding and inventory agree on what
+ * counts as a confident keyword hit.
+ */
+export const KEYWORD_CONFIDENCE_THRESHOLD = 0.75;
+
+/**
+ * Keyword image URL, but ONLY when the match clears `minConfidence`.
+ *
+ * Used by the onboarding batch matcher: a confident hit (exact / filename /
+ * specific fuzzy) is taken as final, while a low-confidence Tier-4 generic or
+ * Tier-4b token guess returns null so the caller falls through to the vector
+ * DB search instead of locking the item to a wrong/generic image.
+ */
+export function confidentKeywordImage(
+  productName: string,
+  minConfidence: number = KEYWORD_CONFIDENCE_THRESHOLD,
+): string | null {
+  const match = matchByKeyword(productName);
+  if (!match) return null;
+  return (match.confidence ?? 1) >= minConfidence ? match.image_url : null;
+}

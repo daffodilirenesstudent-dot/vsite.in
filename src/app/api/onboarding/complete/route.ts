@@ -14,10 +14,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
-import { matchByKeyword } from '@/lib/defaultImages';
+import { confidentKeywordImage } from '@/lib/defaultImages';
 import { rateLimit } from '@/lib/rateLimit';
 import { weightedScore, previewQuadrant } from '@/lib/menuEngineering';
 import OpenAI from 'openai';
+import { TRIAL_DURATION_MS } from '@/lib/productFlags';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -27,7 +28,6 @@ export const runtime = 'nodejs';
 const COMPLETE_LIMIT_PER_HR = 5;
 const MAX_ITEMS = 300;
 const MAX_VARIANTS = 10;
-const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
 const TRIAL_STORE_LIMIT = 2;
 const PAID_STORE_LIMIT  = 5;
 const SIM_THRESHOLD = 0.45;
@@ -162,8 +162,11 @@ async function mapWithLimit<T, R>(items: T[], limit: number, fn: (x: T, i: numbe
 // ── Image matching: ONE batched embedding call + bounded RPC concurrency ────
 
 async function findImagesForItems(itemNames: string[]): Promise<Array<string | null>> {
-  // Step 1: keyword fallback (free, instant)
-  const keywordHits = itemNames.map(name => matchByKeyword(name)?.image_url ?? null);
+  // Step 1: keyword fallback (free, instant) — only accept CONFIDENT hits.
+  // Low-confidence generic/token guesses are dropped (→ null) so those items
+  // fall through to the vector search below instead of being locked to a
+  // wrong/generic image. Mirrors the >= 0.75 gate in /api/images/match.
+  const keywordHits = itemNames.map(name => confidentKeywordImage(name));
 
   // Step 2: collect items that need vector search
   const indicesNeedingEmbedding: number[] = [];
