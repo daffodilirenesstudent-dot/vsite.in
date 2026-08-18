@@ -51,7 +51,7 @@ async function classifyToken(token: string | undefined): Promise<TokenState> {
     }
 }
 
-export async function middleware(request: NextRequest) {
+async function route(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     const token = request.cookies.get('sb-access-token')?.value;
@@ -111,6 +111,37 @@ export async function middleware(request: NextRequest) {
         loginUrl.searchParams.set('redirectTo', pathname);
     }
     return NextResponse.redirect(loginUrl);
+}
+
+/**
+ * Every path in the matcher below returns a different body depending on the
+ * request's cookies (logged-in vs anonymous) and on the `RSC` header (Next.js
+ * serves HTML for a document navigation and a `text/x-component` flight
+ * payload for a client-side one, from the same URL).
+ *
+ * Next.js signals the second case with `Vary: RSC, Next-Router-State-Tree,
+ * Next-Router-Prefetch`, but Cloudflare — and most CDNs below the Enterprise
+ * tier — honour `Vary` only for `Accept-Encoding`. Their cache key stays
+ * URL-only, so whichever variant is cached first is replayed to everyone, for
+ * as long as the `s-maxage=31536000` that Next.js stamps on statically
+ * prerendered routes allows. In production that served the raw RSC payload as
+ * the dashboard document, and — because a CDN hit never reaches the origin —
+ * silently bypassed the auth gate below.
+ *
+ * `private, no-store` is therefore a correctness requirement, not a tuning
+ * knob: it must be present on EVERY response this middleware returns,
+ * redirects included. Hashed assets under /_next/static are outside the
+ * matcher and stay cacheable.
+ */
+const NO_SHARED_CACHE = 'private, no-store, max-age=0, must-revalidate';
+
+export async function middleware(request: NextRequest) {
+    const response = await route(request);
+    response.headers.set('Cache-Control', NO_SHARED_CACHE);
+    // Some CDNs (Cloudflare among them) consult this vendor header before the
+    // standard one when deciding edge-cache eligibility.
+    response.headers.set('CDN-Cache-Control', NO_SHARED_CACHE);
+    return response;
 }
 
 export const config = {
