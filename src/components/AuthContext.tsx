@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { provisionUser, ProvisioningError } from '@/lib/provisionUser';
 import { firebaseAuth } from '@/lib/firebase';
 import {
     signInWithPhoneNumber,
@@ -196,61 +197,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const credential = await confirmationResultRef.current.confirm(otp);
             const firebaseUser = credential.user;
 
-            // Firebase is the authoritative source for new vs existing user.
-            // A Supabase DB check is unreliable here: RLS may block the SELECT
-            // if the client JWT hasn't been validated by Supabase yet, causing
-            // existing users to be incorrectly treated as new on every login.
+            // Drives the post-signup redirect ONLY (onboarding vs dashboard).
+            // Provisioning must never be gated on this: it is true exactly once
+            // per Firebase account, so gating made any failed first attempt
+            // permanent. See provisionUser().
             const isNewUser = getAdditionalUserInfo(credential)?.isNewUser ?? false;
+
+            // Provision BEFORE syncing the cookie. The Firebase account exists the
+            // moment confirm() resolves, so the durable rows must be written before
+            // anything that can fail. syncCookie is rate limited (30/min/IP on
+            // /api/auth/session) and used to run first — a 429 there aborted
+            // verifyOTP and left an account with no profile that no later sign-in
+            // could ever create. provisionUser authenticates to Supabase with the
+            // Firebase ID token directly, so it does not need the cookie.
+            await provisionUser(supabase, {
+                uid: firebaseUser.uid,
+                phone: firebaseUser.phoneNumber,
+                name,
+            });
 
             // Wait for cookie before returning — prevents middleware bouncing the redirect.
             // syncCookie dedupes via lastSyncedTokenRef so onIdTokenChanged's call is free.
             await syncCookie(firebaseUser);
 
-            await provisionNewUser(firebaseUser.uid, firebaseUser.phoneNumber, name, isNewUser);
-
             return { error: null, isNewUser };
         } catch (err: unknown) {
+            // Provisioning failures carry a specific, actionable message;
+            // friendlyAuthError only maps Firebase codes and would erase it.
+            if (err instanceof ProvisioningError) {
+                return { error: err.message, isNewUser: false };
+            }
             return { error: friendlyAuthError(err), isNewUser: false };
         }
-    };
-
-    // Provisions a new user profile and subscription row.
-    // isNew comes from Firebase's authoritative AdditionalUserInfo — do not re-derive it here.
-    // Both writes are idempotent via upsert with ignoreDuplicates, so a retry after a
-    // partial failure heals state without clobbering existing data.
-    const provisionNewUser = async (uid: string, phone: string | null, name?: string, isNew = false): Promise<void> => {
-        // Profile — only create for brand-new Firebase accounts.
-        // We intentionally do NOT overwrite full_name/onboarding_completed on conflict.
-        if (isNew) {
-            const { error: profileError } = await supabase.from('profiles').upsert(
-                {
-                    id: uid,
-                    full_name: name ?? '',
-                    contact_email: '',
-                    onboarding_completed: false,
-                    updated_at: new Date().toISOString(),
-                },
-                { onConflict: 'id', ignoreDuplicates: true },
-            );
-            if (profileError) throw new Error('Failed to create your profile. Please try again.');
-        }
-
-        // Subscription — always upsert. If a prior verifyOTP attempt succeeded at profile
-        // but failed at subscription, this heals that state on retry. ignoreDuplicates so
-        // we never clobber an existing (possibly paid) subscription.
-        const { error: subError } = await supabase.from('user_subscriptions').upsert(
-            {
-                user_id: uid,
-                store_plan: 'base',
-                store_expires_at: new Date().toISOString(),
-                product_limit: 0,
-                banner_limit: 0,
-                site_limit: 0,
-                trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-            },
-            { onConflict: 'user_id', ignoreDuplicates: true },
-        );
-        if (subError) throw new Error('Failed to set up your account. Please try again.');
     };
 
     const signOut = async () => {

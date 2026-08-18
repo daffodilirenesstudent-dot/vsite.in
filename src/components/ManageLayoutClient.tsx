@@ -13,6 +13,8 @@ import DashboardHeader from './DashboardHeader';
 import SubscriptionNotifications from './SubscriptionNotifications';
 import BrandLoader from './BrandLoader';
 import { supabase } from '@/lib/supabase';
+import { provisionUser } from '@/lib/provisionUser';
+import { firebaseAuth } from '@/lib/firebase';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();
@@ -47,10 +49,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
                     setProfileChecked(true);
                     return;
                 }
-                if (!data || !data.onboarding_completed) {
-                    // No profile row OR not yet onboarded → onboarding flow.
-                    // Missing row is unexpected after the idempotent provisionNewUser,
-                    // but defensively we treat it the same as not-onboarded.
+                if (!data) {
+                    // No profile row at all. Heal it here rather than only at
+                    // sign-in: /auth/refresh renews an expired token without
+                    // going through verifyOTP, so a session stranded by the old
+                    // isNewUser-gated provisioning would otherwise never get a
+                    // row — and /api/onboarding/complete only UPDATEs profiles,
+                    // so it would match zero rows and loop back here forever.
+                    // Idempotent, so racing with sign-in provisioning is safe.
+                    provisionUser(supabase, {
+                        uid: user.id,
+                        phone: firebaseAuth.currentUser?.phoneNumber ?? null,
+                    }).catch(() => {
+                        // Best effort. If it fails the user still lands on
+                        // onboarding, exactly as before.
+                    });
+                    router.replace('/onboarding?new=true');
+                } else if (!data.onboarding_completed) {
                     router.replace('/onboarding?new=true');
                 } else {
                     setProfileChecked(true);

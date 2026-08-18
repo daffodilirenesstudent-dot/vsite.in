@@ -43,3 +43,57 @@ independent of this work: 93 failed / 407 passed across 11 files. In
 the `expired=true` redirect that `/auth/refresh` replaced. Hypothesis: never
 updated when the silent-refresh flow landed. Not fixed here (CLAUDE.md: do not
 modify tests to make them pass; out of scope for this fix).
+
+## New signups never got a `profiles` row (2026-08-18)
+
+**Symptom.** Phone+OTP signup created the Firebase account, but `profiles` had
+no row for it.
+
+**Root cause — one-shot provisioning gate.** `AuthContext.provisionNewUser`
+inserted the profile only `if (isNew)`, where `isNew` came from Firebase's
+`getAdditionalUserInfo(credential).isNewUser` — true exactly once per account.
+It ran AFTER `await syncCookie()`, which POSTs `/api/auth/session`, rate
+limited to 30/min/IP. Any failure in between (429 under a signup burst, a
+dropped mobile connection) aborted `verifyOTP` with the Firebase account
+already created. On the retry `isNewUser` was false, so the insert was skipped
+— permanently. The comment claiming "both writes are idempotent so a retry
+heals partial failure" was true of the subscription upsert and false of the
+profile, which the `isNew` gate excluded.
+
+**Why nothing else recovered.** `AuthContext` held the ONLY profiles insert in
+the codebase; `/api/onboarding/complete` merely UPDATEs, and a zero-row UPDATE
+reports success, so `onboarding_completed` never got set. `ManageLayoutClient`
+sends a user with no profile row to `/onboarding?new=true` — which completes,
+updates nothing, and bounces back. An unbreakable onboarding loop.
+
+**Second defect.** `provisionNewUser(uid, phone, name, isNew)` accepted `phone`
+and never wrote it, so `profiles.phone_number` was never populated even when
+the row existed. `DashboardHeader` selects that column.
+
+**Third defect.** The thrown `Error('Failed to create your profile…')` was
+routed through `friendlyAuthError`, which only maps Firebase `code` values and
+so replaced it with "Something went wrong. Please try again." — erasing the one
+detail that would have identified this in production. Fixed with a distinct
+`ProvisioningError` type the auth layer passes through verbatim.
+
+**Fix.** Logic extracted to `src/lib/provisionUser.ts` (unconditional,
+idempotent, writes `phone_number`, tested in `tests/unit/provisionUser.test.ts`)
+and called on every `verifyOTP` BEFORE the cookie sync. `ManageLayoutClient`
+heals a missing row on dashboard load, because `/auth/refresh` renews an
+expired token without going through `verifyOTP` — so a stranded live session
+would otherwise never re-provision.
+
+**Latent issue, NOT the cause, worth fixing separately.** Migration 002 claims
+`public.custom_access_token_hook` "fires when Supabase issues a session token
+and stamps 'authenticated' onto every Firebase login". That is wrong: Supabase
+Auth hooks fire only for tokens Supabase Auth itself mints, never for
+third-party Firebase JWTs passed via the client's `accessToken` option. Firebase
+tokens therefore carry no `role` claim. It does not block these writes — the
+live policies from 003/015 use `(auth.jwt() ->> 'sub')` with no `TO` clause, so
+they evaluate for any role — but anything later written as `TO authenticated`
+will silently fail for every user. The supported fix is a Firebase blocking
+function setting a `role: "authenticated"` custom claim.
+
+**Gotcha.** CLAUDE.md says "No Prisma, no Drizzle, no migrations folder in
+repo". Stale — `supabase/migrations/` exists with 50+ files and is the only
+record of the live RLS policies.
