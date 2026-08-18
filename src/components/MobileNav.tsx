@@ -30,7 +30,7 @@ export default function MobileNav() {
     const { isPayEat, isQrMenu, isQrOrder } = usePlan();
     const { missingImageCount, settingsIncomplete, bannerDot } = useNotifications();
 
-    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
+    const qrMenuOnly = isQrMenu; // isQrMenu now means menu-only (see PlanContext)
     const NAV_ITEMS = qrMenuOnly ? QR_MENU_NAV : DEFAULT_NAV;
 
     // Settings tab is also "active" for sub-pages reachable from Settings on mobile.
@@ -55,7 +55,10 @@ export default function MobileNav() {
             }}
         >
             {NAV_ITEMS.map((item) => {
-                const locked = item.gated && !isPayEat;
+                // Matches Sidebar's rule — MobileNav previously omitted the
+                // isQrOrder check, so qr_order stores saw an unlocked tab here
+                // and a locked one in the sidebar.
+                const locked = item.gated && !isPayEat && !isQrOrder;
                 const href = locked ? '/manage/subscription' : item.href;
                 const isActive =
                     !locked && (

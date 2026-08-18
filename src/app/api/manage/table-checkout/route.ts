@@ -14,10 +14,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { audit } from '@/lib/auditLog';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

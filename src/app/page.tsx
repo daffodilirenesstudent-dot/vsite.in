@@ -19,7 +19,7 @@ const BASE_URL = 'https://vsite.in';
 // the entity name and use the descriptor as the SERP title proper.
 const TITLE = "Vsite: India's Fastest-Growing Digital Menu Software for Restaurants";
 const DESCRIPTION =
-  "India's fastest-growing digital menu software. AI-powered QR menus, real-time updates, and UPI ordering — live in 3 minutes. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹299/mo, no commission. Free 14-day trial.";
+  "India's fastest-growing digital menu software. AI-powered QR menus that update in real time — live in 3 minutes. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹299/mo, no commission. Free 7-day trial.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -64,7 +64,7 @@ const softwareSchema = {
     'AI menu creation from photo',
     'QR code menu',
     'Real-time menu updates',
-    'UPI payment integration',
+    'Menu insights & analytics',
     'Tamil language support',
     'NFC card included',
     'Built for cafés, bakeries, cloud kitchens, sweet shops, bars and more',
@@ -78,7 +78,7 @@ const localBusinessSchema = {
   url: BASE_URL,
   email: 'official@vsite.in',
   description:
-    'AI-powered digital menu and QR ordering platform for F&B SMBs in India. Live in 3 minutes.',
+    'AI-powered digital menu platform for F&B SMBs in India. Live in 3 minutes.',
   areaServed: [
     { '@type': 'City', name: 'Chennai' },
     { '@type': 'City', name: 'Coimbatore' },

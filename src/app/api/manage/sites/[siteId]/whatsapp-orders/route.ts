@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { audit } from '@/lib/auditLog';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,8 @@ export async function PATCH(
     request: NextRequest,
     { params }: { params: { siteId: string } },
 ) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
     const userId = await authenticate(request);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

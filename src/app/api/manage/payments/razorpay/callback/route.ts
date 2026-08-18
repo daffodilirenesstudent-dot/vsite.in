@@ -13,6 +13,8 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { exchangeCode, getMode } from '@/lib/server/razorpayOAuth';
 import { encryptToken } from '@/lib/server/paymentsCrypto';
 import { notify } from '@/lib/notify';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -29,6 +31,8 @@ function redirectWith(origin: string, params: Record<string, string>): NextRespo
 }
 
 export async function GET(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   const origin = request.nextUrl.origin;
   const code   = request.nextUrl.searchParams.get('code');
   const state  = request.nextUrl.searchParams.get('state');

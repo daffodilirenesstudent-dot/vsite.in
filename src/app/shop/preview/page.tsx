@@ -36,7 +36,7 @@ function PreviewContent() {
             color: tier === 'order' ? '#4ADE80' : '#A5B4FC',
             fontSize: 11, fontWeight: 600,
           }}>
-            {tier === 'order' ? 'Pay & Eat plan' : 'QR Menu plan'}
+            {tier === 'order' ? 'Ordering (frozen)' : 'Smart QR Menu'}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>

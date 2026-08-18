@@ -213,7 +213,7 @@ function ActionBtn({
 export default function QRPage() {
   const { activeSite } = useSite();
   const { isQrOrder, isPayEat, isQrMenu } = usePlan();
-  const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
+  const qrMenuOnly = isQrMenu; // isQrMenu now means menu-only (see PlanContext)
 
   const [baseUrl, setBaseUrl]         = useState('');
   const [downloading, setDownloading] = useState<string | null>(null);

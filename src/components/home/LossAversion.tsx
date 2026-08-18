@@ -160,7 +160,7 @@ export default function LossAversion() {
                         </div>
                     </div>
                     <div className="mt-5 sm:mt-6 pt-5 border-t border-slate-200 text-center">
-                        <p className="text-slate-500 text-xs sm:text-sm mb-4">vsite costs a fraction of that — and the first 14 days are completely free.</p>
+                        <p className="text-slate-500 text-xs sm:text-sm mb-4">vsite costs a fraction of that — and the first 7 days are completely free.</p>
                         <Link
                             href="/signup"
                             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary text-white px-7 py-3.5 rounded-full font-bold text-sm sm:text-base hover:bg-primary-dark hover:scale-[1.03] active:scale-95 transition-all duration-300 shadow-lg shadow-primary/25"

@@ -9,17 +9,17 @@ import { useSite } from './SiteContext';
 import { usePlan } from './PlanContext';
 import PrinterStatusIndicator from './PrinterStatusIndicator';
 import NotificationBell from './NotificationBell';
+import { TRIAL_DURATION_MS } from '@/lib/productFlags';
 
 const TRIAL_STORE_LIMIT = 2;
 const PAID_STORE_LIMIT  = 5;
-const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
 
 export default function DashboardHeader() {
     const { user, signOut } = useAuth();
     const router = useRouter();
     const { activeSite, allSites, setActiveSiteId } = useSite();
-    const { planLoading, isQrMenu, isQrOrder, isPayEat } = usePlan();
-    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
+    const { planLoading, isQrMenu } = usePlan();
+    const qrMenuOnly = isQrMenu; // isQrMenu now means menu-only (see PlanContext)
 
     const [profile, setProfile] = useState<{ full_name: string; phone_number: string | null } | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);

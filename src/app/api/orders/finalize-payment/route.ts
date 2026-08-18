@@ -33,6 +33,8 @@ import {
 } from '@/lib/server/razorpayOAuth';
 import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/orderEmail';
 import crypto from 'crypto';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -61,6 +63,8 @@ interface PendingRow {
 }
 
 export async function POST(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   let body: { razorpay_order_id?: string; razorpay_payment_id?: string; razorpay_signature?: string };
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });

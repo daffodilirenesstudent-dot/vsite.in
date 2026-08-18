@@ -133,3 +133,62 @@ Both defects are confirmed live, not theoretical:
 the client-side path, so Supabase third-party auth and the RLS INSERT policy
 work correctly. The missing `role` claim from migration 002 is latent, not
 active — it blocks nothing today.
+
+---
+
+## Product freeze: QR ordering (2026-08-18)
+
+vsite now sells **one** product: the Smart QR Menu (`qr_menu`, ₹299/mo, 7-day
+trial). QR Ordering without payment (`qr_order`) and with payment (`pay_eat` /
+legacy `pro`) are **frozen, not deleted**.
+
+**Single switch:** `ORDERING_FROZEN` in `src/lib/productFlags.ts`. Flip to
+`false` and redeploy to restore all three products. It is a hardcoded constant,
+not an env var, deliberately: a missing `NEXT_PUBLIC_*` on a fresh deployment
+would silently *unfreeze* the product. A constant fails closed.
+
+### Gotchas for anyone touching this
+
+1. **Two unrelated Razorpay systems.** Do not confuse them.
+   - *SaaS billing* (how vsite gets paid): `api/subscription/*`,
+     `api/webhooks/razorpay/route.ts`. **Live — never freeze.**
+   - *Sub-merchant OAuth* (how a restaurant took customer payments):
+     `api/manage/payments/razorpay/*`, `api/webhooks/razorpay/oauth/route.ts`.
+     This is the ordering-payment surface.
+
+2. **Block CREATE, never block SETTLE or READ.** A payment captured just before
+   deploy still needs its webhook to land, or we take money and never provision.
+   Deliberately left live: `api/orders/[id]/verify-payment`,
+   `api/orders/[id]/status`, `api/webhooks/razorpay/oauth`, and
+   `api/webhooks/razorpay`. Do **not** add a `plan !== 'qr_menu'` rejection to
+   the webhooks — they must honour whatever plan is in an existing order.
+
+3. **Normalize the plan, not just the booleans.** Several call sites read the
+   raw plan or the raw DB row and bypass `PlanContext`. The two chokepoints are
+   `PlanContext.tsx` (dashboard) and `shop/[slug]/page.tsx` (public menu); both
+   run `normalizePlan()`. `manage/subscription/page.tsx` deliberately reads the
+   *stored* plan so a paying ordering customer still sees a truthful billing
+   state.
+
+4. **`isQrMenu` changed meaning.** It used to be `!isPayEat`, which was also
+   true for `qr_order` stores — six call sites hand-rolled
+   `isQrMenu && !isQrOrder && !isPayEat` to compensate. It now genuinely means
+   menu-only, and those derivations were simplified.
+
+### Accepted residuals (app-layer freeze only — migrations untouched)
+
+- `process_order_v2` still reads `store_plan` from the DB and would still accept
+  a `qr_order` store. It needs the service-role key, which only our server
+  holds, so the route-level 403s make it unreachable in practice.
+- `supabase/migrations/011_atomic_store_limits.sql:23` hardcodes
+  `v_trial_ms := 14 days` for store-limit enforcement, so the DB enforces a
+  14-day window for store limits while the app enforces 7. Divergence is known
+  and deliberate.
+
+### Trial duration was a live bug
+
+`TRIAL_DURATION_MS` was defined in **6 files at two different values** — 7 days
+in `PlanContext`, 14 days in `toggle-live`, `shop/[slug]`, `DashboardHeader`,
+`onboarding/complete`. The dashboard expired the trial at day 7 while the public
+menu stayed live to day 14. Now defined **once**, in `productFlags.ts`, and a
+test asserts it is never redefined elsewhere.

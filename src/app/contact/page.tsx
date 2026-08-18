@@ -40,7 +40,7 @@ const faqs = [
     a: 'No. Your digital menu opens in any phone browser — no download needed.',
   },
   {
-    q: 'What does the 14-day trial include?',
+    q: 'What does the 7-day trial include?',
     a: 'Full access to every feature. No credit card required. No automatic charge.',
   },
   {

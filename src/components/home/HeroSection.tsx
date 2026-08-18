@@ -38,13 +38,13 @@ export default function HeroSection() {
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                                 <span className="relative inline-flex rounded-full h-full w-full bg-green-400" />
                             </span>
-                            <span className="hidden sm:inline">14-Day Free Trial — Zero Risk. No Credit Card. No Hidden Charges.</span>
-                            <span className="sm:hidden">14-Day Free Trial · No Credit Card</span>
+                            <span className="hidden sm:inline">7-Day Free Trial — Zero Risk. No Credit Card. No Hidden Charges.</span>
+                            <span className="sm:hidden">7-Day Free Trial · No Credit Card</span>
                         </div>
 
                         {/* H1 */}
                         <h1 className="text-[1.75rem] sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold font-display text-white leading-[1.1] tracking-tight">
-                            {["Restaurant's", 'Digital Menu & QR Ordering software'].map((line, i) => (
+                            {["Restaurant's", 'Smart QR Menu software'].map((line, i) => (
                                 <span key={line} className="block overflow-hidden">
                                     <span
                                         className={`block transition-all ${ease} duration-700 ${loaded ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}

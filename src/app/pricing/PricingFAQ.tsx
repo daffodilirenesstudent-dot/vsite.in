@@ -4,20 +4,20 @@ import { useState } from 'react';
 
 const faqs = [
   {
-    q: 'What is included in the one-time setup fee?',
-    a: 'The ₹1,999 setup fee covers your store creation, AI menu scanning, professional food photo matching, NFC card, QR stickers, and onboarding support. You pay it once — never again.',
+    q: 'Is there a setup fee?',
+    a: 'There is no setup fee. Your ₹299/month covers store creation, AI menu scanning, professional food photo matching, NFC card, QR stickers, and onboarding support.',
   },
   {
     q: 'Is there a commission on orders?',
     a: 'Zero. vsite charges a flat monthly fee only. Every rupee your customer pays goes directly to you — no per-order commission, no aggregator fee, no surprise deductions.',
   },
   {
-    q: 'What happens after the 14-day free trial?',
+    q: 'What happens after the 7-day free trial?',
     a: 'After your trial ends, you choose a plan to continue. No credit card is needed to start, and there is no automatic charge. Your menu stays safe — we will remind you before anything changes.',
   },
   {
-    q: 'Can I switch plans later?',
-    a: 'Yes. You can upgrade from Smart QR Menu to QR Ordering + Payment at any time from your dashboard. The price difference is prorated to your billing cycle.',
+    q: 'Is there more than one plan?',
+    a: 'No — vsite is one simple product: the Smart QR Menu at ₹299/month. Everything is included, so there is nothing to compare and no upgrade to think about.',
   },
   {
     q: 'Do you offer discounts for multiple branches?',

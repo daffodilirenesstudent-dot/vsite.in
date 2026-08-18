@@ -25,7 +25,7 @@ export default function Sidebar() {
     const { missingImageCount, settingsIncomplete, bannerDot } = useNotifications();
 
     // qr_menu / base plan: hide gated nav items entirely (Orders, Transactions).
-    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
+    const qrMenuOnly = isQrMenu; // isQrMenu now means menu-only (see PlanContext)
     const navItems = qrMenuOnly ? NAV_ITEMS.filter(i => !i.gated) : NAV_ITEMS;
 
     const [collapsed, setCollapsed] = useState(false);
@@ -47,8 +47,9 @@ export default function Sidebar() {
         plan === 'pro'       ? 'Pay-Eat QR Menu'         :
         plan === 'pay_eat'   ? 'Pay-Eat QR Menu'         :
         plan === 'qr_order'  ? 'QR Ordering (No Payment)':
-        plan === 'qr_menu'   ? 'QR Menu'                 :
-        'Free Plan';
+        plan === 'qr_menu'   ? 'Smart QR Menu'           :
+        plan === 'base'      ? 'Smart QR Menu'           :
+        'Smart QR Menu';
 
     // ── Shared icon-only column (used for tablet sidebar AND collapsed desktop) ──
     const IconColumn = ({ showToggle }: { showToggle?: boolean }) => (

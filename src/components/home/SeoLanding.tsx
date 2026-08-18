@@ -106,7 +106,7 @@ export default function SeoLanding({ data }: { data: SeoLandingData }) {
                             {secondary.label}
                         </Link>
                     </div>
-                    <p className="text-xs text-slate-400 mt-4">14-day free trial · No credit card · Setup in 3 minutes</p>
+                    <p className="text-xs text-slate-400 mt-4">7-day free trial · No credit card · Setup in 3 minutes</p>
                 </div>
             </section>
 

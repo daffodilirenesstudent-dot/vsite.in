@@ -16,6 +16,8 @@ import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/orderEmail';
 import { audit } from '@/lib/auditLog';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -27,6 +29,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   try {
     // ── Auth ──────────────────────────────────────────────────────────────────
     const authHeader = request.headers.get('Authorization');

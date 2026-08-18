@@ -3,21 +3,15 @@ import Razorpay from 'razorpay';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { rateLimit } from '@/lib/rateLimit';
+import { TRIAL_DURATION_MS, PLAN_PRICES_INR, isPlanSellable } from '@/lib/productFlags';
 
 // Razorpay Orders API — manual payment each time (no autopay).
 // User pays once per billing cycle; no card mandate or recurring authorization.
 export const maxDuration = 15;
 export const runtime = 'nodejs';
 
-// Keep in sync with /manage/subscription/page.tsx and PlanContext.tsx.
-// Per-plan monthly pricing in INR; no setup fee. 30-day cycle.
-const PLAN_PRICES_INR: Record<string, number> = {
-    qr_menu:  299,
-    qr_order: 499,
-    pay_eat:  699,
-};
-const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
-const VALID_PLANS = new Set(Object.keys(PLAN_PRICES_INR));
+// Prices and the sellable-plan list now live in @/lib/productFlags so the
+// freeze has a single source of truth. No setup fee; 30-day cycle.
 
 export async function POST(request: NextRequest) {
     const t0 = Date.now();
@@ -59,7 +53,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'siteId is required' }, { status: 400 });
         }
         // Default to qr_menu if the client doesn't pass a plan (back-compat).
-        const chosenPlan = plan && VALID_PLANS.has(plan) ? plan : 'qr_menu';
+        // An explicitly-requested plan that is frozen is REFUSED rather than
+        // quietly downgraded — silently charging 299 for a 499 plan the user
+        // selected would be worse than an error.
+        if (plan && !isPlanSellable(plan)) {
+            return NextResponse.json(
+                { error: 'This plan is not available.', code: 'PLAN_NOT_SELLABLE' },
+                { status: 403 }
+            );
+        }
+        const chosenPlan = plan && isPlanSellable(plan) ? plan : 'qr_menu';
 
         // ── Parallel DB queries ──────────────────────────────────────────────
         const t1 = Date.now();

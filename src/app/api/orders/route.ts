@@ -21,6 +21,8 @@ import { buildOrderConfirmationEmail as _unusedEmail } from '@/lib/orderEmail';
 import { verifyTableSig } from '@/lib/qrSignature';
 import { getActiveIntegration, createRazorpayOrder } from '@/lib/server/razorpayOAuth';
 import crypto from 'crypto';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 // PHASE 1: missing sig is logged but allowed (legacy QR cards still in field).
 // Flip to true once all printed cards carry sig — then unsigned tableNumber
@@ -69,6 +71,8 @@ export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 export async function POST(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   try {
     // ── Parse body ──────────────────────────────────────────────────────────
     let body: {

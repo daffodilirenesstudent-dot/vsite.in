@@ -19,6 +19,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { currencySymbol } from '@/lib/currency';
 import crypto from 'crypto';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -79,6 +81,8 @@ function buildPrefilledMessage(opts: {
 }
 
 export async function POST(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
     let body: {
         siteId?: string;
         customerName?: string;

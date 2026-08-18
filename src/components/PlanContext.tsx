@@ -2,8 +2,9 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useSite } from './SiteContext';
+import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/productFlags';
 
-type Plan = 'qr_menu' | 'base' | 'pro' | 'pay_eat' | string;
+type Plan = 'qr_menu' | 'base' | 'qr_order' | 'pro' | 'pay_eat' | string;
 
 interface PlanContextType {
     plan: Plan;
@@ -42,8 +43,6 @@ const PlanContext = createContext<PlanContextType>({
     refreshPlan: async () => {},
 });
 
-// 7-day free trial from store creation.
-const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function PlanProvider({ children }: { children: React.ReactNode }) {
     const { activeSite, sitesLoading, refreshSites } = useSite();
@@ -55,14 +54,17 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         return () => clearInterval(id);
     }, []);
 
-    // Per-store trial: 14 days from when the store was created
+    // Per-store trial: TRIAL_DURATION_MS from when the store was created
     const siteCreatedMs = activeSite ? new Date(activeSite.created_at).getTime() : 0;
     const trialEndsMs   = siteCreatedMs > 0 ? siteCreatedMs + TRIAL_DURATION_MS : 0;
 
     // Per-store paid subscription
     const sub           = activeSite?.site_subscriptions ?? null;
     const subEndsMs     = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
-    const plan: Plan    = sub?.store_plan ?? 'qr_menu';
+    // normalizePlan collapses the frozen ordering products (qr_order/pay_eat/pro)
+    // into qr_menu, so every gate below reads as Smart QR Menu while frozen.
+    // The stored value is left untouched in the DB — see @/lib/productFlags.
+    const plan: Plan    = normalizePlan(sub?.store_plan);
 
     const isTrialActive  = trialEndsMs > now;
     const isSubscribed   = subEndsMs > now;
@@ -72,9 +74,12 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     const isTrialExpired = !isTrialActive && !isSubscribed;
     const canGoLive      = isTrialActive || isSubscribed;
 
-    const isPayEat = plan === 'pro' || plan === 'pay_eat';
-    const isQrMenu = !isPayEat;
+    const isPayEat  = plan === 'pro' || plan === 'pay_eat';
     const isQrOrder = plan === 'qr_order';
+    // Genuinely "menu only" — not merely "not pay_eat". The old `!isPayEat`
+    // was true for qr_order stores too, which forced six call sites to
+    // re-derive `isQrMenu && !isQrOrder && !isPayEat` by hand.
+    const isQrMenu  = !isPayEat && !isQrOrder;
 
     // refreshPlan re-fetches sites (which include the nested site_subscriptions join).
     // Returns the underlying promise so callers can await activation reflect.

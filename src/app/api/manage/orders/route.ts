@@ -16,6 +16,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -26,6 +28,8 @@ const SELECT_COLS =
   'id, site_id, order_number, customer_name, table_number, items, subtotal, tax_amount, cgst_amount, sgst_amount, gst_rate_pct, gstin_snapshot, total_amount, payment_method, payment_status, status, counter_number, token_number, created_at, updated_at';
 
 export async function GET(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   // ── Auth ────────────────────────────────────────────────────────────────────
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {

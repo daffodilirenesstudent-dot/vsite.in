@@ -11,7 +11,7 @@ const testimonials = [
         bg: 'bg-primary',
     },
     {
-        quote: 'During lunch rush, we had 8 tables ordering at the same time through Pay & Eat. No queue. No confusion. My one waiter handled everything. This alone was worth it.',
+        quote: 'During lunch rush, guests scan and decide before my waiter even reaches the table. Orders are faster and there is far less confusion about prices. My one waiter handles everything.',
         name: 'Priya M.',
         business: 'The Curry House, Chennai',
         initials: 'PM',

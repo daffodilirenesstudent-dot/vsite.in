@@ -56,7 +56,7 @@ export default function TrialBanner() {
             <div className="flex items-center justify-between gap-4 bg-emerald-50 border-b border-emerald-100 px-4 py-2.5">
                 <div className="flex items-center gap-2 text-sm font-medium text-emerald-700">
                     <span className="material-symbols-outlined text-base shrink-0 text-emerald-500" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
-                    You&apos;re on a 14-day free trial — {trialDaysLeft} day{trialDaysLeft === 1 ? '' : 's'} remaining.
+                    You&apos;re on a 7-day free trial — {trialDaysLeft} day{trialDaysLeft === 1 ? '' : 's'} remaining.
                 </div>
                 <Link
                     href="/manage/subscription"

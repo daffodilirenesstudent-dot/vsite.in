@@ -5,6 +5,7 @@ import { useAuth } from '@/components/AuthContext';
 import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { firebaseAuth } from '@/lib/firebase';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
 
 // Per-plan monthly pricing. Keep in sync with create-subscription/route.ts.
 // 30-day cycle, no setup fee.
@@ -514,6 +515,10 @@ export default function SubscriptionPage() {
                         </button>
                     </div>
 
+                    {/* The two QR-ordering plans are frozen — no upgrade path is
+                        offered while ORDERING_FROZEN. Cards kept for unfreeze. */}
+                    {!ORDERING_FROZEN && (
+                      <>
                     {/* QR Ordering — No Payment */}
                     <div
                         style={{
@@ -617,6 +622,8 @@ export default function SubscriptionPage() {
                                     : `Activate — ₹${QR_ORDERING_MONTHLY}/mo`}
                         </button>
                     </div>
+                      </>
+                    )}
                 </div>
             )}
 
@@ -762,6 +769,9 @@ export default function SubscriptionPage() {
                 </div>
             )}
 
+            {/* Activation modals for the two frozen ordering plans. */}
+            {!ORDERING_FROZEN && (
+              <>
             {/* ── QR Ordering Payment modal ── */}
             {modalType === 'qr_ordering_payment' && (
                 <div
@@ -957,6 +967,8 @@ export default function SubscriptionPage() {
                         )}
                     </div>
                 </div>
+            )}
+              </>
             )}
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

@@ -41,9 +41,10 @@ export default function TermsPage() {
                     <section>
                         <h2 className="text-xl font-bold text-slate-900 mb-3">Description of Service</h2>
                         <p>
-                            vsite provides an AI-powered digital menu and ordering platform for restaurants and food
-                            businesses. Features include digital menu creation, QR code generation, online ordering, and
-                            payment processing. Features vary by subscription plan.
+                            vsite provides an AI-powered digital menu platform for restaurants and food businesses.
+                            Features include digital menu creation, AI food photography, QR code generation, and
+                            real-time menu updates. vsite does not currently take customer orders or process
+                            customer payments on your behalf.
                         </p>
                     </section>
 
@@ -59,10 +60,10 @@ export default function TermsPage() {
                     <section>
                         <h2 className="text-xl font-bold text-slate-900 mb-3">Subscription &amp; Payments</h2>
                         <p>
-                            vsite is offered on a monthly subscription basis. The current prices are ₹299/month (Smart
-                            QR Menu) and ₹699/month (QR Ordering + Payment), plus a one-time ₹1,999 setup fee. A 14-day
-                            free trial is available for new accounts. Subscriptions renew automatically unless cancelled.
-                            We reserve the right to change pricing with 30 days&apos; notice.
+                            vsite is offered on a monthly subscription basis. The current price is ₹299/month for the
+                            Smart QR Menu, with no setup fee. A 7-day free trial is available for new accounts.
+                            Each paid period lasts 30 days and is renewed manually — there is no automatic charge
+                            and no stored card mandate. We reserve the right to change pricing with 30 days&apos; notice.
                         </p>
                     </section>
 

@@ -5,7 +5,7 @@ import { cloudKitchenPage } from '@/content/seo-pages/data';
 const BASE_URL = 'https://vsite.in';
 const TITLE = 'Cloud Kitchen Software with QR Menu & UPI Ordering | vsite';
 const DESCRIPTION =
-    'Cloud kitchen software for India — branded direct-order link, QR codes for packaging, UPI payment, zero commission. Skip aggregator fees with vsite.';
+    'Cloud kitchen software for India — branded direct-order link, QR codes for packaging, zero commission. Skip aggregator fees with vsite.';
 
 export const metadata: Metadata = {
     title: TITLE,

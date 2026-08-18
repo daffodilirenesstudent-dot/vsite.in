@@ -52,7 +52,7 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
     const canViewInsights = isPayEat || isQrOrder;
     // qr_menu plan gets a different, lighter insights block (menu views +
     // inventory summary) since they don't have orders/revenue to report on.
-    const showMenuInsights = isQrMenu && !isQrOrder && !isPayEat;
+    const showMenuInsights = isQrMenu; // isQrMenu now means menu-only (see PlanContext)
 
     // ── Fetch insights server-side (transactions-backed; not orders-backed) ──
     // Server reads from `transactions` so revenue = money actually collected.

@@ -89,7 +89,7 @@ export default function DemoPage() {
                             </div>
                             <h2 className="text-xl font-bold text-slate-900">Try It Yourself</h2>
                             <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                                Prefer to explore first? Start the 14-day free trial and have your
+                                Prefer to explore first? Start the 7-day free trial and have your
                                 menu live in 3 minutes. No credit card required, no pressure.
                             </p>
                             <Link
@@ -100,7 +100,7 @@ export default function DemoPage() {
                                 <span className="material-symbols-outlined text-base">arrow_forward</span>
                             </Link>
                             <p className="text-xs text-slate-400 mt-2 text-center">
-                                14-day trial · No credit card
+                                7-day trial · No credit card
                             </p>
                         </div>
                     </div>
@@ -134,7 +134,7 @@ export default function DemoPage() {
                             { icon: 'image', title: 'AI food photo generation', desc: 'See how every dish gets a professional food image automatically.' },
                             { icon: 'qr_code_2', title: 'QR code + NFC card in action', desc: 'We scan your live menu on a phone and walk through the customer experience.' },
                             { icon: 'edit', title: 'Real-time menu updates', desc: 'Change a price in the dashboard — watch it reflect instantly on the customer menu.' },
-                            { icon: 'receipt', title: 'Order + UPI payment flow', desc: 'Place a test order and pay via UPI so you see the full workflow.' },
+                            { icon: 'receipt', title: 'Live menu updates', desc: 'Change a price or mark an item sold out and watch the menu update instantly.' },
                         ].map((item) => (
                             <div key={item.title} className="flex gap-4 rounded-2xl bg-white border border-slate-200 p-5">
                                 <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">

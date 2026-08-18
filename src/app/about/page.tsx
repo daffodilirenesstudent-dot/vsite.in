@@ -35,7 +35,7 @@ const stats = [
   { value: '400,000+', label: 'Restaurants in Tamil Nadu' },
   { value: '3 min', label: 'Average setup time' },
   { value: '₹299', label: 'Starting monthly price' },
-  { value: '14 days', label: 'Free to try' },
+  { value: '7 days', label: 'Free to try' },
 ];
 
 const values = [
@@ -177,7 +177,7 @@ export default function AboutPage() {
               Ready to Go Digital?
             </h2>
             <p className="text-white/80 text-lg mb-8">
-              14-day free trial. No credit card. No commitment. Just your
+              7-day free trial. No credit card. No commitment. Just your
               restaurant, online.
             </p>
             <Link

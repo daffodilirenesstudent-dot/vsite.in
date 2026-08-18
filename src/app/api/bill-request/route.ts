@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { verifyTableSig } from '@/lib/qrSignature';
 import crypto from 'crypto';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 const STRICT_TABLE_SIG = process.env.STRICT_TABLE_SIG === '1';
 
@@ -33,6 +35,8 @@ function checkIpLimit(ip: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   // IP rate limit — checked before any DB work
   const rawIp = (request.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim();
   if (!checkIpLimit(rawIp)) {

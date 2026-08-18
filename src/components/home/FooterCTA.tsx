@@ -7,7 +7,7 @@ const productLinks = [
     { label: 'Features', href: '/features' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'Book a Demo', href: '/demo' },
-    { label: '14-Day Free Trial', href: '/signup' },
+    { label: '7-Day Free Trial', href: '/signup' },
     { label: 'Login', href: '/login' },
 ];
 

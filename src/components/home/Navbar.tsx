@@ -129,7 +129,7 @@ export default function Navbar() {
                             Start Free Trial
                             <span className="material-symbols-outlined text-lg">arrow_forward</span>
                         </Link>
-                        <p className="text-center text-xs text-slate-400 mt-2">14 days free · No credit card needed</p>
+                        <p className="text-center text-xs text-slate-400 mt-2">7 days free · No credit card needed</p>
                     </div>
                 </div>
             </div>

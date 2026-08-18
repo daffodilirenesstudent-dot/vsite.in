@@ -15,8 +15,8 @@ export const FAQ_GROUPS = [
       },
       {
         id: 'q3',
-        q: 'What is included in the one-time setup fee?',
-        a: 'The ₹1,999 setup fee covers your store creation, AI menu scanning, professional food photo matching, NFC card, QR stickers, and onboarding support. You pay it once — never again.',
+        q: 'Is there a setup fee?',
+        a: 'There is no setup fee. Your ₹299/month covers store creation, AI menu scanning, professional food photo matching, NFC card, QR stickers, and onboarding support.',
       },
     ],
   },
@@ -43,7 +43,7 @@ export const FAQ_GROUPS = [
       {
         id: 'q6',
         q: 'How do customers place orders through the QR menu?',
-        a: 'On the QR Ordering + Payment plan, customers scan your QR code, browse your menu, add items to their cart, and place an order directly from their phone. You receive the order instantly on your dashboard. Payment is made via UPI, GPay, or PhonePe.',
+        a: 'Customers scan your QR code and browse your full menu on their phone — photos, prices, descriptions, and live sold-out status. They then order with your staff as usual. In-app ordering and payment are not part of vsite today.',
       },
       {
         id: 'q7',
@@ -52,8 +52,8 @@ export const FAQ_GROUPS = [
       },
       {
         id: 'q8',
-        q: 'Which payment methods do customers use?',
-        a: 'Customers can pay via UPI (including GPay and PhonePe), or in cash. All UPI payments are settled directly to your bank account — vsite does not hold your money.',
+        q: 'Does vsite handle customer payments?',
+        a: 'No. vsite shows your menu — your customers pay you exactly as they do today, by cash, card or your own UPI QR. Nothing is routed through vsite, so there is no commission and no settlement delay.',
       },
     ],
   },
@@ -63,7 +63,7 @@ export const FAQ_GROUPS = [
     items: [
       {
         id: 'q9',
-        q: 'What happens after the 14-day free trial?',
+        q: 'What happens after the 7-day free trial?',
         a: 'After your trial ends, you choose a plan to continue. No credit card is needed to start — there is no automatic charge at the end of your trial. Your menu data stays safe and we will remind you before anything changes.',
       },
       {

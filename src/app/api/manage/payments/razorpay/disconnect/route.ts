@@ -10,11 +10,15 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { decryptToken } from '@/lib/server/paymentsCrypto';
 import { revokeToken } from '@/lib/server/razorpayOAuth';
 import { notify } from '@/lib/notify';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   const auth = request.headers.get('Authorization');
   if (!auth?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

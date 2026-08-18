@@ -6,7 +6,7 @@ import FooterCTA from '@/components/home/FooterCTA';
 const BASE_URL = 'https://vsite.in';
 const TITLE = "Features — India's Fastest-Growing Digital Menu Software | vsite";
 const DESCRIPTION =
-    "Explore every feature of vsite — India's fastest-growing digital menu software. AI menu builder, QR code menu, UPI payment, real-time updates, Tamil support, and more.";
+    "Explore every feature of vsite — India's fastest-growing digital menu software. AI menu builder, QR code menu, real-time updates, Tamil support, and more.";
 
 export const metadata: Metadata = {
     title: TITLE,
@@ -62,7 +62,7 @@ const featureGroups: FeatureGroup[] = [
         icon: 'receipt_long',
         items: [
             { title: 'Table Ordering', description: 'Customers order directly from their phone. Orders tagged with table number.' },
-            { title: 'UPI Payment at Table', description: 'Customers pay via PhonePe, GPay, or Paytm. Money to your account, zero commission.' },
+            { title: 'Zero Commission', description: 'vsite never sits between you and your customer payments. You keep 100% of every bill.' },
             { title: 'Live Kitchen Dashboard', description: 'See orders in real time on any phone or tablet behind the counter.' },
             { title: 'Order Status Flow', description: 'Move orders from Preparing → Ready → Completed with a tap.' },
         ],
@@ -84,7 +84,7 @@ const featureGroups: FeatureGroup[] = [
             { title: 'WhatsApp Support', description: 'Real humans respond within 2 hours on business days. No chatbots, no ticket queues.' },
             { title: 'Zero Commission', description: 'Unlike Zomato or Swiggy, you keep 100% of every order. No per-order fees ever.' },
             { title: 'No POS Hardware', description: 'No card machines, no billing terminals. Works from any phone or tablet.' },
-            { title: '14-Day Free Trial', description: 'Try every feature for 14 days — no credit card required.' },
+            { title: '7-Day Free Trial', description: 'Try every feature for 7 days — no credit card required.' },
         ],
     },
 ];
@@ -98,7 +98,7 @@ const jsonLd = {
     description: DESCRIPTION,
     offers: {
         '@type': 'Offer',
-        price: '399',
+        price: '299',
         priceCurrency: 'INR',
     },
     url: `${BASE_URL}/features`,

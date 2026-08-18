@@ -83,7 +83,7 @@ export default function ProductCards() {
                         href="/signup"
                         className="inline-flex items-center gap-2 bg-primary text-white px-8 py-4 rounded-full font-bold text-base hover:bg-primary-dark hover:scale-[1.03] active:scale-95 transition-all duration-300 shadow-lg shadow-primary/25"
                     >
-                        Start your free 14-day trial
+                        Start your free 7-day trial
                         <span className="material-symbols-outlined text-xl">arrow_forward</span>
                     </Link>
                     <p className="mt-3 text-xs text-slate-400">No credit card · Setup in 3 minutes · Cancel anytime</p>

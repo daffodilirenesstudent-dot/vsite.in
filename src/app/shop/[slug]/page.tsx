@@ -4,6 +4,7 @@ import type { Shop } from '@/lib/supabase';
 import { supabaseServer } from '@/lib/supabase-server';
 import ShopPageClient from './ShopPageClient';
 import type { MenuProduct, ShopBanner } from './ShopPageClient';
+import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/productFlags';
 
 // ISR: Cache pages for 10 seconds so toggle/live changes reflect quickly.
 export const revalidate = 10;
@@ -25,9 +26,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
     if (!site) return {};
 
-    const title = `${site.name} Menu — Order Online`;
+    const title = `${site.name} — Digital Menu`;
     const description = site.description
-        ? `${site.description} Browse the full menu and order directly from your phone. No app needed.`
+        ? `${site.description} Browse the full menu from your phone. No app needed.`
         : `Browse ${site.name}'s full menu and place your order directly from your phone. No app needed.`;
     const url = `${BASE_URL}/shop/${site.slug}`;
 
@@ -78,11 +79,15 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
             .maybeSingle();
 
         const now = Date.now();
-        const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
         const subEndsMs = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
         const trialEndsMs = new Date(site.created_at).getTime() + TRIAL_DURATION_MS;
         canGoLive = subEndsMs > now || trialEndsMs > now;
-        const storePlan: string = sub?.store_plan ?? 'qr_menu';
+        // normalizePlan collapses the frozen ordering products into qr_menu,
+        // so this resolves to 'view' for every store while ORDERING_FROZEN.
+        // That single assignment is what removes the cart, checkout, payment
+        // and Request-Bill UI from the public menu — QRMenuTemplate already
+        // renders read-only for the 'view' tier.
+        const storePlan: string = normalizePlan(sub?.store_plan);
         if (storePlan === 'pay_eat' || storePlan === 'pro') {
           tier = 'order';
         } else if (storePlan === 'qr_order') {

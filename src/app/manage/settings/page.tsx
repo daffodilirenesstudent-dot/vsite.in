@@ -15,8 +15,8 @@ export default function SettingsPage() {
     const router = useRouter();
     const { activeSite, refreshSites } = useSite();
     const { user, signOut } = useAuth();
-    const { isQrOrder, isQrMenu, isPayEat } = usePlan();
-    const qrMenuOnly = isQrMenu && !isQrOrder && !isPayEat;
+    const { isQrOrder, isQrMenu } = usePlan();
+    const qrMenuOnly = isQrMenu; // isQrMenu now means menu-only (see PlanContext)
 
     const handleSignOut = async () => {
         await signOut();

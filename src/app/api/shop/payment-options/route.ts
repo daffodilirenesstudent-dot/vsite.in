@@ -6,11 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { frozenResponse } from '@/lib/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 export async function GET(request: NextRequest) {
+    // QR ordering is frozen — see @/lib/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
   const siteId = request.nextUrl.searchParams.get('siteId');
   if (!siteId || !/^[0-9a-f-]{36}$/i.test(siteId)) {
     return NextResponse.json({ error: 'Invalid siteId' }, { status: 400 });

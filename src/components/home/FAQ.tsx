@@ -21,7 +21,7 @@ const faqs = [
         a: 'vsite is built for restaurants across South India, starting with Tamil Nadu. The platform supports English and Tamil and is designed for the local F&B context — tiffin centres, cafés, hotels, food trucks, and more.',
     },
     {
-        q: 'What happens after the 14-day free trial?',
+        q: 'What happens after the 7-day free trial?',
         a: 'After your trial ends, you choose a plan to continue. No credit card is needed to start, and there is no automatic charge. Your menu stays safe — we will remind you before anything changes.',
     },
 ];

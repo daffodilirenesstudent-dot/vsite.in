@@ -5,7 +5,7 @@ import { onlineMenuMakerPage } from '@/content/seo-pages/data';
 const BASE_URL = 'https://vsite.in';
 const TITLE = 'Online Menu Maker for Restaurants & Cafés in India | vsite';
 const DESCRIPTION =
-    'Build your full digital menu online in 3 minutes. AI extracts items from your paper menu photo and generates food photos. Free 14-day trial.';
+    'Build your full digital menu online in 3 minutes. AI extracts items from your paper menu photo and generates food photos. Free 7-day trial.';
 
 export const metadata: Metadata = {
     title: TITLE,

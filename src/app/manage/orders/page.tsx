@@ -7,6 +7,7 @@ import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { usePrinterStatus } from '@/components/PrinterStatusContext';
 import { firebaseAuth } from '@/lib/firebase';
+import { ORDERING_FROZEN } from '@/lib/productFlags';
 
 type OrderStatus = 'received' | 'preparing' | 'ready' | 'completed';
 
@@ -129,6 +130,33 @@ async function authedFetch(url: string, init: RequestInit = {}): Promise<Respons
     return makeReq(token);
   }
   return res;
+}
+
+function FrozenOrdersPanel() {
+  return (
+    <div className="px-4 md:px-8 py-10 max-w-2xl">
+      <div style={{ border: '1px solid #E4E4E7', borderRadius: 16, padding: 32, background: '#FFFFFF' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 40, color: '#71717A' }}>
+          receipt_long
+        </span>
+        <h1 className="font-semibold text-[#0A0A0A] mt-3" style={{ fontSize: 22 }}>
+          Order management is not available yet
+        </h1>
+        <p className="text-[#52525C] mt-2" style={{ fontSize: 14, lineHeight: '22px' }}>
+          vsite currently focuses on the Smart QR Menu — a beautiful, always-up-to-date
+          digital menu for your customers. In-app ordering and payments are being rebuilt
+          and will return in a future update.
+        </p>
+        <a
+          href="/manage/dashboard"
+          className="inline-block mt-5"
+          style={{ background: '#5137EF', color: '#fff', borderRadius: 10, padding: '10px 18px', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
+        >
+          Back to dashboard
+        </a>
+      </div>
+    </div>
+  );
 }
 
 export default function OrdersPage() {
@@ -318,6 +346,7 @@ export default function OrdersPage() {
 
   // Poll every 4 s, pause when tab hidden
   useEffect(() => {
+    if (ORDERING_FROZEN) return; // endpoint returns 403 while frozen
     if (!siteId) return;
     let id: ReturnType<typeof setInterval> | null = null;
     const start = () => { if (!id) id = setInterval(pollDelta, 4_000); };
@@ -746,6 +775,11 @@ export default function OrdersPage() {
   const COLS       = ['ORDER ID', 'CUSTOMER', 'ITEMS', 'TIME', 'AMOUNT', 'PAYMENT', 'STATUS'];
   const consolidatedItems = selectedOrder ? consolidateItems(selectedOrder.items) : [];
   const totalItems = consolidatedItems.reduce((s, i) => s + i.qty, 0);
+
+  // QR ordering is frozen: the whole console (and the KOT Station Android app,
+  // which WebViews this page) shows a placeholder instead. Every route it used
+  // returns 403 anyway — see @/lib/productFlags to unfreeze.
+  if (ORDERING_FROZEN) return <FrozenOrdersPanel />;
 
   return (
     <div className="px-4 lg:px-8 py-5 lg:py-8">

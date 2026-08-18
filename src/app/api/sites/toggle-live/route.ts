@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/supabase-server';
 import { rateLimit } from '@/lib/rateLimit';
+import { TRIAL_DURATION_MS } from '@/lib/productFlags';
 
 export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('Authorization');
@@ -52,7 +53,6 @@ export async function POST(request: NextRequest) {
     // When turning ON, enforce that the store is either trial-active or paid-active.
     // Turning OFF is always allowed (defensive — owners must be able to disable).
     if (is_live) {
-        const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
         const trialEndsMs = new Date(site.created_at).getTime() + TRIAL_DURATION_MS;
         const trialActive = trialEndsMs > Date.now();
 

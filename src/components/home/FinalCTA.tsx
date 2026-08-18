@@ -27,7 +27,7 @@ export default function FinalCTA() {
                 </h2>
 
                 <p className="text-xl text-white/65 leading-relaxed mb-10 max-w-xl mx-auto">
-                    Start your free 14-day trial today.
+                    Start your free 7-day trial today.
                     Upload your menu. Get your QR code. Be live in 3 minutes.
                     No credit card. No tech skills. No risk.
                 </p>

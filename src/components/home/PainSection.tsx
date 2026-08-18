@@ -140,7 +140,7 @@ export default function PainSection() {
                         href="/signup"
                         className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-full font-bold text-base sm:text-lg shadow-lg shadow-primary/25 hover:bg-primary-dark hover:scale-[1.03] active:scale-95 transition-all duration-300"
                     >
-                        Start Your Free 14-Day Trial
+                        Start Your Free 7-Day Trial
                         <span className="material-symbols-outlined text-xl">arrow_forward</span>
                     </Link>
                 </div>

@@ -51,7 +51,7 @@ export const qrMenuPage: SeoLandingData = {
     faqs: [
         { q: 'How do I create a QR code menu for my restaurant?', a: 'Sign up on vsite.in, upload a photo of your paper menu, and vsite\'s AI builds your digital menu with food photos automatically. You get a QR code and NFC card to display on your tables. The entire process takes under 3 minutes.' },
         { q: 'Do customers need to download an app to scan a QR menu?', a: 'No. Customers use their phone\'s native camera app to scan the QR code. The menu opens in their browser within 2–3 seconds. No app download, no signup, no friction.' },
-        { q: 'How much does a QR code menu cost in India?', a: 'vsite\'s QR Menu plan costs ₹299/month with a one-time setup fee of ₹1,999. This includes AI food photos, unlimited menu updates, a physical NFC card, and WhatsApp support. Competitors typically charge ₹500–₹1,500/month.' },
+        { q: 'How much does a QR code menu cost in India?', a: 'vsite\'s QR Menu plan costs ₹299/month with no setup fee. This includes AI food photos, unlimited menu updates, a physical NFC card, and WhatsApp support. Competitors typically charge ₹500–₹1,500/month.' },
         { q: 'Can I have a unique QR code for each table?', a: 'Yes. vsite generates a unique QR code per table so orders arrive tagged with the correct table number. This eliminates verbal order-taking and reduces errors.' },
         { q: 'Does the QR menu work without internet on the customer\'s side?', a: 'Customers need mobile data or Wi-Fi to open the menu the first time. Once loaded, the menu runs entirely in their browser and works even on slow 4G connections.' },
     ],
@@ -61,7 +61,7 @@ export const digitalMenuIndiaPage: SeoLandingData = {
     slug: 'digital-menu-india',
     h1: 'Digital Menu for Restaurants in India',
     subtitle:
-        'A digital menu that understands Indian restaurants — Tamil language, ₹299/month pricing, AI food photos, and UPI payment built in. Join hundreds of restaurants across Tamil Nadu on vsite.',
+        'A digital menu that understands Indian restaurants — Tamil language, ₹299/month pricing, and AI food photos built in. Join hundreds of restaurants across Tamil Nadu on vsite.',
     features: [
         { icon: 'smartphone', title: 'Works on Every Phone', description: 'Opens in any smartphone browser — Android, iPhone, even basic 4G phones.' },
         { icon: 'autorenew', title: 'Update Anytime', description: 'Change prices, add specials, mark out-of-stock items in real time from your phone.' },
@@ -84,7 +84,7 @@ export const digitalMenuIndiaPage: SeoLandingData = {
         { type: 'ol', items: [
             'Tamil (and ideally Hindi) language support — most tools are English-only',
             'Price point suited to Indian SMB restaurants — not enterprise POS prices',
-            'UPI payment integration — Indian customers expect to pay from their phone',
+            'Zero commission — vsite never sits between you and your customer payments',
             'Zero per-order commission — commission models compound fast at Indian ticket sizes',
             'AI food photo generation — most Indian restaurants cannot afford a food photo shoot',
             'Live in minutes — Indian restaurant owners don\'t have time for 2-day onboarding',
@@ -97,7 +97,7 @@ export const digitalMenuIndiaPage: SeoLandingData = {
             ['MakeMyMenu', 'Freemium', 'No', 'No', 'None'],
             ['MenuGen', 'Low cost', 'No', 'No', 'None'],
         ]},
-        { type: 'callout', text: "vsite — India's fastest-growing digital menu software — is the only platform built specifically for Tamil Nadu restaurants. 14-day free trial. No credit card." },
+        { type: 'callout', text: "vsite — India's fastest-growing digital menu software — is the only platform built specifically for Tamil Nadu restaurants. 7-day free trial. No credit card." },
     ],
     relatedLinks: [
         { label: 'QR Code Menu →', href: '/qr-menu' },
@@ -111,8 +111,8 @@ export const digitalMenuIndiaPage: SeoLandingData = {
     faqs: [
         { q: 'What is a digital menu for restaurants?', a: 'A digital menu is an online version of your restaurant\'s menu that customers view on their smartphone — usually by scanning a QR code on the table. There is no app to download; the menu opens instantly in any browser and can show photos, prices, and a direct ordering button.' },
         { q: 'Which is the best digital menu software for restaurants in India?', a: 'For small and medium restaurants, especially in Tamil Nadu, vsite is the best option in 2026. It costs ₹299/month, includes AI-generated food photos, supports Tamil, and goes live in 3 minutes. For large multi-outlet chains, Petpooja\'s full POS may suit better despite higher cost.' },
-        { q: 'How much does a digital menu cost in India?', a: 'Digital menus in India cost between ₹299 and ₹1,500 per month. vsite offers a QR Menu plan at ₹299/month with a one-time setup fee of ₹1,999 — one of the most affordable credible options in 2026.' },
-        { q: 'Can I accept online orders through a digital menu?', a: 'Yes. vsite\'s Pay & Eat plan lets customers place orders and pay via UPI directly from the digital menu. Orders fire to your kitchen dashboard in real time. Zero commission on orders.' },
+        { q: 'How much does a digital menu cost in India?', a: 'Digital menus in India cost between ₹299 and ₹1,500 per month. vsite offers a QR Menu plan at ₹299/month with no setup fee — one of the most affordable credible options in 2026.' },
+        { q: 'Can I accept online orders through a digital menu?', a: 'Not today. vsite focuses on the menu itself — customers browse photos, prices and live availability on their phone, then order with your staff. There is no commission, because vsite never sits between you and the payment.' },
         { q: 'Does a digital menu work in Tamil?', a: 'vsite supports Tamil and English menus with a one-tap toggle. You can run your menu in Tamil, English, or both simultaneously. No competitor offers this.' },
     ],
 };
@@ -180,7 +180,7 @@ export const cafeMenuPage: SeoLandingData = {
         { icon: 'local_cafe', title: 'Café-Ready Categories', description: 'Coffee, tea, breakfast, brunch, all-day dining — vsite\'s menu structure fits café flow naturally.' },
         { icon: 'photo_camera', title: 'Aesthetic Food Photos', description: 'AI generates clean, café-grade photos for every drink and dish — no photographer needed.' },
         { icon: 'autorenew', title: 'Daily Specials in Real-Time', description: 'Add today\'s pour-over, weekend brunch, or seasonal lattes from your phone in seconds.' },
-        { icon: 'qr_code_2', title: 'Per-Table QR Ordering', description: 'Customers order from their phone — perfect for laptop-friendly cafés where waiter visits break flow.' },
+        { icon: 'qr_code_2', title: 'Per-Table QR Codes', description: 'A unique QR for every table — customers see the menu instantly, no app and no waiting for a printed card.' },
         { icon: 'translate', title: 'Tamil + English', description: 'Toggle for both your local regulars and tourist customers. One tap.' },
         { icon: 'payments', title: 'UPI Pay at Table', description: 'Customers settle the bill from their phone via PhonePe, GPay, Paytm. No commission.' },
     ],
@@ -223,7 +223,7 @@ export const cafeMenuPage: SeoLandingData = {
     ],
     faqs: [
         { q: 'What is the best digital menu software for cafés in India?', a: 'vsite is the best digital menu software for Indian cafés in 2026 — ₹299/month, AI-generated food photos, Tamil support, and live in 3 minutes. It\'s purpose-built for SMB F&B businesses including cafés, bakeries, and cloud kitchens.' },
-        { q: 'How much does a café digital menu cost?', a: 'vsite costs ₹299/month with a one-time setup fee of ₹1,999. This includes AI photos, QR codes for every table, an NFC card, unlimited menu updates, and WhatsApp support. There is no per-order commission.' },
+        { q: 'How much does a café digital menu cost?', a: 'vsite costs ₹299/month with no setup fee. This includes AI photos, QR codes for every table, an NFC card, unlimited menu updates, and WhatsApp support. There is no per-order commission.' },
         { q: 'Can I add daily specials to my café menu?', a: 'Yes. Add or remove daily specials from your phone in seconds. Customers see the update instantly on their next scan. No reprinting, no waiting.' },
         { q: 'Do customers need an app to order at my café?', a: 'No. Customers scan the QR code with their phone camera and the menu opens in their browser within 2 seconds. No app downloads, no signups, no friction.' },
     ],
@@ -233,7 +233,7 @@ export const cloudKitchenPage: SeoLandingData = {
     slug: 'cloud-kitchen-software',
     h1: 'Cloud Kitchen Software with QR Menu & UPI Ordering',
     subtitle:
-        'Run your cloud kitchen from a phone. Branded digital menus, direct customer orders via QR + WhatsApp link, UPI payments, zero commission to aggregators.',
+        'Run your cloud kitchen from a phone. Branded digital menus, a shareable QR and WhatsApp menu link, and zero commission to aggregators.',
     features: [
         { icon: 'kitchen', title: 'Direct-Order Menu Link', description: 'Share one branded link via WhatsApp, Instagram, or stickers — customers order directly. No Zomato/Swiggy commission.' },
         { icon: 'restaurant_menu', title: 'AI Menu Generation', description: 'Upload your menu photo. AI builds your full digital menu with photos in 3 minutes.' },
@@ -243,7 +243,7 @@ export const cloudKitchenPage: SeoLandingData = {
         { icon: 'storefront', title: 'Multiple Cloud Brands', description: 'Run multiple ghost-kitchen brands from one vsite account. Each gets its own URL and branding.' },
     ],
     content: [
-        { type: 'p', text: 'A cloud kitchen lives or dies by direct customer orders. Aggregators take 18–30% commission and own your customer relationship. vsite gives you a branded digital menu, a direct QR ordering link, and UPI payment — so every order is yours, profit margins are protected, and customer data stays in your hands.' },
+        { type: 'p', text: 'A cloud kitchen lives or dies by direct customer orders. Aggregators take 18–30% commission and own your customer relationship. vsite gives you a branded digital menu and a direct QR link you can share anywhere — so customers reach you without an aggregator in between, and your margins stay yours.' },
         { type: 'h2', text: 'Why Cloud Kitchens Need Their Own Ordering Channel' },
         { type: 'ul', items: [
             'Aggregator commission of 18–30% destroys margins on small-ticket Indian orders',
@@ -325,7 +325,7 @@ export const bakeryMenuPage: SeoLandingData = {
         { label: 'Pricing →', href: '/pricing' },
     ],
     faqs: [
-        { q: 'What is the best digital menu software for a bakery in India?', a: 'vsite is the best digital menu software for Indian bakeries — ₹299/month, AI-generated product photos, real-time stock toggling, custom order requests, and UPI payment. Purpose-built for SMB F&B businesses.' },
+        { q: 'What is the best digital menu software for a bakery in India?', a: 'vsite is the best digital menu software for Indian bakeries — ₹299/month, AI-generated product photos, and real-time stock toggling. Purpose-built for SMB F&B businesses.' },
         { q: 'Can bakery customers place pickup orders on a digital menu?', a: 'Yes. With vsite, customers browse your bakery menu, place a pickup order, and pay via UPI from their phone. The order arrives on your dashboard with the requested pickup time. No app needed.' },
         { q: 'How do I show photos of all my bakery items?', a: 'vsite\'s AI generates professional food photos for every item on your menu automatically — no photographer or photo shoot needed. You can swap any AI photo for your own at any time.' },
     ],
@@ -466,7 +466,7 @@ export const iceCreamShopPage: SeoLandingData = {
         { label: 'Pricing →', href: '/pricing' },
     ],
     faqs: [
-        { q: 'Is there digital menu software for ice cream parlours?', a: 'Yes. vsite is a digital menu platform purpose-built for SMB F&B businesses including ice cream parlours and shops. It generates AI photos for every flavour, lets you toggle sold-out items in real time, and accepts UPI payment at the table — ₹299/month.' },
+        { q: 'Is there digital menu software for ice cream parlours?', a: 'Yes. vsite is a digital menu platform purpose-built for SMB F&B businesses including ice cream parlours and shops. It generates AI photos for every flavour, and lets you toggle sold-out items in real time — ₹299/month.' },
         { q: 'Can I run a "flavour of the day" promotion on a digital menu?', a: 'Yes. With vsite you can highlight a daily special with a featured banner that every customer sees when scanning the QR code. Update the special anytime in seconds.' },
         { q: 'How do I let customers order ice cream from their phone?', a: 'Sign up on vsite.in, add your menu, and place QR code stands on every table. Customers scan, browse, add items, and pay via UPI — all from their own phone with no app download.' },
     ],
@@ -500,7 +500,7 @@ export const onlineMenuMakerPage: SeoLandingData = {
             'You get a live URL and a printable QR code for your tables',
         ]},
         { type: 'h2', text: 'Free vs Paid Online Menu Makers' },
-        { type: 'p', text: 'Many "free" online menu makers exist but they lack food photos, branded customisation, ordering, and ongoing menu updates without paywalls. vsite\'s 14-day free trial includes everything — AI photos, ordering, UPI payment, NFC card — and the full plan is ₹299/month after.' },
+        { type: 'p', text: 'Many "free" online menu makers exist but they lack food photos, branded customisation, and ongoing menu updates without paywalls. vsite includes everything in its 7-day free trial — AI photos, live menu updates, NFC card — and the full plan is ₹299/month after.' },
         { type: 'callout', text: 'No other online menu maker in India uses AI to build your menu from a photo of your paper menu. This is vsite\'s unique feature.' },
     ],
     relatedLinks: [
@@ -511,8 +511,8 @@ export const onlineMenuMakerPage: SeoLandingData = {
         { label: 'Pricing →', href: '/pricing' },
     ],
     faqs: [
-        { q: 'What is the best online menu maker for restaurants in India?', a: 'vsite is the best online menu maker for Indian restaurants and F&B businesses in 2026. It uses AI to read your paper menu photo and build the full digital menu with food photos in 3 minutes. ₹299/month, 14-day free trial.' },
-        { q: 'Is there a free online menu maker?', a: 'Several tools advertise free menu makers but most lack photos, branding, ordering, or have heavy upgrade paywalls. vsite offers a 14-day free trial with no credit card — the full feature set is ₹299/month, the cheapest credible option in India.' },
+        { q: 'What is the best online menu maker for restaurants in India?', a: 'vsite is the best online menu maker for Indian restaurants and F&B businesses in 2026. It uses AI to read your paper menu photo and build the full digital menu with food photos in 3 minutes. ₹299/month, 7-day free trial.' },
+        { q: 'Is there a free online menu maker?', a: 'Several tools advertise free menu makers but most lack photos, branding, ordering, or have heavy upgrade paywalls. vsite offers a 7-day free trial with no credit card — the full feature set is ₹299/month, the cheapest credible option in India.' },
         { q: 'Can I make a menu online and print a QR code?', a: 'Yes. vsite generates your QR code and unique URL automatically when you publish. You can print the QR code on table standees, stickers, or place cards. Updates to your menu reflect on the same QR code — no need to reprint.' },
     ],
 };
@@ -615,7 +615,7 @@ export const restaurantMenuSoftwarePage: SeoLandingData = {
     slug: 'restaurant-menu-software',
     h1: 'Restaurant Menu Software in India 2026',
     subtitle:
-        'Modern restaurant menu software designed for India — QR code menus, AI food photos, Tamil support, UPI payment, and zero commission. ₹299/month with a 14-day free trial.',
+        'Modern restaurant menu software designed for India — QR code menus, AI food photos, Tamil support, and zero commission. ₹299/month with a 7-day free trial.',
     features: [
         { icon: 'qr_code_2', title: 'QR Code Menu', description: 'Generate unique QR codes for every table. Customers scan and order from their phone.' },
         { icon: 'auto_awesome', title: 'AI Food Photos', description: 'Every menu item gets a professional food photo generated automatically.' },
@@ -625,13 +625,13 @@ export const restaurantMenuSoftwarePage: SeoLandingData = {
         { icon: 'analytics', title: 'Reports & Insights', description: 'Track which items sell, at what times, and which customers come back.' },
     ],
     content: [
-        { type: 'p', text: 'vsite is restaurant menu software purpose-built for Indian restaurants — especially in Tamil Nadu. It combines QR code menus, AI food photo generation, UPI payment, and real-time menu management into a single ₹299/month subscription. No commission, no POS hardware, no 2-day onboarding.' },
+        { type: 'p', text: 'vsite is restaurant menu software purpose-built for Indian restaurants — especially in Tamil Nadu. It combines QR code menus, AI food photo generation, and real-time menu management into a single ₹299/month subscription. No commission, no POS hardware, no 2-day onboarding.' },
         { type: 'h2', text: 'What Restaurant Menu Software Should Do' },
         { type: 'ul', items: [
             'Let customers see your menu instantly via QR code',
             'Show professional food photos that drive higher order values',
             'Support price/item updates in real time (no reprinting)',
-            'Accept UPI payments at the table without a POS machine',
+            'Keep 100% of every bill — vsite takes no commission',
             'Generate clean reports on orders, revenue, and customer patterns',
             'Work in your customers\' preferred language (Tamil for South Indian markets)',
         ]},
@@ -658,9 +658,9 @@ export const restaurantMenuSoftwarePage: SeoLandingData = {
     ],
     faqs: [
         { q: 'What is restaurant menu software?', a: 'Restaurant menu software lets you create, publish, and manage your restaurant\'s menu digitally. Modern options like vsite generate a QR code that customers scan to view the menu on their phone, with features like food photos, real-time price updates, and direct ordering.' },
-        { q: 'How much does restaurant menu software cost in India?', a: 'Restaurant menu software in India ranges from free (basic tools with no photos or branding) to ₹10,000+ per year (full POS systems). vsite costs ₹299/month with a one-time setup fee of ₹1,999 — including AI food photos, QR codes, NFC cards, and Tamil support.' },
+        { q: 'How much does restaurant menu software cost in India?', a: 'Restaurant menu software in India ranges from free (basic tools with no photos or branding) to ₹10,000+ per year (full POS systems). vsite costs ₹299/month with no setup fee — including AI food photos, QR codes, NFC cards, and Tamil support.' },
         { q: 'Do I need a POS machine to use vsite?', a: 'No. vsite works entirely from your phone or browser. Customers order and pay from their own phone via UPI. You see orders on a kitchen dashboard. No POS terminal, no card reader, no extra hardware.' },
         { q: 'Can I run multiple restaurants from one account?', a: 'Yes. vsite supports multiple stores under one login. Each store gets its own URL, QR code, and menu. You switch between stores in the dashboard.' },
-        { q: 'Is there a free trial?', a: 'Yes. vsite offers a 14-day free trial with no credit card required. You can set up your full digital menu and test it with customers before paying anything.' },
+        { q: 'Is there a free trial?', a: 'Yes. vsite offers a 7-day free trial with no credit card required. You can set up your full digital menu and test it with customers before paying anything.' },
     ],
 };

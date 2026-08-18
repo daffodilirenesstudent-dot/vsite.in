@@ -56,6 +56,19 @@ const nextConfig = {
         ignoreDuringBuilds: false,
     },
     poweredByHeader: false, // strip X-Powered-By: Next.js — info disclosure noise
+    async redirects() {
+        return [
+            // The QR-ordering products are frozen and this post's slug encodes
+            // both the product and its price, so it cannot be fixed by a copy
+            // edit. A 301 preserves the link equity on the live product page.
+            // Remove this when the ordering plans come back.
+            {
+                source: '/blog/qr-ordering-without-payment-restaurant-india-499',
+                destination: '/qr-menu',
+                permanent: true,
+            },
+        ];
+    },
     async headers() {
         return [
             {
