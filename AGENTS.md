@@ -97,3 +97,39 @@ function setting a `role: "authenticated"` custom claim.
 **Gotcha.** CLAUDE.md says "No Prisma, no Drizzle, no migrations folder in
 repo". Stale — `supabase/migrations/` exists with 50+ files and is the only
 record of the live RLS policies.
+
+### Production data confirming the above (checked 2026-08-18, read-only)
+
+Queried via the service-role REST API (the Supabase MCP server was not exposed
+to the session).
+
+| Check | Result |
+|---|---|
+| profiles rows | 24 |
+| user_subscriptions rows | 23 |
+| distinct site owners | 25 |
+| profiles with `phone_number` set | **2 of 24** |
+| subscription rows with no profile | 0 |
+| **site owners with no profile row** | **2** |
+
+Both defects are confirmed live, not theoretical:
+
+1. **22 of 24 profiles have a null `phone_number`** — the unused `phone`
+   argument. One row even has `full_name = "+911234567890"`, the phone-as-name
+   corruption `DashboardHeader` already guards against.
+
+2. **Two owners have a LIVE site but no profile row AND no subscription row:**
+   `menu-demo` ("menu demo", created 2026-08-05) and `blackbloom`
+   ("BlackBloom", created 2026-08-07). Neither write ran for them, which places
+   the failure before `provisionNewUser` — i.e. the awaited `syncCookie` threw,
+   the Firebase account already existed, and every retry afterwards saw
+   `isNewUser === false`. They completed onboarding anyway, because
+   /api/onboarding/complete creates the site with the service-role client
+   (bypassing RLS) and its profile UPDATE silently matched zero rows. Their
+   menus are serving customers while their dashboard bounces to /onboarding on
+   every visit and they have no plan/limits row at all.
+
+**This also rules out the competing hypothesis.** 24 profiles were created by
+the client-side path, so Supabase third-party auth and the RLS INSERT policy
+work correctly. The missing `role` claim from migration 002 is latent, not
+active — it blocks nothing today.
