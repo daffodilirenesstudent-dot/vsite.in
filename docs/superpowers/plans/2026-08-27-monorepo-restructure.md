@@ -716,7 +716,7 @@ services:
   - name: web
     source_dir: apps/web
     github:
-      repo: voicesitecompany-2428/voicesite.in
+      repo: daffodilirenesstudent-dot/vsite.in
       branch: master
       deploy_on_push: true
     build_command: npm ci && npm run build
@@ -737,7 +737,7 @@ jobs:
     kind: PRE_DEPLOY
     source_dir: apps/web
     github:
-      repo: voicesitecompany-2428/voicesite.in
+      repo: daffodilirenesstudent-dot/vsite.in
       branch: master
     run_command: >-
       curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
@@ -748,7 +748,7 @@ jobs:
     kind: PRE_DEPLOY
     source_dir: apps/web
     github:
-      repo: voicesitecompany-2428/voicesite.in
+      repo: daffodilirenesstudent-dot/vsite.in
       branch: master
     run_command: >-
       curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
@@ -759,7 +759,7 @@ jobs:
     kind: PRE_DEPLOY
     source_dir: apps/web
     github:
-      repo: voicesitecompany-2428/voicesite.in
+      repo: daffodilirenesstudent-dot/vsite.in
       branch: master
     run_command: >-
       curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
