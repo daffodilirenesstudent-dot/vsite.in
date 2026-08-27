@@ -11,14 +11,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..', '..');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://wdnruubljlwrduxnvuhr.supabase.co';
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OPENAI_KEY   = process.env.OPENAI_API_KEY;
 const BUCKET       = 'default-images';
-const FOLDER       = path.join(ROOT, 'food images 3');
+const FOLDER       = path.join(ROOT, 'archive', 'seed-assets', 'food-images-3');
 
 if (!SERVICE_KEY) {
   console.error('Set SUPABASE_SERVICE_ROLE_KEY env var before running');
