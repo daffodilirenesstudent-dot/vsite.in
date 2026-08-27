@@ -72,3 +72,7 @@ food images 4/
 # Dev-only seed scripts (contain env-var usage, not needed in production)
 scripts/seed-*.mjs
 
+
+# Large binaries — distributed via Supabase Storage, never committed
+*.exe
+print-bridge/node_modules/
