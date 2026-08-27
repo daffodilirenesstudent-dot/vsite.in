@@ -75,7 +75,7 @@ scripts/seed-*.mjs
 
 # Large binaries — distributed via Supabase Storage, never committed
 *.exe
-print-bridge/node_modules/
+node_modules/
 
 # archive/ — frozen sub-apps and design assets, never built.
 # Binary and image trees stay out of git; source and configs are tracked.
