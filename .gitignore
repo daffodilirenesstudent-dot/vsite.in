@@ -70,7 +70,7 @@ vsite logos/
 food images 4/
 
 # Dev-only seed scripts (contain env-var usage, not needed in production)
-scripts/seed-*.mjs
+**/scripts/seed-*.mjs
 
 
 # Large binaries — distributed via Supabase Storage, never committed
@@ -84,3 +84,9 @@ archive/design/
 archive/design-system/
 archive/mockups/
 archive/logos/
+
+# Post-monorepo-move: de-anchored equivalents of the root-anchored rules
+# above, so build output and dev-only scripts stay ignored under apps/web/.
+.next/
+out/
+coverage/
