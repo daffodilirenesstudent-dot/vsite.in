@@ -2,11 +2,11 @@
 
 # dependencies
 /node_modules
-/.pnp
+.pnp
 .pnp.js
 .yarn/install-state.gz
 /.env.local
-/.env
+.env
 
 # testing
 /coverage
@@ -16,7 +16,7 @@
 /out/
 
 # production
-/build
+**/build/
 
 # misc
 .DS_Store
@@ -43,7 +43,7 @@ next-env.d.ts
 .code-review-graph/
 
 # Supabase tooling temp files
-supabase/.temp/
+**/supabase/.temp/
 
 /.Vsite_SEO_GEO_AEO_Strategy_2026.md
 
