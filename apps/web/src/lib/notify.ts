@@ -1,5 +1,5 @@
 import 'server-only';
-import { supabaseServer } from './supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
 
 // Server-side notification creator. Fire-and-forget — never throws into the
 // hot path, so a notification insert failure doesn't break payment activation.

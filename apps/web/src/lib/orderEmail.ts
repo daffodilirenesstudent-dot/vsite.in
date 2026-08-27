@@ -43,7 +43,7 @@ export function verifyOrderToken(token: string): string | null {
   }
 }
 
-import { escapeHtml as esc } from './htmlEscape';
+import { escapeHtml as esc } from '@/lib/htmlEscape';
 
 export interface OrderEmailItem {
   name: string;

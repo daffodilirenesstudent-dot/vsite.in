@@ -21,7 +21,7 @@
 
 import crypto from 'crypto';
 import type { NextRequest } from 'next/server';
-import { supabaseServer } from './supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
 
 export type AuditAction =
     | 'confirm_counter_payment'
