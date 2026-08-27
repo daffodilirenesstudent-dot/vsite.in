@@ -13,9 +13,9 @@
 // for ONE site only — not the secret, and not other sites' sigs.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { signTable } from '@/lib/qrSignature';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { signTable } from '@/lib/orders/qrSignature';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';

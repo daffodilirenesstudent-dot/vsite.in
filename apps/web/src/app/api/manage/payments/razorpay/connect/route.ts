@@ -10,11 +10,11 @@
 // protection — both must match.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { buildAuthorizeUrl, generateState } from '@/lib/server/razorpayOAuth';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { buildAuthorizeUrl, generateState } from '@/lib/payments/server/razorpayOAuth';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

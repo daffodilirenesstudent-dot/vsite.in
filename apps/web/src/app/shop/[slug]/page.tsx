@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import type { Shop } from '@/lib/supabase';
-import { supabaseServer } from '@/lib/supabase-server';
+import type { Shop } from '@/lib/platform/db/supabase';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import ShopPageClient from './ShopPageClient';
 import type { MenuProduct, ShopBanner } from './ShopPageClient';
-import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/productFlags';
+import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/platform/productFlags';
 
 // ISR: Cache pages for 10 seconds so toggle/live changes reflect quickly.
 export const revalidate = 10;

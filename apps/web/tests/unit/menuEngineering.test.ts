@@ -13,7 +13,7 @@ import {
   csi,
   scr,
   dsr,
-} from '@/lib/menuEngineering';
+} from '@/lib/menu/menuEngineering';
 
 // ── Contribution Margin ───────────────────────────────────────────────────────
 

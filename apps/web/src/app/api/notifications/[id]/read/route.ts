@@ -1,8 +1,8 @@
 // POST /api/notifications/[id]/read — mark one notification as read.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

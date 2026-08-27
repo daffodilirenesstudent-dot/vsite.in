@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { supabaseServer } from '@/lib/supabase-server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { matchByKeyword } from '@/lib/defaultImages';
-import { rateLimit } from '@/lib/rateLimit';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { matchByKeyword } from '@/lib/menu/defaultImages';
+import { rateLimit } from '@/lib/platform/rateLimit';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 

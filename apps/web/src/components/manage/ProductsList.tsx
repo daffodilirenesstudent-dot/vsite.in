@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Product } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
+import { Product } from '@/lib/platform/db/supabase';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
 

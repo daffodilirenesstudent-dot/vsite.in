@@ -14,10 +14,10 @@
 // here is the only way to be sure a fraudulent GSTIN can't be saved.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { verifyGstin, isValidGstinFormat } from '@/lib/gstincheck';
-import { audit } from '@/lib/auditLog';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { verifyGstin, isValidGstinFormat } from '@/lib/payments/gstincheck';
+import { audit } from '@/lib/platform/auditLog';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

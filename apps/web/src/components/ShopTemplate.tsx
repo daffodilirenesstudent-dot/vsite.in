@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { CheckCircle2, MapPin, Phone, Mail, ShoppingBag, Instagram, Facebook, Twitter } from "lucide-react";
-import { Shop } from '@/lib/supabase';
+import { Shop } from '@/lib/platform/db/supabase';
 
 export default function ShopTemplate({ shop }: { shop: Shop }) {
     return (

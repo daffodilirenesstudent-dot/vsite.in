@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 type Event = 'INSERT' | 'UPDATE' | 'DELETE' | '*';

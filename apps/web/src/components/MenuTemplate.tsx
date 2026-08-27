@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from "next/image";
-import { Shop, Product } from '@/lib/supabase';
+import { Shop, Product } from '@/lib/platform/db/supabase';
 
 // ─── Colour palette (Biryani Palace design system) ───────────────────────────
 const bg         = '#fef6e7';

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthContext';
 import { useOnboarding } from '@/components/OnboardingContext';
-import { firebaseAuth } from '@/lib/firebase';
+import { firebaseAuth } from '@/lib/auth/firebase';
 import StepIndicator from './components/StepIndicator';
 import BestsellersPhase from './components/BestsellersPhase';
 import ProfitablePhase from './components/ProfitablePhase';
@@ -14,7 +14,7 @@ import SummaryPhase from './components/SummaryPhase';
 import LaunchLoadingScreen from './components/LaunchLoadingScreen';
 import ScanningOverlay from './components/ScanningOverlay';
 import type { WizardStep } from '@/components/OnboardingContext';
-import { compressImage } from '@/lib/imageCompress';
+import { compressImage } from '@/lib/menu/imageCompress';
 
 const MAX_PHOTOS = 15;
 

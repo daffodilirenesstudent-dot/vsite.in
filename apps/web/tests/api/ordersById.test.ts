@@ -11,18 +11,18 @@ import { NextRequest } from 'next/server';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/verifyFirebaseToken', () => ({
+vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
   verifyFirebaseToken: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: {
     from: vi.fn(),
     rpc: vi.fn(),
   },
 }));
 
-vi.mock('@/lib/orderEmail', () => ({
+vi.mock('@/lib/notifications/orderEmail', () => ({
   buildOrderConfirmationEmail: vi.fn(() => ({
     subject: 'Order confirmed',
     htmlbody: '<html></html>',
@@ -32,8 +32,8 @@ vi.mock('@/lib/orderEmail', () => ({
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
 import { PATCH } from '@/app/api/orders/[id]/route';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { rateLimit } from '@/lib/rateLimit';
-import { TRIAL_DURATION_MS } from '@/lib/productFlags';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { rateLimit } from '@/lib/platform/rateLimit';
+import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 
 export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('Authorization');

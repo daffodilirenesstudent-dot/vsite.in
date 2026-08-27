@@ -11,7 +11,7 @@ import {
   signOrderToken,
   verifyOrderToken,
   buildOrderConfirmationEmail,
-} from '@/lib/orderEmail';
+} from '@/lib/notifications/orderEmail';
 
 // ── Replicated pure helpers (not exported from route, so we copy them) ────────
 

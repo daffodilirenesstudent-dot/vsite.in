@@ -19,16 +19,16 @@ import crypto from 'crypto';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: { from: vi.fn(), rpc: vi.fn() },
 }));
 
-vi.mock('@/lib/orderEmail', () => ({
+vi.mock('@/lib/notifications/orderEmail', () => ({
   buildOrderConfirmationEmail: vi.fn(() => ({ subject: 'OK', htmlbody: '' })),
 }));
 
 import { POST } from '@/app/api/orders/route';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { NextRequest } from 'next/server';
 
 // ── Constants ─────────────────────────────────────────────────────────────────

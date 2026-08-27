@@ -8,7 +8,7 @@ import {
     normalizePlan,
     isOrderingPlan,
     isPlanSellable,
-} from '@/lib/productFlags';
+} from '@/lib/platform/productFlags';
 
 describe('product freeze — plan normalization', () => {
     it('is frozen', () => {

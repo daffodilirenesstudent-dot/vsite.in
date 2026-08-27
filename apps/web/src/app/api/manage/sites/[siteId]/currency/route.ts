@@ -2,10 +2,10 @@
 // Switches the display currency between INR and AED.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { audit } from '@/lib/auditLog';
-import { isCurrencyCode } from '@/lib/currency';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { audit } from '@/lib/platform/auditLog';
+import { isCurrencyCode } from '@/lib/platform/currency';
 
 export const dynamic = 'force-dynamic';
 

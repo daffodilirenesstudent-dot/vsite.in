@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useSite } from './SiteContext';
-import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/productFlags';
+import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/platform/productFlags';
 
 type Plan = 'qr_menu' | 'base' | 'qr_order' | 'pro' | 'pay_eat' | string;
 

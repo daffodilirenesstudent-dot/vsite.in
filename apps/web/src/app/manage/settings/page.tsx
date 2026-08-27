@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
 import { compressImage } from '@/utils/compressImage';
 import { useSite } from '@/components/SiteContext';
 import { useAuth } from '@/components/AuthContext';
@@ -252,7 +252,7 @@ export default function SettingsPage() {
 
         setKotModeUpdating(true);
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch(`/api/manage/sites/${siteId}/kot-mode`, {
                 method: 'PATCH',
@@ -278,7 +278,7 @@ export default function SettingsPage() {
     const loadRzpStatus = async (sid: string, quiet = false) => {
         if (!quiet) setRzpStatusLoading(true);
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch(`/api/manage/payments/razorpay/status?siteId=${sid}`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -321,7 +321,7 @@ export default function SettingsPage() {
     const loadGstProfile = async (sid: string) => {
         setGstLoading(true);
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch(`/api/manage/sites/${sid}/gst`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -345,7 +345,7 @@ export default function SettingsPage() {
         if (!siteId || whatsappSaving) return;
         setWhatsappSaving(true);
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch(`/api/manage/sites/${siteId}/whatsapp-orders`, {
                 method: 'PATCH',
@@ -366,7 +366,7 @@ export default function SettingsPage() {
         if (!siteId || currencySaving || code === currencyCode) return;
         setCurrencySaving(true);
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch(`/api/manage/sites/${siteId}/currency`, {
                 method: 'PATCH',
@@ -387,7 +387,7 @@ export default function SettingsPage() {
         if (!confirm('Edit your GST setup? Your current GSTIN and rate will be cleared and you\'ll go through the wizard again. Past orders keep their original GST.')) return;
         setGstResetting(true);
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch(`/api/manage/sites/${siteId}/gst/reset`, {
                 method: 'POST',
@@ -435,7 +435,7 @@ export default function SettingsPage() {
         if (!siteId) return;
         setRzpBusy('connect');
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) { toast.error('Please sign in again'); return; }
             const res = await fetch('/api/manage/payments/razorpay/connect', {
                 method: 'POST',
@@ -460,7 +460,7 @@ export default function SettingsPage() {
         if (!confirm('Disconnect Razorpay? Online payments will be disabled until you reconnect.')) return;
         setRzpBusy('disconnect');
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) return;
             const res = await fetch('/api/manage/payments/razorpay/disconnect', {
                 method: 'POST',
@@ -493,7 +493,7 @@ export default function SettingsPage() {
 
         setRzpBusy('change');
         try {
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (!token) { toast.error('Please sign in again'); return; }
 
             // 1. Revoke current account.
@@ -585,7 +585,7 @@ export default function SettingsPage() {
             setBridgeRoles({ kot: newConfig.roles?.kot ?? null, bill: newConfig.roles?.bill ?? null, admin: newConfig.roles?.admin ?? null });
 
             // 2. Mirror to cloud DB (display cache only — not used for routing)
-            const token = await import('@/lib/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
+            const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
             if (token) {
                 const body = field === 'kot'
                     ? { kot_printer_name: printerName }

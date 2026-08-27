@@ -12,7 +12,7 @@ import {
   matchByKeyword,
   confidentKeywordImage,
   KEYWORD_CONFIDENCE_THRESHOLD,
-} from '@/lib/defaultImages';
+} from '@/lib/menu/defaultImages';
 
 // ── 1. isDefaultImage ──────────────────────────────────────────────────────────
 describe('isDefaultImage', () => {

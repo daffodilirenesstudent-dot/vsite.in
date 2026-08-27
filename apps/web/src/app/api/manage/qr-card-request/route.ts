@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { rateLimit } from '@/lib/rateLimit';
-import { escapeHtml as esc } from '@/lib/htmlEscape';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { rateLimit } from '@/lib/platform/rateLimit';
+import { escapeHtml as esc } from '@/lib/platform/htmlEscape';
 
 const ZEPTOMAIL_API_KEY    = process.env.ZEPTOMAIL_API_KEY    ?? '';
 const ZEPTOMAIL_FROM_EMAIL = process.env.ZEPTOMAIL_FROM_EMAIL ?? '';

@@ -6,8 +6,8 @@ import toast from 'react-hot-toast';
 import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { usePrinterStatus } from '@/components/PrinterStatusContext';
-import { firebaseAuth } from '@/lib/firebase';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { firebaseAuth } from '@/lib/auth/firebase';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 
 type OrderStatus = 'received' | 'preparing' | 'ready' | 'completed';
 

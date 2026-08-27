@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowRight, Mail, MessageCircle, Sparkles } from 'lucide-react';
 import Reveal from './Reveal';
 import Logo from '@/components/Logo';
-import { SUPPORT_EMAIL, whatsappUrl } from '@/lib/brand';
+import { SUPPORT_EMAIL, whatsappUrl } from '@/lib/platform/brand';
 import { PROOF_STATS } from './Proof';
 
 const COLUMNS = [

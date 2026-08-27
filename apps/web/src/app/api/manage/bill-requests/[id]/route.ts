@@ -5,12 +5,12 @@
 // cashier scripting 100 acks/sec to mask which tables actually paid. Normal
 // admin UI use is 1-2 acks per few minutes; 30/min is generous for genuine bursts.
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { rateLimit } from '@/lib/rateLimit';
-import { audit } from '@/lib/auditLog';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { rateLimit } from '@/lib/platform/rateLimit';
+import { audit } from '@/lib/platform/auditLog';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 

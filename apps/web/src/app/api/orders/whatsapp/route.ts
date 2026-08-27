@@ -16,11 +16,11 @@
 //   5. Build a wa.me URL with a prefilled message and return it.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
-import { currencySymbol } from '@/lib/currency';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { currencySymbol } from '@/lib/platform/currency';
 import crypto from 'crypto';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

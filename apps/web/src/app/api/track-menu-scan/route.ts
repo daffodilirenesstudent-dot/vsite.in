@@ -8,8 +8,8 @@
 // so cold-start latency doesn't slow the customer's menu load.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
-import { rateLimit } from '@/lib/rateLimit';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { rateLimit } from '@/lib/platform/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

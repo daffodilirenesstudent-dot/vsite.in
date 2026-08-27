@@ -5,9 +5,9 @@
 // Razorpay OAuth integration.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

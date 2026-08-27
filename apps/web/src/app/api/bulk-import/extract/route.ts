@@ -5,11 +5,11 @@
 // Works with both printed menu photos and food/dish photos.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { validateImageFile } from '@/lib/fileValidation';
-import { rateLimit } from '@/lib/rateLimit';
-import { extractMenuItemsFromImages, extractMenuItems } from '@/lib/menuExtractor';
-import { imageToMenuText } from '@/lib/sarvamVision';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { validateImageFile } from '@/lib/platform/fileValidation';
+import { rateLimit } from '@/lib/platform/rateLimit';
+import { extractMenuItemsFromImages, extractMenuItems } from '@/lib/menu/menuExtractor';
+import { imageToMenuText } from '@/lib/menu/sarvamVision';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';

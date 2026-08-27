@@ -17,14 +17,14 @@ import { NextRequest } from 'next/server';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: { from: vi.fn() },
 }));
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
 import { POST } from '@/app/api/bill-request/route';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 

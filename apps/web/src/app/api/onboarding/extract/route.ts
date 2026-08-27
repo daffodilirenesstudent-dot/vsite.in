@@ -13,11 +13,11 @@
 //     before upload. Server enforces a hard upper bound as defence-in-depth.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { imageToMenuText } from '@/lib/sarvamVision';
-import { extractMenuItems, extractMenuItemsFromImages } from '@/lib/menuExtractor';
-import { validateImageFile } from '@/lib/fileValidation';
-import { rateLimit } from '@/lib/rateLimit';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { imageToMenuText } from '@/lib/menu/sarvamVision';
+import { extractMenuItems, extractMenuItemsFromImages } from '@/lib/menu/menuExtractor';
+import { validateImageFile } from '@/lib/platform/fileValidation';
+import { rateLimit } from '@/lib/platform/rateLimit';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
 import { compressImage } from '@/utils/compressImage';
 import { useSite } from '@/components/SiteContext';
 

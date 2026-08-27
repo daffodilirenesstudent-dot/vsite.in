@@ -12,13 +12,13 @@
 //   • Vercel Hobby: maxDuration=60
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { confidentKeywordImage } from '@/lib/defaultImages';
-import { rateLimit } from '@/lib/rateLimit';
-import { weightedScore, previewQuadrant } from '@/lib/menuEngineering';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { confidentKeywordImage } from '@/lib/menu/defaultImages';
+import { rateLimit } from '@/lib/platform/rateLimit';
+import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
 import OpenAI from 'openai';
-import { TRIAL_DURATION_MS } from '@/lib/productFlags';
+import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';

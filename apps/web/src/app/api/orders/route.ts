@@ -15,14 +15,14 @@
 //    creation, reliable email delivery.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { buildOrderConfirmationEmail as _unusedEmail } from '@/lib/orderEmail';
-import { verifyTableSig } from '@/lib/qrSignature';
-import { getActiveIntegration, createRazorpayOrder } from '@/lib/server/razorpayOAuth';
+import { buildOrderConfirmationEmail as _unusedEmail } from '@/lib/notifications/orderEmail';
+import { verifyTableSig } from '@/lib/orders/qrSignature';
+import { getActiveIntegration, createRazorpayOrder } from '@/lib/payments/server/razorpayOAuth';
 import crypto from 'crypto';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 // PHASE 1: missing sig is logged but allowed (legacy QR cards still in field).
 // Flip to true once all printed cards carry sig — then unsigned tableNumber

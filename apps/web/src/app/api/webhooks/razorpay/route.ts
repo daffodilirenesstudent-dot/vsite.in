@@ -13,8 +13,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { supabaseServer } from '@/lib/supabase-server';
-import { sendPlanInvoiceEmail } from '@/lib/email/planEmails';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { sendPlanInvoiceEmail } from '@/lib/notifications/email/planEmails';
 
 export const maxDuration = 15;
 export const runtime = 'nodejs';

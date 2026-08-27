@@ -1,6 +1,6 @@
 import 'server-only';
 import crypto from 'crypto';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { encryptToken, decryptToken } from './paymentsCrypto';
 
 // Razorpay OAuth (Partner Connect) helpers.

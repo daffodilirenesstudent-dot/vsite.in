@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
 import { useSite } from '@/components/SiteContext';
 import { useNotifications } from '@/components/NotificationContext';
 import BulkImportModal from '@/components/manage/BulkImportModal';

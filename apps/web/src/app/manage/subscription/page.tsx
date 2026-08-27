@@ -4,8 +4,8 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '@/components/AuthContext';
 import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
-import { firebaseAuth } from '@/lib/firebase';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
+import { firebaseAuth } from '@/lib/auth/firebase';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 
 // Per-plan monthly pricing. Keep in sync with create-subscription/route.ts.
 // 30-day cycle, no setup fee.

@@ -8,12 +8,12 @@
 // Idempotent: re-posting the same payment id is a no-op success.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import {
   verifyCheckoutSignature,
   getActiveIntegration,
   fetchRazorpayPayment,
-} from '@/lib/server/razorpayOAuth';
+} from '@/lib/payments/server/razorpayOAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

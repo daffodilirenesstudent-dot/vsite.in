@@ -12,9 +12,9 @@ import { PrinterStatusProvider } from './PrinterStatusContext';
 import DashboardHeader from './DashboardHeader';
 import SubscriptionNotifications from './SubscriptionNotifications';
 import BrandLoader from './BrandLoader';
-import { supabase } from '@/lib/supabase';
-import { provisionUser } from '@/lib/provisionUser';
-import { firebaseAuth } from '@/lib/firebase';
+import { supabase } from '@/lib/platform/db/supabase';
+import { provisionUser } from '@/lib/auth/provisionUser';
+import { firebaseAuth } from '@/lib/auth/firebase';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();

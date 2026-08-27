@@ -10,7 +10,7 @@ async function loadQRLib(): Promise<typeof QRCodeStylingClass> {
 }
 import { useSite } from '@/components/SiteContext';
 import { usePlan } from '@/components/PlanContext';
-import { firebaseAuth } from '@/lib/firebase';
+import { firebaseAuth } from '@/lib/auth/firebase';
 
 const A = {
   primary:   '#5137EF',

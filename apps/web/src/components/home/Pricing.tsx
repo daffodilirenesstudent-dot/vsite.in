@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowRight, Check } from 'lucide-react';
 import Reveal from './Reveal';
 import { LogoMark } from '@/components/Logo';
-import { PLAN_PRICES_INR } from '@/lib/productFlags';
+import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
 
 /**
  * One product, one price — presented as a restaurant bill.

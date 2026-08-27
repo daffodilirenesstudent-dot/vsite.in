@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/supabase-server', () => ({ supabaseServer: {} }));
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: () => ({ allowed: true, retryAfterMs: 0 }) }));
-vi.mock('@/lib/verifyFirebaseToken', () => ({ verifyFirebaseToken: async () => 'u1' }));
+vi.mock('@/lib/platform/db/supabase-server', () => ({ supabaseServer: {} }));
+vi.mock('@/lib/platform/rateLimit', () => ({ rateLimit: () => ({ allowed: true, retryAfterMs: 0 }) }));
+vi.mock('@/lib/auth/verifyFirebaseToken', () => ({ verifyFirebaseToken: async () => 'u1' }));
 
 import { NextRequest } from 'next/server';
 

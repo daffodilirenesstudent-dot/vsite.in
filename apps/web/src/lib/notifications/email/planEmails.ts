@@ -2,7 +2,7 @@
 // Both share a single styled HTML shell so the two messages feel like part of
 // the same SaaS lifecycle conversation rather than ad-hoc templates.
 
-import { escapeHtml as esc } from '@/lib/htmlEscape';
+import { escapeHtml as esc } from '@/lib/platform/htmlEscape';
 import { sendZeptoMail, type ZeptoRecipient } from './sendZeptoMail';
 
 // Plan-lifecycle mail. The from-ADDRESS must be a sender that's been

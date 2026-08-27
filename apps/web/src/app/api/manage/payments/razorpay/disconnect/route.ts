@@ -5,13 +5,13 @@
 // no-op success.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { decryptToken } from '@/lib/server/paymentsCrypto';
-import { revokeToken } from '@/lib/server/razorpayOAuth';
-import { notify } from '@/lib/notify';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { decryptToken } from '@/lib/payments/server/paymentsCrypto';
+import { revokeToken } from '@/lib/payments/server/razorpayOAuth';
+import { notify } from '@/lib/notifications/notify';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

@@ -4,9 +4,9 @@
 // Does NOT touch historical orders — their tax snapshot stays intact.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { audit } from '@/lib/auditLog';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { audit } from '@/lib/platform/auditLog';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

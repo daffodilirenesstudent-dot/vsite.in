@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { rateLimit, getClientIp } from '@/lib/platform/rateLimit';
 
 const COOKIE_NAME = 'sb-access-token';
 const IS_PROD = process.env.NODE_ENV === 'production';

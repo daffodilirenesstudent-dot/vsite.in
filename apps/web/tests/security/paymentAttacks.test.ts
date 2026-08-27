@@ -31,10 +31,10 @@ process.env.PAYMENTS_ENC_KEY                 = Buffer.alloc(32, 7).toString('bas
 
 // ── Mock infrastructure ──────────────────────────────────────────────────────
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/verifyFirebaseToken', () => ({
+vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
   verifyFirebaseToken: vi.fn(async (t: string) => (t === 'admin-token' ? 'admin-user' : null)),
 }));
-vi.mock('@/lib/rateLimit', () => ({ rateLimit: () => ({ allowed: true, retryAfterMs: 0 }) }));
+vi.mock('@/lib/platform/rateLimit', () => ({ rateLimit: () => ({ allowed: true, retryAfterMs: 0 }) }));
 
 type Script = Record<string, {
   selectResult?: unknown; singleResult?: unknown; maybeSingleResult?: unknown;
@@ -63,7 +63,7 @@ function tableMock(table: string) {
   return chain;
 }
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: { from: vi.fn((t: string) => tableMock(t)), rpc: vi.fn() },
 }));
 
@@ -95,8 +95,8 @@ import { POST as adminVerify }   from '@/app/api/subscription/verify-payment/rou
 import { POST as customerOrders } from '@/app/api/orders/route';
 import { POST as customerVerify } from '@/app/api/orders/[id]/verify-payment/route';
 import { POST as oauthWebhook }   from '@/app/api/webhooks/razorpay/oauth/route';
-import { encryptToken }           from '@/lib/server/paymentsCrypto';
-import { verifyCheckoutSignature } from '@/lib/server/razorpayOAuth';
+import { encryptToken }           from '@/lib/payments/server/paymentsCrypto';
+import { verifyCheckoutSignature } from '@/lib/payments/server/razorpayOAuth';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const SITE_A   = '00000000-0000-0000-0000-000000000aaa';

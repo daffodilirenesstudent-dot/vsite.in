@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { firebaseAuth } from '@/lib/firebase';
-import { compressImage } from '@/lib/imageCompress';
+import { supabase } from '@/lib/platform/db/supabase';
+import { firebaseAuth } from '@/lib/auth/firebase';
+import { compressImage } from '@/lib/menu/imageCompress';
 
 interface BulkImportModalProps {
   siteId: string;

@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
-import { firebaseAuth } from '@/lib/firebase';
+import { firebaseAuth } from '@/lib/auth/firebase';
 import DateRangeFilter, { useCurrentRange } from '@/components/DateRangeFilter';
 import RevenueBarChart, { type RevenueBucket } from '@/components/RevenueBarChart';
 import PaymentModeRing from '@/components/PaymentModeRing';

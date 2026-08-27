@@ -4,7 +4,7 @@
 // Keeps the three hardening tables lean without any manual maintenance.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

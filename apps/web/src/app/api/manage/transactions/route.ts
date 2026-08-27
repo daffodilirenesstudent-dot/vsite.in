@@ -8,9 +8,9 @@
 // If someone needs > 500 in one shot they should narrow the range.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { rangeFromSearchParams } from '@/lib/dateRange';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { rangeFromSearchParams } from '@/lib/platform/dateRange';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';

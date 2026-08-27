@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { Shop, supabase } from '@/lib/supabase';
+import { Shop, supabase } from '@/lib/platform/db/supabase';
 import { TEMPLATE_MAP, DEFAULT_TEMPLATE, type TemplateName } from '@/components/templates/index';
 import type { MenuProduct, ShopBanner } from '@/components/templates/QRMenuTemplate';
 

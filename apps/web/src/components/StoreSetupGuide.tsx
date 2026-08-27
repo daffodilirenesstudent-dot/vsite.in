@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
 import { useSite } from './SiteContext';
 
 /**

@@ -20,7 +20,7 @@
 // Fallback: aggregated OCR text path used only if Pass 1 image call returns 0 items.
 
 import OpenAI from 'openai';
-import { matchByKeyword } from '@/lib/defaultImages';
+import { matchByKeyword } from '@/lib/menu/defaultImages';
 
 // ── Module-level singleton — reuses HTTPS connection across calls ────────────
 let _openai: OpenAI | null = null;

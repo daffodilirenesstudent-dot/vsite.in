@@ -21,11 +21,11 @@ vi.mock('razorpay', () => {
   return { default: MockRazorpay };
 });
 
-vi.mock('@/lib/verifyFirebaseToken', () => ({
+vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
   verifyFirebaseToken: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase-server', () => {
+vi.mock('@/lib/platform/db/supabase-server', () => {
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
   return {
@@ -48,18 +48,18 @@ vi.mock('openai', () => {
   return { default: MockOpenAI };
 });
 
-vi.mock('@/lib/sarvamVision', () => ({
+vi.mock('@/lib/menu/sarvamVision', () => ({
   imageToMenuText: vi.fn().mockResolvedValue(''),
 }));
 
-vi.mock('@/lib/menuExtractor', () => ({
+vi.mock('@/lib/menu/menuExtractor', () => ({
   extractMenuItems: vi.fn().mockResolvedValue([]),
 }));
 
 // ── Import after mocks ─────────────────────────────────────────────────────────
 
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { POST as onboardingPost } from '@/app/api/onboarding/complete/route';
 import { POST as imagesMatchPost } from '@/app/api/images/match/route';
 import { POST as createSubPost } from '@/app/api/subscription/create-subscription/route';

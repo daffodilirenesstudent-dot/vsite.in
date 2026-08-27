@@ -11,8 +11,8 @@
 // route. Same auth pattern: Firebase ID token → user owns the site.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';

@@ -24,7 +24,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { provisionUser } from '../../src/lib/provisionUser';
+import { provisionUser } from '../../src/lib/auth/provisionUser';
 
 interface Captured {
   table: string;

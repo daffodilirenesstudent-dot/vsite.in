@@ -25,16 +25,16 @@
 //   7. Return order id / order number / token number to the client.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import {
   verifyCheckoutSignature,
   getActiveIntegration,
   fetchRazorpayPayment,
-} from '@/lib/server/razorpayOAuth';
-import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/orderEmail';
+} from '@/lib/payments/server/razorpayOAuth';
+import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/notifications/orderEmail';
 import crypto from 'crypto';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

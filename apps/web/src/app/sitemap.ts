@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { blogPosts } from '@/content/blog/posts';
 
 const BASE_URL = 'https://vsite.in';

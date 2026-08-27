@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
 import { useAuth } from './AuthContext';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 

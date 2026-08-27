@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { whatsappUrl } from '@/lib/brand';
+import { whatsappUrl } from '@/lib/platform/brand';
 import Link from 'next/link';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';

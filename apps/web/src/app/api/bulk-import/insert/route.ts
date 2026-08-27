@@ -11,10 +11,10 @@
 //   • Quota: 15 photos/user/day tracked in bulk_import_usage
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { matchByKeyword } from '@/lib/defaultImages';
-import { weightedScore, previewQuadrant } from '@/lib/menuEngineering';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { matchByKeyword } from '@/lib/menu/defaultImages';
+import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
 import OpenAI from 'openai';
 
 export const maxDuration = 60;

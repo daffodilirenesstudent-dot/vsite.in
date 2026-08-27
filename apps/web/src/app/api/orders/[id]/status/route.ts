@@ -6,7 +6,7 @@
 // Must never be cached — the whole point is live status.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyOrderToken } from '@/lib/orderEmail';
+import { verifyOrderToken } from '@/lib/notifications/orderEmail';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';

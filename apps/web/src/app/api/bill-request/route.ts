@@ -4,11 +4,11 @@
 //   • Per-IP:    3 requests per IP per 5 minutes (across all tables)
 //   • Per-table: 1 pending request per table per 5 minutes
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
-import { verifyTableSig } from '@/lib/qrSignature';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { verifyTableSig } from '@/lib/orders/qrSignature';
 import crypto from 'crypto';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 const STRICT_TABLE_SIG = process.env.STRICT_TABLE_SIG === '1';
 

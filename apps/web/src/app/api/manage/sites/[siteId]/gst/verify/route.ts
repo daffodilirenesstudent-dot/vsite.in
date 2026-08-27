@@ -10,9 +10,9 @@
 // us against repeated wizard submissions on a paid third-party API.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { verifyGstin, isValidGstinFormat } from '@/lib/gstincheck';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { verifyGstin, isValidGstinFormat } from '@/lib/payments/gstincheck';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

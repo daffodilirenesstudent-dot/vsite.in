@@ -8,8 +8,8 @@
 //   Admin can see failed emails in Supabase and replay manually.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
-import { sendEmailDirect } from '@/lib/orderEmail';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { sendEmailDirect } from '@/lib/notifications/orderEmail';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';

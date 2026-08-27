@@ -13,7 +13,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { PRESETS, type RangePreset, isPreset } from '@/lib/dateRange';
+import { PRESETS, type RangePreset, isPreset } from '@/lib/platform/dateRange';
 
 export const DEFAULT_RANGE: RangePreset = 'today';
 

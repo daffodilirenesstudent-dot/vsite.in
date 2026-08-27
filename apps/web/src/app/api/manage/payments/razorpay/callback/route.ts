@@ -9,12 +9,12 @@
 // in oauth_states AND the HttpOnly cookie we set on /connect.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
-import { exchangeCode, getMode } from '@/lib/server/razorpayOAuth';
-import { encryptToken } from '@/lib/server/paymentsCrypto';
-import { notify } from '@/lib/notify';
-import { ORDERING_FROZEN } from '@/lib/productFlags';
-import { frozenResponse } from '@/lib/frozenResponse';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { exchangeCode, getMode } from '@/lib/payments/server/razorpayOAuth';
+import { encryptToken } from '@/lib/payments/server/paymentsCrypto';
+import { notify } from '@/lib/notifications/notify';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

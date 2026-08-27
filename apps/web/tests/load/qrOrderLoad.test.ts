@@ -21,18 +21,18 @@ import crypto from 'crypto';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/verifyFirebaseToken', () => ({
+vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
   verifyFirebaseToken: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: { from: vi.fn() },
 }));
 
 import { POST as postBillRequest } from '@/app/api/bill-request/route';
 import { POST as postCheckout }    from '@/app/api/manage/table-checkout/route';
-import { verifyFirebaseToken }     from '@/lib/verifyFirebaseToken';
-import { supabaseServer }          from '@/lib/supabase-server';
+import { verifyFirebaseToken }     from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer }          from '@/lib/platform/db/supabase-server';
 import { NextRequest }             from 'next/server';
 
 // ── Constants ─────────────────────────────────────────────────────────────────

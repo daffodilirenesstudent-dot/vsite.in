@@ -33,7 +33,7 @@ process.env.PAYMENTS_ENC_KEY                 = Buffer.alloc(32, 7).toString('bas
 vi.mock('server-only', () => ({}));
 
 // Firebase: Bearer "good-token" → 'user-1'; anything else → null.
-vi.mock('@/lib/verifyFirebaseToken', () => ({
+vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
   verifyFirebaseToken: vi.fn(async (tok: string) => (tok === 'good-token' ? 'user-1' : null)),
 }));
 
@@ -86,7 +86,7 @@ function tableMock(table: string) {
   return chain;
 }
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: {
     from: vi.fn((table: string) => tableMock(table)),
     rpc:  vi.fn(),
@@ -104,7 +104,7 @@ beforeEach(() => {
 });
 
 // ── Imports AFTER mocks ──────────────────────────────────────────────────────
-import { encryptToken, decryptToken }     from '@/lib/server/paymentsCrypto';
+import { encryptToken, decryptToken }     from '@/lib/payments/server/paymentsCrypto';
 import {
   verifyCheckoutSignature,
   buildAuthorizeUrl,
@@ -113,7 +113,7 @@ import {
   refreshAccessToken,
   createRazorpayOrder,
   getActiveIntegration,
-} from '@/lib/server/razorpayOAuth';
+} from '@/lib/payments/server/razorpayOAuth';
 import { POST as connectRoute }    from '@/app/api/manage/payments/razorpay/connect/route';
 import { GET  as callbackRoute }   from '@/app/api/manage/payments/razorpay/callback/route';
 import { POST as disconnectRoute } from '@/app/api/manage/payments/razorpay/disconnect/route';

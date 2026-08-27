@@ -4,12 +4,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from './AuthContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/platform/db/supabase';
 import { useSite } from './SiteContext';
 import { usePlan } from './PlanContext';
 import PrinterStatusIndicator from './PrinterStatusIndicator';
 import NotificationBell from './NotificationBell';
-import { TRIAL_DURATION_MS } from '@/lib/productFlags';
+import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 
 const TRIAL_STORE_LIMIT = 2;
 const PAID_STORE_LIMIT  = 5;

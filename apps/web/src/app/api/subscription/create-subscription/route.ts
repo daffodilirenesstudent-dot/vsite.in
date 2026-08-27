@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { rateLimit } from '@/lib/rateLimit';
-import { TRIAL_DURATION_MS, PLAN_PRICES_INR, isPlanSellable } from '@/lib/productFlags';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { rateLimit } from '@/lib/platform/rateLimit';
+import { TRIAL_DURATION_MS, PLAN_PRICES_INR, isPlanSellable } from '@/lib/platform/productFlags';
 
 // Razorpay Orders API — manual payment each time (no autopay).
 // User pays once per billing cycle; no card mandate or recurring authorization.

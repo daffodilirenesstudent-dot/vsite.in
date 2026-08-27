@@ -15,11 +15,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { rateLimit } from '@/lib/rateLimit';
-import { notify } from '@/lib/notify';
-import { sendPlanInvoiceEmail } from '@/lib/email/planEmails';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { rateLimit } from '@/lib/platform/rateLimit';
+import { notify } from '@/lib/notifications/notify';
+import { sendPlanInvoiceEmail } from '@/lib/notifications/email/planEmails';
 
 export const maxDuration = 30;
 export const runtime = 'nodejs';

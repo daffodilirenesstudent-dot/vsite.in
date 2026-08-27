@@ -57,7 +57,7 @@ export default function NotificationBell() {
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const getToken = useCallback(async () => {
-    const { firebaseAuth } = await import('@/lib/firebase');
+    const { firebaseAuth } = await import('@/lib/auth/firebase');
     return firebaseAuth.currentUser?.getIdToken();
   }, []);
 

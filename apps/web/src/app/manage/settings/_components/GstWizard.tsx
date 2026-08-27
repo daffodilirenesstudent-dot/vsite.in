@@ -13,7 +13,7 @@
 
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { firebaseAuth } from '@/lib/firebase';
+import { firebaseAuth } from '@/lib/auth/firebase';
 
 export interface GstProfile {
     gst_status:              'pending' | 'not_registered' | 'registered';

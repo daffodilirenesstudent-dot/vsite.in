@@ -16,9 +16,9 @@
 //   Item = { product_id, product_name, image_url, revenue, qty, order_count, share_pct }
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
-import { rangeFromSearchParams } from '@/lib/dateRange';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { rangeFromSearchParams } from '@/lib/platform/dateRange';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';

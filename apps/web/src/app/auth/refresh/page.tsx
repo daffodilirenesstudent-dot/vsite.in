@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { firebaseAuth } from '@/lib/firebase';
+import { firebaseAuth } from '@/lib/auth/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 // Silent refresh interstitial. Middleware routes here when a user's cookie

@@ -11,11 +11,11 @@ import { NextRequest } from 'next/server';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/verifyFirebaseToken', () => ({
+vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
   verifyFirebaseToken: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: {
     from: vi.fn(),
     rpc: vi.fn(),
@@ -25,8 +25,8 @@ vi.mock('@/lib/supabase-server', () => ({
 // ── Import after mocks ────────────────────────────────────────────────────────
 
 import { GET } from '@/app/api/manage/orders/route';
-import { verifyFirebaseToken } from '@/lib/verifyFirebaseToken';
-import { supabaseServer } from '@/lib/supabase-server';
+import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
+import { supabaseServer } from '@/lib/platform/db/supabase-server';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

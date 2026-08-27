@@ -1,9 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { provisionUser, ProvisioningError } from '@/lib/provisionUser';
-import { firebaseAuth } from '@/lib/firebase';
+import { supabase } from '@/lib/platform/db/supabase';
+import { provisionUser, ProvisioningError } from '@/lib/auth/provisionUser';
+import { firebaseAuth } from '@/lib/auth/firebase';
 import {
     signInWithPhoneNumber,
     RecaptchaVerifier,

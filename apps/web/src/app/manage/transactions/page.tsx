@@ -4,7 +4,7 @@ import React, { Suspense, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
-import { firebaseAuth } from '@/lib/firebase';
+import { firebaseAuth } from '@/lib/auth/firebase';
 import DateRangeFilter, { useCurrentRange } from '@/components/DateRangeFilter';
 
 type TxnStatus = 'Success' | 'Failed' | 'Pending' | 'Refunded';
