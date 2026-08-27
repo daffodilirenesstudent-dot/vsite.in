@@ -1,5 +1,29 @@
 # vsite.in — Claude Context
 
+## Repository Map (read this first)
+
+**The application is `apps/web/`. Run every command from there.**
+
+| Path | What | Build context? |
+|---|---|---|
+| `apps/web/` | The Next.js app — the ONLY thing DigitalOcean builds | **Yes** |
+| `apps/web/src/` | Application source; `@/*` resolves here | Yes |
+| `apps/web/tests/` | Vitest + Playwright suites | Yes |
+| `apps/web/supabase/` | SQL migrations — do not edit without instruction | Yes |
+| `apps/web/.do/app.yaml` | DigitalOcean app spec incl. cron jobs | Config |
+| `archive/` | Frozen sub-apps and design assets — never built | No |
+| `docs/` | GOAL, PLAN, PROGRESS, specs, plans | No |
+| `docs/adr/` | Architecture decision records | No |
+| `delete/` | Staged for manual deletion | No |
+
+**Doc precedence:** `CLAUDE.md` (this file) is authoritative.
+`AGENTS.md` holds cross-tool gotchas. `docs/GOAL.md`,
+`docs/PLAN.md`, `docs/PROGRESS.md` drive the feature workflow.
+Anything in `archive/docs/` is superseded — do not act on it.
+
+**Deployment:** DigitalOcean App Platform, Source Directory = `apps/web`.
+Vercel and Netlify are retired; their configs are in `archive/`.
+
 ## Product
 AI-powered digital menu platform for restaurants and cafés in Tamil Nadu / South India. B2B SaaS, solo-developer build. Core flows: QR-menu scanning by end customers, in-app ordering, KOT/printer output, Razorpay payments, GST-compliant billing, WhatsApp ordering.
 

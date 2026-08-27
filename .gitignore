@@ -1,92 +1,53 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
+node_modules/
 .pnp
 .pnp.js
 .yarn/install-state.gz
-/.env.local
-.env
-
-# testing
-/coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
 
-# production
-**/build/
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
+# env — never commit secrets
+.env
+.env.local
 .env*.local
 
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# Claude Code dev tooling
-.claude/
-.mcp.json
-.code-review-graph/
-
-# Supabase tooling temp files
-**/supabase/.temp/
-
-/.Vsite_SEO_GEO_AEO_Strategy_2026.md
-
-# Food image assets (served from Supabase Storage, not the repo)
-food images/
-food image 2/
-food images 3/
-
-/.firebaserc
-
-# Files staged for manual deletion
-delete/
-Mobile kiosk  UI desgin/
-docs/
-design_system/
-.claude/worktrees/nifty-bhabha/
-.claude/worktrees/nifty-bhabha/.claude/
-# Superpowers plugin tooling
-.superpowers/
-
-# Playwright test results
+# testing
+coverage/
 test-results/
-vsite logos/
-food images 4/
+playwright-report/
 
-# Dev-only seed scripts (contain env-var usage, not needed in production)
-**/scripts/seed-*.mjs
-
-
-# Large binaries — distributed via Supabase Storage, never committed
+# large binaries — distributed via Supabase Storage
 *.exe
-node_modules/
 
-# archive/ — frozen sub-apps and design assets, never built.
-# Binary and image trees stay out of git; source and configs are tracked.
+# seed image sources (already uploaded to Supabase Storage)
 archive/seed-assets/
+
+# design binaries
 archive/design/
 archive/design-system/
 archive/mockups/
 archive/logos/
 
-# Post-monorepo-move: de-anchored equivalents of the root-anchored rules
-# above, so build output and dev-only scripts stay ignored under apps/web/.
-.next/
-out/
-coverage/
+# agent tooling
+.claude/
+.mcp.json
+.code-review-graph/
+.superpowers/
+
+# Supabase tooling temp files
+**/supabase/.temp/
+
+# staged for manual deletion
+delete/
+
+# misc
+.DS_Store
+*.pem
+*.log
+.vercel
+.firebaserc
