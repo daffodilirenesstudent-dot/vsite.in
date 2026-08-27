@@ -1,0 +1,64 @@
+# DigitalOcean App Platform spec for vsite.in
+#
+# NOT APPLIED. Review before running:
+#   doctl apps update <APP_ID> --spec apps/web/.do/app.yaml
+#
+# In the DO console, Source Directory MUST be set to `apps/web`.
+# Without it the build runs at the repo root, finds no package.json,
+# and fails.
+name: vsite-web
+region: blr
+
+services:
+  - name: web
+    source_dir: apps/web
+    github:
+      repo: daffodilirenesstudent-dot/vsite.in
+      branch: master
+      deploy_on_push: true
+    build_command: npm ci && npm run build
+    run_command: npm run start
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+
+# The three crons below were declared in vercel.json and netlify.toml.
+# DigitalOcean App Platform reads NEITHER file, so on DO they have never
+# fired. Each job calls the existing /api/cron/* route, which already
+# authenticates with Bearer CRON_SECRET and is transport-agnostic by
+# design — no route code changes are needed.
+jobs:
+  - name: cron-process-emails
+    kind: PRE_DEPLOY
+    source_dir: apps/web
+    github:
+      repo: daffodilirenesstudent-dot/vsite.in
+      branch: master
+    run_command: >-
+      curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
+      "$NEXT_PUBLIC_BASE_URL/api/cron/process-emails"
+    instance_size_slug: basic-xxs
+
+  - name: cron-cleanup
+    kind: PRE_DEPLOY
+    source_dir: apps/web
+    github:
+      repo: daffodilirenesstudent-dot/vsite.in
+      branch: master
+    run_command: >-
+      curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
+      "$NEXT_PUBLIC_BASE_URL/api/cron/cleanup"
+    instance_size_slug: basic-xxs
+
+  - name: cron-expiry-reminder
+    kind: PRE_DEPLOY
+    source_dir: apps/web
+    github:
+      repo: daffodilirenesstudent-dot/vsite.in
+      branch: master
+    run_command: >-
+      curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
+      "$NEXT_PUBLIC_BASE_URL/api/cron/expiry-reminder"
+    instance_size_slug: basic-xxs

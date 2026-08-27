@@ -1034,7 +1034,7 @@ export default function SettingsPage() {
                             </div>
                         </div>
                         <a
-                            href="/bys-print-bridge-setup.exe"
+                            href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/downloads/bys-print-bridge-setup.exe`}
                             download
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,

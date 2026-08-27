@@ -92,5 +92,5 @@ export default withSentryConfig(nextConfig, {
   // Automatically tree-shake Sentry logger statements
   disableLogger: true,
   // Automatically instrument Vercel cron monitors
-  automaticVercelMonitors: true,
+  automaticVercelMonitors: false,
 });
