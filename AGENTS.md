@@ -218,3 +218,17 @@ Tailwind utilities layer stale (`__webpack_modules__[moduleId] is not a
 function` in the browser console, then a page that renders with no utility
 classes at all — unstyled black text on white). It is not a Tailwind config
 error. `rm -rf .next` and restart the dev server.
+
+## Repo layout gotchas (2026-08-27)
+
+- **Run everything from `apps/web/`.** `npm`, `npx vitest`, `npx tsc`,
+  and `npm run lint` all fail at the repo root — there is no
+  `package.json` there by design.
+- **`@/*` still means `apps/web/src/*`.** `tsconfig.json` moved with
+  `src/`, so the alias is unchanged.
+- **`src/lib` has no barrels, deliberately.** Import deep paths
+  (`@/lib/platform/db/supabase-server`). A barrel re-exporting a
+  `server-only` module would break any client component importing an
+  unrelated symbol from it.
+- **`archive/` is never build context.** Do not import from it.
+- **`*.exe` is gitignored.** Binaries go to Supabase Storage.

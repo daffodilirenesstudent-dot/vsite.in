@@ -390,3 +390,51 @@ photos and serves them resized.
   swap is verified only by typecheck and build.
 - No visual-regression baseline; layout changes will not be caught automatically.
 - Real-device testing on a low-end Android has not been done.
+
+## 2026-08-27 — Monorepo restructure
+
+status: DONE (restructure) / BLOCKED (owner actions below)
+
+Deploy payload 106.38 MB -> 18.13 MB (apps/web); repo total 18.63 MB. App now lives in `apps/web/`.
+Test fingerprint unchanged: 18 failed / 353 passed / 2 skipped (373); 3 test files failed / 10 passed (13).
+
+Deletion audit (`91ef76b..HEAD`, `-M` for rename detection): all 2,413 deletions
+fall inside the allowed set — `print-bridge/node_modules/**` (2,396),
+`public/bys-print-bridge-setup.exe` (1), `print-bridge/dist/bys-print-bridge.exe`
+(1), `food images 3/**` (14), `test-results/**` (1). No other deletions found.
+366 renames detected in the same range, including
+`src/components/home/HOMEPAGE_CONTENT.md` -> `archive/docs/HOMEPAGE_CONTENT.md`
+(correctly a rename, not a delete+add).
+
+Fresh-clone check: cloned `chore/monorepo-restructure` into a scratch
+directory, confirmed `apps/web/package.json`, `apps/web/tsconfig.json`, and
+`apps/web/next.config.mjs` are present, and confirmed every `@/...` import
+under `apps/web/src` and `apps/web/tests` resolves to a real file. No
+UNRESOLVED imports. Clone deleted afterward.
+
+Note: three extra commits on this branch are not restructure tasks —
+`91ef76b` (owner's own in-flight WIP snapshot, isolated at the branch base),
+`72cc64e` (a controller fix committing 10 homepage components that were
+tracked source already imported; without it a fresh clone would not build),
+and `1c5d15d` (the Task 6 pre-step). None are defects.
+
+### Owner actions required before next deploy
+1. **Set Source Directory = `apps/web`** in the DigitalOcean console.
+   The build FAILS at repo root without it — there is no `package.json`
+   there.
+2. **Upload `archive/print-bridge/dist/bys-print-bridge.exe`** to the
+   Supabase `downloads` bucket. The settings-page download link 404s until
+   then.
+3. **Restore the three crons.** They have NEVER run on DigitalOcean —
+   `vercel.json` and `netlify.toml` are both ignored by App Platform.
+   Outbound email (`process-emails`, every minute), `cleanup`, and
+   `expiry-reminder` are all affected. See `apps/web/.do/README.md` for
+   options.
+
+### Known pre-existing issues (NOT caused by this work)
+- 18 failing tests: `tests/api/routes.test.ts` (11),
+  `tests/unit/middleware.test.ts` (6), `tests/api/orderStatus.test.ts` (1).
+- TS2802 at `tests/load/concurrent-orders.test.ts:214`.
+- 23 seed images never wired into a seed script (`food-images-6/` has
+  95 files, seeds 74; `food-images-3/` has 16, seeds 14).
+- Five files over 1200 lines still need splitting — deferred by design.

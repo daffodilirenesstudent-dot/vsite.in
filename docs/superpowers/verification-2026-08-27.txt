@@ -1,0 +1,59 @@
+=== VERIFICATION 78acc28 ===
+--- tsc ---
+tests/load/concurrent-orders.test.ts(214,16): error TS2802: Type 'Set<string>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+--- vitest ---
+⎯⎯⎯⎯⎯⎯ Failed Tests 18 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  3 failed | 10 passed (13)
+      Tests  18 failed | 353 passed | 2 skipped (373)
+--- lint ---
+9:63  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+61:50  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/manage/ShopCard.tsx
+47:11  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+48:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+70:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/manage/SiteInfo.tsx
+18:11  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/templates/CounterWaitingScreen.tsx
+241:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/templates/QRMenuTemplate.tsx
+239:6  Warning: React Hook useEffect has missing dependencies: 'editingCartItem?.qty' and 'variants'. Either include them or remove the dependency array. If 'setQty' needs the current value of 'editingCartItem.qty', you can also switch to useReducer instead of useState and read 'editingCartItem.qty' in the reducer.  react-hooks/exhaustive-deps
+293:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+587:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1018:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1235:6  Warning: React Hook useCallback has a missing dependency: 'setCart'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1242:6  Warning: React Hook useCallback has a missing dependency: 'setCart'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1246:6  Warning: React Hook useCallback has a missing dependency: 'setCart'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1283:6  Warning: React Hook useCallback has a missing dependency: 'setCart'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1426:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1472:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1608:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1813:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+1829:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+--- build ---
+├ ƒ /shop/[slug]/order/[orderId]                   3.3 kB          202 kB
+├ ○ /shop/preview                                  22.7 kB         222 kB
+├ ○ /signup                                        3.52 kB         293 kB
+├ ○ /sitemap.xml                                   0 B                0 B
+├ ○ /support                                       3.76 kB         211 kB
+├ ○ /sweet-shop-menu                               1.82 kB         209 kB
+└ ○ /terms                                         1.76 kB         209 kB
++ First Load JS shared by all                      199 kB
+  ├ chunks/52774a7f-b690079ca6ee7508.js            37.8 kB
+  ├ chunks/6243-3c5ba4ede68a63ba.js                104 kB
+  ├ chunks/fd9d1056-74e5ac2d2280de92.js            53.8 kB
+  └ other shared chunks (total)                    3.27 kB
+
+
+ƒ Middleware                                       94.6 kB
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses getStaticProps)
+ƒ  (Dynamic)  server-rendered on demand
+
