@@ -6,7 +6,7 @@
 // from a different product. Three exits: dashboard, public homepage, support.
 
 import Link from 'next/link';
-import Image from 'next/image';
+import { LogoMark } from '@/components/Logo';
 
 export const metadata = {
     title: 'Page not found · Vsite',
@@ -39,7 +39,7 @@ export default function NotFound() {
             >
                 {/* Brand mark */}
                 <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', marginBottom: 28 }}>
-                    <Image src="/android-chrome-192x192.png" alt="" width={28} height={28} style={{ borderRadius: 7 }} />
+                    <LogoMark size={24} tone="brand" />
                     <span style={{ fontSize: 16, fontWeight: 800, color: '#0D0439', letterSpacing: '-0.01em' }}>vsite</span>
                 </Link>
 

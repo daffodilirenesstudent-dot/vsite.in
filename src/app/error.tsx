@@ -1,4 +1,5 @@
 'use client';
+import { LogoMark } from '@/components/Logo';
 
 // 500 — unhandled exception in a route segment.
 //
@@ -12,7 +13,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function Error({
     error,
@@ -66,7 +66,7 @@ export default function Error({
             >
                 {/* Brand mark */}
                 <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', marginBottom: 24 }}>
-                    <Image src="/android-chrome-192x192.png" alt="" width={28} height={28} style={{ borderRadius: 7 }} />
+                    <LogoMark size={24} tone="brand" />
                     <span style={{ fontSize: 16, fontWeight: 800, color: '#0D0439', letterSpacing: '-0.01em' }}>vsite</span>
                 </Link>
 

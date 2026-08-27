@@ -1,8 +1,8 @@
 'use client';
+import { LogoMark } from '@/components/Logo';
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/components/AuthContext';
 
 export default function SignupPage() {
@@ -129,7 +129,7 @@ export default function SignupPage() {
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="mb-8 flex flex-col items-center gap-2">
-            <Image src="/android-chrome-192x192.png" alt="Vsite" width={56} height={56} className="h-14 w-14 rounded-2xl shadow-md shadow-primary/30" />
+            <LogoMark size={48} tone="brand" />
             <span className="text-2xl font-bold tracking-tight text-slate-800">vsite</span>
           </div>
 

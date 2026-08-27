@@ -1,96 +1,80 @@
 'use client';
 
-import { useState } from 'react';
-import { useInView } from '@/hooks/useInView';
+import { ChevronDown } from 'lucide-react';
+import Reveal from './Reveal';
 
-const faqs = [
+/**
+ * Objection handling, ordered by how much each objection costs.
+ *
+ * "Can customers order from the menu?" is first because it is the question
+ * that decides whether the sale survives week one. Answering it honestly at
+ * the top of the FAQ costs a few signups and saves the refunds and the
+ * one-star reviews that follow the alternative.
+ *
+ * Native <details>/<summary>: keyboard accessible, works without JS, and the
+ * answers stay in the DOM for Google.
+ */
+
+const FAQS = [
     {
-        q: 'Do my customers need to download an app to use the digital menu?',
-        a: 'No. Customers simply tap the NFC card or scan the QR sticker with their phone camera. The menu opens instantly in their browser — no app download, no sign-up, no friction.',
+        q: 'Can customers order from the menu?',
+        a: 'Not today. vsite shows your menu; your server takes the order as usual. In-menu ordering and payment are being built, and existing customers get them first — but we are not going to sell you something that does not exist yet.',
     },
     {
-        q: 'How long does it take to set up my digital menu?',
-        a: 'About 3 minutes. Take a photo of your existing paper menu, upload it, and our AI reads it, matches professional food photos, writes item descriptions, and builds your full digital menu automatically.',
+        q: 'My menu is handwritten in a notebook. Will it work?',
+        a: 'That is the case we built it for. Photograph the page. You will fix a line or two afterwards, and the whole thing still takes under three minutes.',
     },
     {
-        q: 'What if I want to update my menu prices or add new items?',
-        a: 'You can edit your menu anytime from your dashboard — change prices, add or remove dishes, mark items as sold out, or post a daily special. Changes go live instantly for all customers.',
+        q: 'What happens after the 7 free days?',
+        a: 'We ask you to pay ₹299. If you do not, the menu pauses — nothing is deleted, and it comes straight back whenever you return. We never take a card before day 8.',
     },
     {
-        q: 'Is vsite available only in Tamil Nadu?',
-        a: 'vsite is built for restaurants across South India, starting with Tamil Nadu. The platform supports English and Tamil and is designed for the local F&B context — tiffin centres, cafés, hotels, food trucks, and more.',
+        q: 'Do you take a cut of my sales?',
+        a: 'No. ₹299 a month is the entire relationship. No commission, no per-scan fee, no charge for the NFC card.',
     },
     {
-        q: 'What happens after the 7-day free trial?',
-        a: 'After your trial ends, you choose a plan to continue. No credit card is needed to start, and there is no automatic charge. Your menu stays safe — we will remind you before anything changes.',
+        q: 'Do my customers need to install anything?',
+        a: 'No. It opens in the phone’s own browser. Older Android, iPhone, a borrowed phone — all the same.',
+    },
+    {
+        q: 'Is support in Tamil?',
+        a: 'Yes — on WhatsApp, from a person, in Tamil or English.',
     },
 ];
 
 export default function FAQ() {
-    const [open, setOpen] = useState<number | null>(null);
-    const { ref: headerRef, visible: headerVisible } = useInView(0.2);
-    const { ref: listRef, visible: listVisible } = useInView(0.08);
-
     return (
-        <section id="faq" className="py-14 sm:py-20 lg:py-28 px-4 bg-slate-50">
-            <div className="mx-auto max-w-3xl">
-
-                {/* Header */}
-                <div
-                    ref={headerRef}
-                    className={`text-center mb-10 sm:mb-14 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
-                        ${headerVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.98]'}`}
-                >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 mb-4">FAQ</p>
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
-                        Questions You Might Have
-                    </h2>
-                    <p className="mt-4 sm:mt-5 text-sm sm:text-base lg:text-lg text-slate-500">
-                        Everything you need to know before getting started.
+        <section className="bg-paper-2 px-5 py-section lg:py-section-lg">
+            <div className="mx-auto flex max-w-6xl flex-col gap-12 lg:flex-row lg:gap-16">
+                <Reveal className="lg:w-80 lg:shrink-0">
+                    <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+                        Before you sign up
                     </p>
-                </div>
+                    <h2 className="mt-5 font-display text-h2 font-bold text-ink">
+                        The questions people actually ask.
+                    </h2>
+                </Reveal>
 
-                {/* Accordion */}
-                <div ref={listRef} className="space-y-2 sm:space-y-3">
-                    {faqs.map((faq, i) => (
-                        <div
-                            key={i}
-                            className={`bg-white rounded-xl sm:rounded-2xl border overflow-hidden
-                                transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
-                                ${open === i ? 'border-slate-200 shadow-sm' : 'border-slate-100 hover:border-slate-200'}
-                                ${listVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
-                            style={{ transitionDelay: listVisible ? `${i * 70}ms` : '0ms' }}
+                <Reveal className="flex flex-1 flex-col" stagger={70}>
+                    {FAQS.map((f, i) => (
+                        <details
+                            key={f.q}
+                            data-reveal="up"
+                            open={i === 0}
+                            className={`group border-t border-[#D9D3C8] ${i === FAQS.length - 1 ? 'border-b' : ''}`}
                         >
-                            <button
-                                onClick={() => setOpen(open === i ? null : i)}
-                                className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 lg:px-6 py-4 sm:py-5 text-left group min-h-[52px] sm:min-h-[60px]"
-                            >
-                                <span className={`font-semibold text-sm sm:text-base leading-snug transition-colors duration-200
-                                    ${open === i ? 'text-primary' : 'text-slate-800 group-hover:text-slate-900'}`}>
-                                    {faq.q}
-                                </span>
-                                <span
-                                    className={`material-symbols-outlined text-slate-400 text-lg sm:text-xl shrink-0 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]
-                                        ${open === i ? 'text-primary rotate-180' : 'rotate-0'}`}
-                                >
-                                    expand_more
-                                </span>
-                            </button>
-
-                            {/* Smooth expand via CSS grid trick */}
-                            <div
-                                className="grid transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                                style={{ gridTemplateRows: open === i ? '1fr' : '0fr' }}
-                            >
-                                <div className="overflow-hidden">
-                                    <div className="px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5 text-slate-600 text-sm sm:text-base leading-relaxed border-t border-slate-100 pt-3 sm:pt-4">
-                                        {faq.a}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-6 text-left text-[17px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                                {f.q}
+                                <ChevronDown
+                                    className="h-5 w-5 shrink-0 text-ink-45 transition-transform duration-300 ease-out-expo group-open:rotate-180"
+                                    strokeWidth={2}
+                                    aria-hidden
+                                />
+                            </summary>
+                            <p className="pb-6 pr-9 text-base leading-relaxed text-ink-70">{f.a}</p>
+                        </details>
                     ))}
-                </div>
+                </Reveal>
             </div>
         </section>
     );

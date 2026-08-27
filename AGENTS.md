@@ -192,3 +192,29 @@ in `PlanContext`, 14 days in `toggle-live`, `shop/[slug]`, `DashboardHeader`,
 `onboarding/complete`. The dashboard expired the trial at day 7 while the public
 menu stayed live to day 14. Now defined **once**, in `productFlags.ts`, and a
 test asserts it is never redefined elsewhere.
+
+## Gotcha — staggered reveals need a parent-keyed CSS rule
+
+`<Reveal stagger={n}>` (src/components/home/Reveal.tsx) puts `data-visible` on
+the **parent** and leaves `data-reveal` on each **child**. The obvious CSS —
+`[data-reveal][data-visible='true']` — therefore never matches a staggered
+child, and every staggered element sits at `opacity: 0` forever. It looks like
+an IntersectionObserver bug and is not one.
+
+`globals.css` needs BOTH selectors:
+
+```css
+[data-reveal][data-visible='true'],
+[data-visible='true'] > [data-reveal] { opacity: 1; transform: none; }
+```
+
+Symptom if the second is missing: sections render at full height with correct
+layout but invisible text — large blank bands in a full-page screenshot.
+
+## Gotcha — editing globals.css can wedge `next dev`
+
+Editing `src/app/globals.css` while the dev server is running can leave the
+Tailwind utilities layer stale (`__webpack_modules__[moduleId] is not a
+function` in the browser console, then a page that renders with no utility
+classes at all — unstyled black text on white). It is not a Tailwind config
+error. `rm -rf .next` and restart the dev server.

@@ -1,7 +1,7 @@
 'use client';
+import { LogoMark } from '@/components/Logo';
 
 import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthContext';
@@ -344,7 +344,7 @@ function OnboardingContent() {
         )}
 
         <div className="flex items-center gap-2">
-          <Image src="/android-chrome-192x192.png" alt="vsite icon" width={36} height={36} className="h-9 w-9 rounded-xl" />
+          <LogoMark size={30} tone="brand" />
           <span className="text-lg font-bold tracking-tight text-slate-800">vsite</span>
         </div>
 

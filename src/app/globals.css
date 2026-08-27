@@ -144,3 +144,282 @@ button, a, [role="button"] {
   background-size: 200% 100%;
   border-radius: 8px;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   MOTION SYSTEM — homepage ("Grounded Bento")
+
+   CSS-only on purpose. `motion@12` is in package.json but stays unused
+   here: transform/opacity transitions run on the GPU compositor thread,
+   so they never compete with hydration for CPU on the ₹8,000 Androids
+   most of our visitors browse on. A JS animation library would move the
+   same effects back onto the main thread and cost ~34KB.
+
+   Everything below animates ONLY `transform` and `opacity`. No width,
+   height, top or left — those trigger layout on every frame.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ease-out-expo:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --reveal-duration:  0.7s;
+}
+
+/* ── Reveal primitive ────────────────────────────────────────────────
+   Driven by <Reveal> (src/components/home/Reveal.tsx), which flips
+   data-visible via IntersectionObserver. One primitive, five variants,
+   so section components carry no per-element transition classes. */
+[data-reveal] {
+  opacity: 0;
+  transform: translate3d(var(--reveal-x, 0), var(--reveal-y, 1.25rem), 0)
+             scale(var(--reveal-scale, 1));
+  transition:
+    opacity   var(--reveal-duration) var(--ease-out-expo) var(--reveal-delay, 0ms),
+    transform var(--reveal-duration) var(--ease-out-expo) var(--reveal-delay, 0ms);
+}
+[data-reveal][data-visible='true'],
+/* Staggered groups: <Reveal stagger> flips data-visible on the PARENT and
+   leaves data-reveal on each child, so the child's end state is keyed off the
+   parent. Without this rule staggered children sit at opacity 0 forever. */
+[data-visible='true'] > [data-reveal] {
+  opacity: 1;
+  transform: none;
+}
+
+[data-reveal='up']    { --reveal-y: 1.75rem; }
+[data-reveal='left']  { --reveal-x: -2rem; --reveal-y: 0; }
+[data-reveal='right'] { --reveal-x:  2rem; --reveal-y: 0; }
+[data-reveal='scale'] { --reveal-y: 1.25rem; --reveal-scale: 0.97; }
+/* `pop` uses the spring curve — for badges and count chips only, where a
+   slight overshoot reads as "landed" rather than "slid". */
+[data-reveal='pop'] {
+  --reveal-y: 0;
+  --reveal-scale: 0.7;
+  transition:
+    opacity   0.45s var(--ease-spring-soft) var(--reveal-delay, 0ms),
+    transform 0.45s var(--ease-spring-soft) var(--reveal-delay, 0ms);
+}
+
+/* Masked line-by-line headline rise. The parent clips, the child rises. */
+.reveal-line { display: block; overflow: hidden; }
+.reveal-line > * {
+  display: block;
+  transform: translate3d(0, 100%, 0);
+  transition: transform 0.8s var(--ease-out-expo) var(--reveal-delay, 0ms);
+}
+[data-visible='true'] .reveal-line > * { transform: none; }
+
+/* ── Micro-interactions ──────────────────────────────────────────────
+   Each one earns its place by signalling something real. */
+
+/* Cards: lift on hover. 2px, not 8px — this is a hint, not a jump. */
+.lift {
+  transition: transform 0.35s var(--ease-out-expo),
+              box-shadow 0.35s var(--ease-out-expo),
+              border-color 0.35s var(--ease-out-expo);
+}
+@media (hover: hover) {
+  .lift:hover { transform: translate3d(0, -2px, 0); }
+}
+.lift:active { transform: translate3d(0, 0, 0) scale(0.995); }
+
+/* Buttons: press is the confirmation. Mobile has no hover, so `active`
+   is the ONLY feedback a phone user gets that the tap registered. */
+.press { transition: transform 0.2s var(--ease-out-expo), background-color 0.2s ease; }
+.press:active { transform: scale(0.97); }
+
+/* Arrow nudge inside a CTA — directional affordance, 3px. */
+.cta-arrow { transition: transform 0.3s var(--ease-out-expo); }
+@media (hover: hover) {
+  .press:hover .cta-arrow { transform: translate3d(3px, 0, 0); }
+}
+
+/* Live-status dot. Slow, low-amplitude: a heartbeat, not a strobe.
+   WCAG 2.3.1 — nothing flashes more than 3x/second anywhere on the page. */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.9); opacity: 0.7; }
+  70%  { transform: scale(2.2); opacity: 0;   }
+  100% { transform: scale(2.2); opacity: 0;   }
+}
+.pulse-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: pulse-ring 2.4s var(--ease-out-expo) infinite;
+}
+
+/* Ambient hero orbs. One layer, 9s, tiny translation — enough to stop the
+   background reading as a flat PNG, cheap enough not to cost frames. */
+@keyframes orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(18px, 14px, 0) scale(1.06); }
+}
+.orb-drift { animation: orb-drift 9s ease-in-out infinite; }
+
+/* The dish wall. Proves "a photo for every dish" by showing 16 of them
+   rather than claiming it. Duplicate the track in markup; -50% is one set. */
+@keyframes marquee-x {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x var(--marquee-duration, 60s) linear infinite;
+}
+.marquee-track[data-direction='reverse'] { animation-direction: reverse; }
+@media (hover: hover) {
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+}
+
+/* The "AI is reading your menu" scan line — the one place a decorative
+   animation carries an argument: it makes the OCR step feel like work. */
+@keyframes scan-sweep {
+  0%   { transform: translate3d(0, -110%, 0); }
+  55%  { transform: translate3d(0, 110%, 0);  }
+  100% { transform: translate3d(0, 110%, 0);  }
+}
+.scan-sweep { animation: scan-sweep 2.8s var(--ease-out-expo) infinite; }
+
+/* ── Progressive enhancement: scroll-driven CSS ──────────────────────
+   ~84% support (Chrome/Edge 115+, Safari 18+); Firefox stable still has
+   it behind a flag as of 152. Purely additive — the IntersectionObserver
+   reveal above is the baseline and never depends on this. */
+@supports (animation-timeline: view()) {
+  @keyframes scroll-fade-edge {
+    from { opacity: 0.4; }
+    to   { opacity: 1;   }
+  }
+  .scroll-fade-edge {
+    animation: scroll-fade-edge linear both;
+    animation-timeline: view();
+    animation-range: entry 10% cover 32%;
+  }
+
+  /* Reading-progress bar under the sticky nav. */
+  @keyframes scroll-progress {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  .scroll-progress {
+    transform-origin: 0 50%;
+    animation: scroll-progress linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+/* ── No-motion-first ─────────────────────────────────────────────────
+   Vestibular disorders affect ~70M people. Everything above is an
+   enhancement, so under `reduce` it all resolves to its END STATE —
+   content is never left hidden, which is the usual failure mode. */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  [data-reveal][data-visible='true'] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .reveal-line > * { transform: none !important; transition: none !important; }
+  .lift, .press, .cta-arrow { transition: none !important; }
+  .lift:hover, .press:active, .lift:active { transform: none !important; }
+  .pulse-ring::after,
+  .orb-drift,
+  .marquee-track,
+  .scan-sweep,
+  .scroll-fade-edge,
+  .scroll-progress,
+  .skeleton {
+    animation: none !important;
+  }
+  .pulse-ring::after { opacity: 0.35; transform: scale(1.6); }
+  html { scroll-behavior: auto !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   HERO BACKDROP
+
+   The old hero was three stacked `blur-[120px]` purple circles — flat,
+   expensive on mobile GPUs, and the same violet as the CTA, so the button
+   had nothing to sit against.
+
+   This is a four-layer mesh instead: a cool indigo mass top-left, a WARM
+   ember bottom-right (food is warm; an all-violet hero reads as fintech),
+   a masked dot grid for texture, and one grain pass so the gradients do
+   not band on cheap panels. Only the single orb layer animates.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.hero-mesh {
+  background-color: #0B0B24;
+  background-image:
+    radial-gradient(58rem 42rem at 8% -10%,  rgba(99, 91, 255, 0.42), transparent 62%),
+    radial-gradient(46rem 36rem at 96% 108%, rgba(234, 88, 12, 0.30), transparent 60%),
+    radial-gradient(38rem 30rem at 78% 8%,   rgba(124, 58, 237, 0.26), transparent 66%),
+    linear-gradient(168deg, #12123A 0%, #0B0B24 52%, #0A0A1E 100%);
+}
+
+/* Dot grid, faded out toward the edges so it never reads as a hard pattern. */
+.hero-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(58% 62% at 34% 42%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(58% 62% at 34% 42%, #000 0%, transparent 78%);
+}
+
+/* Grain. Kills the banding that large low-alpha gradients show on 6-bit
+   panels — which is most budget Android displays. */
+.hero-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.42'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+
+/* A single warm ember that breathes. One layer, 11s, translate+scale only. */
+@keyframes ember {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1);    opacity: 0.55; }
+  50%      { transform: translate3d(-26px, -18px, 0) scale(1.12); opacity: 0.8; }
+}
+.hero-ember { animation: ember 11s ease-in-out infinite; }
+
+/* ── Pointer parallax ────────────────────────────────────────────────
+   --tilt-x / --tilt-y are written by HeroSection on pointermove (rAF
+   throttled, fine pointers only). Default 0 means the phone sits
+   perfectly still until a mouse actually moves over the hero — and on
+   touch, forever. */
+.tilt {
+  transform:
+    perspective(1100px)
+    rotateY(calc(var(--tilt-x, 0) * 5deg))
+    rotateX(calc(var(--tilt-y, 0) * -5deg))
+    translate3d(0, 0, 0);
+  transition: transform 0.5s var(--ease-out-expo);
+  transform-style: preserve-3d;
+}
+/* Chips ride slightly further than the phone — the depth cue that sells it. */
+.tilt-pop {
+  transform: translate3d(calc(var(--tilt-x, 0) * 14px), calc(var(--tilt-y, 0) * 10px), 0);
+  transition: transform 0.5s var(--ease-out-expo);
+}
+
+/* Idle float for the two floating chips, offset so they never sync up. */
+@keyframes chip-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -7px, 0); }
+}
+.chip-float-a { animation: chip-float 5.5s ease-in-out infinite; }
+.chip-float-b { animation: chip-float 6.8s ease-in-out infinite 0.9s; }
+
+/* Hairline sweep across the phone's glass — a screen catching the light.
+   3.2s of travel, then a long pause; it should register once, not nag. */
+@keyframes glass-sweep {
+  0%       { transform: translate3d(-140%, 0, 0) rotate(14deg); }
+  22%, 100%{ transform: translate3d(240%, 0, 0) rotate(14deg); }
+}
+.glass-sweep { animation: glass-sweep 7s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-ember,
+  .chip-float-a,
+  .chip-float-b,
+  .glass-sweep { animation: none !important; }
+  .tilt, .tilt-pop { transform: none !important; transition: none !important; }
+}

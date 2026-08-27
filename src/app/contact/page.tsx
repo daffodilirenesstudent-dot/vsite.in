@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { whatsappUrl } from '@/lib/brand';
 import Link from 'next/link';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
@@ -91,7 +92,7 @@ export default function ContactPage() {
                   Usually replies in &lt; 30 min
                 </span>
                 <a
-                  href="https://wa.me/919360706659"
+                  href={whatsappUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-1 inline-block bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2 rounded-full text-sm transition-colors"
@@ -174,7 +175,7 @@ export default function ContactPage() {
               Still have questions? We&apos;re just a message away.
             </p>
             <a
-              href="https://wa.me/919360706659"
+              href={whatsappUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block bg-white text-primary hover:bg-slate-50 font-bold px-8 py-3 rounded-full transition-colors"

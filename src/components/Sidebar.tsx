@@ -1,8 +1,8 @@
 'use client';
+import { LogoMark } from '@/components/Logo';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { usePlan } from './PlanContext';
 import { useNotifications } from './NotificationContext';
@@ -70,7 +70,7 @@ export default function Sidebar() {
             {/* Logo + optional toggle button */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginBottom: 8 }}>
                 <Link href="/">
-                    <Image src="/android-chrome-192x192.png" alt="Vsite" width={36} height={36} className="h-9 w-9 rounded-lg" />
+                    <LogoMark size={30} tone="brand" />
                 </Link>
                 {showToggle && (
                     <button
@@ -147,7 +147,7 @@ export default function Sidebar() {
                 <aside className="hidden lg:flex flex-col bg-white border-r border-[#E5E7EB] shrink-0" style={{ width: 256 }}>
                     {/* Header */}
                     <div className="flex items-center gap-2.5 px-5 border-b border-[#E5E7EB]" style={{ height: 73 }}>
-                        <Image src="/android-chrome-192x192.png" alt="Vsite" width={32} height={32} className="h-8 w-8 rounded-lg" />
+                        <LogoMark size={27} tone="brand" />
                         <span className="font-extrabold text-[#0D0439] tracking-tight flex-1" style={{ fontSize: 17 }}>vsite</span>
                         {/* Collapse button */}
                         <button

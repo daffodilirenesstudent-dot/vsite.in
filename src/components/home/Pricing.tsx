@@ -1,129 +1,178 @@
 'use client';
 
 import Link from 'next/link';
-import { useInView } from '@/hooks/useInView';
+import { ArrowRight, Check } from 'lucide-react';
+import Reveal from './Reveal';
+import { LogoMark } from '@/components/Logo';
+import { PLAN_PRICES_INR } from '@/lib/productFlags';
 
-const qrFeatures = [
-    'Clean digital menu (no printing needed)',
-    'Auto-generated food images & descriptions',
-    'Edit menu anytime (add/remove/update)',
-    'Highlight offers & sold-out items live',
-    'Works for dine-in & takeaway',
-    'NFC card + QR stickers included',
+/**
+ * One product, one price — presented as a restaurant bill.
+ *
+ * The band used to be the same indigo/violet as the hero, which made the two
+ * dark sections read as the same beat and left the section looking like every
+ * other SaaS pricing block. It is now warm ink with an amber wash: distinct
+ * from the hero, and warm the way the food photography is.
+ *
+ * The card is a bill because the argument here IS an itemised comparison —
+ * what you pay a printer against what you pay us. Putting that on a docket
+ * with a torn edge makes the comparison legible in one glance to someone who
+ * reads exactly this object twenty times a day.
+ *
+ * Price comes from productFlags so it can never drift from what checkout charges.
+ */
+
+const INCLUDED = [
+    'Unlimited items, categories and price changes',
+    'AI menu reading, descriptions and dish photos',
+    'Tamil + English, offers, banners, sold-out control',
+    'NFC card + weatherproof QR stickers, posted free',
+    'WhatsApp support in Tamil, from a person',
 ];
 
-// Kept for unfreeze — see @/lib/productFlags.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const payEatFeatures = [
-    'Everything in Smart QR Menu, plus —',
-    'Customers place orders directly from phone',
-    'Accept UPI, GPay, PhonePe & cash',
-    'Instant order to kitchen (live)',
-    'Automatic billing (no manual work)',
-    'Smart queue (handles rush smoothly)',
-    'Sell more with faster table turnover',
-];
+const MONTHLY = PLAN_PRICES_INR.qr_menu;
+const YEARLY = MONTHLY * 12;
+const REPRINT = 3500;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const qrOrderFeatures = [
-    'Everything in Smart QR Menu, plus —',
-    'Customers order directly from their phone',
-    'No payment step — pay at counter when done',
-    'Kitchen gets instant order notifications',
-    'Orders accumulate per table until bill is requested',
-    'One-tap "Request Bill" button for customers',
-    'Table-specific QR codes only',
-];
+/** Torn docket edge. Explicit zigzag rather than a mask stack, so it renders
+ *  identically everywhere and stretches cleanly at any card width. */
+function TornEdge({ className = '' }: { className?: string }) {
+    const teeth = 40;
+    const w = 400;
+    const step = w / teeth;
+    let d = 'M0,0 ';
+    for (let i = 0; i < teeth; i++) {
+        d += `L${(i + 0.5) * step},12 L${(i + 1) * step},0 `;
+    }
+    d += `L${w},0 Z`;
+    return (
+        <svg
+            className={className}
+            viewBox={`0 0 ${w} 12`}
+            preserveAspectRatio="none"
+            aria-hidden
+            focusable="false"
+        >
+            <path d={d} fill="currentColor" />
+        </svg>
+    );
+}
 
 export default function Pricing() {
-    const { ref: headerRef, visible: headerVisible } = useInView(0.2);
-    const { ref: cardsRef, visible: cardsVisible } = useInView(0.08);
-    const { ref: bannerRef, visible: bannerVisible } = useInView(0.2);
-
     return (
-        <section id="pricing" className="py-14 sm:py-20 lg:py-28 px-4 bg-white">
-            <div className="mx-auto max-w-5xl">
+        <section id="pricing" className="relative scroll-mt-20 overflow-hidden bg-ink px-5 py-section lg:py-section-lg">
+            {/* Warm wash + faint grid. Deliberately NOT the hero's indigo. */}
+            <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                    backgroundImage:
+                        'radial-gradient(42rem 30rem at 82% 6%, rgba(234,88,12,0.16), transparent 62%), radial-gradient(38rem 28rem at 8% 96%, rgba(180,83,9,0.12), transparent 60%)',
+                }}
+            />
+            <div aria-hidden className="hero-grid pointer-events-none absolute inset-0 opacity-40" />
 
-                {/* Header */}
-                <div
-                    ref={headerRef}
-                    className={`text-center mb-8 sm:mb-12 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
-                        ${headerVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.98]'}`}
-                >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 mb-4">Simple, Honest Pricing</p>
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
-                        Less Than What You Spend on Printing.<br className="hidden sm:block" />{' '}
-                        <span className="text-slate-400">Every Month.</span>
+            <div className="relative mx-auto max-w-6xl">
+                <Reveal className="text-center">
+                    <p className="text-caption font-semibold uppercase tracking-[0.1em] text-amber-300/90">
+                        Pricing
+                    </p>
+                    <h2 className="mt-5 font-display text-h2 font-bold text-paper">
+                        One reprint, or one year.
                     </h2>
-                    <p className="mt-4 sm:mt-5 text-sm sm:text-base lg:text-lg text-slate-500 max-w-2xl mx-auto">
-                        One-time setup. One small monthly fee.
-                        No hidden charges. No per-order commission. Your revenue stays 100% yours.
+                    <p className="mx-auto mt-5 max-w-md text-body text-white/65">
+                        You already have a line in your books for the menu. This just moves it.
                     </p>
-                    <p className="mt-2 text-xs sm:text-sm font-semibold text-primary/80 tracking-wide">
-                        India&apos;s fastest-growing digital menu software — trusted by restaurants across Tamil Nadu.
-                    </p>
-                </div>
+                </Reveal>
 
-                {/* Cards */}
-                <div ref={cardsRef} className="grid grid-cols-1 max-w-md mx-auto gap-4 sm:gap-6 mb-5 sm:mb-8">
+                <Reveal
+                    variant="up"
+                    delay={120}
+                    className="mx-auto mt-9 w-full max-w-lg sm:mt-11"
+                >
+                    <div className="relative">
+                        <div className="rounded-t-[1.25rem] bg-paper px-7 pb-2 pt-8 sm:px-10">
+                            {/* Docket header */}
+                            <div className="flex items-center justify-between border-b border-dashed border-line pb-5">
+                                <div className="flex items-center gap-2">
+                                    <LogoMark size={20} tone="brand" />
+                                    <span className="text-[15px] font-extrabold tracking-[-0.04em] text-ink">vsite</span>
+                                </div>
+                                <span className="text-caption font-bold uppercase tracking-[0.14em] text-ink-45">
+                                    Smart QR Menu
+                                </span>
+                            </div>
 
-                    {/* Smart QR Menu */}
-                    <div
-                        className={`bg-white rounded-2xl sm:rounded-3xl border border-slate-100 p-5 sm:p-7 lg:p-8 flex flex-col shadow-sm
-                            hover:shadow-lg hover:-translate-y-1 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
-                            ${cardsVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-[0.97]'}`}
-                    >
-                        <div className="mb-4 sm:mb-6">
-                            <span className="inline-block border border-green-500 text-green-600 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-3 sm:mb-4">
-                                Smart QR Menu
-                            </span>
-                            <p className="text-slate-500 text-xs sm:text-sm mb-4 sm:mb-5">View-only digital menu for your tables</p>
-                            <div className="flex items-baseline gap-1 mb-2 sm:mb-3">
-                                <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">₹299</span>
-                                <span className="text-slate-400 text-sm">/ month</span>
+                            {/* The comparison, as line items */}
+                            <dl className="divide-y divide-dashed divide-line">
+                                <div className="flex items-baseline justify-between py-4">
+                                    <dt className="text-[15px] text-ink-70">One paper reprint</dt>
+                                    <dd className="text-lg font-semibold text-ink-45 line-through decoration-2">
+                                        ₹{REPRINT.toLocaleString('en-IN')}
+                                    </dd>
+                                </div>
+                                <div className="flex items-baseline justify-between py-4">
+                                    <dt className="text-[15px] text-ink-70">
+                                        vsite, a whole year
+                                        <span className="ml-2 rounded bg-green-50 px-1.5 py-0.5 text-[12px] font-bold uppercase tracking-wide text-green-700">
+                                            same money
+                                        </span>
+                                    </dt>
+                                    <dd className="text-lg font-semibold text-ink">₹{YEARLY.toLocaleString('en-IN')}</dd>
+                                </div>
+                            </dl>
+
+                            {/* Total */}
+                            <div className="flex items-end justify-between border-t-2 border-ink pt-5">
+                                <div>
+                                    <p className="text-caption font-bold uppercase tracking-[0.14em] text-ink-45">
+                                        You pay
+                                    </p>
+                                    <p className="mt-1 text-[15px] text-ink-70">
+                                        Our only product.
+                                        <br />
+                                        There is no upsell tier.
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-4xl font-bold leading-none tracking-[-0.04em] text-ink sm:text-[2.9rem]">
+                                        ₹{MONTHLY}
+                                    </p>
+                                    <p className="mt-1 text-sm text-ink-70">per month</p>
+                                </div>
                             </div>
-                            <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-slate-600">
-                                <span className="material-symbols-outlined text-slate-400 text-sm sm:text-base">info</span>
-                                No setup fee · Billed every 30 days
-                            </div>
+
+                            <ul className="mt-7 flex flex-col gap-3.5 border-t border-dashed border-line pt-6">
+                                {INCLUDED.map((f) => (
+                                    <li key={f} className="flex items-start gap-3">
+                                        <Check className="mt-0.5 h-5 w-5 shrink-0 text-green-700" strokeWidth={2.2} aria-hidden />
+                                        <span className="text-base text-ink">{f}</span>
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <Link
+                                href="/signup"
+                                className="press mt-8 flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-primary text-[17px] font-semibold text-white shadow-lg shadow-primary/30 hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            >
+                                Start free — 7 days
+                                <ArrowRight className="cta-arrow h-5 w-5" strokeWidth={2} aria-hidden />
+                            </Link>
+
+                            {/* Names the exact moment money is asked for. The unspoken
+                                fear about a free trial is that it is a card trap. */}
+                            <p className="mb-4 mt-3.5 text-center text-sm text-ink-70">
+                                No card today. We ask for payment on day 8 — not before.
+                            </p>
                         </div>
 
-                        <ul className="space-y-2 sm:space-y-3 flex-1 mb-6 sm:mb-8">
-                            {qrFeatures.map((f) => (
-                                <li key={f} className="flex items-start gap-2 sm:gap-2.5 text-xs sm:text-sm text-slate-700">
-                                    <span className="material-symbols-outlined text-green-500 text-sm sm:text-base shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                    {f}
-                                </li>
-                            ))}
-                        </ul>
-
-                        <Link
-                            href="/signup"
-                            className="flex items-center justify-center gap-2 border-2 border-green-500 text-green-600 px-5 py-3 sm:px-6 sm:py-3.5 rounded-full font-bold text-sm sm:text-base hover:bg-green-500 hover:text-white hover:scale-[1.02] active:scale-95 transition-all duration-300"
-                        >
-                            Start Free — 7 Days
-                            <span className="material-symbols-outlined text-lg sm:text-xl">arrow_forward</span>
-                        </Link>
-                        <p className="text-center text-[11px] sm:text-xs text-slate-400 mt-2">No credit card. No commitment.</p>
+                        <TornEdge className="block h-3 w-full text-paper" />
                     </div>
+                </Reveal>
 
-                </div>
-
-                {/* Trial banner */}
-                <div
-                    ref={bannerRef}
-                    className={`bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-100 px-4 sm:px-6 lg:px-8 py-4 sm:py-5 flex items-start sm:items-center gap-3 sm:gap-4
-                        transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
-                        ${bannerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
-                    style={{ transitionDelay: bannerVisible ? '200ms' : '0ms' }}
-                >
-                    <span className="material-symbols-outlined text-primary text-2xl sm:text-3xl shrink-0">redeem</span>
-                    <div>
-                        <p className="font-bold text-slate-900 text-sm sm:text-base">Every plan includes a 7-day completely free trial.</p>
-                        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">No credit card. No payment details. No commitment. Use the full product free for 7 days — then decide.</p>
-                    </div>
-                </div>
-
+                <p className="mt-8 text-center text-[15px] text-white/55">
+                    No commission. No per-scan fee. No charge for the NFC card.
+                </p>
             </div>
         </section>
     );

@@ -44,7 +44,7 @@ AI-powered digital menu platform for restaurants and cafés in Tamil Nadu / Sout
 - ⚠️ There are NO `test`/`typecheck` scripts in `package.json`. Use the explicit commands above. Typecheck via `npx tsc --noEmit`.
 
 ## Hooks (enforced — do not bypass)
-`.claude/settings.json` runs a **PostToolUse** hook on `Edit|Write|Bash`: `code-review-graph update --skip-flows` (keeps the knowledge graph current). It also runs `code-review-graph status` on SessionStart and `code-review-graph detect-changes --brief` on PreCommit. NOTE: these hooks maintain the review graph — they do NOT run the test/lint/secret-scan suite for you. You must run `npx vitest run && npm run lint` manually before every commit. If a hook fails, fix the cause — do not disable the hook.
+`.claude/settings.json` runs a **PostToolUse** hook on `Edit|Write|Bash`: `code-review-graph update --skip-flows` (keeps the knowledge graph current). It also runs `code-review-graph status` on SessionStart. There is no commit-time hook — Claude Code has no `PreCommit` event, so run `code-review-graph detect-changes --brief` by hand if you want it. NOTE: these hooks maintain the review graph — they do NOT run the test/lint/secret-scan suite for you. You must run `npx vitest run && npm run lint` manually before every commit. If a hook fails, fix the cause — do not disable the hook.
 
 ## Domain notes
 - Users are restaurant/café owners, mostly Tamil Nadu. Low digital literacy assumed for end-customer flows (QR menu scanners).

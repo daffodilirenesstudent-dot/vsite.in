@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { whatsappUrl } from '@/lib/brand';
 import Link from 'next/link';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
@@ -8,7 +9,7 @@ const TITLE = 'Book a Free Demo — vsite Digital Menu for Restaurants';
 const DESCRIPTION =
     'Book a free 15-minute demo of vsite. We walk you through setting up your restaurant\'s digital menu, showing you exactly how it works before you commit.';
 const WHATSAPP_URL =
-    'https://wa.me/919360706659?text=Hi%20vsite%20team%2C%20I%27d%20like%20to%20book%20a%20demo%20for%20my%20restaurant.';
+    whatsappUrl("Hi vsite team, I'd like to book a demo for my restaurant.");
 
 export const metadata: Metadata = {
     title: TITLE,

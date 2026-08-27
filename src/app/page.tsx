@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import Navbar from '@/components/home/Navbar';
 import HeroSection from '@/components/home/HeroSection';
-import CategoryStrip from '@/components/home/CategoryStrip';
-import PainSection from '@/components/home/PainSection';
-import ProductCards from '@/components/home/ProductCards';
+import TrustBar from '@/components/home/TrustBar';
+import CostOfPaper from '@/components/home/CostOfPaper';
 import SetupSteps from '@/components/home/SetupSteps';
-import CustomerExperience from '@/components/home/CustomerExperience';
-import LossAversion from '@/components/home/LossAversion';
+import DishWall from '@/components/home/DishWall';
+import MenuBento from '@/components/home/MenuBento';
+import DinerFlow from '@/components/home/DinerFlow';
 import Pricing from '@/components/home/Pricing';
-import SocialProof from '@/components/home/SocialProof';
+import Proof from '@/components/home/Proof';
 import FAQ from '@/components/home/FAQ';
 import FooterCTA from '@/components/home/FooterCTA';
 
@@ -55,19 +55,16 @@ const softwareSchema = {
       unitText: 'MONTH',
     },
   },
-  aggregateRating: {
-    '@type': 'AggregateRating',
-    ratingValue: '4.8',
-    reviewCount: '124',
-  },
   featureList: [
-    'AI menu creation from photo',
+    'AI menu creation from a photo of your existing menu',
+    'Handwritten menu recognition',
+    'AI-generated food photography for every dish',
     'QR code menu',
-    'Real-time menu updates',
-    'Menu insights & analytics',
-    'Tamil language support',
-    'NFC card included',
-    'Built for cafés, bakeries, cloud kitchens, sweet shops, bars and more',
+    'Real-time menu and price updates',
+    'Sold-out control',
+    'Offers and banners',
+    'Tamil and English menu names',
+    'NFC card and QR stickers included',
   ],
 };
 
@@ -133,17 +130,17 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(siteNavigationSchema) }}
       />
-      <main className="min-h-screen font-display bg-white text-slate-900 antialiased selection:bg-primary/20 selection:text-primary">
+      <main className="min-h-screen bg-paper font-display text-ink antialiased selection:bg-primary/20 selection:text-accent-text">
         <Navbar />
         <HeroSection />
-        <CategoryStrip />
-        <ProductCards />
-        <PainSection />
+        <TrustBar />
+        <CostOfPaper />
         <SetupSteps />
-        <CustomerExperience />
-        <LossAversion />
+        <DishWall />
+        <MenuBento />
+        <DinerFlow />
         <Pricing />
-        <SocialProof />
+        <Proof />
         <FAQ />
         <FooterCTA />
       </main>

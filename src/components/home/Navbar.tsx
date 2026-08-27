@@ -1,139 +1,203 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import MobileScrollNav from './MobileBottomNav';
+import { ArrowRight, ChevronRight, Menu, X } from 'lucide-react';
+import Logo from '@/components/Logo';
+
+const NAV_LINKS = [
+    { href: '/features', label: 'Features' },
+    { href: '/pricing', label: 'Pricing' },
+    { href: '/demo', label: 'Demo' },
+    { href: '/blog', label: 'Blog' },
+    { href: '/support', label: 'Support' },
+];
+
+/**
+ * Scroll-aware navigation.
+ *
+ * The old bar was an opaque white strip sitting on top of a dark hero, which
+ * cut the hero off at the top and made the page start with a seam. This one
+ * rides transparent over the hero and only materialises — background, border,
+ * shadow — once you have scrolled past it. Two states, one component:
+ *
+ *   over the hero  → light-on-dark, no chrome
+ *   scrolled       → paper background, ink text, hairline + reading progress
+ *
+ * The progress bar under the border uses the scroll-driven CSS from
+ * globals.css, so it costs no JS and simply does not appear where the browser
+ * lacks support.
+ */
 
 export default function Navbar() {
     const [open, setOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
 
-    // Lock body scroll when mobile menu is open
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 24);
+        onScroll();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
     useEffect(() => {
         document.body.style.overflow = open ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
+        return () => {
+            document.body.style.overflow = '';
+        };
     }, [open]);
 
-    // Close menu on Escape key
     useEffect(() => {
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setOpen(false);
+        };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    const navLinks = [
-        { href: '/features', label: 'Features' },
-        { href: '/pricing', label: 'Pricing' },
-        { href: '/demo', label: 'Demo' },
-        { href: '/blog', label: 'Blog' },
-        { href: '/support', label: 'Support' },
-    ];
+    // While the sheet is open the bar always uses its solid treatment.
+    const onDark = !scrolled && !open;
 
     return (
         <>
-            <header className="fixed top-0 w-full z-50 bg-white/85 backdrop-blur-xl border-b border-slate-200/60">
-                <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
-                    {/* Logo */}
+            <header
+                className={`fixed top-0 z-50 w-full transition-[background-color,border-color,box-shadow] duration-300 ease-out-expo ${
+                    onDark
+                        ? 'border-b border-transparent bg-transparent'
+                        : 'border-b border-line bg-paper/90 shadow-[0_1px_20px_rgba(18,16,14,0.05)] backdrop-blur-xl'
+                }`}
+            >
+                <nav className="mx-auto flex h-[4.5rem] max-w-6xl items-center justify-between gap-6 px-5">
                     <Link
                         href="/"
-                        className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                        aria-label="vsite home"
+                        className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
-                        <Image src="/android-chrome-192x192.png" alt="Vsite icon" width={32} height={32} className="h-8 w-8 rounded-lg" priority />
-                        <span className="text-xl font-extrabold tracking-tight text-slate-900">vsite</span>
+                        <Logo size={34} tone={onDark ? 'light' : 'brand'} tagline />
                     </Link>
 
-                    {/* Desktop Nav */}
-                    <div className="hidden lg:flex items-center gap-8">
-                        {navLinks.map((l) => (
+                    {/* Desktop links — a grouped pill rather than five loose words,
+                        so the nav reads as one object and the links get real
+                        vertical hit area (they were 20px tall). */}
+                    <div
+                        className={`hidden items-center gap-1 rounded-full p-1 transition-colors duration-300 lg:flex ${
+                            onDark ? 'bg-white/[0.07] ring-1 ring-inset ring-white/10' : 'bg-paper-2'
+                        }`}
+                    >
+                        {NAV_LINKS.map((l) => (
                             <Link
                                 key={l.href}
                                 href={l.href}
-                                className="text-sm font-medium text-slate-600 hover:text-primary transition-colors focus-visible:outline-none focus-visible:text-primary"
+                                className={`rounded-full px-4 py-2.5 text-[15px] font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                                    onDark
+                                        ? 'text-white/75 hover:bg-white/10 hover:text-white'
+                                        : 'text-ink-70 hover:bg-white hover:text-ink'
+                                }`}
                             >
                                 {l.label}
                             </Link>
                         ))}
                     </div>
 
-                    {/* Desktop CTA */}
-                    <div className="hidden lg:flex items-center gap-4">
+                    <div className="hidden items-center gap-2 lg:flex">
                         <Link
                             href="/login"
-                            className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-primary hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className={`rounded-full px-4 py-2.5 text-[15px] font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                                onDark ? 'text-white/80 hover:text-white' : 'text-ink-70 hover:text-ink'
+                            }`}
                         >
                             Log in
                         </Link>
                         <Link
                             href="/signup"
-                            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/25 hover:bg-primary-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            className={`press group inline-flex items-center gap-2 rounded-full py-2.5 pl-5 pr-2.5 text-[15px] font-semibold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                                onDark
+                                    ? 'bg-white text-ink hover:bg-paper-2'
+                                    : 'bg-primary text-white shadow-md shadow-primary/25 hover:bg-primary-dark'
+                            }`}
                         >
-                            Start Free Trial
-                            <span className="material-symbols-outlined text-base">arrow_forward</span>
+                            Start free
+                            {/* The arrow lives in its own disc so the button has a
+                                visible "go" target and the nudge has somewhere to
+                                nudge into. */}
+                            <span
+                                className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-300 ${
+                                    onDark ? 'bg-ink/10' : 'bg-white/20'
+                                }`}
+                            >
+                                <ArrowRight className="cta-arrow h-4 w-4" strokeWidth={2.2} aria-hidden />
+                            </span>
                         </Link>
                     </div>
 
-                    {/* Mobile hamburger */}
                     <button
                         type="button"
                         onClick={() => setOpen((v) => !v)}
                         aria-label={open ? 'Close menu' : 'Open menu'}
                         aria-expanded={open}
-                        className="lg:hidden w-10 h-10 flex items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        className={`press flex h-11 w-11 items-center justify-center rounded-full transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden ${
+                            onDark ? 'bg-white/10 text-white' : 'bg-paper-2 text-ink'
+                        }`}
                     >
-                        <span className="material-symbols-outlined text-2xl">
-                            {open ? 'close' : 'menu'}
-                        </span>
+                        {open ? <X className="h-5 w-5" strokeWidth={2} aria-hidden /> : <Menu className="h-5 w-5" strokeWidth={2} aria-hidden />}
                     </button>
                 </nav>
+
+                {/* Reading progress — only paints once the bar is solid. */}
+                {!onDark && (
+                    <div aria-hidden className="absolute inset-x-0 bottom-0 h-px overflow-hidden">
+                        <div className="scroll-progress h-full w-full bg-primary" />
+                    </div>
+                )}
             </header>
 
-            {/* Mobile menu sheet */}
+            {/* Mobile sheet */}
             <div
-                className={`lg:hidden fixed inset-0 z-40 transition-opacity duration-200 ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 z-40 transition-opacity duration-200 lg:hidden ${
+                    open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+                }`}
                 aria-hidden={!open}
             >
-                {/* Backdrop */}
+                <div onClick={() => setOpen(false)} className="absolute inset-0 bg-ink/45 backdrop-blur-sm" />
                 <div
-                    onClick={() => setOpen(false)}
-                    className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-                />
-                {/* Panel */}
-                <div
-                    className={`absolute top-16 left-3 right-3 rounded-2xl bg-white shadow-2xl border border-slate-200 p-4 transition-transform duration-200 ${open ? 'translate-y-0' : '-translate-y-2'}`}
+                    className={`absolute inset-x-3 top-[4.75rem] rounded-3xl border border-line bg-paper p-3 shadow-2xl transition-transform duration-300 ease-out-expo ${
+                        open ? 'translate-y-0' : '-translate-y-3'
+                    }`}
                 >
                     <div className="flex flex-col">
-                        {navLinks.map((l) => (
+                        {NAV_LINKS.map((l) => (
                             <Link
                                 key={l.href}
                                 href={l.href}
                                 onClick={() => setOpen(false)}
-                                className="flex items-center justify-between px-3 py-3.5 rounded-xl text-base font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+                                className="flex items-center justify-between rounded-2xl px-4 py-4 text-[17px] font-semibold text-ink transition-colors hover:bg-paper-2"
                             >
                                 {l.label}
-                                <span className="material-symbols-outlined text-slate-400 text-lg">chevron_right</span>
+                                <ChevronRight className="h-5 w-5 text-ink-45" strokeWidth={2} aria-hidden />
                             </Link>
                         ))}
-                        <div className="h-px bg-slate-100 my-2" />
+                        <div className="my-2 h-px bg-line" />
                         <Link
                             href="/login"
                             onClick={() => setOpen(false)}
-                            className="px-3 py-3.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                            className="rounded-2xl px-4 py-4 text-[17px] font-semibold text-ink-70 transition-colors hover:bg-paper-2"
                         >
                             Log in
                         </Link>
                         <Link
                             href="/signup"
                             onClick={() => setOpen(false)}
-                            className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-3.5 text-base font-bold text-white shadow-md shadow-primary/25 hover:bg-primary-dark transition-colors"
+                            className="press mt-1 inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl bg-primary text-[17px] font-bold text-white shadow-md shadow-primary/25"
                         >
-                            Start Free Trial
-                            <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                            Start free — 7 days
+                            <ArrowRight className="h-5 w-5" strokeWidth={2} aria-hidden />
                         </Link>
-                        <p className="text-center text-xs text-slate-400 mt-2">7 days free · No credit card needed</p>
+                        <p className="mt-3 pb-1 text-center text-caption text-ink-45">
+                            No card today · Cancel from your dashboard
+                        </p>
                     </div>
                 </div>
             </div>
-            <MobileScrollNav menuOpen={open} />
         </>
     );
 }
