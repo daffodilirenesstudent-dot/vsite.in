@@ -9,6 +9,8 @@ import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 import MenuItemCard from './MenuItemCard';
 import { T } from './menuTokens';
 import { resolveBadge } from '@/lib/menu/badges';
+import { useQuickReturn } from '@/hooks/useQuickReturn';
+import { prefersReducedMotion } from '@/hooks/useInView';
 
 // ── VARIANT DESCRIPTION HELPERS ──────────────────────────────────────────────
 // When a description is stored as "variant-info || dish-description", returns
@@ -1114,6 +1116,30 @@ export default function QRMenuTemplate({
 
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+
+  // ── Category bar: quick return ──────────────────────────────────────────
+  // The chip row used to scroll away with the content, so changing category on
+  // a long menu meant scrolling back to the very top. It now sticks under the
+  // header, hides while the reader scrolls down into the food, and returns the
+  // moment they scroll up. See @/hooks/useQuickReturn for why this measures
+  // distance rather than counting scroll events.
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [headerH, setHeaderH] = useState(64);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setHeaderH(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // While a sheet owns the screen the body is scroll-locked, so tracking would
+  // only produce noise — and the bar should already be there on close.
+  const overlayOpen = !!activeProduct || searchOpen || cartOpen || checkoutOpen || myOrdersOpen;
+  const chipsPinned = useQuickReturn({ disabled: overlayOpen });
+  const reduceMotion = prefersReducedMotion();
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'online' | 'counter'>('online');
   const effectivePaymentMethod = tier === 'order_no_pay' ? 'no_payment' : selectedPaymentMethod;
   const [billReqState, setBillReqState] = useState<'idle' | 'confirming' | 'sending' | 'sent' | 'cooldown'>('idle');
@@ -1473,7 +1499,7 @@ export default function QRMenuTemplate({
       <div className="qr-wrap qr-shell">
 
         {/* ── STICKY HEADER ── */}
-        <header style={{
+        <header ref={headerRef} style={{
           background: T.white, borderBottom: `1px solid ${T.border}`,
           padding: '14px 16px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1594,7 +1620,24 @@ export default function QRMenuTemplate({
 
         {/* ── CATEGORY CHIPS + REQUEST BILL ── */}
         {(categories.length > 0 || (tier === 'order_no_pay' && tableNumber)) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: T.white, minHeight: 60 }}>
+          <div
+            data-testid="category-bar"
+            data-pinned={chipsPinned ? 'true' : 'false'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '12px 16px', background: T.white, minHeight: 60,
+              // Sticky UNDER the header, which stays put at z-index 50. On the
+              // way out the bar translates up by its own height and disappears
+              // behind the header rather than over it.
+              position: 'sticky', top: headerH, zIndex: 40,
+              borderBottom: `1px solid ${T.border}`,
+              transform: chipsPinned ? 'translateY(0)' : 'translateY(-100%)',
+              // Transform only: animating height would relayout the whole list
+              // every frame on the cheap Androids most of our readers use.
+              transition: reduceMotion ? 'none' : 'transform 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
+              willChange: 'transform',
+            }}
+          >
             {/* Category chips — scrollable */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12, overflowX: 'auto', scrollbarWidth: 'none' }}>
               {['All', ...categories].map(cat => {
