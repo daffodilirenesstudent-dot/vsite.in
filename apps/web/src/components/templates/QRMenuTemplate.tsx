@@ -116,22 +116,8 @@ function VegDot({ foodType }: { foodType?: string | null }) {
   );
 }
 
-// ── IMAGE PLACEHOLDER ─────────────────────────────────────────────────────────
-function ImgPlaceholder({ size }: { size: number }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: 8,
-      background: '#F0F0F0',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <svg width={size * 0.4} height={size * 0.4} viewBox="0 0 32 32" fill="none">
-        <rect x="3" y="7" width="26" height="20" rx="3" stroke="#D1D5DC" strokeWidth="1.5" />
-        <circle cx="11" cy="14" r="2.5" stroke="#D1D5DC" strokeWidth="1.5" />
-        <path d="M3 23l7-5 5 4 4-3 9 7" stroke="#D1D5DC" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
+// The image placeholder was deleted with its last caller: an empty frame
+// reads as a failed image rather than "this dish has no photo".
 
 // Recommendation badges moved to @/lib/menu/badges + MenuItemCard, so the
 // list and the detail sheet can no longer disagree about which dish is a
@@ -269,16 +255,16 @@ function ProductDetailSheet({
             background: T.white, borderRadius: '30px 30px 0 0', flexShrink: 0,
             padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
           }}>
-            <div style={{
-              width: 54, height: 54, borderRadius: 6, overflow: 'hidden',
-              flexShrink: 0, background: '#F0F0F0',
-            }}>
-              {product.image_url
-                ? <img src={product.image_url} alt={product.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                : <ImgPlaceholder size={54} />
-              }
-            </div>
+            {/* No photo, no frame — see the note on the hero below. */}
+            {product.image_url && (
+              <div style={{
+                width: 54, height: 54, borderRadius: 6, overflow: 'hidden',
+                flexShrink: 0, background: '#F0F0F0',
+              }}>
+                <img src={product.image_url} alt={product.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              </div>
+            )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{
                 fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 16,
@@ -478,23 +464,6 @@ function ProductDetailSheet({
           </div>
 
           {/* ── BOTTOM BAR ── */}
-          {!canOrder && (
-            <div
-              data-testid="order-with-staff"
-              style={{
-                padding: '14px 16px 20px', borderTop: `1px solid ${T.border}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9A949A" strokeWidth="1.8" style={{ flex: 'none' }} aria-hidden>
-                <path d="M20 15.5a2 2 0 0 1-2 2H8l-4 3.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" strokeLinejoin="round" />
-              </svg>
-              <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-                fontSize: 13.5, color: '#6B646B',
-              }}>To order, please tell our staff</span>
-            </div>
-          )}
           {(tier === 'order' || tier === 'order_no_pay') && (
             <div style={{
               height: 70, flexShrink: 0,
@@ -615,17 +584,13 @@ function ProductDetailSheet({
         <div style={{ flex: 1, overflowY: 'auto' }}>
         {/* Image with overlay close button (Swiggy/Zomato pattern) */}
         <div style={{ position: 'relative' }}>
-          {product.image_url
-            ? <img src={product.image_url} alt={product.name}
-                style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
-            : <div style={{
-                width: '100%', aspectRatio: '4/3',
-                background: 'linear-gradient(135deg,#fce4ee,#f9e8f2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <ImgPlaceholder size={80} />
-              </div>
-          }
+          {/* No photo means no hero. A pink gradient block with a picture
+              glyph in it reads as a failed image, not as "this dish has no
+              photo", and it pushed the name and price below the fold. */}
+          {product.image_url && (
+            <img src={product.image_url} alt={product.name}
+              style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+          )}
           {/* Drag handle pinned to top of image */}
           <div style={{
             position: 'absolute', left: '50%', top: 10, transform: 'translateX(-50%)',
@@ -772,23 +737,6 @@ function ProductDetailSheet({
         </div>
         </div>
 
-        {!canOrder && (
-          <div
-            data-testid="order-with-staff"
-            style={{
-              padding: '14px 16px 20px', borderTop: `1px solid ${T.border}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9A949A" strokeWidth="1.8" style={{ flex: 'none' }} aria-hidden>
-              <path d="M20 15.5a2 2 0 0 1-2 2H8l-4 3.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" strokeLinejoin="round" />
-            </svg>
-            <span style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 400,
-              fontSize: 13.5, color: '#6B646B',
-            }}>To order, please tell our staff</span>
-          </div>
-        )}
         {(tier === 'order' || tier === 'order_no_pay') && (
           <div style={{
             width: '100%', flexShrink: 0,
@@ -1344,6 +1292,28 @@ export default function QRMenuTemplate({
     }));
   }, [menuProducts, activeCategory]);
 
+  /**
+   * Ids of the cards filling the first screen.
+   *
+   * Their photos load eagerly; everything below stays lazy. `loading="lazy"`
+   * was previously on every thumb, which deferred exactly the images the
+   * reader opens the menu looking at — on a phone that reads as "the pictures
+   * never loaded". Counted across categories because the first section can be
+   * shorter than one screen.
+   */
+  const eagerImageIds = useMemo(() => {
+    const ids = new Set<string>();
+    let seen = 0;
+    for (const section of sections) {
+      for (const p of section.products) {
+        if (seen >= 5) return ids;
+        ids.add(p.id);
+        seen += 1;
+      }
+    }
+    return ids;
+  }, [sections]);
+
   // Keep activeBanner in bounds when banners change
   useEffect(() => {
     if (activeBanner >= visibleBanners.length) setActiveBanner(0);
@@ -1753,6 +1723,7 @@ export default function QRMenuTemplate({
                       currencyCode={currencyCode}
                       onSelect={() => openProduct(p)}
                       soldOut={p.is_live === false}
+                      priority={eagerImageIds.has(p.id)}
                       action={p.is_live === false ? null : action}
                     />
                   );

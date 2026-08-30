@@ -24,10 +24,11 @@ import { resolveOffer } from '@/lib/menu/offer';
  *
  * 2. THE CARD LOOKS TAPPABLE. It opens a detail sheet, and a flat panel on a
  *    flat page never said so — the tappability literature is consistent that
- *    people misread flat elements, and our diner has no food-delivery-app
- *    habit to fall back on. A chevron names the direction, a 1px lift
- *    separates the row from the page, and `.qr-card-press` gives the pressed
- *    state that is the ONLY tap feedback a phone can offer.
+ *    people misread flat elements. A chevron was tried and removed on the
+ *    owner's call, so the affordance now rests on two things: a 1px lift that
+ *    separates the row from the page, and `.qr-card-press`, which gives the
+ *    pressed state that is the ONLY tap feedback a phone can offer. The larger
+ *    photo does some of this work too — a big image reads as a thing to open.
  *
  * 3. SOLD OUT IS SHOWN, NOT HIDDEN. See `soldOut` below.
  *
@@ -36,6 +37,13 @@ import { resolveOffer } from '@/lib/menu/offer';
  *    45+ in a dim dining room, and it is the one asset on the card proven to
  *    move order value.
  */
+
+/**
+ * Thumb edge. Raised from 108 — on a 360px phone the photo is the only thing
+ * that identifies a dish to a reader who does not read the description, and
+ * 108 left it smaller than the text block beside it.
+ */
+const THUMB = 120;
 
 export interface MenuItemCardProduct {
     id: string;
@@ -60,6 +68,12 @@ export interface MenuItemCardProps {
      * which is the question the menu exists to answer.
      */
     soldOut?: boolean;
+    /**
+     * This card is in the first screenful, so its photo loads eagerly at high
+     * priority instead of being lazily deferred. Set by the list, which is the
+     * only thing that knows the running index across categories.
+     */
+    priority?: boolean;
     /** ADD button or quantity stepper. Supplied by the caller so this stays presentational. */
     action?: React.ReactNode;
 }
@@ -146,9 +160,32 @@ function KindIcon({ kind }: { kind: 'sizes' | 'combo' }) {
     return <svg {...common}><path d="M4 7h16M7 12h10M10 17h4" /></svg>;
 }
 
-/** Photo with a skeleton underneath, so it fades in instead of popping. */
-function Thumb({ src, alt, soldOut }: { src?: string | null; alt: string; soldOut: boolean }) {
+/**
+ * Photo with a skeleton underneath, so it fades in instead of popping.
+ *
+ * Two loading bugs fixed here, both of which showed as a grey square that
+ * never resolved on a real phone:
+ *
+ *   1. `loading="lazy"` was on every thumb, including the four or five cards
+ *      filling the first screen. Lazy-loading above-the-fold images defers
+ *      exactly the ones the reader is staring at. `priority` now marks the
+ *      first screenful eager and high-priority; everything below stays lazy.
+ *
+ *   2. If the image completes from cache BEFORE React attaches onLoad, the
+ *      handler never fires and the img sits at opacity 0 for ever — the CSS
+ *      only reveals it on data-loaded="true". The mount check below reads
+ *      `.complete` and settles it.
+ */
+function Thumb({ src, alt, soldOut, priority }: {
+    src: string; alt: string; soldOut: boolean; priority?: boolean;
+}) {
     const [loaded, setLoaded] = React.useState(false);
+    const imgRef = React.useRef<HTMLImageElement | null>(null);
+
+    React.useEffect(() => {
+        // A cached image can already be complete by first paint.
+        if (imgRef.current?.complete) setLoaded(true);
+    }, [src]);
 
     // Desaturating rather than hiding is what keeps a sold-out dish
     // recognisable — the diner still sees what they are missing.
@@ -159,45 +196,29 @@ function Thumb({ src, alt, soldOut }: { src?: string | null; alt: string; soldOu
     return (
         <div
             style={{
-                position: 'relative', width: 108, height: 108, flex: 'none',
+                position: 'relative', width: THUMB, height: THUMB, flex: 'none',
                 borderRadius: 10, overflow: 'hidden',
                 background: T.white,
                 border: `1px solid ${soldOut ? T.outLine : '#EFEFEF'}`,
             }}
         >
-            {src ? (
-                <>
-                    {!loaded && <span className="qr-skel" style={{ position: 'absolute', inset: 0 }} />}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                        src={src}
-                        alt={alt}
-                        loading="lazy"
-                        decoding="async"
-                        onLoad={() => setLoaded(true)}
-                        onError={() => setLoaded(true)}
-                        className="qr-thumb-img"
-                        data-loaded={loaded ? 'true' : 'false'}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...mediaStyle }}
-                    />
-                </>
-            ) : (
-                <div
-                    aria-hidden
-                    style={{
-                        width: '100%', height: '100%', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
-                        background: '#F1EFF0', color: T.lightGray,
-                        ...mediaStyle,
-                    }}
-                >
-                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                        <rect x="3" y="4" width="18" height="16" rx="2" />
-                        <circle cx="8.5" cy="9.5" r="1.5" />
-                        <path d="M21 15l-5-5L5 20" />
-                    </svg>
-                </div>
-            )}
+            {!loaded && <span className="qr-skel" style={{ position: 'absolute', inset: 0 }} />}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                ref={imgRef}
+                src={src}
+                alt={alt}
+                width={THUMB}
+                height={THUMB}
+                loading={priority ? 'eager' : 'lazy'}
+                fetchPriority={priority ? 'high' : 'auto'}
+                decoding="async"
+                onLoad={() => setLoaded(true)}
+                onError={() => setLoaded(true)}
+                className="qr-thumb-img"
+                data-loaded={loaded ? 'true' : 'false'}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...mediaStyle }}
+            />
         </div>
     );
 }
@@ -208,6 +229,7 @@ export default function MenuItemCard({
     currencyCode = 'INR',
     onSelect,
     soldOut = false,
+    priority = false,
     action,
 }: MenuItemCardProps) {
     const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
@@ -224,6 +246,17 @@ export default function MenuItemCard({
     const showKind = kind !== null && !badge && !soldOut;
 
     const interactive = !soldOut;
+
+    /**
+     * No photo means no photo column.
+     *
+     * An empty 120px frame with a picture glyph in it is worse than nothing:
+     * it reads as "this image failed to load" rather than "this dish has no
+     * photo", and it steals a third of the row from the words that ARE there.
+     * The text simply spans the card instead.
+     */
+    const hasImage = typeof p.image_url === 'string' && p.image_url.trim().length > 0;
+    const hasRightColumn = hasImage || !!action;
 
     return (
         <div
@@ -253,7 +286,7 @@ export default function MenuItemCard({
             }
             style={{
                 position: 'relative', width: '100%',
-                display: 'grid', gridTemplateColumns: '1fr 108px', gap: 10,
+                display: 'grid', gridTemplateColumns: hasRightColumn ? `1fr ${THUMB}px` : '1fr', gap: 10,
                 alignItems: 'start',
                 padding: 10,
                 borderRadius: 8,
@@ -371,23 +404,17 @@ export default function MenuItemCard({
                 )}
             </div>
 
-            {/* Right column — photo, then the action beneath it */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <Thumb src={p.image_url} alt={p.name} soldOut={soldOut} />
-                {action}
-            </div>
-
-            {/* The signifier. Only on rows that actually open. */}
-            {interactive && (
-                <svg
-                    aria-hidden
-                    width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke={T.chevron} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ position: 'absolute', right: 10, bottom: 10 }}
-                >
-                    <path d="M9 18l6-6-6-6" />
-                </svg>
+            {/* Right column — photo, then the action beneath it. Omitted
+                entirely when there is neither. */}
+            {hasRightColumn && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    {hasImage && (
+                        <Thumb src={p.image_url as string} alt={p.name} soldOut={soldOut} priority={priority} />
+                    )}
+                    {action}
+                </div>
             )}
+
         </div>
     );
 }

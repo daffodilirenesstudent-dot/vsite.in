@@ -89,8 +89,16 @@ describe('tap affordance', () => {
         expect(card()).toMatch(/box[Ss]hadow/);
     });
 
-    it('draws a chevron on every tappable card', () => {
-        expect(card()).toMatch(/M9 18l6-6-6-6/);
+    it('does not draw a chevron', () => {
+        // Tried, then removed on the owner's call after seeing it on a real
+        // phone. The affordance now rests on the lift, the press state and a
+        // photo big enough to read as a thing you open.
+        expect(card()).not.toMatch(/M9 18l6-6-6-6/);
+    });
+
+    it('gives the photo enough size to carry the dish', () => {
+        // 108 left the photo smaller than the text block beside it.
+        expect(card()).toMatch(/const THUMB = 12\d/);
     });
 
     it('gives a pressed state, the only tap feedback a phone has', () => {
@@ -154,6 +162,53 @@ describe('sold out', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 4b. Photos actually appear
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('thumbnail loading', () => {
+    it('does not lazy-load the first screenful', () => {
+        // Every thumb carried loading="lazy", which defers exactly the images
+        // the reader opens the menu to look at. On a phone that reads as "the
+        // pictures never loaded".
+        const src = shipped(CARD);
+        expect(src, 'no eager path for above-the-fold thumbs')
+            .toMatch(/priority \? 'eager' : 'lazy'/);
+        expect(src).toMatch(/fetchPriority/);
+        expect(shipped(TEMPLATE), 'the list must decide which cards are eager')
+            .toMatch(/eagerImageIds/);
+    });
+
+    it('settles an image that was already cached before onLoad attached', () => {
+        // A cached image can complete before React attaches the handler, so
+        // onLoad never fires and the thumb sits at opacity 0 for ever.
+        expect(shipped(CARD)).toMatch(/\.complete/);
+    });
+
+    it('renders no image frame at all when the dish has no photo', () => {
+        // An empty grey frame with a picture glyph reads as "this image
+        // failed", not "this dish has no photo", and it costs a third of the
+        // row. The text spans the card instead.
+        const src = shipped(CARD);
+        expect(src, 'the card must know whether it has an image').toMatch(/hasImage/);
+        expect(src, 'the grid must collapse to one column').toMatch(/hasRightColumn \? `1fr \$\{THUMB\}px` : '1fr'/);
+        expect(src, 'the no-image placeholder glyph must be gone')
+            .not.toMatch(/<rect x="3" y="4" width="18" height="16"/);
+    });
+
+    it('renders no image frame in the detail sheet either', () => {
+        const src = shipped(TEMPLATE);
+        expect(src, 'the placeholder component should be gone with its callers')
+            .not.toMatch(/function ImgPlaceholder/);
+        expect(src, 'the pink gradient stand-in must not render')
+            .not.toMatch(/fce4ee/);
+    });
+
+    it('reserves the box so the row does not reflow when a photo lands', () => {
+        expect(shipped(CARD)).toMatch(/width=\{THUMB\}/);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 5. Detail sheet is a reading surface
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -182,8 +237,11 @@ describe('detail sheet', () => {
         expect(tpl()).toMatch(/What's inside|Whats inside|comboItems/);
     });
 
-    it('closes by saying what to do next instead of dead-ending', () => {
-        expect(tpl()).toMatch(/tell our staff/i);
+    it('does not carry a staff instruction line', () => {
+        // Added by me, then cut on the owner's call: the diner already knows
+        // how to order in their own restaurant, so the line spent a whole row
+        // telling them something they were not asking.
+        expect(tpl()).not.toMatch(/tell our staff/i);
     });
 
     it('opens on the settle curve, not the overshoot one', () => {
