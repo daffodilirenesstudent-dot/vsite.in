@@ -48,7 +48,12 @@ export interface MenuItem {
 
 // ── Constants — env-overridable ──────────────────────────────────────────────
 
-const MAX_PRICE = 10_000;          // INR — flag/clamp anything above this
+// INR. Was 10,000, which is a normal price for a catering tray, a party
+// platter or a whole-goat biryani — and anything above it was rewritten to 0
+// and published to a live public menu as a free item. The ceiling now marks
+// genuinely impossible input (an OCR misread of a phone number, say) rather
+// than an expensive real dish; SUSPICIOUS_PRICE still logs the grey zone.
+const MAX_PRICE = 100_000;
 const SUSPICIOUS_PRICE = 3_000;    // log a warning above this
 const MAX_VARIANTS = 10;
 const DESCRIBE_BATCH_SIZE = 50;
@@ -153,8 +158,26 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+/**
+ * Dedup key for an item name, across scripts.
+ *
+ * The previous implementation was `NFKD` + `/[^a-z0-9]+/`, an allow-list of
+ * ASCII alphanumerics. That deletes every Tamil codepoint, so every Tamil name
+ * normalised to the empty string and the dedup key degenerated to "|price" —
+ * any two Tamil items sharing a price collided and one was silently dropped.
+ * For a Tamil-first product that is the worst available failure: the shop
+ * loses menu items and extraction still reports success.
+ *
+ * Inverted to a deny-list: strip whitespace and ASCII punctuation, keep every
+ * letter and digit of every script. Written as explicit ASCII ranges rather
+ * than \p{...} because tsconfig sets no `target`, so the /u flag is not
+ * available here.
+ */
 function normalizeName(s: string): string {
-  return s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '');
+  return s
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[\s -/:-@[-`{-~]+/g, '');
 }
 
 function clampPrice(raw: unknown): number {
@@ -162,7 +185,8 @@ function clampPrice(raw: unknown): number {
   if (raw < 0) return 0;
   if (raw > MAX_PRICE) {
     console.warn(`[menuExtractor] price ${raw} exceeds MAX_PRICE ${MAX_PRICE} — clamping to 0 (probable hallucination)`);
-    return 0;
+    return 0; // Beyond this it is not an expensive dish, it is a misread number.
+
   }
   if (raw > SUSPICIOUS_PRICE) {
     console.warn(`[menuExtractor] suspicious price ${raw} (above ${SUSPICIOUS_PRICE}) — keeping but flag for review`);

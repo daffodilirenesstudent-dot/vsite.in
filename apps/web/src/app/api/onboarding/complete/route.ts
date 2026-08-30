@@ -28,6 +28,11 @@ export const runtime = 'nodejs';
 const COMPLETE_LIMIT_PER_HR = 5;
 const MAX_ITEMS = 300;
 const MAX_VARIANTS = 10;
+// Must stay in step with MAX_PRICE in @/lib/menu/menuExtractor. When these two
+// disagree, the extractor happily returns an item this route then rejects with
+// a 400 that discards the WHOLE menu — one over-cap catering tray losing the
+// other 200 items the owner just photographed.
+const MAX_ITEM_PRICE_INR = 100_000;
 const TRIAL_STORE_LIMIT = 2;
 const PAID_STORE_LIMIT  = 5;
 const SIM_THRESHOLD = 0.45;
@@ -118,7 +123,7 @@ function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; 
     if (typeof item.name !== 'string' || !item.name.trim()) return { ok: false, error: `${label}.name is required` };
     if (item.name.length > 200) return { ok: false, error: `${label}.name must be 200 characters or fewer` };
     if (!Number.isFinite(item.price) || item.price < 0) return { ok: false, error: `${label}.price must be a non-negative number` };
-    if (item.price > 10_000) return { ok: false, error: `${label}.price looks unusually high — please verify` };
+    if (item.price > MAX_ITEM_PRICE_INR) return { ok: false, error: `${label}.price looks unusually high — please verify` };
     // Was `typeof === 'string' && length > 1000`, which only bounded the
     // length of strings and waved every non-string through to the insert. An
     // object or array here reaches Postgres as a text column value and fails
@@ -160,7 +165,7 @@ function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; 
         if (typeof variant.size !== 'string' || !variant.size.trim() || variant.size.length > 50) {
           return { ok: false, error: `${label}.variants[${v}].size must be a non-empty string ≤ 50 chars` };
         }
-        if (!Number.isFinite(variant.price) || variant.price < 0 || variant.price > 10_000) {
+        if (!Number.isFinite(variant.price) || variant.price < 0 || variant.price > MAX_ITEM_PRICE_INR) {
           return { ok: false, error: `${label}.variants[${v}].price out of range` };
         }
       }
