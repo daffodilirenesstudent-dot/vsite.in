@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { ArrowRight, ArrowDown } from 'lucide-react';
 import { useInView } from '@/hooks/useInView';
 import { LogoMark } from '@/components/Logo';
+import { DINER_MENU } from './dinerMenu';
 
 /**
  * "This code → this menu." The payoff shot for the three setup steps.
@@ -19,12 +20,8 @@ import { LogoMark } from '@/components/Logo';
  * the table and the menu it opens.
  */
 
-const MENU_ITEMS = [
-    { name: 'Ghee Podi Dosa', price: '₹90', photo: '/menu-photos/gobi-manchurian.jpg', veg: true },
-    { name: 'Chicken Chettinad', price: '₹260', photo: '/menu-photos/chicken-chettinad.jpg', veg: false },
-    { name: 'Fish 65', price: '₹240', photo: '/menu-photos/fish-65.jpg', veg: false },
-    { name: 'Rose Milk', price: '₹40', photo: '/menu-photos/rose-milk.jpg', veg: true },
-];
+// Shared with OfferDemo's phone so the two mockups cannot drift apart.
+const MENU_ITEMS = DINER_MENU;
 
 export default function QRToMenu() {
     const { ref, visible } = useInView({ threshold: 0.2 });

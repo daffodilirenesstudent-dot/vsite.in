@@ -14,6 +14,8 @@ import {
   getActiveIntegration,
   fetchRazorpayPayment,
 } from '@/lib/payments/server/razorpayOAuth';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +24,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // vsite takes no orders, so there is no order payment to settle. Unreachable
+  // in practice while frozen — nothing can create the order this would mark
+  // paid — but gated explicitly so the freeze does not depend on that.
+  // Note this is the CUSTOMER order payment; the owner's plan payment lives at
+  // /api/subscription/verify-payment and is deliberately never frozen.
+  if (ORDERING_FROZEN) return frozenResponse();
+
   const orderId = params.id;
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
     return NextResponse.json({ error: 'Invalid order id' }, { status: 400 });

@@ -1,7 +1,7 @@
 export const FAQ_GROUPS = [
   {
     id: 'setup',
-    label: 'Getting Started',
+    label: 'Getting started',
     items: [
       {
         id: 'q1',
@@ -22,7 +22,7 @@ export const FAQ_GROUPS = [
   },
   {
     id: 'menu',
-    label: 'Menu Management',
+    label: 'Managing your menu',
     items: [
       {
         id: 'q4',
@@ -38,7 +38,7 @@ export const FAQ_GROUPS = [
   },
   {
     id: 'orders',
-    label: 'Orders & Payments',
+    label: 'Orders & commission',
     items: [
       {
         id: 'q6',
@@ -59,7 +59,7 @@ export const FAQ_GROUPS = [
   },
   {
     id: 'account',
-    label: 'Account & Billing',
+    label: 'Account & billing',
     items: [
       {
         id: 'q9',

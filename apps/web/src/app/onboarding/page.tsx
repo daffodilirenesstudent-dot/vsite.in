@@ -56,7 +56,14 @@ function useSlideTransition() {
 function OnboardingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isNewAccount = searchParams.get('new') === 'true';
+  // `intent` says WHY we are here: 'first-store' (nothing to go back to) or
+  // 'add-store' (an existing owner adding another). The old `?new=true` meant
+  // neither reliably — it was set for a brand-new account, for "you deleted
+  // every store", AND by the dashboard's add-a-store button, so it really only
+  // ever meant "fresh wizard, no back button". Still accepted so links already
+  // in flight (a tab left open, a bookmarked redirect) do not break.
+  const intent = searchParams.get('intent');
+  const isNewAccount = intent === 'first-store' || searchParams.get('new') === 'true';
   const { user, loading } = useAuth();
 
   const {

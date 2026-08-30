@@ -32,11 +32,6 @@ function shouldExcludeBanner(b: ShopBanner & { is_active?: boolean }): boolean {
   return b.is_active === false;
 }
 
-// Products flagged not-live should disappear too.
-function shouldExcludeProduct(p: MenuProduct & { is_live?: boolean }): boolean {
-  return p.is_live === false;
-}
-
 export default function ShopPageClient({
   shop: initialShop,
   menuProducts: initialProducts,
@@ -91,13 +86,13 @@ export default function ShopPageClient({
         'postgres_changes' as any,
         { event: '*', schema: 'public', table: 'products', filter: `site_id=eq.${siteId}` },
         (payload: { eventType: string; new?: MenuProduct & { is_live?: boolean }; old?: { id?: string } }) => {
-          setProducts(prev => {
-            const merged = applyRowChange(
-              prev as Array<MenuProduct & { id?: string }>,
-              payload as never,
-            ) as Array<MenuProduct & { is_live?: boolean }>;
-            return merged.filter(p => !shouldExcludeProduct(p));
-          });
+          // An owner toggling a dish sold-out mid-service updates the row;
+          // it must stay in the list and re-render greyed, not vanish under
+          // the reader's thumb.
+          setProducts(prev => applyRowChange(
+            prev as Array<MenuProduct & { id?: string }>,
+            payload as never,
+          ) as MenuProduct[]);
         },
       )
       .on(

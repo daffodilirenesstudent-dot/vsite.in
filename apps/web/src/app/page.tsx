@@ -131,7 +131,7 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(siteNavigationSchema) }}
       />
       <main className="min-h-screen bg-paper font-display text-ink antialiased selection:bg-primary/20 selection:text-accent-text">
-        <Navbar />
+        <Navbar overDark />
         <HeroSection />
         <TrustBar />
         <CostOfPaper />

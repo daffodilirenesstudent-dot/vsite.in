@@ -4,13 +4,23 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import QRMenuTemplate, { type Tier } from '@/components/templates/QRMenuTemplate';
 
+/**
+ * Sample menu for the preview route.
+ *
+ * Deliberately covers every card state the template can render — plain, each
+ * of the three recommendation badges, an active offer, an offer WITH a badge,
+ * and a missing photo — so this route doubles as the visual harness the card
+ * is tested against. Prices and copy are obvious placeholders.
+ */
 const SAMPLE_PRODUCTS = [
-  { id: '1', name: 'The Matilda Cake', selling_price: 280, description: 'One serve includes 100ml of milk added sugar and coffee powder', category: 'Signature Cakes', food_type: 'veg', is_live: true, image_url: null },
-  { id: '2', name: 'Heaven Cake', selling_price: 399, description: 'One serve includes 100ml of milk added sugar and coffee powder', category: 'Signature Cakes', food_type: 'egg', is_live: true, image_url: null },
-  { id: '3', name: 'Milk Cake', selling_price: 200, description: 'One serve includes 100ml of milk added sugar and coffee powder', category: 'Signature Cakes', food_type: 'veg', is_live: true, image_url: null },
-  { id: '4', name: 'Chocolate Milk Shake', selling_price: 195, description: 'One serve includes 100ml of milk added sugar and coffee powder', category: 'Milk Shake', food_type: 'veg', is_live: true, image_url: null },
-  { id: '5', name: 'Oreo Milk Shake', selling_price: 180, description: 'One serve includes 100ml of milk added sugar and coffee powder', category: 'Milk Shake', food_type: 'veg', is_live: true, image_url: null },
-  { id: '6', name: 'Smoothy Waffle', selling_price: 200, description: 'One serve includes 100ml of milk added sugar and coffee powder', category: 'Waffles', food_type: 'veg', is_live: true, image_url: null },
+  { id: '1', name: 'The Matilda Cake', selling_price: 280, description: 'Three layers of dark chocolate sponge, salted caramel between each, finished with a bitter ganache.', category: 'Signature Cakes', food_type: 'veg', is_live: true, image_url: null, ks_quadrant: 'Star' },
+  { id: '2', name: 'Heaven Cake', selling_price: 399, description: 'Vanilla bean sponge soaked in cream, layered with fresh strawberries and a light mascarpone.', category: 'Signature Cakes', food_type: 'egg', is_live: true, image_url: null, ks_quadrant: 'Puzzle',
+    metadata: { discount_enabled: true, original_price: 549, discount_pct: 27 } },
+  { id: '3', name: 'Milk Cake', selling_price: 200, description: 'Slow-reduced milk set with cardamom and pistachio, cut thick.', category: 'Signature Cakes', food_type: 'veg', is_live: true, image_url: null },
+  { id: '4', name: 'Chocolate Milk Shake', selling_price: 195, description: 'Cocoa, whole milk and vanilla ice cream, blended thick enough to need a spoon.', category: 'Milk Shake', food_type: 'veg', is_live: true, image_url: null, ks_quadrant: 'Plowhorse',
+    metadata: { discount_enabled: true, original_price: 260 } },
+  { id: '5', name: 'Oreo Milk Shake', selling_price: 180, description: 'Crushed biscuit through cold milk, topped with cream and more biscuit.', category: 'Milk Shake', food_type: 'veg', is_live: true, image_url: null },
+  { id: '6', name: 'Smoothy Waffle', selling_price: 200, description: 'Belgian waffle, seasonal fruit, honey and a scoop of the day.', category: 'Waffles', food_type: 'veg', is_live: true, image_url: null, ks_quadrant: 'Dog' },
 ];
 
 function PreviewContent() {

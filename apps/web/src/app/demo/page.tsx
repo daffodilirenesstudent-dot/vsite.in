@@ -1,8 +1,20 @@
 import type { Metadata } from 'next';
-import { whatsappUrl } from '@/lib/platform/brand';
 import Link from 'next/link';
+import {
+    ArrowRight,
+    ExternalLink,
+    ImageIcon,
+    MessageCircle,
+    Pencil,
+    QrCode,
+    Rocket,
+    ScanLine,
+    type LucideIcon,
+} from 'lucide-react';
+import { whatsappUrl } from '@/lib/platform/brand';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
+import Reveal from '@/components/home/Reveal';
 
 const BASE_URL = 'https://vsite.in';
 const TITLE = 'Book a Free Demo — vsite Digital Menu for Restaurants';
@@ -32,6 +44,52 @@ const jsonLd = {
     publisher: { '@type': 'Organization', name: 'vsite', url: BASE_URL },
 };
 
+/**
+ * The fifteen minutes, minute by minute.
+ *
+ * This was a five-item list in which items 4 and 5 — "Real-time menu updates"
+ * and "Live menu updates" — described the same thing twice, back to back. It
+ * is now four beats with the time each one takes, which is the actual promise
+ * the headline makes: the demo is short, and here is where the time goes.
+ */
+const walkthrough: { minutes: string; title: string; desc: string; icon: LucideIcon }[] = [
+    {
+        minutes: '0–4 min',
+        title: 'Your menu, photographed and read',
+        desc: 'We use your actual paper menu, not a sample. The AI reads it on the call so you see exactly what your setup produces.',
+        icon: ScanLine,
+    },
+    {
+        minutes: '4–8 min',
+        title: 'Photos appear on every dish',
+        desc: 'Watch each item get matched to a food photo automatically — and see how to swap one when you would rather use your own.',
+        icon: ImageIcon,
+    },
+    {
+        minutes: '8–12 min',
+        title: 'The QR code, scanned on a real phone',
+        desc: 'We put the code on screen, scan it, and walk your customer’s side of it end to end — including the Tamil toggle.',
+        icon: QrCode,
+    },
+    {
+        minutes: '12–15 min',
+        title: 'A price change, live',
+        desc: 'You change a price or mark a dish sold out in the dashboard and watch the table menu update while you are still looking at it.',
+        icon: Pencil,
+    },
+];
+
+const relatedLinks = [
+    { label: 'Features', href: '/features' },
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'QR code menu', href: '/qr-menu' },
+    { label: 'Digital menu in India', href: '/digital-menu-india' },
+    { label: 'AI menu builder', href: '/ai-menu-builder' },
+    { label: 'Restaurant menu software', href: '/restaurant-menu-software' },
+    { label: 'Blog', href: '/blog' },
+    { label: 'Support', href: '/support' },
+];
+
 export default function DemoPage() {
     return (
         <>
@@ -42,134 +100,145 @@ export default function DemoPage() {
             <Navbar />
 
             {/* Hero */}
-            <section className="bg-gradient-to-br from-violet-50 via-purple-50 to-slate-50 pt-24 pb-16">
-                <div className="max-w-3xl mx-auto px-4 text-center">
-                    <p className="text-primary text-xs font-bold uppercase tracking-widest">Book a Demo</p>
-                    <h1 className="text-4xl sm:text-5xl font-extrabold font-display text-slate-900 mt-4 leading-tight">
-                        See vsite in 15 Minutes
+            <section className="border-b border-line bg-paper-2 px-5 pt-32 pb-section lg:pb-section-lg">
+                <div className="mx-auto max-w-3xl text-center">
+                    <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+                        Book a demo
+                    </p>
+                    <h1 className="mt-5 font-display text-h2 font-bold text-ink">
+                        Fifteen minutes, with your own menu.
                     </h1>
-                    <p className="text-slate-600 mt-5 text-lg leading-relaxed">
-                        Message us on WhatsApp — we&apos;ll set up a short live walkthrough of your digital menu,
-                        answer any questions, and help you get live on vsite the same day.
+                    <p className="mx-auto mt-6 max-w-2xl text-body text-ink-70">
+                        Message us on WhatsApp and we’ll set up a short live walkthrough using your
+                        actual menu — questions answered, and you can be live the same day.
                     </p>
                 </div>
             </section>
 
-            {/* Primary CTAs */}
-            <section className="bg-white py-16">
-                <div className="max-w-3xl mx-auto px-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* The two ways in */}
+            <section className="bg-paper px-5 py-section lg:py-section-lg">
+                <div className="mx-auto max-w-3xl">
+                    <Reveal stagger={90} className="grid grid-cols-1 gap-5 md:grid-cols-2">
                         {/* WhatsApp demo */}
-                        <div className="rounded-2xl border border-slate-200 p-7 bg-white">
-                            <div className="h-12 w-12 rounded-xl bg-[#25D366]/10 flex items-center justify-center mb-4">
-                                <span className="material-symbols-outlined text-[#25D366] text-2xl">chat</span>
+                        <div data-reveal="up" className="flex flex-col rounded-2xl border border-line bg-paper-2 p-7">
+                            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#25D366]/10">
+                                <MessageCircle className="h-5 w-5 text-[#1EA952]" strokeWidth={2} aria-hidden />
                             </div>
-                            <h2 className="text-xl font-bold text-slate-900">WhatsApp Demo</h2>
-                            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                                Fastest option. Message our team and we&apos;ll schedule a 15-minute
-                                walkthrough at your convenience — usually the same day.
+                            <h2 className="font-display text-h3 font-bold text-ink">Walk me through it</h2>
+                            <p className="mt-2 flex-1 text-caption leading-relaxed text-ink-70">
+                                The fastest way in. Message the team and we’ll book a 15-minute
+                                walkthrough when it suits you — usually the same day.
                             </p>
                             <a
                                 href={WHATSAPP_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="mt-5 inline-flex items-center justify-center gap-1.5 w-full rounded-[10px] bg-[#25D366] px-5 py-3 text-sm font-bold text-white hover:bg-[#20b858] transition-colors"
+                                className="press mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#1EA952] px-5 py-3.5 font-semibold text-white transition-colors hover:bg-[#178943] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             >
                                 Message on WhatsApp
-                                <span className="material-symbols-outlined text-base">open_in_new</span>
+                                <ExternalLink className="h-4 w-4" strokeWidth={2.2} aria-hidden />
                             </a>
-                            <p className="text-xs text-slate-400 mt-2 text-center">
+                            <p className="mt-3 text-center text-caption text-ink-45">
                                 Reply within 2 hours on business days
                             </p>
                         </div>
 
                         {/* Try it yourself */}
-                        <div className="rounded-2xl border border-slate-200 p-7 bg-white">
-                            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                                <span className="material-symbols-outlined text-primary text-2xl">play_arrow</span>
+                        <div data-reveal="up" className="flex flex-col rounded-2xl border border-line bg-paper-2 p-7">
+                            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                                <Rocket className="h-5 w-5 text-primary" strokeWidth={2} aria-hidden />
                             </div>
-                            <h2 className="text-xl font-bold text-slate-900">Try It Yourself</h2>
-                            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                                Prefer to explore first? Start the 7-day free trial and have your
-                                menu live in 3 minutes. No credit card required, no pressure.
+                            <h2 className="font-display text-h3 font-bold text-ink">I’d rather just try it</h2>
+                            <p className="mt-2 flex-1 text-caption leading-relaxed text-ink-70">
+                                Skip the call. Start the 7-day trial and have your menu live in
+                                three minutes. No card, no pressure, no salesperson.
                             </p>
                             <Link
                                 href="/signup"
-                                className="mt-5 inline-flex items-center justify-center gap-1.5 w-full rounded-[10px] bg-primary px-5 py-3 text-sm font-bold text-white shadow-md shadow-primary/25 hover:bg-primary-dark transition-colors"
+                                className="press group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 font-semibold text-white shadow-md shadow-primary/25 transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             >
-                                Start Free Trial
-                                <span className="material-symbols-outlined text-base">arrow_forward</span>
+                                Start free — 7 days
+                                <ArrowRight className="cta-arrow h-5 w-5" strokeWidth={2.2} aria-hidden />
                             </Link>
-                            <p className="text-xs text-slate-400 mt-2 text-center">
-                                7-day trial · No credit card
+                            <p className="mt-3 text-center text-caption text-ink-45">
+                                No card today · Cancel from your dashboard
                             </p>
                         </div>
-                    </div>
+                    </Reveal>
 
                     {/* Email/phone fallback */}
-                    <div className="mt-8 rounded-2xl bg-background-light border border-slate-200 p-6">
-                        <p className="text-sm text-slate-700 text-center">
+                    <Reveal delay={160}>
+                        <p className="mt-8 rounded-2xl border border-line bg-paper-2 px-6 py-5 text-center text-caption text-ink-70">
                             Prefer email or phone?{' '}
-                            <a href="mailto:official@vsite.in" className="font-semibold text-primary hover:underline">
+                            <a href="mailto:official@vsite.in" className="font-semibold text-accent-text hover:underline">
                                 official@vsite.in
                             </a>
-                            {' '}· Visit our{' '}
-                            <Link href="/contact" className="font-semibold text-primary hover:underline">
+                            {' '}· Every other way to reach us is on the{' '}
+                            <Link href="/contact" className="font-semibold text-accent-text hover:underline">
                                 contact page
                             </Link>
-                            {' '}for all options.
+                            .
                         </p>
-                    </div>
+                    </Reveal>
                 </div>
             </section>
 
-            {/* What you'll see */}
-            <section className="bg-background-light py-16">
-                <div className="max-w-3xl mx-auto px-4">
-                    <h2 className="text-2xl font-bold text-slate-900 text-center mb-10">
-                        What We&apos;ll Show You
-                    </h2>
-                    <div className="space-y-3">
-                        {[
-                            { icon: 'upload', title: 'Upload a paper menu — watch AI read it', desc: 'We use your actual menu so you see exactly what your setup will look like.' },
-                            { icon: 'image', title: 'AI food photo generation', desc: 'See how every dish gets a professional food image automatically.' },
-                            { icon: 'qr_code_2', title: 'QR code + NFC card in action', desc: 'We scan your live menu on a phone and walk through the customer experience.' },
-                            { icon: 'edit', title: 'Real-time menu updates', desc: 'Change a price in the dashboard — watch it reflect instantly on the customer menu.' },
-                            { icon: 'receipt', title: 'Live menu updates', desc: 'Change a price or mark an item sold out and watch the menu update instantly.' },
-                        ].map((item) => (
-                            <div key={item.title} className="flex gap-4 rounded-2xl bg-white border border-slate-200 p-5">
-                                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                                    <span className="material-symbols-outlined text-primary">{item.icon}</span>
+            {/* What the fifteen minutes are spent on.
+                A timed agenda rather than a feature list: the headline promises
+                a short call, so the section shows where the time actually goes. */}
+            <section className="bg-paper-2 px-5 py-section lg:py-section-lg">
+                <div className="mx-auto max-w-3xl">
+                    <Reveal>
+                        <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+                            The agenda
+                        </p>
+                        <h2 className="mt-5 font-display text-h2 font-bold text-ink">
+                            Where the fifteen minutes go.
+                        </h2>
+                    </Reveal>
+
+                    <Reveal stagger={80} className="mt-10 flex flex-col">
+                        {walkthrough.map((item, i) => {
+                            const Icon = item.icon;
+                            return (
+                                <div
+                                    key={item.title}
+                                    data-reveal="up"
+                                    className={`flex gap-5 border-t border-[#D9D3C8] py-6 ${
+                                        i === walkthrough.length - 1 ? 'border-b' : ''
+                                    }`}
+                                >
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-paper">
+                                        <Icon className="h-5 w-5 text-primary" strokeWidth={2} aria-hidden />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-caption font-semibold uppercase tracking-[0.08em] tabular-nums text-ink-45">
+                                            {item.minutes}
+                                        </p>
+                                        <h3 className="mt-1.5 font-semibold text-ink">{item.title}</h3>
+                                        <p className="mt-1.5 text-caption leading-relaxed text-ink-70">
+                                            {item.desc}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="font-semibold text-slate-900 text-sm">{item.title}</h3>
-                                    <p className="text-sm text-slate-600 mt-1 leading-relaxed">{item.desc}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            );
+                        })}
+                    </Reveal>
                 </div>
             </section>
 
             {/* Internal links */}
-            <section className="bg-white py-12">
-                <div className="max-w-3xl mx-auto px-4 text-center">
-                    <h2 className="text-lg font-bold text-slate-900 mb-4">Or Read First</h2>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                        {[
-                            { label: 'Features', href: '/features' },
-                            { label: 'Pricing', href: '/pricing' },
-                            { label: 'QR Code Menu', href: '/qr-menu' },
-                            { label: 'Digital Menu India', href: '/digital-menu-india' },
-                            { label: 'AI Menu Builder', href: '/ai-menu-builder' },
-                            { label: 'Restaurant Menu Software', href: '/restaurant-menu-software' },
-                            { label: 'Blog', href: '/blog' },
-                            { label: 'Support', href: '/support' },
-                        ].map((l) => (
+            <section className="bg-paper px-5 py-section lg:py-section-lg">
+                <div className="mx-auto max-w-3xl text-center">
+                    <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+                        Or read first
+                    </p>
+                    <div className="mt-6 flex flex-wrap justify-center gap-2">
+                        {relatedLinks.map((l) => (
                             <Link
                                 key={l.href}
                                 href={l.href}
-                                className="text-sm bg-slate-100 hover:bg-primary/10 hover:text-primary text-slate-700 px-4 py-2 rounded-full transition-colors"
+                                className="rounded-full border border-line bg-paper-2 px-4 py-2 text-caption font-medium text-ink-70 transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-ink"
                             >
                                 {l.label}
                             </Link>

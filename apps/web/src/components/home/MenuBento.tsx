@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
+import OfferDemo from './OfferDemo';
 import { Info, Nfc, QrCode } from 'lucide-react';
 import Reveal from './Reveal';
 
@@ -73,20 +74,32 @@ export default function MenuBento() {
                         </div>
                     </Tile>
 
-                    <Tile
-                        title="Offers, live in a minute"
-                        body="Type the offer, hit save. Every diner who scans after that sees it. No designer, no print shop."
+                    {/* Offers — the section's second working control. Two columns
+                        so the switch and the diner's phone sit side by side; the
+                        cause and its effect have to be in one glance or the demo
+                        does not land. */}
+                    <div
+                        data-reveal="up"
+                        className="lift flex flex-col rounded-card-lg border border-line bg-white p-7 sm:col-span-2 sm:p-9"
                     >
-                        <div className="flex h-12 items-center rounded-lg bg-gradient-to-r from-primary to-violet-600 px-3.5">
-                            <span className="text-[13px] font-bold text-white">Lunch thali ₹120 · till 3pm</span>
+                        <div className="mb-6 max-w-lg">
+                            <h3 className="text-h3 font-semibold text-ink">Offers, live in a minute</h3>
+                            <p className="mt-2 text-[15px] leading-relaxed text-ink-70">
+                                Type the offer, hit save. Every diner who scans after that sees it.
+                                No designer, no print shop.
+                            </p>
                         </div>
-                    </Tile>
 
-                    <Tile
-                        title="NFC card + stickers, posted"
-                        body="Tap or scan — older phones scan, newer ones just tap. Included, not an add-on."
+                        <OfferDemo />
+                    </div>
+
+                    {/* NFC — full width. With Offers now two columns wide this
+                        would otherwise sit alone beside two empty cells. */}
+                    <div
+                        data-reveal="up"
+                        className="lift flex flex-col gap-5 rounded-card-lg border border-line bg-white p-7 sm:col-span-2 sm:flex-row sm:items-center sm:gap-7 lg:col-span-3"
                     >
-                        <div className="flex gap-2.5">
+                        <div className="flex shrink-0 gap-2.5">
                             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-ink">
                                 <QrCode className="h-6 w-6 text-paper" strokeWidth={1.7} aria-hidden />
                             </div>
@@ -94,7 +107,13 @@ export default function MenuBento() {
                                 <Nfc className="h-6 w-6 text-ink-70" strokeWidth={1.7} aria-hidden />
                             </div>
                         </div>
-                    </Tile>
+                        <div className="min-w-0">
+                            <h3 className="text-h3 font-semibold text-ink">NFC card + stickers, posted</h3>
+                            <p className="mt-2 text-[15px] leading-relaxed text-ink-70">
+                                Tap or scan — older phones scan, newer ones just tap. Included, not an add-on.
+                            </p>
+                        </div>
+                    </div>
 
                 </Reveal>
 
@@ -141,7 +160,7 @@ function SoldOutDemo() {
 
     return (
         <div className="mt-8">
-            <div data-mock="true" className="flex flex-col gap-2.5 sm:flex-row">
+            <div data-testid="sold-out-demo" data-mock="true" className="flex flex-col gap-2.5 sm:flex-row">
                 {DEMO_DISHES.map((d) => {
                     const on = available[d.id];
                     return (
@@ -202,6 +221,11 @@ function SoldOutDemo() {
  * tinted rounded square is the house style of every SaaS template on earth,
  * and it would be the one decorative element on a page whose whole argument
  * is that everything on it is real.
+ *
+ * `justify-center` because these short tiles stretch to match the tall demo
+ * cards beside them. Top-aligned content leaves a visible void underneath;
+ * centred reads as deliberate. No effect on mobile, where each card is only as
+ * tall as its own content.
  */
 function Tile({
     title,
@@ -213,7 +237,7 @@ function Tile({
     children: React.ReactNode;
 }) {
     return (
-        <div data-reveal="up" className="lift flex flex-col rounded-card-lg border border-line bg-white p-7">
+        <div data-reveal="up" className="lift flex flex-col justify-center rounded-card-lg border border-line bg-white p-7">
             <div className="mb-5">{children}</div>
             <h3 className="text-h3 font-semibold text-ink">{title}</h3>
             <p className="mt-2 text-[15px] leading-relaxed text-ink-70">{body}</p>

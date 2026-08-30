@@ -1,52 +1,59 @@
-'use client';
-
-import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import Reveal from '@/components/home/Reveal';
 import { FAQ_GROUPS } from './faqData';
 
+/**
+ * The help centre, grouped.
+ *
+ * Native <details>/<summary> replaces the `useState` accordion: keyboard
+ * accessible for free, works with JS off, and — the reason that matters for a
+ * support page — the answers stay in the DOM, so Google can index them and a
+ * browser's own find-in-page can reach them without the reader opening every
+ * row first. The component no longer needs a client boundary.
+ */
+
 export default function SupportFAQ() {
-  const [openId, setOpenId] = useState<string | null>(null);
-
   return (
-    <section className="py-14 sm:py-20 px-4 bg-background-light">
+    <section className="bg-paper-2 px-5 py-section lg:py-section-lg">
       <div className="mx-auto max-w-3xl">
-        <div className="text-center mb-12">
-          <span className="text-xs font-bold uppercase tracking-widest text-primary">FAQ</span>
-          <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold font-display text-slate-900">
-            Frequently Asked Questions
+        <Reveal className="text-center">
+          <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+            Answers
+          </p>
+          <h2 className="mt-5 font-display text-h2 font-bold text-ink">
+            The questions we get most.
           </h2>
-        </div>
+        </Reveal>
 
-        {FAQ_GROUPS.map((group) => (
-          <div key={group.id} id={group.id} className="scroll-mt-24 mb-8">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">
-              {group.label}
-            </h3>
-            <div className="space-y-2">
-              {group.items.map((item) => (
-                <div key={item.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                  <button
-                    onClick={() => setOpenId(openId === item.id ? null : item.id)}
-                    aria-expanded={openId === item.id}
-                    className="w-full flex items-center justify-between gap-3 px-5 py-4 sm:py-5 text-left"
+        <div className="mt-12 space-y-12">
+          {FAQ_GROUPS.map((group) => (
+            <div key={group.id} id={group.id} className="scroll-mt-28">
+              <h3 className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+                {group.label}
+              </h3>
+              <div className="mt-3 flex flex-col">
+                {group.items.map((item, i) => (
+                  <details
+                    key={item.id}
+                    className={`group border-t border-[#D9D3C8] ${
+                      i === group.items.length - 1 ? 'border-b' : ''
+                    }`}
                   >
-                    <span className="font-bold text-slate-900 text-base leading-snug">{item.q}</span>
-                    <span
-                      className="material-symbols-outlined text-primary text-xl shrink-0 transition-transform duration-200"
-                      style={{ transform: openId === item.id ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                    >
-                      expand_more
-                    </span>
-                  </button>
-                  {openId === item.id && (
-                    <div className="px-5 pb-5 text-slate-600 text-sm leading-relaxed border-t border-slate-100 pt-4">
-                      {item.a}
-                    </div>
-                  )}
-                </div>
-              ))}
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                      {item.q}
+                      <ChevronDown
+                        className="h-5 w-5 shrink-0 text-ink-45 transition-transform duration-300 ease-out-expo group-open:rotate-180"
+                        strokeWidth={2}
+                        aria-hidden
+                      />
+                    </summary>
+                    <p className="pb-5 pr-9 text-base leading-relaxed text-ink-70">{item.a}</p>
+                  </details>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );

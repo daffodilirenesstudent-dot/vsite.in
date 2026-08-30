@@ -90,13 +90,13 @@ export default function HeroSection() {
                     <h1 className="mt-6 font-display text-display font-bold text-on-night">
                         <RevealLines
                             lines={[
-                                'Your paper menu.',
-                                'A QR code.',
+                                'Your paper menu',
+                                'Into QR code.',
                                 <span
                                     key="3"
                                     className="bg-gradient-to-r from-[#C7C4FF] via-[#A9A7FF] to-[#F0A868] bg-clip-text text-transparent"
                                 >
-                                    Three minutes.
+                                    in Three minutes.
                                 </span>,
                             ]}
                         />

@@ -18,18 +18,24 @@ const NAV_LINKS = [
  *
  * The old bar was an opaque white strip sitting on top of a dark hero, which
  * cut the hero off at the top and made the page start with a seam. This one
- * rides transparent over the hero and only materialises — background, border,
- * shadow — once you have scrolled past it. Two states, one component:
+ * can ride transparent over a dark hero and only materialise — background,
+ * border, shadow — once you have scrolled past it. Two states, one component:
  *
- *   over the hero  → light-on-dark, no chrome
- *   scrolled       → paper background, ink text, hairline + reading progress
+ *   over a dark hero  → light-on-dark, no chrome
+ *   everywhere else   → paper background, ink text, hairline + reading progress
+ *
+ * `overDark` is opt-in and defaults to false, which is the important part: the
+ * transparent treatment used to be unconditional, so on the light inner pages
+ * (features, pricing, demo, blog, support) the bar painted white-on-white and
+ * the links only appeared once you scrolled. The homepage is the only page
+ * with a dark hero, so it is the only caller that passes it.
  *
  * The progress bar under the border uses the scroll-driven CSS from
  * globals.css, so it costs no JS and simply does not appear where the browser
  * lacks support.
  */
 
-export default function Navbar() {
+export default function Navbar({ overDark = false }: { overDark?: boolean }) {
     const [open, setOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
 
@@ -55,8 +61,9 @@ export default function Navbar() {
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    // While the sheet is open the bar always uses its solid treatment.
-    const onDark = !scrolled && !open;
+    // Only pages that opt in get the transparent treatment, and only before
+    // scroll. While the sheet is open the bar always uses its solid state.
+    const onDark = overDark && !scrolled && !open;
 
     return (
         <>

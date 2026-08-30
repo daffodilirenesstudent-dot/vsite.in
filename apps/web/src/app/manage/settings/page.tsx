@@ -700,7 +700,7 @@ export default function SettingsPage() {
                 .eq('user_id', user?.id ?? '')
                 .neq('id', siteId);
             await refreshSites();
-            router.replace((remaining?.length ?? 0) > 0 ? '/manage/dashboard' : '/onboarding?new=true');
+            router.replace((remaining?.length ?? 0) > 0 ? '/manage/dashboard' : '/onboarding?intent=first-store');
         } catch (err) {
             console.error('Delete store error:', err);
             toast.error('Failed to delete store');

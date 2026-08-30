@@ -160,13 +160,22 @@ describe('sold out', () => {
 describe('detail sheet', () => {
     const tpl = () => shipped(TEMPLATE);
 
-    it('lists variant prices read-only rather than as selectable pills', () => {
-        // The pill set was driven by selectedVariantIdx; in a read-only sheet
-        // there is nothing to select.
-        expect(
-            tpl(),
-            'variant selection state has no meaning on a menu that takes no orders',
-        ).not.toMatch(/setSelectedVariantIdx/);
+    it('lists variant prices read-only when nothing can be ordered', () => {
+        const src = tpl();
+
+        // The read-only list must exist and be the branch taken on the view
+        // tier — that is the defect being fixed.
+        expect(src, 'no read-only price row').toMatch(/variant-price-row/);
+        expect(src, 'the read-only list must be gated on !canOrder')
+            .toMatch(/\{!canOrder && variants\.map/);
+
+        // The selectable picker is deliberately RETAINED behind canOrder. It
+        // is what the freeze is hiding and it has to work the day ordering is
+        // switched back on — the same reason paymentAttacks.test.ts forces
+        // ORDERING_FROZEN off rather than letting the frozen payment defences
+        // rot. So this asserts the picker is GATED, not that it is gone.
+        expect(src, 'the picker must not render on the view tier')
+            .toMatch(/\{canOrder && variants\.map/);
     });
 
     it('tells a combo buyer what is inside', () => {

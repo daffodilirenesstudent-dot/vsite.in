@@ -103,7 +103,11 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
             .from('products')
             .select('id, name, selling_price, description, image_url, is_live, category, food_type, metadata, display_order, ks_quadrant, star_rating')
             .eq('site_id', site.id)
-            .neq('is_live', false)
+            // is_live=false is "sold out today", not "deleted". It used to be
+            // filtered out here, which left a diner unable to tell a finished
+            // dish from one that was never on the menu — so they asked staff,
+            // which is the question the menu exists to answer. The template
+            // renders these greyed and sinks them below the available items.
             .order('display_order', { ascending: true }),
         supabaseServer
             .from('banners')

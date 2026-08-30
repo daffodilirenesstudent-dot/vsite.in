@@ -5,6 +5,10 @@ import CartSheet from './CartSheet';
 import CheckoutScreen from './CheckoutScreen';
 import CounterWaitingScreen from './CounterWaitingScreen';
 import OrderConfirmedScreen from './OrderConfirmedScreen';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import MenuItemCard from './MenuItemCard';
+import { T } from './menuTokens';
+import { resolveBadge } from '@/lib/menu/badges';
 
 // ── VARIANT DESCRIPTION HELPERS ──────────────────────────────────────────────
 // When a description is stored as "variant-info || dish-description", returns
@@ -33,22 +37,7 @@ function toParagraph(desc: string | null | undefined): string {
 }
 
 // ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
-const T = {
-  pink: '#EF59A1',
-  vegGreen: '#13801C',
-  nonvegRed: '#FB2C36',
-  dark: '#191919',
-  nameColor: '#333333',
-  descColor: '#808080',
-  chipText: '#0A0A0A',
-  lightGray: '#C5C5C5',
-  border: '#E6E6E6',
-  chipBorder: '#D1D5DC',
-  cardBg: '#FAFAFA',
-  white: '#FFFFFF',
-  amber: '#FFBC11',
-  footerSub: '#484848',
-} as const;
+// Design tokens now live in ./menuTokens so MenuItemCard can share them.
 
 // ── TYPES ─────────────────────────────────────────────────────────────────────
 export type Tier = 'view' | 'order' | 'order_no_pay';
@@ -144,29 +133,9 @@ function ImgPlaceholder({ size }: { size: number }) {
   );
 }
 
-// ── QUADRANT BADGE ────────────────────────────────────────────────────────────
-function QuadrantBadge({ quadrant }: { quadrant?: string | null }) {
-  if (!quadrant || quadrant === 'Dog') return null;
-  const cfg: Record<string, { label: string; bg: string; color: string }> = {
-    Star:      { label: '★ Best Seller', bg: '#FFF3C4', color: '#92600A' },
-    Plowhorse: { label: '🔥 Popular',    bg: '#FEE2E2', color: '#991B1B' },
-    Puzzle:    { label: '✦ Chef\'s Pick', bg: '#EDE9FE', color: '#5B21B6' },
-  };
-  const c = cfg[quadrant];
-  if (!c) return null;
-  return (
-    <span aria-hidden="true" style={{
-      position: 'absolute', top: 0, left: 0, right: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '2px 0', background: c.bg,
-      fontFamily: "'Manrope',sans-serif", fontWeight: 700,
-      fontSize: 8, lineHeight: '11px', color: c.color,
-      whiteSpace: 'nowrap', letterSpacing: '0.02em',
-    }}>
-      {c.label}
-    </span>
-  );
-}
+// Recommendation badges moved to @/lib/menu/badges + MenuItemCard, so the
+// list and the detail sheet can no longer disagree about which dish is a
+// Best Seller. The old inline version was matched with two different casings.
 
 // ── BODY SCROLL LOCK ──────────────────────────────────────────────────────────
 function useBodyScrollLock() {
@@ -216,6 +185,21 @@ function ProductDetailSheet({
 
   const productType: 'variant' | 'combo' | 'single' =
     variants ? 'variant' : comboItems ? 'combo' : 'single';
+
+  /**
+   * On the view-only plan the sheet is a reference page, not a form.
+   *
+   * The ordering controls were already gated on tier, but the SIZE LIST was
+   * not: it kept rendering as tappable rows with a radio, so it looked like a
+   * choice, responded to a tap, and led nowhere. A diner who picks "Family"
+   * reasonably expects something to happen. Below, the same information is
+   * rendered as a read-only price list when nothing can be ordered.
+   *
+   * The selectable branch is deliberately KEPT rather than deleted — it is
+   * what the freeze is hiding, and it must still work on the day ordering is
+   * switched back on.
+   */
+  const canOrder = tier === 'order' || tier === 'order_no_pay';
 
   const isEditing = !!(editingCartItem && onReplaceCartItem);
 
@@ -276,7 +260,7 @@ function ProductDetailSheet({
         <div style={{
           width: '100%', maxWidth: 560,
           borderRadius: '30px 30px 0 0',
-          animation: 'qrSlideUp 0.28s cubic-bezier(0.34,1.2,0.64,1)',
+          animation: 'qrSheetUp 0.45s cubic-bezier(0.32, 0.72, 0, 1) both',
           maxHeight: '92dvh', display: 'flex', flexDirection: 'column',
           overflow: 'hidden', background: '#F1F0F5',
         }}>
@@ -373,16 +357,47 @@ function ProductDetailSheet({
               );
             })()}
 
-            {/* Prefer Quantity */}
+            {/* Sizes. A price list when nothing can be ordered, a picker when
+                it can. Same rows, same order — only the affordance differs. */}
             <p style={{
               fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 14,
               lineHeight: '12px', color: '#4C4C4C', margin: '0 0 10px 4px',
-            }}>Prefer Quantity</p>
+            }}>{canOrder ? 'Prefer Quantity' : 'Sizes'}</p>
             <div style={{
               background: T.white, border: '1px solid #E6E6E6', borderRadius: 10,
               overflow: 'hidden', marginBottom: 16,
             }}>
-              {variants.map((v, i) => (
+              {!canOrder && variants.map((v, i) => (
+                <div
+                  key={v.size}
+                  data-testid="variant-price-row"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 12px', width: '100%',
+                    borderBottom: i < variants.length - 1 ? '1px solid #F0F0F0' : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      fontFamily: "'Poppins',sans-serif", fontWeight: 500,
+                      fontSize: 15, lineHeight: '21px', color: '#231F23',
+                    }}>{v.size}</span>
+                    {v.recommended && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '2px 6px', background: '#FFEDE4', borderRadius: 17,
+                        fontFamily: "'Manrope',sans-serif", fontWeight: 600,
+                        fontSize: 11, lineHeight: '15px', color: '#F18145', whiteSpace: 'nowrap',
+                      }}>Recommended</span>
+                    )}
+                  </div>
+                  <span style={{
+                    fontFamily: "'Manrope',sans-serif", fontWeight: 800,
+                    fontSize: 16, color: '#191919',
+                  }}>{CURR}{v.price}</span>
+                </div>
+              ))}
+              {canOrder && variants.map((v, i) => (
                 <button
                   key={v.size}
                   onClick={() => setSelectedVariantIdx(i)}
@@ -463,6 +478,23 @@ function ProductDetailSheet({
           </div>
 
           {/* ── BOTTOM BAR ── */}
+          {!canOrder && (
+            <div
+              data-testid="order-with-staff"
+              style={{
+                padding: '14px 16px 20px', borderTop: `1px solid ${T.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9A949A" strokeWidth="1.8" style={{ flex: 'none' }} aria-hidden>
+                <path d="M20 15.5a2 2 0 0 1-2 2H8l-4 3.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+              </svg>
+              <span style={{
+                fontFamily: "'Poppins',sans-serif", fontWeight: 400,
+                fontSize: 13.5, color: '#6B646B',
+              }}>To order, please tell our staff</span>
+            </div>
+          )}
           {(tier === 'order' || tier === 'order_no_pay') && (
             <div style={{
               height: 70, flexShrink: 0,
@@ -576,7 +608,7 @@ function ProductDetailSheet({
       <div style={{
         width: '100%', maxWidth: 560,
         background: T.white, borderRadius: '20px 20px 0 0',
-        animation: 'qrSlideUp 0.28s cubic-bezier(0.34,1.2,0.64,1)',
+        animation: 'qrSheetUp 0.45s cubic-bezier(0.32, 0.72, 0, 1) both',
         maxHeight: '92dvh', display: 'flex', flexDirection: 'column',
         position: 'relative', overflow: 'hidden',
       }}>
@@ -600,20 +632,34 @@ function ProductDetailSheet({
             width: 44, height: 4, borderRadius: 100, background: 'rgba(255,255,255,0.85)',
             boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
           }} />
-          {/* Bestseller chip — top-left of image */}
-          {product.ks_quadrant === 'star' && (
-            <div style={{
-              position: 'absolute', top: 12, left: 12,
-              background: 'rgba(255,255,255,0.96)', borderRadius: 6,
-              padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-            }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B">
-                <path d="M12 2l2.9 6.9L22 10l-5.5 4.8L18 22l-6-3.6L6 22l1.5-7.2L2 10l7.1-1.1L12 2z"/>
-              </svg>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 11, color: '#92400E' }}>Bestseller</span>
-            </div>
-          )}
+          {/* Recommendation chip — top-left of image.
+              This tested `ks_quadrant === 'star'` in lowercase while the
+              database stores 'Star', so it never rendered once: the badge
+              showed in the list and vanished the moment the customer opened
+              the item, which is exactly when it matters. resolveBadge matches
+              case-insensitively and covers all three quadrants, not just one. */}
+          {(() => {
+            const b = resolveBadge(product.ks_quadrant);
+            if (!b) return null;
+            return (
+              <div style={{
+                position: 'absolute', top: 12, left: 12,
+                background: 'rgba(255,255,255,0.96)', borderRadius: 100,
+                padding: '5px 11px 5px 8px', display: 'flex', alignItems: 'center', gap: 5,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              }}>
+                <span style={{ display: 'flex', color: b.fg }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2l2.9 6.9L22 10l-5.5 4.8L18 22l-6-3.6L6 22l1.5-7.2L2 10l7.1-1.1z"/>
+                  </svg>
+                </span>
+                <span style={{
+                  fontFamily: "'Manrope',sans-serif", fontWeight: 700,
+                  fontSize: 11.5, color: b.fg,
+                }}>{b.label}</span>
+              </div>
+            );
+          })()}
         </div>
 
         <div style={{ padding: '18px 16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -726,6 +772,23 @@ function ProductDetailSheet({
         </div>
         </div>
 
+        {!canOrder && (
+          <div
+            data-testid="order-with-staff"
+            style={{
+              padding: '14px 16px 20px', borderTop: `1px solid ${T.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9A949A" strokeWidth="1.8" style={{ flex: 'none' }} aria-hidden>
+              <path d="M20 15.5a2 2 0 0 1-2 2H8l-4 3.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" strokeLinejoin="round" />
+            </svg>
+            <span style={{
+              fontFamily: "'Poppins',sans-serif", fontWeight: 400,
+              fontSize: 13.5, color: '#6B646B',
+            }}>To order, please tell our staff</span>
+          </div>
+        )}
         {(tier === 'order' || tier === 'order_no_pay') && (
           <div style={{
             width: '100%', flexShrink: 0,
@@ -987,6 +1050,13 @@ function SearchOverlay({
 }
 
 // ── BROWSE RESULT CARD ────────────────────────────────────────────────────────
+/**
+ * Search results. Now the same card as the main list.
+ *
+ * It used to be a second implementation with no discount branch at all, so a
+ * customer who searched for the dish you had discounted saw the full price and
+ * no sign an offer existed. One component means that cannot recur.
+ */
 function BrowseResultCard({
   product: p, tier, onSelect, currencyCode = 'INR',
 }: {
@@ -995,82 +1065,29 @@ function BrowseResultCard({
   onSelect: (p: MenuProduct) => void;
   currencyCode?: 'INR' | 'AED';
 }) {
-  const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
   const desc = hasRealVariants(p.metadata) ? getVariantDishDesc(p.description) : p.description;
+  const canAdd = tier === 'order' || tier === 'order_no_pay';
 
   return (
-    <div
-      className="qr-card"
-      onClick={() => onSelect(p)}
-      style={{
-        position: 'relative', width: '100%', height: 138,
-        background: T.cardBg, border: `1px solid ${T.border}`,
-        borderRadius: 6, cursor: 'pointer',
-      }}
-    >
-      {/* Thumbnail */}
-      <div style={{
-        position: 'absolute', right: 8, top: 8,
-        width: 108, height: 108, borderRadius: 10, overflow: 'hidden',
-        background: T.white,
-      }}>
-        {p.image_url
-          ? <img src={p.image_url} alt={p.name} loading="lazy" decoding="async"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          : <ImgPlaceholder size={108} />
-        }
-        <QuadrantBadge quadrant={p.ks_quadrant} />
-      </div>
-
-      {/* Veg dot + Name */}
-      <div style={{
-        position: 'absolute', left: 8, top: 8, right: 124,
-        display: 'flex', alignItems: 'center', gap: 6,
-      }}>
-        <VegDot foodType={p.food_type} />
-        <p style={{
-          margin: 0, flex: 1,
-          fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 14,
-          lineHeight: '21px', color: T.nameColor,
-          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-        }}>{p.name}</p>
-      </div>
-
-      {/* Description */}
-      {desc && (
-        <p style={{
-          position: 'absolute', left: 8, top: 33, right: 124, margin: 0,
-          fontFamily: "'Poppins',sans-serif", fontWeight: 300, fontSize: 10,
-          lineHeight: '16px', letterSpacing: '0.0161em', color: T.descColor,
-          display: '-webkit-box', WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        } as React.CSSProperties}>{desc}</p>
-      )}
-
-      {/* Price */}
-      <p style={{
-        position: 'absolute', left: 8, bottom: 8, margin: 0,
-        fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 16,
-        lineHeight: '24px', color: T.pink,
-      }}>{CURR}{p.selling_price}</p>
-
-      {/* ADD button */}
-      {(tier === 'order' || tier === 'order_no_pay') && (
+    <MenuItemCard
+      product={p}
+      description={desc}
+      currencyCode={currencyCode}
+      onSelect={() => onSelect(p)}
+      action={canAdd ? (
         <button
           onClick={e => { e.stopPropagation(); onSelect(p); }}
           aria-label={`Add ${p.name} to cart`}
           style={{
-            position: 'absolute', right: 33, bottom: 6,
-            width: 57, height: 26, borderRadius: 14,
+            width: 72, height: 28, borderRadius: 14,
             border: `1px solid ${T.pink}`, background: T.white, color: T.pink,
-            fontFamily: "'Manrope',sans-serif", fontWeight: 700,
-            fontSize: 12, cursor: 'pointer',
+            fontFamily: "'Manrope',sans-serif", fontWeight: 700, fontSize: 12,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0px 2px 6px rgba(0,0,0,0.12)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >ADD</button>
-      )}
-    </div>
+      ) : null}
+    />
   );
 }
 
@@ -1293,9 +1310,27 @@ export default function QRMenuTemplate({
     [banners],
   );
 
+  /**
+   * Sold-out items sink to the bottom of their own category.
+   *
+   * They stay on the menu — a diner who came in for ghee roast needs to know
+   * it is finished today rather than gone from the menu — but they must not
+   * interrupt the scan of what can actually be ordered. Stable within each
+   * group, so the owner's display_order still decides everything else.
+   */
+  const sinkSoldOut = (list: MenuProduct[]) => {
+    const available: MenuProduct[] = [];
+    const soldOut: MenuProduct[] = [];
+    for (const p of list) (p.is_live === false ? soldOut : available).push(p);
+    return [...available, ...soldOut];
+  };
+
   const sections = useMemo(() => {
     if (activeCategory !== 'All') {
-      return [{ category: activeCategory, products: menuProducts.filter(p => p.category === activeCategory) }];
+      return [{
+        category: activeCategory,
+        products: sinkSoldOut(menuProducts.filter(p => p.category === activeCategory)),
+      }];
     }
     const map = new Map<string, MenuProduct[]>();
     for (const p of menuProducts) {
@@ -1303,7 +1338,10 @@ export default function QRMenuTemplate({
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(p);
     }
-    return Array.from(map.entries()).map(([category, products]) => ({ category, products }));
+    return Array.from(map.entries()).map(([category, products]) => ({
+      category,
+      products: sinkSoldOut(products),
+    }));
   }, [menuProducts, activeCategory]);
 
   // Keep activeBanner in bounds when banners change
@@ -1374,20 +1412,86 @@ export default function QRMenuTemplate({
 
   return (
     <>
-      <style>{`
+      {/* Injected via dangerouslySetInnerHTML rather than as a JSX child.
+          React escapes quotes and apostrophes inside a text child differently
+          on the server than on the client, so attribute selectors like
+          [data-offer="true"] produced a hydration mismatch warning. CSS is not
+          user input here, so this is the standard way to ship it. */}
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes qrFadeIn  { from{opacity:0} to{opacity:1} }
         @keyframes qrSlideUp { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+        /* Detail sheet open. translateY(100%) on the iOS sheet curve — fast
+           departure, long settle, no overshoot. The previous 0.28s curve
+           overshot its endpoint, and a panel carrying a food photo should not
+           bounce. */
+        @keyframes qrSheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        /* The photo keeps settling AFTER the panel stops. That lag is what
+           gives the sheet depth instead of reading as a flat card. */
+        @keyframes qrSheetImg { from{transform:scale(1.06)} to{transform:scale(1)} }
+        @keyframes qrSheetRow { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+        .qr-sheet     { animation:qrSheetUp .45s cubic-bezier(0.32, 0.72, 0, 1) both; }
+        .qr-sheet-img { animation:qrSheetImg .70s cubic-bezier(0.32, 0.72, 0, 1) both; }
+        .qr-sheet-row { animation:qrSheetRow .26s cubic-bezier(0.32, 0.72, 0, 1) both; }
+        .qr-sheet-row:nth-child(1) { animation-delay:.18s; }
+        .qr-sheet-row:nth-child(2) { animation-delay:.24s; }
+        .qr-sheet-row:nth-child(3) { animation-delay:.30s; }
+        .qr-sheet-row:nth-child(4) { animation-delay:.36s; }
+        /* Information is never carried by the motion: under reduce every layer
+           resolves to its END state rather than staying hidden. */
+        @media (prefers-reduced-motion: reduce) {
+          .qr-sheet, .qr-sheet-img, .qr-sheet-row {
+            animation:none !important; opacity:1 !important; transform:none !important;
+          }
+        }
         @keyframes qrCartIn  { from{transform:translate(-50%,80px);opacity:0} to{transform:translate(-50%,0);opacity:1} }
         .qr-wrap * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
         .qr-wrap *::-webkit-scrollbar { display:none; }
         .qr-wrap * { scrollbar-width:none; }
         .qr-shell { width:100%; min-height:100dvh; background:${T.white}; display:flex; flex-direction:column; }
         .qr-chips { display:flex; flex-direction:row; align-items:center; padding:12px 16px; gap:12px; overflow-x:auto; background:${T.white}; min-height:60px; }
-        .qr-card { cursor:pointer; transition:box-shadow 0.12s; }
-        .qr-card:hover  { box-shadow:0 2px 12px rgba(0,0,0,0.07); }
-        .qr-card:active { box-shadow:none; opacity:0.9; }
+        /* Cards. The press state scales instead of dimming: a 2% squeeze reads
+           as a physical button on a phone, where an opacity drop reads as
+           "disabled". transform+box-shadow only, so it stays on the compositor. */
+        .qr-card { transition:box-shadow .18s ease, transform .18s cubic-bezier(.22,1,.36,1); }
+        .qr-card-press { cursor:pointer; }
+        .qr-card-press:hover  { box-shadow:0 2px 12px rgba(0,0,0,0.07); }
+        .qr-card-press:active { transform:scale(.985); }
+        .qr-card:focus-visible { outline:2px solid ${T.pink}; outline-offset:2px; }
+        /* A sold-out row is inert: no pointer, no lift, no press. The card
+           carries data-soldout so this cannot drift from the component. */
+        .qr-card[data-soldout="true"] { cursor:default; }
+        @media (prefers-reduced-motion: reduce) {
+          .qr-card, .qr-card-press:active { transition:none; transform:none; }
+        }
+
+        /* Photos fade in over their own skeleton instead of popping in as they
+           decode — the single jankiest thing on the screen on 4G. */
+        .qr-skel {
+          background:linear-gradient(90deg,#F1EFF0 25%,#E8E4E7 37%,#F1EFF0 63%);
+          background-size:400% 100%;
+          animation:qrShimmer 1.4s ease-in-out infinite;
+        }
+        @keyframes qrShimmer { 0%{background-position:100% 0} 100%{background-position:0 0} }
+        .qr-thumb-img { opacity:0; transition:opacity .35s ease; }
+        .qr-thumb-img[data-loaded="true"] { opacity:1; }
+
+        /* The offer ribbon's "live" dot. A slow breath, not a blink. */
+        .qr-blip { animation:qrBlip 1.9s ease-in-out infinite; }
+        @keyframes qrBlip {
+          0%,100% { opacity:1;  box-shadow:0 0 0 0 rgba(255,255,255,.6); }
+          50%     { opacity:.6; box-shadow:0 0 0 4px rgba(255,255,255,0); }
+        }
+
+        /* There was no reduced-motion guard anywhere in this template. Every
+           end state stays; only the movement goes. */
+        @media (prefers-reduced-motion: reduce) {
+          .qr-card, .qr-thumb-img { transition:none !important; }
+          .qr-card:active { transform:none !important; }
+          .qr-skel, .qr-blip { animation:none !important; }
+          .qr-thumb-img { opacity:1 !important; }
+        }
         .qr-section-hdr { display:flex; flex-direction:row; justify-content:space-between; align-items:center; padding:0px 10px 0px 16px; width:100%; height:24px; }
-      `}</style>
+      ` }} />
 
       <div className="qr-wrap qr-shell">
 
@@ -1586,164 +1690,71 @@ export default function QRMenuTemplate({
               }}>
                 {products.map(p => {
                   const desc = hasRealVariants(p.metadata) ? getVariantDishDesc(p.description) : p.description;
-                  const discountActive = p.metadata?.discount_enabled && p.metadata?.original_price;
-                  const discountPct = numMeta(p.metadata?.discount_pct);
+                  const cartQty = cart.filter(i => i.id === p.id).reduce((s, i) => s + i.qty, 0);
+                  const hasVariants = Array.isArray(p.metadata?.variants) && (p.metadata!.variants as unknown[]).length > 0;
 
-                  return (
+                  // The ADD control is passed in as a slot so MenuItemCard can
+                  // stay presentational and shared with the search results,
+                  // which have no cart at all.
+                  const action = !canOrder ? null : (cartQty > 0 ? (
                     <div
-                      key={p.id}
-                      className="qr-card"
-                      onClick={() => openProduct(p)}
+                      onClick={e => e.stopPropagation()}
                       style={{
-                        position: 'relative', width: '100%', height: 138,
-                        background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 6,
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        width: 84, height: 28, borderRadius: 14,
+                        background: T.pink, boxShadow: '0px 4px 10px rgba(239,89,161,0.45)',
                       }}
                     >
-                      {/* Thumbnail */}
-                      <div style={{
-                        position: 'absolute', right: 8, top: 8,
-                        width: 108, height: 108, borderRadius: 10, overflow: 'hidden', background: T.white,
-                      }}>
-                        {p.image_url
-                          ? <img src={p.image_url} alt={p.name} loading="lazy" decoding="async"
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                          : <ImgPlaceholder size={108} />
-                        }
-                        <QuadrantBadge quadrant={p.ks_quadrant} />
-                      </div>
-
-                      {/* Name row */}
-                      <div style={{ position: 'absolute', left: 8, top: 8, right: 124, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <VegDot foodType={p.food_type} />
-                        <p style={{
-                          margin: 0, flex: 1,
-                          fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 14,
-                          lineHeight: '21px', color: T.nameColor,
-                          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                        }}>{p.name}</p>
-                      </div>
-
-                      {/* Description */}
-                      {desc && (
-                        <p style={{
-                          position: 'absolute', left: 8, top: 33, right: 124, margin: 0,
-                          fontFamily: "'Poppins',sans-serif", fontWeight: 300, fontSize: 10,
-                          lineHeight: '16px', letterSpacing: '0.0161em', color: T.descColor,
-                          display: '-webkit-box', WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                        } as React.CSSProperties}>{desc}</p>
-                      )}
-
-                      {/* Price */}
-                      {discountActive && discountPct > 0 ? (
-                        <div style={{ position: 'absolute', left: 11, bottom: 8, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                            <span style={{ fontFamily: "'Manrope',sans-serif", fontWeight: 800, fontSize: 18, lineHeight: '25px', letterSpacing: '0.0161em', color: T.pink }}>
-                              {CURR}{p.selling_price}
-                            </span>
-                            <span style={{ fontFamily: "'Manrope',sans-serif", fontWeight: 400, fontSize: 10, lineHeight: '14px', textDecoration: 'line-through', color: T.descColor, alignSelf: 'center' }}>
-                              MRP {numMeta(p.metadata?.original_price)}
-                            </span>
-                          </div>
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '2px 6px', background: '#13801C', borderRadius: 3,
-                            fontFamily: "'Manrope',sans-serif", fontWeight: 600,
-                            fontSize: 11, lineHeight: '15px', color: '#FFFFFF', whiteSpace: 'nowrap',
-                          }}>Flat {discountPct}% Off</span>
-                        </div>
-                      ) : (
-                        <p style={{
-                          position: 'absolute', left: 8, bottom: 8, margin: 0,
-                          fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 16,
-                          lineHeight: '24px', color: T.pink,
-                        }}>{CURR}{p.selling_price}</p>
-                      )}
-
-                      {/* ADD / Qty stepper */}
-                      {canOrder && (() => {
-                        const cartQty = cart.filter(i => i.id === p.id).reduce((s, i) => s + i.qty, 0);
-                        const hasVariants = Array.isArray(p.metadata?.variants) && (p.metadata!.variants as unknown[]).length > 0;
-                        if (cartQty > 0 && hasVariants) {
-                          return (
-                            <div
-                              onClick={e => e.stopPropagation()}
-                              style={{
-                                position: 'absolute', right: 20, bottom: 6,
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                width: 84, height: 28, borderRadius: 14,
-                                background: T.pink,
-                                boxShadow: '0px 4px 10px rgba(239,89,161,0.45)',
-                              }}
-                            >
-                              <button
-                                onClick={e => { e.stopPropagation(); openProduct(p); }}
-                                aria-label="Edit variants"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                              </button>
-                              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, color: '#FFFFFF' }}>{cartQty}</span>
-                              <button
-                                onClick={e => { e.stopPropagation(); openProduct(p); }}
-                                aria-label="Add more"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                              </button>
-                            </div>
-                          );
-                        }
-                        if (cartQty > 0 && !hasVariants) {
-                          return (
-                            <div
-                              onClick={e => e.stopPropagation()}
-                              style={{
-                                position: 'absolute', right: 20, bottom: 6,
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                width: 84, height: 28, borderRadius: 14,
-                                background: T.pink,
-                                boxShadow: '0px 4px 10px rgba(239,89,161,0.45)',
-                              }}
-                            >
-                              <button
-                                onClick={e => { e.stopPropagation(); if (cartQty > 1) { updateQty(p.id, undefined, -1); } else { removeFromCart(p.id, undefined); } }}
-                                aria-label="Decrease"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                              </button>
-                              <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, color: '#FFFFFF' }}>{cartQty}</span>
-                              <button
-                                onClick={e => { e.stopPropagation(); addToCart(p, 1); }}
-                                aria-label="Increase"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                              </button>
-                            </div>
-                          );
-                        }
-                        return (
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              if (hasVariants) { openProduct(p); }
-                              else { addToCart(p, 1); }
-                            }}
-                            aria-label={`Add ${p.name} to cart`}
-                            style={{
-                              position: 'absolute', right: 33, bottom: 6,
-                              width: 57, height: 26, borderRadius: 14,
-                              border: `1px solid ${T.pink}`, background: T.white, color: T.pink,
-                              fontFamily: "'Manrope',sans-serif", fontWeight: 700, fontSize: 12, lineHeight: '12px',
-                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              boxShadow: '0px 2px 6px rgba(0,0,0,0.12)',
-                            }}
-                          >ADD</button>
-                        );
-                      })()}
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (hasVariants) { openProduct(p); return; }
+                          if (cartQty > 1) { updateQty(p.id, undefined, -1); } else { removeFromCart(p.id, undefined); }
+                        }}
+                        aria-label={`Remove one ${p.name}`}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                      </button>
+                      <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, color: '#FFFFFF' }}>{cartQty}</span>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (hasVariants) { openProduct(p); } else { addToCart(p, 1); }
+                        }}
+                        aria-label={`Add another ${p.name}`}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                      </button>
                     </div>
+                  ) : (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (hasVariants) { openProduct(p); } else { addToCart(p, 1); }
+                      }}
+                      aria-label={`Add ${p.name} to cart`}
+                      style={{
+                        width: 72, height: 28, borderRadius: 14,
+                        border: `1px solid ${T.pink}`, background: T.white, color: T.pink,
+                        fontFamily: "'Manrope',sans-serif", fontWeight: 700, fontSize: 12, lineHeight: '12px',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0px 2px 6px rgba(0,0,0,0.12)',
+                      }}
+                    >ADD</button>
+                  ));
+
+                  return (
+                    <MenuItemCard
+                      key={p.id}
+                      product={p}
+                      description={desc}
+                      currencyCode={currencyCode}
+                      onSelect={() => openProduct(p)}
+                      soldOut={p.is_live === false}
+                      action={p.is_live === false ? null : action}
+                    />
                   );
                 })}
               </div>
@@ -1915,7 +1926,7 @@ export default function QRMenuTemplate({
           onlineEnabled={onlineEnabled}
           gstRatePct={gstRatePct}
           currencyCode={currencyCode}
-          whatsappMode={whatsappOrderTaking && tier === 'order_no_pay'}
+          whatsappMode={!ORDERING_FROZEN && whatsappOrderTaking && tier === 'order_no_pay'}
           onCheckout={(pm) => { if (pm !== 'no_payment') setSelectedPaymentMethod(pm); setCartOpen(false); setCheckoutOpen(true); }}
           onEditItem={(item) => {
             const product = menuProducts.find(p => p.id === item.id);
@@ -1933,7 +1944,7 @@ export default function QRMenuTemplate({
           tableNumber={tableNumber}
           gstRatePct={gstRatePct}
           currencyCode={currencyCode}
-          whatsappMode={whatsappOrderTaking && tier === 'order_no_pay'}
+          whatsappMode={!ORDERING_FROZEN && whatsappOrderTaking && tier === 'order_no_pay'}
           onClose={() => setCheckoutOpen(false)}
           onOrderPlaced={(id, number, pm, counterNumber, tokenNumber) => {
             setCheckoutOpen(false);
