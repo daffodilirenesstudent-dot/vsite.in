@@ -137,7 +137,7 @@ describe('GET /api/orders/[id]/status — happy path (no signed token)', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.unstubAllGlobals());
 
-  it('200: returns all expected fields for a token order', async () => {
+  it('200: returns the progress fields a screen needs to show status', async () => {
     mockFetch([MOCK_ORDER_ROW]);
 
     const res = await GET(makeGet(ORDER_ID), { params: { id: ORDER_ID } });
@@ -148,8 +148,38 @@ describe('GET /api/orders/[id]/status — happy path (no signed token)', () => {
     expect(body.payment_method).toBe('online');
     expect(body.status).toBe('pending');
     expect(body.order_number).toBe('1234567');
-    expect(body.subtotal).toBe(160);
+  });
+
+  it('200: withholds PII and item data from an unauthenticated caller', async () => {
+    // Order ids appear in URLs and get shared. Anyone holding one can poll
+    // this endpoint, so an unsigned request gets progress only — never the
+    // customer's name, what they ate, or what they paid. This test previously
+    // asserted the opposite and so protected nothing.
+    mockFetch([MOCK_ORDER_ROW]);
+
+    const res = await GET(makeGet(ORDER_ID), { params: { id: ORDER_ID } });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.customer_name).toBeUndefined();
+    expect(body.items).toBeUndefined();
+    expect(body.subtotal).toBeUndefined();
+    expect(body.total_amount).toBeUndefined();
+    expect(body.gstin_snapshot).toBeUndefined();
+  });
+
+  it('200: a valid signed link DOES get the full receipt', async () => {
+    // The other half of the same rule: the signed link mailed to the customer
+    // is the one context where the full breakup is theirs to see.
+    vi.mocked(verifyOrderToken).mockReturnValue(ORDER_ID);
+    mockFetch([MOCK_ORDER_ROW]);
+
+    const res = await GET(makeGet(ORDER_ID, { t: 'valid-signed-token' }), {
+      params: { id: ORDER_ID },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
     expect(body.customer_name).toBe('Priya');
+    expect(body.subtotal).toBe(160);
     expect(body.items).toBeDefined();
   });
 

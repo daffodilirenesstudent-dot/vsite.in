@@ -20,6 +20,7 @@ import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
 import OpenAI from 'openai';
 import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 
+import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
@@ -320,7 +321,7 @@ export async function POST(request: NextRequest) {
     if (idemKey && idemKey.length > 0 && idemKey.length <= 200) {
       const cached = await readIdempotencyCache(idemKey, userId);
       if (cached) {
-        console.log(`[onboarding/complete] idempotency hit for key ${idemKey.slice(0, 8)}…`);
+        logger.debug(`[onboarding/complete] idempotency hit for key ${idemKey.slice(0, 8)}…`);
         return NextResponse.json(cached.body, { status: cached.status });
       }
     }

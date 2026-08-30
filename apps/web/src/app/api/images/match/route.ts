@@ -5,6 +5,7 @@ import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { matchByKeyword } from '@/lib/menu/defaultImages';
 import { rateLimit } from '@/lib/platform/rateLimit';
 
+import { logger } from '@/lib/platform/logger';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // One embedding round-trip + one Postgres RPC. Usually <2s but allow head-room.
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
         const kwMatch = matchByKeyword(safeQuery);
         if (kwMatch && (kwMatch.confidence ?? 1) >= 0.75) {
             if (process.env.NODE_ENV !== 'production') {
-                console.log(`[images/match] specific match for "${query}" (confidence=${kwMatch.confidence})`);
+                logger.debug(`[images/match] specific match for "${query}" (confidence=${kwMatch.confidence})`);
             }
             return NextResponse.json({ image_url: kwMatch.image_url, description: kwMatch.description, similarity: kwMatch.confidence ?? 1 });
         }
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
                 if (Number.isFinite(idx) && idx >= 0 && idx < data.length) {
                     chosen = data[idx];
                     if (process.env.NODE_ENV !== 'production') {
-                        console.log(`[images/match] rerank chose index ${idx} for "${query}"`);
+                        logger.debug(`[images/match] rerank chose index ${idx} for "${query}"`);
                     }
                 } else if (reply.toLowerCase().startsWith('none')) {
                     // LLM says no good match — fall back to keyword/fuzzy, else null
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`[images/match] query="${query}" → similarity=${chosen.similarity?.toFixed(3)}${ambiguous ? ' (reranked)' : ''}`);
+            logger.debug(`[images/match] query="${query}" → similarity=${chosen.similarity?.toFixed(3)}${ambiguous ? ' (reranked)' : ''}`);
         }
 
         return NextResponse.json({

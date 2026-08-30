@@ -10,12 +10,16 @@ import crypto from 'crypto';
 // ── Mock declarations BEFORE importing the routes ─────────────────────────────
 
 // Hoist the spy so it's accessible in test assertions
-const mockSubscriptionsCreate = vi.hoisted(() => vi.fn());
+// The route creates a Razorpay ORDER (one-off ₹299 charge), not a
+// subscription object. The mock previously exposed only `subscriptions`, so
+// `razorpay.orders` was undefined, the call threw, and the route's own
+// try/catch turned it into a 502 that read like a payment-provider outage.
+const mockOrdersCreate = vi.hoisted(() => vi.fn());
 
 // Mock Razorpay SDK
 vi.mock('razorpay', () => {
   class MockRazorpay {
-    subscriptions = { create: mockSubscriptionsCreate };
+    orders = { create: mockOrdersCreate };
     constructor(_opts: unknown) {}
   }
   return { default: MockRazorpay };
@@ -81,24 +85,78 @@ function mockVerify(uid: string | null) {
   vi.mocked(verifyFirebaseToken).mockResolvedValue(uid);
 }
 
+/**
+ * A chainable stand-in for a supabase-js query builder.
+ *
+ * The hand-written `select().eq().eq().single()` ladders these tests used to
+ * carry had to mirror each route's call chain exactly, so adding one `.eq()`
+ * — or swapping `.single()` for `.maybeSingle()` — turned a passing test into
+ * `undefined is not a function` and a 500, which then read as a route bug.
+ *
+ * This accepts any chain and resolves to `result` at the end of it, so the
+ * tests assert on what the route DOES with the row rather than on the exact
+ * shape of the query that fetched it.
+ */
+function qb(result: { data?: unknown; error?: unknown } = { data: null, error: null }) {
+  const settled = { data: result.data ?? null, error: result.error ?? null };
+  const chain: Record<string, unknown> = {
+    // Terminal calls.
+    single: vi.fn().mockResolvedValue(settled),
+    maybeSingle: vi.fn().mockResolvedValue(settled),
+    // Awaiting the builder itself (no .single()) resolves the same way.
+    then: (onFulfilled: (v: typeof settled) => unknown) => Promise.resolve(settled).then(onFulfilled),
+  };
+  // Everything else keeps the chain going.
+  for (const method of ['select', 'eq', 'neq', 'in', 'is', 'gt', 'gte', 'lt', 'lte',
+                        'order', 'limit', 'range', 'filter', 'match',
+                        'insert', 'update', 'upsert', 'delete']) {
+    chain[method] = vi.fn(() => chain);
+  }
+  return chain as never;
+}
+
+/**
+ * /api/images/match authenticates from the Firebase SESSION COOKIE, not from
+ * an Authorization header — the browser calls it directly during onboarding
+ * and never sees the OpenAI key. Requests built by `jsonRequest` carry a
+ * bearer header and are correctly rejected with 401.
+ */
+function cookieRequest(body: unknown, token = 'session-token'): NextRequest {
+  return new NextRequest(new URL('http://localhost/api/test'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      cookie: `sb-access-token=${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 // ── 1. /api/onboarding/complete ───────────────────────────────────────────────
 
 describe('POST /api/onboarding/complete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The route reads the caller's existing stores before it validates the
+    // form, to enforce the 5-store / 2-trial caps, and that read FAILS CLOSED.
+    // Without a default builder every case here 503s or 500s on a query that
+    // has nothing to do with what it is testing.
+    vi.mocked(supabaseServer.from).mockImplementation(() => qb({ data: [] }));
   });
 
-  function formRequest(fields: Record<string, string>, token?: string): NextRequest {
-    const formData = new FormData();
-    for (const [key, val] of Object.entries(fields)) {
-      formData.append(key, val);
-    }
-    const headers: Record<string, string> = {};
+  /**
+   * The route takes a JSON body — `{ shopName, items }` — not multipart form
+   * data. It moved to JSON when photo upload left this endpoint; a FormData
+   * body now fails `request.json()` and comes back as 400 "Invalid JSON body",
+   * which masked whatever each test was actually asserting.
+   */
+  function formRequest(fields: Record<string, unknown>, token?: string): NextRequest {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return new NextRequest(new URL('http://localhost/api/onboarding/complete'), {
       method: 'POST',
       headers,
-      body: formData,
+      body: JSON.stringify(fields),
     });
   }
 
@@ -111,8 +169,8 @@ describe('POST /api/onboarding/complete', () => {
   it('returns 401 when token does not start with "Bearer "', async () => {
     const req = new NextRequest(new URL('http://localhost/api/onboarding/complete'), {
       method: 'POST',
-      headers: { Authorization: 'Token abc' },
-      body: new FormData(),
+      headers: { Authorization: 'Token abc', 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     });
     const res = await onboardingPost(req);
     expect(res.status).toBe(401);
@@ -137,34 +195,18 @@ describe('POST /api/onboarding/complete', () => {
   it('creates site and returns siteSlug on valid request (no photos)', async () => {
     mockVerify('uid-123');
 
-    const mockSiteInsert = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({
-          data: { id: 'site-abc', slug: 'test-cafe' },
-          error: null,
-        }),
-      }),
-    });
-
+    // `sites` is touched twice, and the two calls need different rows: first
+    // the store-cap read (a list, empty — this is the user's first store),
+    // then the insert that allocates the slug.
+    let sitesCall = 0;
     vi.mocked(supabaseServer.from).mockImplementation((table: string) => {
       if (table === 'sites') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: null, error: null }),
-            }),
-          }),
-          insert: mockSiteInsert,
-        } as any;
+        sitesCall += 1;
+        return sitesCall === 1
+          ? qb({ data: [] })
+          : qb({ data: { id: 'site-abc', slug: 'test-cafe' } });
       }
-      if (table === 'profiles') {
-        return {
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          }),
-        } as any;
-      }
-      return {} as any;
+      return qb({ data: [] });
     });
 
     const req = formRequest({ shopName: 'Test Cafe' }, 'good-token');
@@ -182,10 +224,13 @@ describe('POST /api/onboarding/complete', () => {
 describe('POST /api/images/match', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Every case below is about matching behaviour, not about auth; the
+    // unauthenticated case is asserted separately at the end of this block.
+    mockVerify('uid-images');
   });
 
   it('returns null fields when query is empty string', async () => {
-    const req = jsonRequest({ query: '' });
+    const req = cookieRequest({ query: '' });
     const res = await imagesMatchPost(req);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -194,14 +239,14 @@ describe('POST /api/images/match', () => {
   });
 
   it('returns null fields when query is whitespace only', async () => {
-    const req = jsonRequest({ query: '   ' });
+    const req = cookieRequest({ query: '   ' });
     const res = await imagesMatchPost(req);
     const body = await res.json();
     expect(body.image_url).toBeNull();
   });
 
   it('returns null fields when body has no query field', async () => {
-    const req = jsonRequest({});
+    const req = cookieRequest({});
     const res = await imagesMatchPost(req);
     const body = await res.json();
     expect(body.image_url).toBeNull();
@@ -219,7 +264,7 @@ describe('POST /api/images/match', () => {
       error: null,
     });
 
-    const req = jsonRequest({ query: 'pani puri' });
+    const req = cookieRequest({ query: 'pani puri' });
     const res = await imagesMatchPost(req);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -236,7 +281,10 @@ describe('POST /api/images/match', () => {
       error: { message: 'rpc not found' },
     });
 
-    const req = jsonRequest({ query: 'burger' });
+    // NOT a dish the keyword table knows: 'burger' now hits the tier-1 exact
+    // keyword match and returns before the RPC is ever called, so it could
+    // never exercise this path. The vector fallback is what is under test.
+    const req = cookieRequest({ query: 'unknown exotic dish' });
     const res = await imagesMatchPost(req);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -249,7 +297,7 @@ describe('POST /api/images/match', () => {
       error: null,
     });
 
-    const req = jsonRequest({ query: 'unknown exotic dish' });
+    const req = cookieRequest({ query: 'unknown exotic dish' });
     const res = await imagesMatchPost(req);
     const body = await res.json();
     expect(body.image_url).toBeNull();
@@ -307,89 +355,69 @@ describe('POST /api/subscription/create-subscription', () => {
     mockVerify('uid-1');
     vi.mocked(supabaseServer.from).mockImplementation((table: string) => {
       if (table === 'sites') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-              }),
-            }),
-          }),
-        } as any;
+        return qb({ data: null, error: { code: 'PGRST116' } });
       }
-      return {} as any;
+      return qb();
     });
     const req = jsonRequest({ siteId: 'site-x' }, 'good-token');
     const res = await createSubPost(req);
     expect(res.status).toBe(404);
   });
 
-  it('returns 409 when site already has an active subscription', async () => {
+  it('allows an early renewal while a subscription is still active', async () => {
+    // This used to assert 409. The route deliberately stopped blocking: an
+    // owner renewing before expiry loses nothing, because verify-payment adds
+    // 30 days from MAX(now, store_expires_at). Refusing the payment turned a
+    // customer trying to pay us into a support ticket.
     mockVerify('uid-1');
+    mockOrdersCreate.mockResolvedValue({ id: 'order_renewal', amount: 29900, currency: 'INR', status: 'created' });
     const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
     vi.mocked(supabaseServer.from).mockImplementation((table: string) => {
       if (table === 'sites') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { id: 'site-1', name: 'Cafe' }, error: null }),
-              }),
-            }),
-          }),
-        } as any;
+        return qb({ data: { id: 'site-1', name: 'Cafe' } });
       }
       if (table === 'site_subscriptions') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: { store_expires_at: futureDate }, error: null }),
-            }),
-          }),
-        } as any;
+        return qb({ data: { store_expires_at: futureDate } });
       }
-      return {} as any;
+      return qb();
     });
     const req = jsonRequest({ siteId: 'site-1' }, 'good-token');
     const res = await createSubPost(req);
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
+
+    // and it is booked as a renewal, so the existing days are preserved
+    expect(mockOrdersCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ notes: expect.objectContaining({ type: 'renewal' }) }),
+    );
   });
 
   it('returns 200 with subscriptionId on success', async () => {
     mockVerify('uid-1');
     vi.mocked(supabaseServer.from).mockImplementation((table: string) => {
       if (table === 'sites') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { id: 'site-1', name: 'Cafe' }, error: null }),
-              }),
-            }),
-          }),
-        } as any;
+        return qb({ data: { id: 'site-1', name: 'Cafe' } });
       }
       if (table === 'site_subscriptions') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-            }),
-          }),
-          upsert: vi.fn().mockResolvedValue({ error: null }),
-        } as any;
+        return qb({ data: null, error: { code: 'PGRST116' } });
       }
-      return {} as any;
+      return qb();
     });
 
-    mockSubscriptionsCreate.mockResolvedValue({ id: 'sub_test123', status: 'created' });
+    mockOrdersCreate.mockResolvedValue({ id: 'order_test123', amount: 29900, currency: 'INR', status: 'created' });
 
     const req = jsonRequest({ siteId: 'site-1' }, 'good-token');
     const res = await createSubPost(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.subscriptionId).toBe('sub_test123');
+    // The route returns a Razorpay ORDER id — a one-off ₹299 charge. It was
+    // `subscriptionId` when the plan was a recurring Razorpay subscription.
+    expect(body.orderId).toBe('order_test123');
     expect(body.keyId).toBe('rzp_test_key');
+    // The price the customer is charged is the one thing here that must never
+    // drift silently: ₹299, in paise.
+    expect(body.amount).toBe(29900);
+    expect(body.currency).toBe('INR');
+    expect(body.isRenewal).toBe(false);
   });
 });
 

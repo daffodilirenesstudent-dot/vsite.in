@@ -21,6 +21,7 @@ import { rateLimit } from '@/lib/platform/rateLimit';
 import { notify } from '@/lib/notifications/notify';
 import { sendPlanInvoiceEmail } from '@/lib/notifications/email/planEmails';
 
+import { logger } from '@/lib/platform/logger';
 export const maxDuration = 30;
 export const runtime = 'nodejs';
 
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
             : 0;
         const baseMs = isUpgrade ? Date.now() : Math.max(Date.now(), currentExpiryMs);
         const expiresAt = new Date(baseMs + 30 * 24 * 60 * 60 * 1000).toISOString();
-        console.log(`[verify-payment] activating plan=${paidPlan} (from pending_plan) for site=${siteId}`);
+        logger.debug(`[verify-payment] activating plan=${paidPlan} (from pending_plan) for site=${siteId}`);
         const planLabel = paidPlan === 'qr_menu'  ? 'Smart QR Menu'
                         : paidPlan === 'qr_order' ? 'QR Ordering'
                         : 'Pay & Eat';
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Failed to record billing' }, { status: 500 });
         }
         if (billingError?.code === '23505') {
-            console.log('[verify-payment] billing already recorded (likely by webhook); proceeding to activate subscription');
+            logger.debug('[verify-payment] billing already recorded (likely by webhook); proceeding to activate subscription');
         }
 
         // ── Activate ────────────────────────────────────────────────────────
@@ -257,7 +258,9 @@ export async function POST(request: NextRequest) {
                 ownerEmail,
             ].map(s => s.trim()).filter(Boolean)));
 
-            console.log(`[verify-payment] invoice recipients (${recipients.length}):`, recipients);
+            // Count only. These are customer email addresses; the platform
+            // log drain is not a place to put them, in any environment.
+            logger.debug(`[verify-payment] invoice recipients: ${recipients.length}`);
 
             if (recipients.length > 0) {
                 const mailResult = await sendPlanInvoiceEmail({

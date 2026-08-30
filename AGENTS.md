@@ -232,3 +232,74 @@ error. `rm -rf .next` and restart the dev server.
   unrelated symbol from it.
 - **`archive/` is never build context.** Do not import from it.
 - **`*.exe` is gitignored.** Binaries go to Supabase Storage.
+
+## Post-OTP routing: never ask Firebase whether a user is new
+
+`getAdditionalUserInfo(credential).isNewUser` answers "was this Firebase account
+created just now?" — NOT "does this person have stores?". The two diverge, and
+trusting the former routed owners of live stores into onboarding as new users
+with no exit but creating a duplicate store.
+
+`profiles.onboarding_completed` is not trustworthy either: the row can be
+missing (provisioning was once gated on `isNewUser`, so accounts whose first
+sign-in failed never got one — while still creating sites, which have no FK to
+`profiles`), or present but invisible, since `profiles` RLS is select-own
+against the Firebase uid.
+
+**Site ownership is the deciding fact.** One place decides:
+`src/app/auth/continue/page.tsx`, using `resolvePostAuthDestination`. The client
+gate in `ManageLayoutClient` uses `decideOnboardingGate` for the same rule and
+exists only as defence in depth for direct /manage/* navigation. Do not add a
+third answer to this question.
+
+Also: a Supabase `.update()` against a missing row matches zero rows and STILL
+reports success. `api/onboarding/complete` upserts for exactly this reason.
+
+## A red test may be asserting the absence of a defence
+
+Three suites here failed *because the code got safer*, and each one read like a
+route bug until traced:
+
+- Middleware forges a JWT and signs it `fakesig`. Signature verification
+  against Google's JWKS landed, so the token is now correctly rejected — the
+  test was asserting that forged tokens are accepted.
+- `/api/orders/[id]/status` stopped returning `customer_name`, `items` and
+  `subtotal` to unauthenticated callers, because order ids travel in shareable
+  URLs. The test asserted the PII was present.
+- `/api/images/match` moved from a bearer header to the session cookie, so a
+  header-authenticated test gets a correct 401.
+
+Before "fixing" a route to satisfy a red test, check `git log` on the route: if
+the behaviour changed deliberately, the test is what needs rewriting. CLAUDE.md
+says fix the implementation, not the test — that rule assumes the test still
+describes the intended contract.
+
+## Two test files can encode two different designs
+
+`tests/acceptance/menu-card-system.test.ts` freezes the QR-menu card design and
+says so ("frozen here so it cannot drift back"). It forbids an offer ribbon
+outright. `tests/e2e/menu-card.spec.ts` was later written demanding one. Adding
+the ribbon turns the acceptance suite red; the frozen file wins. Read the
+acceptance suite before changing anything in `MenuItemCard.tsx` or
+`menuTokens.ts`.
+
+## `tsc --noEmit` caches its diagnostics
+
+`tsconfig.json` sets `incremental: true`, so `*.tsbuildinfo` replays previous
+errors even after you fix the compiler option that caused them. Delete the
+buildinfo when an error survives a change that should have cleared it.
+
+## Mock supabase query builders chainably, not shape-by-shape
+
+Hand-written `select().eq().eq().single()` ladders in `tests/api/routes.test.ts`
+had to mirror each route's call chain exactly, so adding one `.eq()` produced
+`undefined is not a function` → a 500 that looked like a route bug. Use the
+`qb()` helper in that file: any chain, one settled result.
+
+## Never log PII, even at debug level
+
+`src/lib/platform/logger.ts` — `debug` is a no-op in production, `warn`/`error`
+always run. `verify-payment` was printing customer invoice email addresses on
+every successful payment. Log the shape (a count, an id, a duration), never the
+addresses, tokens or card details.
+

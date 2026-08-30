@@ -4,6 +4,7 @@
 
 import OpenAI from 'openai';
 
+import { logger } from '@/lib/platform/logger';
 const OCR_PROMPT =
     'Extract all text from this menu image. Preserve item names, prices, and section headings. Include every item visible in the image. Return plain text, no markdown formatting.';
 
@@ -34,7 +35,7 @@ export async function imageToMenuText(
         });
 
         const text = response.choices[0]?.message?.content ?? '';
-        console.log(`[imageToMenuText] extracted ${text.length} chars from photo`);
+        logger.debug(`[imageToMenuText] extracted ${text.length} chars from photo`);
         return text;
     } catch (err) {
         console.error('[imageToMenuText] GPT-4o-mini vision failed:', err);

@@ -16,6 +16,7 @@ import crypto from 'crypto';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { sendPlanInvoiceEmail } from '@/lib/notifications/email/planEmails';
 
+import { logger } from '@/lib/platform/logger';
 export const maxDuration = 15;
 export const runtime = 'nodejs';
 
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
                 await handlePaymentSuccess(orderId, paymentEntity);
                 break;
             default:
-                console.log(`[razorpay-webhook] unhandled event: ${event.event}`);
+                logger.debug(`[razorpay-webhook] unhandled event: ${event.event}`);
         }
     } catch (err) {
         console.error(`[razorpay-webhook] handler error for ${event.event}:`, err);
@@ -154,7 +155,7 @@ async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
         if (actErr) {
             console.error('[razorpay-webhook] activation update failed:', actErr);
         } else if (actData && actData.length > 0) {
-            console.log(`[razorpay-webhook] activated plan=${planToActivate} for site=${siteRow.site_id} (fallback)`);
+            logger.debug(`[razorpay-webhook] activated plan=${planToActivate} for site=${siteRow.site_id} (fallback)`);
             // Only send invoice when we actually flipped state — avoids
             // double-sends if verify-payment already won the race.
             try {

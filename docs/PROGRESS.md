@@ -888,3 +888,67 @@ and the rendered HTML checked over HTTP.
   tests, not regressions, but they mask real coverage of the payment path.
 - No refund API route exists. Refunds are currently a manual Razorpay-dashboard
   action; the policy now says payments are non-refundable, which matches.
+
+---
+
+## 2026-08-30 — Pre-launch QA pass: full suite green
+
+status: DONE
+
+Ran the whole suite against a production build and fixed everything that was
+red. Vitest **641 passed / 0 failed** (was 618/18), `tsc --noEmit` exit 0 (was
+1), `npm run lint` 0 errors, `npm run build` clean.
+
+**Product fixes**
+- The JSON-LD `description` on `/` and `/about` said "AI-powered QR menus **and
+  ordering**". Body copy was honest, but that string is what a search result
+  shows, so the one place a stranger reads about us claimed a product we do not
+  sell. Dropped "and ordering" from both.
+- `console.log` × 23 across 10 routes → new `src/lib/platform/logger.ts`, whose
+  `debug` is a no-op when `NODE_ENV === 'production'`. `warn`/`error` always
+  run. Verified silent against the production server.
+- `verify-payment` was printing customer invoice **email addresses** into the
+  log drain on every successful payment. Now logs the count only.
+- `tsconfig.json` had no `target`, so `tsc` fell back to ES3 and rejected
+  `Set` iteration the app uses freely. Set `"target": "es2020"` to match SWC.
+  (`incremental: true` caches diagnostics — delete `*.tsbuildinfo` when a
+  compiler option changes or the old errors persist.)
+
+**Stale suites rewritten to the shipped contracts** (all were testing the
+*absence* of defences that have since landed, per the follow-ups noted above):
+- `tests/unit/middleware.test.ts` — forged tokens signed `fakesig` were being
+  asserted as ACCEPTED. The middleware verifies RS256 against Google's JWKS
+  now, so they were correctly rejected. Mocked `jose` (signature checked before
+  `exp`, so genuine-but-expired stays distinguishable from forged) and added
+  the missing cases: a forged token must reach /login and never /auth/refresh,
+  and every response must carry `no-store`. 14 → 20 passing.
+- `tests/api/routes.test.ts` — the Razorpay mock exposed `subscriptions.create`
+  while the route calls `orders.create`, so the route 502'd and read as a
+  provider outage; `409 on active sub` became "allows early renewal"; the
+  response field is `orderId`, not `subscriptionId`; `/api/images/match`
+  authenticates from the session **cookie**, not a bearer header; and the
+  onboarding route takes **JSON**, not FormData. Replaced every hand-built
+  `select().eq().single()` ladder with a chainable `qb()` helper so the next
+  added `.eq()` does not read as a 500.
+- `tests/api/orderStatus.test.ts` — asserted an UNauthenticated caller receives
+  `customer_name`, `items` and `subtotal`. The route deliberately withholds
+  those; order ids travel in shareable URLs. Split into the progress-only case,
+  an explicit "withholds PII" case, and the signed-link full-receipt case.
+
+**Left alone deliberately**
+- The menu card offer treatment. `tests/e2e/menu-card.spec.ts` (uncommitted)
+  demanded an `offer-ribbon` element reading "SAVE ₹65 · 25% OFF", which
+  `tests/acceptance/menu-card-system.test.ts` forbids outright — that file
+  freezes the design settled on the canvas: one signal, the tinted ground, with
+  the saving in the price row. The E2E spec's stated reason ("an offer restyled
+  only the price row, so it was invisible while scrolling") is not true of the
+  tint. Fixed the spec instead; the component is unchanged. Two of its
+  assertions were broken under *either* design: it compared `backgroundImage`
+  (`none` on both cards) where the tint uses `background-color`.
+
+**Follow-ups**
+- `tests/e2e/menu-card.spec.ts` line ~91 is flaky under parallel load — it
+  waits on `networkidle` and passes in isolation. Worth a deterministic wait.
+- Sentry deprecations at boot: `disableLogger` and `automaticVercelMonitors`
+  in `next.config.mjs` move under `webpack.*` in the next major.
+

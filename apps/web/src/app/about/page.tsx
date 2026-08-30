@@ -19,7 +19,7 @@ const jsonLd = {
   url: 'https://vsite.in',
   email: 'official@vsite.in',
   description:
-    "India's fastest-growing digital menu software — AI-powered QR menus and ordering for restaurants across South India.",
+    "India's fastest-growing digital menu software — AI-powered QR menus for restaurants across South India.",
   foundingLocation: { '@type': 'Place', name: 'Tamil Nadu, India' },
   areaServed: [
     { '@type': 'City', name: 'Chennai' },

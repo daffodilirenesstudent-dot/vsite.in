@@ -22,6 +22,7 @@
 import OpenAI from 'openai';
 import { matchByKeyword } from '@/lib/menu/defaultImages';
 
+import { logger } from '@/lib/platform/logger';
 // ── Module-level singleton — reuses HTTPS connection across calls ────────────
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -401,7 +402,7 @@ export async function extractMenuItemsFromImages(
       });
 
       const items = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
-      console.log(`[menuExtractor] Pass 1 batch ${batchIdx + 1}/${imageBatches.length}: ${items.length} items`);
+      logger.debug(`[menuExtractor] Pass 1 batch ${batchIdx + 1}/${imageBatches.length}: ${items.length} items`);
       return items;
     })
   );
@@ -416,20 +417,20 @@ export async function extractMenuItemsFromImages(
     }
   }
 
-  console.log(`[menuExtractor] Pass 1 total: ${rawTuples.length} items from ${imageBatches.length} batches in ${Date.now() - t0}ms`);
+  logger.debug(`[menuExtractor] Pass 1 total: ${rawTuples.length} items from ${imageBatches.length} batches in ${Date.now() - t0}ms`);
 
   if (rawTuples.length === 0) return [];
 
   // Dedup before Pass 2 (don't waste tokens describing the same item twice)
   const deduped = dedupItems(rawTuples);
   if (deduped.length < rawTuples.length) {
-    console.log(`[menuExtractor] dedup: ${rawTuples.length} → ${deduped.length}`);
+    logger.debug(`[menuExtractor] dedup: ${rawTuples.length} → ${deduped.length}`);
   }
 
   // Pass 2 — descriptions (gpt-4o-mini, parallel batches of 50)
   const t1 = Date.now();
   const descriptions = await generateDescriptions(openai, deduped);
-  console.log(`[menuExtractor] Pass 2 (descriptions): ${descriptions.filter(Boolean).length}/${deduped.length} in ${Date.now() - t1}ms`);
+  logger.debug(`[menuExtractor] Pass 2 (descriptions): ${descriptions.filter(Boolean).length}/${deduped.length} in ${Date.now() - t1}ms`);
 
   return deduped.map((item, idx) => ({ ...item, description: descriptions[idx] }));
 }
@@ -456,7 +457,7 @@ export async function extractMenuItems(ocrText: string): Promise<MenuItem[]> {
     });
 
     rawTuples = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
-    console.log(`[menuExtractor] Pass 1 (OCR): ${rawTuples.length} items`);
+    logger.debug(`[menuExtractor] Pass 1 (OCR): ${rawTuples.length} items`);
   } catch (err) {
     console.error('[menuExtractor] Pass 1 (OCR extraction) failed:', err);
     return [];

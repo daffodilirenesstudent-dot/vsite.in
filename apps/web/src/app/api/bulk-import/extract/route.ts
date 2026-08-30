@@ -11,6 +11,7 @@ import { rateLimit } from '@/lib/platform/rateLimit';
 import { extractMenuItemsFromImages, extractMenuItems } from '@/lib/menu/menuExtractor';
 import { imageToMenuText } from '@/lib/menu/sarvamVision';
 
+import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
@@ -46,13 +47,13 @@ export async function POST(request: NextRequest) {
     if (photoEntries.length === 0)
       return NextResponse.json({ error: 'Please upload at least one photo.' }, { status: 400 });
 
-    console.log(`[bulk-import/extract] received ${photoEntries.length} photo(s)`);
+    logger.debug(`[bulk-import/extract] received ${photoEntries.length} photo(s)`);
 
     // Validate images (magic-byte sniff — reject non-images)
     const validated: Array<{ file: File; mime: string }> = [];
     for (const entry of photoEntries) {
       if (!(entry instanceof File)) continue;
-      console.log(`[bulk-import/extract] file: ${entry.name} ${entry.size}B type=${entry.type}`);
+      logger.debug(`[bulk-import/extract] file: ${entry.name} ${entry.size}B type=${entry.type}`);
       const result = await validateImageFile(entry);
       if (result.ok) {
         validated.push({ file: entry, mime: result.mime });
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
     //   Pass 1: compact tuple extraction (3 imgs/batch, parallel, detail:'high')
     //   Pass 2: gpt-4o-mini descriptions in parallel batches
     let items = await extractMenuItemsFromImages(imageBuffers);
-    console.log(`[bulk-import/extract] fast-path: ${items.length} items in ${Date.now() - t0}ms`);
+    logger.debug(`[bulk-import/extract] fast-path: ${items.length} items in ${Date.now() - t0}ms`);
 
     // OCR fallback — same as onboarding, if direct extraction returns 0 items
     if (items.length === 0) {
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
         .join('\n\n---\n\n');
       if (aggregatedOcr) {
         items = await extractMenuItems(aggregatedOcr);
-        console.log(`[bulk-import/extract] fallback: ${items.length} items in ${Date.now() - t0}ms total`);
+        logger.debug(`[bulk-import/extract] fallback: ${items.length} items in ${Date.now() - t0}ms total`);
       }
     }
 

@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { rateLimit } from '@/lib/platform/rateLimit';
 import { TRIAL_DURATION_MS, PLAN_PRICES_INR, isPlanSellable } from '@/lib/platform/productFlags';
 
+import { logger } from '@/lib/platform/logger';
 // Razorpay Orders API — manual payment each time (no autopay).
 // User pays once per billing cycle; no card mandate or recurring authorization.
 export const maxDuration = 15;
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
                 .eq('site_id', siteId)
                 .maybeSingle(),
         ]);
-        console.log(`[create-order] db queries ${Date.now() - t1}ms`);
+        logger.debug(`[create-order] db queries ${Date.now() - t1}ms`);
 
         const { data: site, error: siteError } = siteResult;
         if (siteError || !site) {
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
             const status = rErr?.statusCode === 400 ? 400 : 502;
             return NextResponse.json({ error: description }, { status });
         }
-        console.log(`[create-order] razorpay create ${Date.now() - t2}ms`);
+        logger.debug(`[create-order] razorpay create ${Date.now() - t2}ms`);
 
         // ── Store order ID before returning ──────────────────────────────────
         // Reuses razorpay_subscription_id column to hold the order ID.
@@ -155,9 +156,9 @@ export async function POST(request: NextRequest) {
                 },
                 { onConflict: 'site_id' }
             );
-        console.log(`[create-order] db write ${Date.now() - t3}ms`);
+        logger.debug(`[create-order] db write ${Date.now() - t3}ms`);
 
-        console.log(`[create-order] total ${Date.now() - t0}ms`);
+        logger.debug(`[create-order] total ${Date.now() - t0}ms`);
         return NextResponse.json({
             orderId: order.id,
             keyId: process.env.RAZORPAY_KEY_ID,

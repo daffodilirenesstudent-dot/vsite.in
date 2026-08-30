@@ -19,6 +19,7 @@ import { extractMenuItems, extractMenuItemsFromImages } from '@/lib/menu/menuExt
 import { validateImageFile } from '@/lib/platform/fileValidation';
 import { rateLimit } from '@/lib/platform/rateLimit';
 
+import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     // ── Fast path: all images → single GPT-4o call ───────────────────────────
     let menuItems = await extractMenuItemsFromImages(imageBuffers);
-    console.log(`[onboarding/extract] fast-path: ${menuItems.length} items in ${Date.now() - t0}ms`);
+    logger.debug(`[onboarding/extract] fast-path: ${menuItems.length} items in ${Date.now() - t0}ms`);
 
     // ── Fallback: OCR each image → aggregate → GPT-4o ────────────────────────
     if (menuItems.length === 0) {
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
         .join('\n\n---\n\n');
       if (aggregatedOcr) {
         menuItems = await extractMenuItems(aggregatedOcr);
-        console.log(`[onboarding/extract] fallback: ${menuItems.length} items in ${Date.now() - t0}ms total`);
+        logger.debug(`[onboarding/extract] fallback: ${menuItems.length} items in ${Date.now() - t0}ms total`);
       }
     }
 

@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    // Matches what SWC already emits for this app. Without it tsc falls back to
+    // ES3, which rejects downlevel iteration of Set/Map that the code uses freely.
+    "target": "es2020",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,

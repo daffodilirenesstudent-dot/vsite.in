@@ -43,7 +43,7 @@ const softwareSchema = {
   operatingSystem: 'Web',
   url: BASE_URL,
   description:
-    "India's fastest-growing digital menu software — AI-powered QR menus and ordering for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. Live in 3 minutes.",
+    "India's fastest-growing digital menu software — AI-powered QR menus for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. Live in 3 minutes.",
   offers: {
     '@type': 'Offer',
     price: '299',

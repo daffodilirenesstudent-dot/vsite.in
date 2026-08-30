@@ -17,6 +17,7 @@ import { matchByKeyword } from '@/lib/menu/defaultImages';
 import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
 import OpenAI from 'openai';
 
+import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
@@ -354,7 +355,7 @@ export async function POST(request: NextRequest) {
     // Generate descriptions for items that have none — batched 50/call in parallel
     const needsDesc = items.some(i => !String(i.description ?? '').trim());
     if (needsDesc) {
-      console.log(`[bulk-import/insert] generating descriptions for ${items.length} items in batches of ${DESCRIBE_BATCH_SIZE}`);
+      logger.debug(`[bulk-import/insert] generating descriptions for ${items.length} items in batches of ${DESCRIBE_BATCH_SIZE}`);
       const descs = await generateDescriptions(items);
       items = items.map((item, idx) => ({
         ...item,
@@ -448,7 +449,7 @@ export async function POST(request: NextRequest) {
       { onConflict: 'user_id,month' }
     );
 
-    console.log(`[bulk-import/insert] inserted ${rows.length} products in ${Date.now() - t0}ms`);
+    logger.debug(`[bulk-import/insert] inserted ${rows.length} products in ${Date.now() - t0}ms`);
 
     return NextResponse.json({
       success: true,
