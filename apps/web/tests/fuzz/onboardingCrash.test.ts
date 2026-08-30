@@ -107,7 +107,7 @@ function validItem(over: Record<string, unknown> = {}) {
 }
 
 /** 200 is allowed: rejecting is required, but so is accepting genuinely valid input. */
-const ACCEPTABLE = [200, 400, 401, 403, 409, 413, 429];
+const ACCEPTABLE = [200, 400, 401, 403, 409, 413, 429, 503];
 
 async function assertNoCrash(label: string, body: unknown, raw = false) {
   const res = raw ? await complete(rawReq(body as string)) : await complete(jsonReq(body));

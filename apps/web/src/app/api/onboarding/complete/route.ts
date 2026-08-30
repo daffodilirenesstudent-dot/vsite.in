@@ -91,7 +91,18 @@ function clampTier(value: number): number {
 const VALID_ITEM_TYPES = new Set(['single', 'variant', 'combo']);
 const VALID_FOOD_TYPES = new Set(['veg', 'non_veg', 'egg', 'unknown']);
 
+/** True for a plain JSON object — not null, not an array. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; error: string } {
+  // `await request.json()` happily returns null, a number, a string or an
+  // array for a syntactically valid body. Destructuring any of those threw,
+  // and the throw surfaced as a 500 — a scriptable crash on a route every new
+  // signup hits. Reject the shape before touching a single field.
+  if (!isPlainObject(payload)) return { ok: false, error: 'Request body must be a JSON object' };
+
   const { shopName, items = [] } = payload;
   if (typeof shopName !== 'string' || !shopName.trim()) return { ok: false, error: 'Shop name is required' };
   if (shopName.trim().length > 100) return { ok: false, error: 'Shop name must be 100 characters or fewer' };
@@ -101,12 +112,24 @@ function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const label = `items[${i}]`;
+    // Same omission one level down: `items: [null]` reached `item.name` and
+    // threw. An array of the right length says nothing about its contents.
+    if (!isPlainObject(item)) return { ok: false, error: `${label} must be an object` };
     if (typeof item.name !== 'string' || !item.name.trim()) return { ok: false, error: `${label}.name is required` };
     if (item.name.length > 200) return { ok: false, error: `${label}.name must be 200 characters or fewer` };
     if (!Number.isFinite(item.price) || item.price < 0) return { ok: false, error: `${label}.price must be a non-negative number` };
     if (item.price > 10_000) return { ok: false, error: `${label}.price looks unusually high — please verify` };
-    if (typeof item.description === 'string' && item.description.length > 1000) {
-      return { ok: false, error: `${label}.description must be 1000 characters or fewer` };
+    // Was `typeof === 'string' && length > 1000`, which only bounded the
+    // length of strings and waved every non-string through to the insert. An
+    // object or array here reaches Postgres as a text column value and fails
+    // the whole batch, rolling back a site the user watched being created.
+    if (item.description !== null && item.description !== undefined) {
+      if (typeof item.description !== 'string') {
+        return { ok: false, error: `${label}.description must be a string` };
+      }
+      if (item.description.length > 1000) {
+        return { ok: false, error: `${label}.description must be 1000 characters or fewer` };
+      }
     }
     if (item.category !== null && item.category !== undefined &&
         (typeof item.category !== 'string' || item.category.length > 80)) {
@@ -131,6 +154,9 @@ function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; 
       }
       for (let v = 0; v < item.variants.length; v++) {
         const variant = item.variants[v];
+        if (!isPlainObject(variant)) {
+          return { ok: false, error: `${label}.variants[${v}] must be an object` };
+        }
         if (typeof variant.size !== 'string' || !variant.size.trim() || variant.size.length > 50) {
           return { ok: false, error: `${label}.variants[${v}].size must be a non-empty string ≤ 50 chars` };
         }
@@ -304,10 +330,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Existing-store + trial-limit check
-    const { data: existingSites } = await supabaseServer
+    const { data: existingSites, error: existingSitesError } = await supabaseServer
       .from('sites')
       .select('id, created_at, site_subscriptions(store_expires_at)')
       .eq('user_id', userId);
+
+    // Fail CLOSED. The error was previously discarded, so a failed query left
+    // `existingSites` null, `totalSites` computed as 0, and both the 5-store
+    // and 2-trial-store caps were skipped — a DB blip (or anything that could
+    // induce one) granted unlimited stores. Refusing to create a store during
+    // an outage is recoverable; silently lifting the limit is not.
+    if (existingSitesError) {
+      console.error('[onboarding/complete] could not read existing sites:', existingSitesError);
+      return NextResponse.json(
+        { error: 'Could not verify your existing stores. Please try again in a moment.' },
+        { status: 503 },
+      );
+    }
 
     const nowMs = Date.now();
     const totalSites = existingSites?.length ?? 0;
@@ -434,13 +473,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Mark onboarding complete
+    // Mark onboarding complete.
+    //
+    // upsert, not update: a plain UPDATE against a missing profiles row matches
+    // zero rows and still reports success, so an account with no profile could
+    // finish onboarding, be told it worked, and be bounced straight back to
+    // /onboarding on the next visit. That is one half of the "existing user
+    // treated as new" bug; the other half is the client gate in
+    // ManageLayoutClient. onConflict 'id' so an existing row is updated rather
+    // than rejected.
     try {
       await withRetry(async () =>
         supabaseServer
           .from('profiles')
-          .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
-          .eq('id', userId)
+          .upsert(
+            {
+              id: userId,
+              onboarding_completed: true,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' },
+          )
       );
     } catch (err) {
       console.error('[onboarding/complete] CRITICAL: failed to mark onboarding complete:', err);
