@@ -34,6 +34,22 @@ import { useEffect, useRef, useState } from 'react';
  * never touches the DOM, so it can be tested and reused without a component.
  */
 
+/**
+ * Vertical scroll position, whichever element is carrying it.
+ *
+ * `window.scrollY` is the usual answer, but it reads 0 whenever something has
+ * made `body` the scroll container — which any `overflow` other than
+ * `visible` on `html`/`body` will do. Falling through the three candidates
+ * costs nothing and stops the hook silently doing nothing.
+ */
+function readScrollY(): number {
+    if (typeof window === 'undefined') return 0;
+    return window.scrollY
+        || document.documentElement?.scrollTop
+        || document.body?.scrollTop
+        || 0;
+}
+
 export interface UseQuickReturnOptions {
     /** Stay pinned while within this many px of the top. */
     offset?: number;
@@ -67,11 +83,11 @@ export function useQuickReturn({
         }
         if (typeof window === 'undefined') return;
 
-        lastY.current = window.scrollY;
+        lastY.current = readScrollY();
 
         const evaluate = () => {
             ticking.current = false;
-            const y = window.scrollY;
+            const y = readScrollY();
 
             // Near the top, or rubber-banded past it on iOS.
             if (y <= offset) {

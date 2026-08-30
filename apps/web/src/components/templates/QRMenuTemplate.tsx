@@ -1630,7 +1630,6 @@ export default function QRMenuTemplate({
               // way out the bar translates up by its own height and disappears
               // behind the header rather than over it.
               position: 'sticky', top: headerH, zIndex: 40,
-              borderBottom: `1px solid ${T.border}`,
               transform: chipsPinned ? 'translateY(0)' : 'translateY(-100%)',
               // Transform only: animating height would relayout the whole list
               // every frame on the cheap Androids most of our readers use.

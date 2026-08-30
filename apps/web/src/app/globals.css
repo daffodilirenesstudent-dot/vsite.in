@@ -12,7 +12,18 @@
 
 
 html, body {
+  /* `hidden` here silently breaks `position: sticky` for EVERY descendant:
+     an overflow value other than `visible` turns the element into a scroll
+     container, and a sticky child then sticks to that container rather than
+     to the viewport. It also moves the scroll position off `window.scrollY`.
+     That is what stopped the QR menu's category bar sticking.
+
+     `clip` does the same visual job — no horizontal scrollbar, content
+     clipped — WITHOUT creating a scroll container. Both declarations are
+     kept: a browser that does not know `clip` ignores the second line and
+     falls back to the old behaviour. */
   overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100vw;
 }
 

@@ -76,6 +76,35 @@ describe('useQuickReturn', () => {
     });
 });
 
+describe('nothing upstream breaks position: sticky', () => {
+    const css = () => readFileSync(join(SRC, 'app', 'globals.css'), 'utf8');
+
+    it('clips horizontal overflow instead of hiding it', () => {
+        // `overflow-x: hidden` on html/body turns them into a scroll
+        // container, and a sticky descendant then sticks to THAT rather than
+        // to the viewport — which is why the category bar did not stick. It
+        // also moves the scroll position off window.scrollY. `clip` does the
+        // same visual job without creating a scroll container.
+        expect(css(), 'overflow-x: clip is what makes sticky work at all')
+            .toMatch(/overflow-x:\s*clip/);
+    });
+
+    it('keeps hidden as the fallback for browsers without clip', () => {
+        const src = css();
+        const hidden = src.indexOf('overflow-x: hidden');
+        const clip = src.indexOf('overflow-x: clip');
+        expect(hidden).toBeGreaterThan(-1);
+        expect(clip, 'clip must come second so it wins where supported').toBeGreaterThan(hidden);
+    });
+});
+
+/** Just the category bar's style block, so assertions cannot hit the header. */
+function s_slice(src: string): string {
+    const start = src.indexOf('data-testid="category-bar"');
+    if (start < 0) return '';
+    return src.slice(start, src.indexOf('>', src.indexOf('willChange', start)));
+}
+
 describe('the category bar itself', () => {
     const tpl = () => shipped(TEMPLATE);
 
@@ -91,6 +120,14 @@ describe('the category bar itself', () => {
         // Animating height would relayout the whole list every frame on a
         // ₹8,000 Android. Transform stays on the compositor.
         expect(tpl()).toMatch(/translateY\(-100%\)/);
+    });
+
+    it('draws no hairline between itself and the first category heading', () => {
+        // Added, then cut on sight: the bar already separates itself by
+        // moving, and the rule sat directly above the category name.
+        const bar = s_slice(shipped(TEMPLATE));
+        expect(bar, 'the category bar must not carry a bottom border')
+            .not.toMatch(/borderBottom/);
     });
 
     it('sits under the header rather than over it', () => {
