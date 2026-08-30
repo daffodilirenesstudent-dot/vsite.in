@@ -195,6 +195,15 @@ describe('thumbnail loading', () => {
             .not.toMatch(/<rect x="3" y="4" width="18" height="16"/);
     });
 
+    it('never positions the sheet label onto the photo', () => {
+        // Absolutely positioned onto the hero, it moved with the hero — and
+        // once a dish could have no photo, it landed on the dish name.
+        expect(
+            shipped(TEMPLATE),
+            'the recommendation label must sit in normal flow above the name',
+        ).not.toMatch(/position: 'absolute', top: 12, left: 12/);
+    });
+
     it('renders no image frame in the detail sheet either', () => {
         const src = shipped(TEMPLATE);
         expect(src, 'the placeholder component should be gone with its callers')

@@ -582,8 +582,11 @@ function ProductDetailSheet({
         position: 'relative', overflow: 'hidden',
       }}>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-        {/* Image with overlay close button (Swiggy/Zomato pattern) */}
-        <div style={{ position: 'relative' }}>
+        {/* Image with overlay close button (Swiggy/Zomato pattern). With no
+            photo this collapses to a short strip that holds only the grabber —
+            everything that used to be positioned over the image moves into the
+            normal flow below. */}
+        <div style={{ position: 'relative', minHeight: product.image_url ? undefined : 24 }}>
           {/* No photo means no hero. A pink gradient block with a picture
               glyph in it reads as a failed image, not as "this dish has no
               photo", and it pushed the name and price below the fold. */}
@@ -594,24 +597,31 @@ function ProductDetailSheet({
           {/* Drag handle pinned to top of image */}
           <div style={{
             position: 'absolute', left: '50%', top: 10, transform: 'translateX(-50%)',
-            width: 44, height: 4, borderRadius: 100, background: 'rgba(255,255,255,0.85)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+            width: 44, height: 4, borderRadius: 100,
+            background: product.image_url ? 'rgba(255,255,255,0.85)' : '#DCD8DC',
+            boxShadow: product.image_url ? '0 1px 2px rgba(0,0,0,0.2)' : 'none',
           }} />
-          {/* Recommendation chip — top-left of image.
-              This tested `ks_quadrant === 'star'` in lowercase while the
-              database stores 'Star', so it never rendered once: the badge
-              showed in the list and vanished the moment the customer opened
-              the item, which is exactly when it matters. resolveBadge matches
-              case-insensitively and covers all three quadrants, not just one. */}
+        </div>
+
+        <div style={{ padding: '18px 16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Recommendation label, above the dish name, always.
+              It used to be absolutely positioned onto the photo, so it moved
+              with the photo and — once a dish with no photo could exist —
+              landed on top of the name. A row of its own is legible in both
+              cases and is one behaviour instead of two.
+              (It also once tested `ks_quadrant === 'star'` in lowercase while
+              the database stores 'Star', so it never rendered at all: the
+              badge showed in the list and vanished the moment the customer
+              opened the item, which is exactly when it matters. resolveBadge
+              matches case-insensitively across all three quadrants.) */}
           {(() => {
             const b = resolveBadge(product.ks_quadrant);
             if (!b) return null;
             return (
               <div style={{
-                position: 'absolute', top: 12, left: 12,
-                background: 'rgba(255,255,255,0.96)', borderRadius: 100,
-                padding: '5px 11px 5px 8px', display: 'flex', alignItems: 'center', gap: 5,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                display: 'inline-flex', alignItems: 'center', gap: 5, width: 'fit-content',
+                background: b.bg, border: `1px solid ${b.border}`, borderRadius: 100,
+                padding: '4px 11px 4px 8px',
               }}>
                 <span style={{ display: 'flex', color: b.fg }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -625,9 +635,6 @@ function ProductDetailSheet({
               </div>
             );
           })()}
-        </div>
-
-        <div style={{ padding: '18px 16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <div style={{ paddingTop: 6 }}>
               <VegDot foodType={product.food_type} />
