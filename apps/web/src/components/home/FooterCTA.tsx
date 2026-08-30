@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, Mail, MessageCircle, Sparkles } from 'lucide-react';
+import { ArrowRight, Instagram, Mail, MessageCircle, Sparkles } from 'lucide-react';
 import Reveal from './Reveal';
 import Logo from '@/components/Logo';
 import { SUPPORT_EMAIL, whatsappUrl } from '@/lib/platform/brand';
@@ -131,6 +131,16 @@ export default function FooterCTA() {
                                     <Mail className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
                                     {SUPPORT_EMAIL}
                                 </a>
+                                <a
+                                    href="https://www.instagram.com/vsite.in"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="vsite on Instagram"
+                                    className="press inline-flex w-fit items-center gap-2.5 rounded-full bg-white/[0.08] px-4 py-2.5 text-[15px] font-medium text-white/85 ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/[0.14] hover:text-white"
+                                >
+                                    <Instagram className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
+                                    @vsite.in on Instagram
+                                </a>
                             </div>
                         </div>
 
@@ -167,7 +177,10 @@ export default function FooterCTA() {
                             <span aria-hidden className="text-white/25">·</span>
                             <span>No per-scan fee</span>
                             <span aria-hidden className="text-white/25">·</span>
-                            <span>Cancel anytime from your dashboard</span>
+                            {/* Was "Cancel anytime from your dashboard". There is no
+                                card mandate, so there is nothing to cancel — the
+                                period just ends. See @/content/policy. */}
+                            <span>No auto-renewal</span>
                         </p>
                     </div>
                 </div>

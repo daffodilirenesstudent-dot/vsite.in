@@ -4,6 +4,7 @@ import { LogoMark } from '@/components/Logo';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthContext';
+import { TRIAL_DAYS, PLAN_PRICE_INR, BILLING_CYCLE_DAYS } from '@/content/policy';
 
 export default function SignupPage() {
   const { sendOTP, verifyOTP, resetOTP, user, loading: authLoading } = useAuth();
@@ -15,6 +16,10 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
+  // Consent is captured before the OTP is sent, not after verification — the
+  // account exists from the moment the number is verified, so the agreement has
+  // to come first.
+  const [agreed, setAgreed] = useState(false);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -47,6 +52,8 @@ export default function SignupPage() {
     if (!name.trim()) { setError('Please enter your name.'); return; }
     const digits = phone.replace(/\D/g, '');
     if (digits.length < 10) { setError('Enter a valid 10-digit mobile number.'); return; }
+    // Guarded here as well as on the button: both inputs submit on Enter.
+    if (!agreed) { setError('Please accept the Terms of Service and Privacy Policy to continue.'); return; }
     setLoading(true);
     const { error: err } = await sendOTP(`+91${digits.slice(-10)}`);
     setLoading(false);
@@ -77,12 +84,12 @@ export default function SignupPage() {
     const code = otp.join('');
     if (code.length < 6) { setError('Enter the complete 6-digit code.'); return; }
     setLoading(true);
-    const { error: err, isNewUser } = await verifyOTP(code, name.trim());
+    const { error: err } = await verifyOTP(code, name.trim());
     setLoading(false);
     if (err) { setError(err); return; }
-    // ?new=true hides the "← Dashboard" back button on /onboarding so fresh
-    // users don't bounce back to an empty dashboard during their first flow.
-    window.location.replace(isNewUser ? '/onboarding?new=true' : '/manage/dashboard');
+    // Same single door as /login. A signup whose phone already has stores is
+    // an existing owner signing in, and lands on their dashboard.
+    window.location.replace('/auth/continue');
   };
 
   const handleResend = async () => {
@@ -139,6 +146,8 @@ export default function SignupPage() {
               setName={setName}
               phone={phone}
               setPhone={setPhone}
+              agreed={agreed}
+              setAgreed={setAgreed}
               onSubmit={handleSendOTP}
               loading={loading}
               error={error}
@@ -168,10 +177,11 @@ export default function SignupPage() {
 
 /* ─── Details Step ───────────────────────────────────────── */
 function DetailsStep({
-  name, setName, phone, setPhone, onSubmit, loading, error,
+  name, setName, phone, setPhone, agreed, setAgreed, onSubmit, loading, error,
 }: {
   name: string; setName: (v: string) => void;
   phone: string; setPhone: (v: string) => void;
+  agreed: boolean; setAgreed: (v: boolean) => void;
   onSubmit: () => void; loading: boolean; error: string;
 }) {
   return (
@@ -222,12 +232,36 @@ function DetailsStep({
         />
       </div>
 
+      {/* Consent. A real checkbox rather than the usual "by continuing you
+          agree…" small print: the owner is signing up for a paid service with a
+          no-refund policy, and an explicit tick is the honest way to take that
+          agreement. Label is clickable, so the tap target is the whole row. */}
+      <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[10px] py-1 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => setAgreed(e.target.checked)}
+          className="mt-0.5 h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-slate-300 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
+        />
+        <span className="leading-snug">
+          I agree to the{' '}
+          <Link href="/terms" target="_blank" className="font-medium text-primary underline underline-offset-2 hover:opacity-80">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" target="_blank" className="font-medium text-primary underline underline-offset-2 hover:opacity-80">
+            Privacy Policy
+          </Link>
+          .
+        </span>
+      </label>
+
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
       <button
         onClick={onSubmit}
-        disabled={loading}
-        className="mt-5 w-full rounded-[10px] bg-primary py-3 text-sm font-semibold text-white shadow-md shadow-primary/25 transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+        disabled={loading || !agreed}
+        className="mt-4 w-full rounded-[10px] bg-primary py-3 text-sm font-semibold text-white shadow-md shadow-primary/25 transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
@@ -237,7 +271,12 @@ function DetailsStep({
         ) : 'Create Account'}
       </button>
 
-
+      {/* Stated at the point of signup, not buried in the terms: this is the
+          billing model the owner is agreeing to. */}
+      <p className="mt-3 text-center text-xs leading-relaxed text-slate-400">
+        {TRIAL_DAYS} days free · No card needed today · ₹{PLAN_PRICE_INR}/month after,
+        paid {BILLING_CYCLE_DAYS} days at a time with no auto-renewal
+      </p>
     </div>
   );
 }

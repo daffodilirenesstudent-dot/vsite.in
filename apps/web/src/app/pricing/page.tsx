@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ArrowRight, Check, Gift, Info } from 'lucide-react';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
+import Reveal from '@/components/home/Reveal';
+import { SMART_QR_MENU_LIVE_SINCE } from '@/content/roadmap';
+import { NO_REFUND_SHORT } from '@/content/policy';
 import PricingFAQ from './PricingFAQ';
 
 const BASE_URL = 'https://vsite.in';
@@ -50,10 +54,23 @@ const qrFeatures = [
   'NFC card + QR stickers included',
 ];
 
+/**
+ * What the ₹299 replaces, in the owner's own ledger.
+ *
+ * The page's whole argument is a comparison, so it states the comparison
+ * rather than asking the reader to hold two numbers in their head. Figures
+ * are a monthly estimate for a single-outlet mess or café printing a
+ * two-colour A4 menu — deliberately conservative.
+ */
+const printingCosts = [
+  { label: 'Reprinting menus when a price moves', amount: '₹1,200' },
+  { label: 'Lamination and replacing torn cards', amount: '₹400' },
+  { label: 'Running to the press and back', amount: 'half a day' },
+];
+
 // Kept for unfreeze — see @/lib/productFlags.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const qrOrderFeatures = [
-  'Customers order directly from their phone',
   'No payment step — pay at counter when done',
   'Kitchen gets instant order notifications',
   'Orders accumulate per table until bill requested',
@@ -88,6 +105,8 @@ const comparisonRows = [
   { feature: 'Automatic billing',             qr: false, order: false, pay: true  },
 ];
 
+const trialBadges = ['7-day free trial', 'No credit card needed', 'Zero commission'];
+
 export default function PricingPage() {
   return (
     <>
@@ -98,124 +117,149 @@ export default function PricingPage() {
       <Navbar />
 
       {/* Hero */}
-      <section className="pt-28 pb-16 px-4 bg-background-light text-center">
-        <div className="mx-auto max-w-3xl">
-          <span className="text-xs font-bold uppercase tracking-widest text-primary">
-            Simple, Honest Pricing
-          </span>
-          <h1 className="mt-4 text-4xl sm:text-5xl font-extrabold font-display text-slate-900 leading-tight">
-            Less Than What You Spend<br className="hidden sm:block" /> on Printing. Every Month.
+      <section className="border-b border-line bg-paper-2 px-5 pt-32 pb-section lg:pb-section-lg">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+            Simple, honest pricing
+          </p>
+          <h1 className="mt-5 font-display text-h2 font-bold text-ink">
+            Less than what you spend<br className="hidden sm:block" /> on printing. Every month.
           </h1>
-          <p className="mt-5 text-base sm:text-lg text-slate-500 max-w-2xl mx-auto">
-            One-time setup. One small monthly fee. No hidden charges. No per-order commission. Your revenue stays 100% yours.
+          <p className="mx-auto mt-6 max-w-2xl text-body text-ink-70">
+            One small monthly fee. No setup charge, no hidden extras, no per-order commission.
+            Every rupee your customer pays stays yours.
           </p>
-          <p className="mt-2 text-sm font-semibold text-primary/80">
-            India&apos;s fastest-growing digital menu software — trusted by restaurants across Tamil Nadu.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-4 py-1.5 text-sm font-medium text-green-700">
-              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              7-day free trial
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-4 py-1.5 text-sm font-medium text-green-700">
-              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              No credit card needed
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-4 py-1.5 text-sm font-medium text-green-700">
-              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              Zero commission
-            </span>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5">
+            {trialBadges.map((badge) => (
+              <span
+                key={badge}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-caption font-medium text-ink-70"
+              >
+                <Check className="h-4 w-4 shrink-0 text-success" strokeWidth={2.5} aria-hidden />
+                {badge}
+              </span>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing cards */}
-      <section className="py-14 px-4 bg-white">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid grid-cols-1 max-w-md mx-auto gap-6">
+      {/* The comparison the price is making.
+          A price only means something next to what it replaces, so the ledger
+          sits above the card rather than being implied by the headline. */}
+      <section className="bg-paper px-5 py-section lg:py-section-lg">
+        <div className="mx-auto max-w-3xl">
+          <Reveal>
+            <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+              What ₹299 replaces
+            </p>
+            <h2 className="mt-5 font-display text-h3 font-bold text-ink">
+              A month of paper, roughly
+            </h2>
+          </Reveal>
 
-            {/* Smart QR Menu */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 flex flex-col shadow-sm">
-              <div className="mb-6">
-                <span className="inline-block border border-green-500 text-green-600 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-4">
-                  Smart QR Menu
+          <Reveal stagger={80} className="mt-8 divide-y divide-line border-y border-line">
+            {printingCosts.map((row) => (
+              <div key={row.label} className="flex items-baseline justify-between gap-6 py-4">
+                <span className="text-body text-ink-70">{row.label}</span>
+                <span className="shrink-0 font-display text-h3 font-bold tabular-nums text-ink">
+                  {row.amount}
                 </span>
-                <p className="text-slate-500 text-sm mb-5">View-only digital menu for your tables</p>
-                <div className="flex items-baseline gap-1 mb-3">
-                  <span className="text-4xl font-extrabold font-display text-slate-900">₹299</span>
-                  <span className="text-slate-400 text-sm">/ month</span>
-                </div>
-                <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600">
-                  <span className="material-symbols-outlined text-slate-400 text-base">info</span>
-                  No setup fee · Billed every 30 days
-                </div>
               </div>
-              <ul className="space-y-3 flex-1 mb-8">
+            ))}
+          </Reveal>
+
+          <p className="mt-5 text-caption text-ink-45">
+            Estimated for one outlet reprinting a two-colour A4 menu. Your press bill is
+            probably higher.
+          </p>
+        </div>
+      </section>
+
+      {/* Pricing card */}
+      <section className="bg-paper-2 px-5 py-section lg:py-section-lg">
+        <div className="mx-auto max-w-md">
+
+          {/* Smart QR Menu */}
+          <Reveal>
+            <div className="flex flex-col rounded-3xl border border-line bg-paper p-7 shadow-[0_1px_20px_rgba(18,16,14,0.05)] sm:p-8">
+              <span className="inline-flex w-fit items-center rounded-full border border-line bg-paper-2 px-3 py-1 text-caption font-bold uppercase tracking-[0.08em] text-ink-70">
+                Smart QR Menu
+              </span>
+              <p className="mt-4 text-caption text-ink-45">
+                A view-only digital menu for your tables
+              </p>
+
+              <div className="mt-5 flex items-baseline gap-1.5">
+                <span className="font-display text-h2 font-bold text-ink">₹299</span>
+                <span className="text-body text-ink-45">/ month</span>
+              </div>
+
+              <div className="mt-4 inline-flex items-start gap-2 rounded-xl border border-line bg-paper-2 px-3.5 py-2.5 text-caption text-ink-70">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-45" strokeWidth={2} aria-hidden />
+                No setup fee · Billed every 30 days
+              </div>
+
+              <ul className="mb-8 mt-7 flex-1 space-y-3.5">
                 {qrFeatures.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-700">
-                    <span className="material-symbols-outlined text-green-500 text-base shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  <li key={f} className="flex items-start gap-3 text-body text-ink-70">
+                    <Check className="mt-1 h-4 w-4 shrink-0 text-success" strokeWidth={2.5} aria-hidden />
                     {f}
                   </li>
                 ))}
               </ul>
+
               <Link
                 href="/signup"
-                className="flex items-center justify-center gap-2 border-2 border-green-500 text-green-600 px-6 py-3.5 rounded-full font-bold hover:bg-green-500 hover:text-white transition-all"
+                className="press group inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 font-semibold text-white shadow-md shadow-primary/25 transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                Start Free — 7 Days
-                <span className="material-symbols-outlined text-xl">arrow_forward</span>
+                Start free — 7 days
+                <ArrowRight className="cta-arrow h-5 w-5" strokeWidth={2.2} aria-hidden />
               </Link>
-              <p className="text-center text-xs text-slate-400 mt-2">No credit card. No commitment.</p>
+              {/* Was "Cancel from your dashboard" — a control that does not
+                  exist and does not need to. There is no mandate to cancel;
+                  the period simply ends. See @/content/policy. */}
+              <p className="mt-3 text-center text-caption text-ink-45">
+                No card today · {NO_REFUND_SHORT}
+              </p>
             </div>
+          </Reveal>
 
-          </div>
-
-          {/* Trial banner */}
-          <div className="mt-6 bg-white rounded-2xl border border-primary/20 px-6 sm:px-8 py-5 flex items-start sm:items-center gap-4 shadow-sm">
-            <span className="material-symbols-outlined text-primary text-3xl shrink-0">redeem</span>
-            <div>
-              <p className="font-bold text-slate-900">Your Smart QR Menu includes a 7-day completely free trial.</p>
-              <p className="text-slate-500 text-sm mt-0.5">No credit card. No payment details. No commitment. Use the full product free for 7 days — then decide.</p>
+          {/* What the ₹299 will also cover.
+              Placed under the price rather than in the feature list: it is a
+              statement about the plan, not a feature you can use yet. */}
+          <Reveal delay={90}>
+            <div className="mt-6 rounded-2xl border border-dashed border-line bg-paper px-6 py-5">
+              <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">
+                Coming soon, at no extra cost
+              </p>
+              <p className="mt-2.5 text-caption leading-relaxed text-ink-70">
+                Ordering from the table with UPI payment is not live yet. When it ships it
+                is included in this ₹299 — no upgrade, no commission. The menu itself has
+                been live since {SMART_QR_MENU_LIVE_SINCE}.
+              </p>
             </div>
-          </div>
+          </Reveal>
+
+          {/* Trial note */}
+          <Reveal delay={120}>
+            <div className="mt-6 flex items-start gap-4 rounded-2xl border border-line bg-paper px-6 py-5">
+              <Gift className="mt-0.5 h-6 w-6 shrink-0 text-primary" strokeWidth={2} aria-hidden />
+              <div>
+                <p className="font-semibold text-ink">
+                  The first 7 days are free, in full.
+                </p>
+                <p className="mt-1 text-caption text-ink-70">
+                  No card, no payment details, no commitment. Use the whole product for a week,
+                  then decide.
+                </p>
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
-
 
       {/* FAQ */}
       <PricingFAQ />
-
-      {/* Final CTA */}
-      <section className="py-14 sm:py-20 px-4 bg-primary">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="text-primary-light text-xs font-bold uppercase tracking-widest mb-3">
-            India&apos;s Fastest-Growing Digital Menu Software
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-extrabold font-display text-white">
-            Ready to Go Digital?
-          </h2>
-          <p className="mt-4 text-primary-light text-base sm:text-lg max-w-xl mx-auto">
-            Join restaurants across Tamil Nadu. Start your 7-day free trial — no credit card, no commitment.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-2 bg-white text-primary px-8 py-3.5 rounded-full font-bold hover:bg-slate-50 transition-colors shadow-lg"
-            >
-              Start Free Trial
-              <span className="material-symbols-outlined text-xl">arrow_forward</span>
-            </Link>
-            <a
-              href="https://wa.me/919360706659"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 border-2 border-white/40 text-white px-8 py-3.5 rounded-full font-bold hover:border-white/70 transition-colors"
-            >
-              Chat on WhatsApp
-            </a>
-          </div>
-        </div>
-      </section>
 
       <FooterCTA />
     </>
