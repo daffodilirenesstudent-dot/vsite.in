@@ -123,13 +123,25 @@ function LoginContent() {
       return;
     }
     setLoading(true);
-    const { error: err, isNewUser } = await verifyOTP(code);
-    setLoading(false);
+    const { error: err } = await verifyOTP(code);
     if (err) {
+      setLoading(false);
       setError(err);
       return;
     }
-    window.location.replace(isNewUser ? '/onboarding?new=true' : redirectTo);
+    // Stay in the loading state through the handoff — see the note in
+    // /signup's handleVerify. The navigation below paints nothing until
+    // /auth/continue answers, so the spinner is the only honest thing on
+    // screen, and the disabled button is what stops a second press.
+    // One server-side decision for both OTP pages. Firebase's isNewUser is
+    // deliberately ignored here: it reports whether the Firebase account was
+    // created just now, not whether this person owns any stores, and trusting
+    // it sent existing owners into onboarding as new users.
+    window.location.replace(
+      redirectTo && redirectTo !== '/manage/dashboard'
+        ? `/auth/continue?next=${encodeURIComponent(redirectTo)}`
+        : '/auth/continue',
+    );
   };
 
   const handleResend = async () => {

@@ -85,8 +85,14 @@ export default function SignupPage() {
     if (code.length < 6) { setError('Enter the complete 6-digit code.'); return; }
     setLoading(true);
     const { error: err } = await verifyOTP(code, name.trim());
-    setLoading(false);
-    if (err) { setError(err); return; }
+    if (err) { setLoading(false); setError(err); return; }
+    // Deliberately stay in the loading state. `replace()` starts a full-document
+    // navigation and /auth/continue resolves four awaits before it redirects, so
+    // the browser keeps showing THIS page for the whole handoff. Clearing the
+    // spinner first left an idle, enabled "Verify" button on screen — and a
+    // second press re-runs confirm() on a ConfirmationResult Firebase has
+    // already consumed, flashing "invalid code" on a signup that succeeded.
+    //
     // Same single door as /login. A signup whose phone already has stores is
     // an existing owner signing in, and lands on their dashboard.
     window.location.replace('/auth/continue');
