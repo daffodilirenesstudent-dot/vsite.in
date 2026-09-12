@@ -18,6 +18,17 @@ export const runtime = 'nodejs';
 const MAX_PHOTOS = 5;
 const EXTRACT_LIMIT_PER_HR = 20;
 
+/**
+ * Hard ceiling on the whole multipart body, checked before `request.formData()`
+ * buffers it into memory.
+ *
+ * The per-file 10MB check inside validateImageFile runs only after every part is
+ * already allocated, and there is no platform body cap on DigitalOcean (the old
+ * comment here cited Vercel's ~4.5MB, which no longer applies). See the same
+ * note in api/onboarding/extract and 2026-09 assessment Finding 7.
+ */
+const MAX_BODY_BYTES = MAX_PHOTOS * 2 * 1024 * 1024;
+
 export async function POST(request: NextRequest) {
   const t0 = Date.now();
   try {
@@ -38,10 +49,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Size gate BEFORE the body is buffered — see MAX_BODY_BYTES above.
+    const tooLarge = NextResponse.json(
+      { error: 'Those photos are too large. Please retry — the app will compress them.', code: 'PAYLOAD_TOO_LARGE' },
+      { status: 413 },
+    );
+    if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return tooLarge;
+
     // Parse form
     let formData: FormData;
     try { formData = await request.formData(); }
     catch { return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 }); }
+
+    // Chunked uploads declare no Content-Length; re-check what actually arrived
+    // before spending anything on it.
+    const totalBytes = formData.getAll('photos')
+      .reduce((sum, e) => sum + (e instanceof File ? e.size : 0), 0);
+    if (totalBytes > MAX_BODY_BYTES) return tooLarge;
 
     const photoEntries = formData.getAll('photos').slice(0, MAX_PHOTOS);
     if (photoEntries.length === 0)

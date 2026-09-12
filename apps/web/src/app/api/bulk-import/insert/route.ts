@@ -8,20 +8,53 @@
 //   • Bounded RPC concurrency (10 in flight)
 //   • .maybeSingle() on all single-row queries to avoid 406 on empty tables
 //   • withRetry on insert
-//   • Quota: 15 photos/user/day tracked in bulk_import_usage
+//   • Quota: 15 AI work units/user/day, reserved atomically before any spend
+//
+// ─── THE QUOTA IS A SPEND CONTROL, NOT A FAIR-USE COUNTER ────────────────────
+// Everything below the reservation calls OpenAI on a single shared org key, so
+// an unbounded caller here does not just run up a bill — it exhausts the key's
+// rate limit and takes AI extraction offline for every paying customer at once.
+//
+// Three properties are load-bearing, and all three were absent (2026-09
+// assessment, Finding 3). If you change this code, keep all three:
+//
+//   1. It meters the WORK. It used to charge `photosCount` from the request
+//      body — a number between 1 and 5 with no relationship to the 300 items
+//      and six parallel GPT-4o-mini calls the request actually bought.
+//   2. It charges BEFORE the spend. It used to charge last, and only on the
+//      success path, so aborting the connection did the work for free.
+//   3. It increments by COMPARE-AND-SWAP. It used to read, then blind-upsert
+//      `read + n`, so twenty concurrent requests all read zero, all passed, and
+//      the counter finished at n.
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { matchByKeyword } from '@/lib/menu/defaultImages';
 import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
+import { rateLimit } from '@/lib/platform/rateLimit';
 import OpenAI from 'openai';
 
 import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
+/**
+ * Daily allowance, in AI work units. One unit ≈ one LLM round trip.
+ *
+ * Sized against a real import: five menu photos yields roughly 60 items, which
+ * costs 1 (embedding pass) + 2 (description batches) = 3 units. So the day's
+ * allowance is about five full imports, and a single maximal 300-item payload
+ * costs 7 — two of those in a day and the owner is done.
+ */
 const DAILY_PHOTO_LIMIT = 15;
+
+/** Requests per hour per user. The quota bounds spend; this bounds concurrency. */
+const IMPORT_LIMIT_PER_HR = 10;
+
+/** How many times to re-read and retry a losing compare-and-swap before giving up. */
+const QUOTA_CAS_ATTEMPTS = 5;
 const MAX_ITEMS = 300;
 const MAX_VARIANTS = 10;
 const SIM_THRESHOLD = 0.45;
@@ -37,6 +70,114 @@ function getOpenAI(): OpenAI {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function clampTier(v: number): number { return Math.min(4, Math.max(1, Math.round(v))); }
+
+/**
+ * How much AI work this payload will actually cause.
+ *
+ * One unit for the embedding + vector pass, which runs for every import, plus
+ * one for each 50-item description batch — those fan out in parallel, so the
+ * wall-clock cost hides the true spend and only a count reflects it.
+ *
+ * Items that arrive WITH a description are nearly free: they skip the expensive
+ * leg entirely, which is why the count is of items needing one, not of items.
+ */
+function workUnitsFor(items: Record<string, unknown>[]): number {
+    const needingDescription = items.filter(i => !String(i.description ?? '').trim()).length;
+    return 1 + Math.ceil(needingDescription / DESCRIBE_BATCH_SIZE);
+}
+
+type Reservation = { ok: true; used: number } | { ok: false; used: number; reason: 'quota' | 'contention' };
+
+/**
+ * Atomically claim `units` of today's allowance, or refuse.
+ *
+ * Compare-and-swap against the value we read: the UPDATE carries
+ * `.eq('photos_used', observed)`, so it matches only if no one moved the counter
+ * in between. A losing writer sees zero rows, re-reads, and tries again. This is
+ * what makes the check-and-charge a single decision rather than two racing ones.
+ *
+ * A Postgres `photos_used = photos_used + n` RPC would be cheaper, but that needs
+ * a migration, and migrations are out of bounds without an explicit goal. The CAS
+ * loop is equivalent for this contention level (one user's own concurrent
+ * requests) and needs no schema change.
+ */
+async function reserveQuota(userId: string, day: string, units: number): Promise<Reservation> {
+    let lastSeen = 0;
+
+    for (let attempt = 0; attempt < QUOTA_CAS_ATTEMPTS; attempt++) {
+        const { data: row } = await supabaseServer
+            .from('bulk_import_usage')
+            .select('photos_used')
+            .eq('user_id', userId)
+            .eq('month', day)
+            .maybeSingle();
+
+        const used = (row as { photos_used: number } | null)?.photos_used ?? null;
+        lastSeen = used ?? 0;
+
+        if (lastSeen + units > DAILY_PHOTO_LIMIT) {
+            return { ok: false, used: lastSeen, reason: 'quota' };
+        }
+
+        if (used === null) {
+            // First import of the day. A concurrent request may be inserting the
+            // same row; 23505 means it won, so fall through and CAS against it.
+            const { error } = await supabaseServer
+                .from('bulk_import_usage')
+                .insert({ user_id: userId, month: day, photos_used: units });
+            if (!error) return { ok: true, used: units };
+            if ((error as { code?: string }).code !== '23505') {
+                logger.error('[bulk-import/insert] quota insert failed:', error);
+                return { ok: false, used: lastSeen, reason: 'contention' };
+            }
+            continue;
+        }
+
+        const { data: claimed } = await supabaseServer
+            .from('bulk_import_usage')
+            .update({ photos_used: used + units })
+            .eq('user_id', userId)
+            .eq('month', day)
+            .eq('photos_used', used)        // ← the compare half of compare-and-swap
+            .select('photos_used');
+
+        if (claimed && (claimed as unknown[]).length > 0) {
+            return { ok: true, used: used + units };
+        }
+        // Someone else moved it. Re-read and try again.
+    }
+
+    return { ok: false, used: lastSeen, reason: 'contention' };
+}
+
+/**
+ * Hand back a reservation whose work never completed.
+ *
+ * Best-effort and non-fatal: over-charging a user who hit a failed insert is a
+ * support ticket, under-charging is a spend leak, so a failure to release is
+ * logged and swallowed rather than retried into the request's latency.
+ */
+async function releaseQuota(userId: string, day: string, units: number): Promise<void> {
+    try {
+        const { data: row } = await supabaseServer
+            .from('bulk_import_usage')
+            .select('photos_used')
+            .eq('user_id', userId)
+            .eq('month', day)
+            .maybeSingle();
+        const used = (row as { photos_used: number } | null)?.photos_used;
+        if (typeof used !== 'number') return;
+
+        await supabaseServer
+            .from('bulk_import_usage')
+            .update({ photos_used: Math.max(0, used - units) })
+            .eq('user_id', userId)
+            .eq('month', day)
+            .eq('photos_used', used);
+    } catch (err) {
+        logger.warn('[bulk-import/insert] quota release failed (non-fatal):', err);
+    }
+}
 
 // Auto-infer menu engineering tiers for bulk import items (no user review step).
 // Mirrors what owners assign manually during onboarding review.
@@ -293,6 +434,17 @@ export async function POST(request: NextRequest) {
     if (!userId)
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
+    // Rate limit — the daily quota bounds total spend; this bounds how fast it
+    // can be attempted, and keeps a burst of parallel requests from all landing
+    // in the CAS loop at once.
+    const rl = rateLimit(`bulk-insert:${userId}`, { limit: IMPORT_LIMIT_PER_HR, windowMs: 60 * 60_000 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many imports. Please try again in a few minutes.', code: 'RATE_LIMITED' },
+        { status: 429, headers: { 'Retry-After': Math.ceil(rl.retryAfterMs / 1000).toString() } }
+      );
+    }
+
     // Parse body
     let body: { siteId: string; items: Record<string, unknown>[]; photosCount: number };
     try { body = await request.json(); }
@@ -333,24 +485,32 @@ export async function POST(request: NextRequest) {
     if (siteErr || !siteRow)
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
 
-    // Quota check — maybeSingle() avoids 406 for first-time users
+    // ── Reserve the AI spend BEFORE incurring any of it ──────────────────────
+    // `photosCount` is still accepted for client back-compat but no longer
+    // meters anything: it is a request-body number, and the cost is set by how
+    // many items need a description. See workUnitsFor().
     const day = currentDay();
-    const { data: usageRow } = await supabaseServer
-      .from('bulk_import_usage')
-      .select('photos_used')
-      .eq('user_id', userId)
-      .eq('month', day)
-      .maybeSingle();
-    const photosUsed = (usageRow as { photos_used: number } | null)?.photos_used ?? 0;
+    const units = workUnitsFor(items);
+    const reservation = await reserveQuota(userId, day, units);
 
-    if (photosUsed + photosCount > DAILY_PHOTO_LIMIT) {
+    if (!reservation.ok) {
+      if (reservation.reason === 'contention') {
+        return NextResponse.json(
+          { error: 'Could not reserve your import allowance. Please retry.', code: 'QUOTA_CONTENTION' },
+          { status: 503 },
+        );
+      }
       return NextResponse.json({
-        error: `Daily limit reached. You've used ${photosUsed} of ${DAILY_PHOTO_LIMIT} photos today.`,
+        error: `Daily limit reached. You've used ${reservation.used} of ${DAILY_PHOTO_LIMIT} today.`,
         code: 'QUOTA_EXCEEDED',
-        photosUsed,
+        photosUsed: reservation.used,
         limit: DAILY_PHOTO_LIMIT,
       }, { status: 429 });
     }
+
+    // From here on the allowance is spent. Every exit path that does NOT deliver
+    // products must call releaseQuota, or an owner is charged for nothing.
+    logger.debug(`[bulk-import/insert] reserved ${units} unit(s); ${reservation.used}/${DAILY_PHOTO_LIMIT} used today`);
 
     // Generate descriptions for items that have none — batched 50/call in parallel
     const needsDesc = items.some(i => !String(i.description ?? '').trim());
@@ -440,14 +600,13 @@ export async function POST(request: NextRequest) {
       });
     } catch (err) {
       console.error('[bulk-import/insert] insert failed:', err);
+      // The AI spend already happened, but the owner got no products for it.
+      // Hand the allowance back rather than charging for a failed import.
+      await releaseQuota(userId, day, units);
       return NextResponse.json({ error: 'Failed to save products. Please try again.' }, { status: 500 });
     }
 
-    // Update quota — upsert is safe on concurrent retry
-    await supabaseServer.from('bulk_import_usage').upsert(
-      { user_id: userId, month: day, photos_used: photosUsed + photosCount },
-      { onConflict: 'user_id,month' }
-    );
+    // Quota was charged up front — nothing to write here.
 
     logger.debug(`[bulk-import/insert] inserted ${rows.length} products in ${Date.now() - t0}ms`);
 

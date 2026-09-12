@@ -8,9 +8,20 @@
 //   4. OCR fallback only if direct image extraction returns 0 items
 //
 // Constraints:
-//   • Vercel Hobby caps function duration at 60s — we declare 60 explicitly.
-//   • Vercel platform caps request body at ~4.5MB — client MUST compress images
-//     before upload. Server enforces a hard upper bound as defence-in-depth.
+//   • Function duration is declared at 60s.
+//   • THE REQUEST BODY IS BOUNDED HERE, IN THIS ROUTE. This comment used to cite
+//     a ~4.5MB limit imposed by the old hosting platform, and the code relied on
+//     it: `request.formData()` buffers every part into memory, and the 10MB
+//     per-file check inside validateImageFile cannot run until after it has.
+//     vsite now runs on DigitalOcean App Platform, which imposes no such limit,
+//     and Next.js App Router handlers have no default body limit of their own
+//     (`api.bodyParser.sizeLimit` is Pages Router only). Fifteen 20MB parts is
+//     ~300MB buffered on a 512MB basic-xxs instance, from one authenticated user
+//     (2026-09 assessment, Finding 7).
+//
+//     The Content-Length check below is defence-in-depth, not the fix: a chunked
+//     request declares no length. The real ceiling belongs at the ingress. See
+//     AGENTS.md for the operational task.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
@@ -25,6 +36,17 @@ export const runtime = 'nodejs';
 
 const MAX_PHOTOS = 15;          // server hard cap (client allows 10–15)
 const EXTRACT_LIMIT_PER_HR = 10; // separate bucket from /complete
+
+/**
+ * Hard ceiling on the whole multipart body.
+ *
+ * Deliberately not `MAX_PHOTOS * MAX_IMAGE_BYTES` (150MB) — that is the sum of
+ * the per-file limits, not a number this instance can hold. The client compresses
+ * before upload (`@/lib/menu/imageCompress`), so a real 15-photo submission is a
+ * few MB; 2MB per slot is already generous, and the per-file check still rejects
+ * anything oversized inside a body that fits.
+ */
+const MAX_BODY_BYTES = MAX_PHOTOS * 2 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   const t0 = Date.now();
@@ -48,12 +70,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── Size gate, BEFORE the body is buffered ───────────────────────────────
+    // request.formData() materialises every part in memory. Anything rejected
+    // after that point has already cost the allocation, so the only check that
+    // helps is one that happens first.
+    const declaredLength = Number(request.headers.get('content-length') ?? 0);
+    if (declaredLength > MAX_BODY_BYTES) {
+      return NextResponse.json(
+        {
+          error: 'Those photos are too large. Please retry — the app will compress them.',
+          code: 'PAYLOAD_TOO_LARGE',
+        },
+        { status: 413 },
+      );
+    }
+
     // ── Parse & validate photos ──────────────────────────────────────────────
     let formData: FormData;
     try {
       formData = await request.formData();
     } catch {
       return NextResponse.json({ error: 'Invalid request body. Please retry.' }, { status: 400 });
+    }
+
+    // A chunked upload declares no Content-Length, so the gate above cannot see
+    // it. Re-check what actually landed before doing any work on it. This does
+    // not undo the allocation — only an ingress limit can — but it stops the
+    // request from also buying GPT-4o vision calls.
+    const totalBytes = formData.getAll('photos')
+      .reduce((sum, e) => sum + (e instanceof File ? e.size : 0), 0);
+    if (totalBytes > MAX_BODY_BYTES) {
+      return NextResponse.json(
+        {
+          error: 'Those photos are too large. Please retry — the app will compress them.',
+          code: 'PAYLOAD_TOO_LARGE',
+        },
+        { status: 413 },
+      );
     }
 
     const shopName = (formData.get('shopName') as string | null)?.trim();
