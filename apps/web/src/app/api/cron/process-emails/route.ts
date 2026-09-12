@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { sendEmailDirect } from '@/lib/notifications/orderEmail';
+import { authorizeCron } from '@/lib/platform/cronAuth';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -18,20 +19,12 @@ const BATCH_SIZE      = 20;   // fetch up to 20 per cron tick
 const CONCURRENCY     = 5;    // process at most 5 in parallel — prevents DB conn exhaustion
 const MAX_ATTEMPTS    = 5;
 
-// Vercel Cron authenticates with CRON_SECRET in the Authorization header.
-// Fail CLOSED when secret is missing — never allow open access in production.
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    console.error('[cron/process-emails] CRON_SECRET is not set — rejecting request');
-    return false;
-  }
-  const header = req.headers.get('Authorization');
-  return header === `Bearer ${secret}`;
-}
+// This route's own auth check was the correct one of the three; it now shares
+// the extracted `authorizeCron` so the other two cannot drift from it again.
+// See @/lib/platform/cronAuth.
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!authorizeCron(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -100,4 +93,15 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ processed: emails.length, sent, failed });
+}
+
+/**
+ * `.do/app.yaml` invokes every cron job with `curl -X POST`. Only GET was
+ * exported here, so on DigitalOcean this route answered 405 to the scheduler and
+ * the email queue was never drained — invoice and expiry mail simply queued up.
+ * Same omission as `cron/cleanup`, found by curling the running server rather
+ * than by any unit test. Covered now in tests/security/cronAuth.test.ts.
+ */
+export async function POST(req: NextRequest) {
+  return GET(req);
 }

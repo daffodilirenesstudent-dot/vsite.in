@@ -25,6 +25,16 @@ const noop = (): void => {};
 export const logger = {
     /** Progress and timing. Silent in production. */
     debug: isProduction ? noop : (...args: unknown[]) => console.info(...args),
+    /**
+     * An operational fact that must survive into production: a scheduled job's
+     * outcome, a batch size, a decision an operator may later have to reconstruct.
+     * Unlike `debug` this always runs, and unlike `warn` it does not imply
+     * anything went wrong.
+     *
+     * This is where a cron summary belongs — counts and ids that are useful in
+     * the log drain but must never be returned in a response body.
+     */
+    info: (...args: unknown[]) => console.info(...args),
     /** Something recoverable happened that an operator should know about. */
     warn: (...args: unknown[]) => console.warn(...args),
     /** Something failed. */

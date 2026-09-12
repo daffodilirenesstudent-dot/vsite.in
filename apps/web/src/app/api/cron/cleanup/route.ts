@@ -1,29 +1,32 @@
-// GET /api/cron/cleanup
-// Called by Vercel Cron every 5 minutes (configured in vercel.json).
+// GET|POST /api/cron/cleanup
 // Deletes expired idempotency keys, stale rate-limit buckets, and old sent emails.
 // Keeps the three hardening tables lean without any manual maintenance.
+//
+// Auth: shared `authorizeCron` — see @/lib/platform/cronAuth. This route used to
+// fail OPEN (`if (!secret) return true`), which left a bulk-delete reachable by
+// anyone whenever CRON_SECRET was absent (2026-09 assessment, Finding 5).
+//
+// POST is exported because `.do/app.yaml` invokes this job with `curl -X POST`.
+// Only GET existed, so the job had been silently 405-ing.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { authorizeCron } from '@/lib/platform/cronAuth';
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  return req.headers.get('Authorization') === `Bearer ${secret}`;
-}
-
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!authorizeCron(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { error } = await supabaseServer.rpc('cleanup_hardening_tables');
   if (error) {
-    console.error('[cron/cleanup]', error);
-    return NextResponse.json({ error: 'Cleanup failed', detail: error.message }, { status: 500 });
+    // The Postgres message names functions, columns and constraints. It goes to
+    // the log; the caller gets a code it can act on and nothing it can map.
+    console.error('[cron/cleanup] rpc failed:', error);
+    return NextResponse.json({ error: 'Cleanup failed', code: 'CLEANUP_FAILED' }, { status: 500 });
   }
 
   // Fire-and-forget: purge acknowledged bill_requests older than 7 days.
@@ -39,4 +42,9 @@ export async function GET(req: NextRequest) {
     });
 
   return NextResponse.json({ ok: true, cleanedAt: new Date().toISOString() });
+}
+
+/** `.do/app.yaml` calls this job with `-X POST`. Same work, same gate. */
+export async function POST(req: NextRequest) {
+  return GET(req);
 }

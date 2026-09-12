@@ -9,17 +9,20 @@
 // expiry_reminder_sent_at flag dedupes per billing cycle, and is cleared on
 // every plan activation/renewal in verify-payment + the razorpay webhook.
 //
-// Auth: requires `Authorization: Bearer ${CRON_SECRET}` OR Vercel's own
-// `x-vercel-cron` signed header (set automatically when invoked by Vercel Cron).
+// Auth: `Authorization: Bearer ${CRON_SECRET}`, via the shared `authorizeCron`.
+// This route previously ALSO accepted any request carrying an `x-vercel-cron`
+// header, which on DigitalOcean (where vsite actually runs) meant no auth at
+// all. See @/lib/platform/cronAuth for the full account.
 //
-// Wire-up options:
-//   - Vercel Cron: see vercel.json
-//   - Netlify Scheduled Function: see netlify/functions/expiry-reminder.mts
-//   - External (cron-job.org etc.): hit this URL with the bearer header
+// Wire-up: the DigitalOcean job in `.do/app.yaml` curls this URL with the bearer
+// header. Any scheduler that can set a header works; nothing platform-specific
+// is honoured.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { sendExpiryReminderEmail } from '@/lib/notifications/email/planEmails';
+import { authorizeCron } from '@/lib/platform/cronAuth';
+import { logger } from '@/lib/platform/logger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -36,15 +39,6 @@ interface ExpiringRow {
   store_plan: string;
   store_expires_at: string;
   sites: { name: string; notification_emails: string[] | null } | null;
-}
-
-function authorize(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  // Vercel Cron sets this header automatically and the platform validates it.
-  if (req.headers.get('x-vercel-cron')) return true;
-  if (!secret) return false;
-  const auth = req.headers.get('authorization') ?? '';
-  return auth === `Bearer ${secret}`;
 }
 
 async function runReminderSweep() {
@@ -114,11 +108,17 @@ async function runReminderSweep() {
 }
 
 export async function GET(req: NextRequest) {
-  if (!authorize(req)) {
+  if (!authorizeCron(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const result = await runReminderSweep();
-  return NextResponse.json(result);
+
+  // The sweep's numbers go to the log, not the response body. `scanned` is a
+  // live count of subscriptions expiring in the next three days and `failures`
+  // carries site ids — a churn dashboard for anyone who reaches this route.
+  // The caller is a scheduler; it needs to know the job ran, nothing more.
+  logger.info('[cron/expiry-reminder]', JSON.stringify(result));
+  return NextResponse.json({ ok: result.ok });
 }
 
 // Some cron services prefer POST; accept both for flexibility.
