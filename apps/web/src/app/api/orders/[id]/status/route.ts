@@ -7,9 +7,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyOrderToken } from '@/lib/notifications/orderEmail';
+import { rateLimit, getClientIp } from '@/lib/platform/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
+
+/**
+ * Polls per minute per IP.
+ *
+ * The customer-waiting screen polls roughly every 2s, so 60/min is well clear of
+ * honest use. The limit exists because MIN_RESPONSE_MS below deliberately holds
+ * every request open for most of a second: unauthenticated, unmetered, that
+ * turns the enumeration defence into a connection-exhaustion primitive against a
+ * single-instance deployment (2026-09 assessment, Finding 10).
+ */
+const POLL_LIMIT_PER_MIN = 60;
 
 // Minimum response time to prevent timing-oracle enumeration of valid order IDs.
 //
@@ -30,6 +42,20 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Throttle FIRST, and return without padding. A 429 that still sleeps 800ms
+  // holds the very connection the limiter exists to release — it would make a
+  // flood cheaper to sustain, not dearer. Deliberately outside `respond()`.
+  const rl = rateLimit(`order-status:${getClientIp(_request.headers)}`, {
+    limit: POLL_LIMIT_PER_MIN,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': Math.ceil(rl.retryAfterMs / 1000).toString() } },
+    );
+  }
+
   const start = Date.now();
 
   // Pad every response to MIN_RESPONSE_MS so 404 and 200 are indistinguishable
