@@ -303,3 +303,129 @@ always run. `verify-payment` was printing customer invoice email addresses on
 every successful payment. Log the shape (a count, an id, a duration), never the
 addresses, tokens or card details.
 
+
+## The menu's frozen suites read SOURCE TEXT, not rendered output
+
+`tests/acceptance/menu-card-system.test.ts` `readFileSync`s `MenuItemCard.tsx`,
+`menuTokens.ts` and `QRMenuTemplate.tsx` and regex-asserts on literals. Moving a
+hex into a theme object breaks it even when the rendered pixel is identical, and
+CLAUDE.md forbids editing tests to pass. The way through is additive: leave `T`
+exactly as it is and layer `TV` on top, where every entry is
+`var(--qr-x, <the classic literal>)`. The literal stays in source, so the suite
+still finds it, and Classic stays byte-identical for the live menus.
+
+## `sites.primary_color` predates the migrations folder
+
+It existed with the DASHBOARD's violet `#5137EF` as its default and was read by
+zero lines of code. Migration 052 repurposed it as the menu brand colour and
+backfilled every row to `#EF59A1`. If you find a column nothing reads, check
+whether it is genuinely unused before adding a parallel one.
+
+## A theme default is exempt from the contrast clamp; owner input is not
+
+`resolveAccent()` darkens an owner's colour to 4.5:1 because the accent is drawn
+as price text. The shipped pink is only 3.2:1 — clamping it would silently
+restyle every live menu, so design-reviewed defaults pass through untouched and
+a stored value equal to the theme default is treated as the default. Do not
+"fix" that asymmetry without re-reviewing Classic.
+
+## The live menu gate is trial-based, and every test store has lapsed
+
+`shop/[slug]/page.tsx` computes `canGoLive` from a paid `store_expires_at` OR
+`sites.created_at + 7 days`. Every store in the database has a NULL expiry and a
+long-expired trial, so real menu URLs render "Shop Currently Unavailable". A
+`NULL` expiry does NOT mean unlimited. To view a real menu locally, set
+`store_expires_at` into the future for that one site, then put it back.
+
+## `await request.json()` returns null for a valid body
+
+`JSON.parse('null')` succeeds, and reading a field off it throws a 500 on a
+route anyone can reach. `api/onboarding/complete` documents this; the menu-theme
+route repeated it and a test caught it. Reject the shape
+(`null | non-object | array`) before touching a field.
+
+## Tamil is not covered by the root layout's fonts
+
+`app/layout.tsx` loads Outfit/Poppins/Manrope with `subsets: ['latin']` only, so
+Tamil dish names fall back to an uncontrolled system face. `app/shop/layout.tsx`
+loads the Tamil faces for the menu route only, and each pairing lists the Latin
+face first with the Tamil face right after — the browser resolves family per
+glyph, so no component has to branch on script.
+
+## Gotchas from the dashboard UX pass
+
+- **A template literal in a `<style>{`…`}</style>` block will swallow backticks.**
+  Writing an explanatory CSS comment with `` `order` `` in it closed the string
+  and produced ten misleading JSX parse errors in `qr/page.tsx`. Never use
+  backticks inside those CSS blocks.
+- **`order` on a grid child reorders which *track* it lands in, not just its
+  visual position.** Setting `grid-template-columns: 340px 1fr` and giving the
+  poster `order: 1` put the poster in the 340px track — the opposite of the
+  intent. Put the wide track first and order into it.
+- **`ordering-roadmap-copy.test.ts` only reads `src/content/**`.** It does not
+  see `app/manage/`, `app/login`, `app/signup` or `components/`. Dashboard copy
+  is guarded by `tests/acceptance/dashboard-ux.test.ts` instead — add new owner
+  surfaces to its `OWNER_SURFACES` list.
+- **Those two suites read source text, so an explanatory comment containing a
+  banned string fails the test.** That is the guard working; reword the comment
+  rather than loosening the pattern.
+- **The subscription success detector cannot key off "a plan is active".** On a
+  renewal it is already true, so the modal resolves before `verify-payment`
+  writes. Compare `store_expires_at` against a baseline captured when the modal
+  opens.
+- **`verify-payment` already supports early renewal** —
+  `Math.max(Date.now(), currentExpiryMs)` for a same-plan payment. Do not add
+  client-side guards that block paying while active; remaining days carry over.
+- **The QR posters are baked PNGs.** `/brand poster scan order.png` has its
+  wording and its sports artwork in pixels. Menu-only plans use the canvas
+  `drawMenuPoster()`; only the ordering plans still composite onto a PNG.
+
+## Gotchas from the 2026-09 security remediation
+
+- **Platform-shaped assumptions are the recurring bug class here.** Three
+  separate findings came from code that was correct on Vercel and became a
+  vulnerability on DigitalOcean: `x-vercel-cron` as proof of identity, a
+  "platform caps the body at ~4.5MB" comment the upload routes relied on, and
+  trusting the leftmost `X-Forwarded-For` entry. Nothing failed loudly at the
+  move. When you read a comment naming a host, check it is still the host.
+- **`getClientIp` is the only place a client IP may be derived.** It prefers
+  `x-real-ip` (the ingress *sets* it) and otherwise takes the **rightmost**
+  `X-Forwarded-For` entry, because a proxy appends and the leftmost value is
+  attacker-written. `track-menu-scan` had its own copy reading `[0]`, which let
+  anyone mint a fresh rate-limit bucket per request.
+- **`authorizeCron` is the only cron gate.** All three `/api/cron/*` routes share
+  it and fail closed. They previously had three hand-rolled copies that drifted:
+  one correct, one fail-open, one accepting a header. Do not add a fourth.
+- **A `rateLimit()` call does not fix a cost-abuse finding.** The limiter is
+  per-process and is wiped by every restart, and `deploy_on_push: true` means
+  every push to master is a restart. Where the thing being limited costs money,
+  claim it atomically in Postgres *before* spending — see the compare-and-swap in
+  `api/bulk-import/insert`.
+- **Check-then-act on a quota is not a quota.** `bulk_import_usage` was read,
+  checked, then blind-upserted as `read + n`, so concurrent requests all passed
+  and one increment survived. The CAS pattern (`.eq('photos_used', observed)` on
+  the update, retry on zero rows) needs no migration.
+- **A skipped test that asserts a property is worse than no test.** The
+  `it.skip` in `paymentAttacks.test.ts` claimed verify-payment "only activates
+  from razorpay_status=created". It never did — the webhook did. The claim read
+  as coverage in a grep for two months.
+- **The security suites read source text**, like the roadmap ones. An
+  explanatory comment quoting a banned string fails the test. Usually reword the
+  comment; loosen the assertion only when it was genuinely over-broad (e.g.
+  "never mentions `x-vercel-cron`" → "never *reads* `x-vercel-cron`"), and say so
+  in the test.
+
+### Operational items this pass could not close from the repo
+
+- **No ingress body limit.** The extract routes now reject on `Content-Length`
+  and re-check what landed, but a chunked request declares no length, and
+  `request.formData()` buffers before any handler code runs. A real ceiling has
+  to be set at the DigitalOcean ingress (or Cloudflare, if it fronts the app).
+- **The crons are not scheduled.** `kind: PRE_DEPLOY` in `.do/app.yaml` runs once
+  per deploy. Expiry reminders will not fire on the day they are due until an
+  external trigger POSTs with the bearer header.
+- **CSP `unsafe-eval` was removed — smoke-test signup and checkout.** Firebase
+  phone OTP (reCAPTCHA) and Razorpay Checkout are the two bundles that could
+  plausibly want it. A CSP violation in the console names the directive.
+- **Confirm `CRON_SECRET` is set on the DO app.** Every cron route now fails
+  closed, so an unset value stops the jobs (visibly) rather than opening them.

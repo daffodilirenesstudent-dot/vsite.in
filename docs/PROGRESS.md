@@ -2,6 +2,45 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-10 — Feature: menu design themes (3, not 6)
+status: IN REVIEW — public menu + owner controls built, not yet committed
+
+Implements the PM decision of 8 Sep: ship a 3-design picker as a SALES tool,
+refuse the 6-design switcher (RICE 1.4, last of 8), defer festival themes to
+November behind a data gate.
+
+**Architecture.** A design is a config value on the site row, never baked into
+menu data — switching touches no product, no slug, no `qr_secret`, so printed
+QR standees keep resolving. Delivered as CSS custom properties on `.qr-shell`,
+because the menu is drawn in inline styles and `QRMenuTemplate` is 2,100 lines;
+each `var(--qr-x, <classic literal>)` keeps the shipped value in source, which
+is what `menu-card-system.test.ts` asserts on. Adding a 4th design is one entry
+in `MENU_THEMES` — no component learns a name.
+
+**Only 7 knobs move**: surface, card ground, radius (card + chip + thumb as one
+shape), card edge, accent, font pair, density. The veg/non-veg/egg marks, the
+`#FFECEC` offer tint, the `#13801C` saving, the badge palette and the sold-out
+ramp are identical in every design. The food marks are regulated signals in
+India and must never be owner-settable. That restraint is the whole economic
+case for three designs over six.
+
+**Motion is not the eighth knob.** One shared system (`lib/menu/menuMotion.ts`),
+identical timings across designs: "smooth" is a baseline, not a brand
+attribute. Transform/opacity only; no overshoot curve, because
+`menu-card-system.test.ts` forbids `cubic-bezier(0.34,1.2,0.64,1)` here.
+
+**Verified against the real database**, not only tests: set `final-test` to
+premium/sharp/#1F3A5F and rendered it — 65 real dishes, real banner, price
+computed `rgb(31,58,95)`. Restored afterwards; all 57 rows are back to
+classic/#EF59A1. Contrast clamp confirmed live: `#FFEB3B` → `#7F751D`.
+
+Vitest 714 passed, lint 0 errors, `tsc --noEmit` clean. Migration 052 applied.
+
+**Not done:** visual click-through of the onboarding picker and the settings
+Appearance tab (both auth-gated, needs a logged-in session); PLAN/GOAL not
+rewritten for this feature.
+
+
 ### 2026-08-18 — Fix: CDN cache poisoning served RSC payload as dashboard HTML
 status: DONE (code) / BLOCKED on operator steps (Cloudflare purge + cache rule)
 
@@ -952,3 +991,343 @@ red. Vitest **641 passed / 0 failed** (was 618/18), `tsc --noEmit` exit 0 (was
 - Sentry deprecations at boot: `disableLogger` and `automaticVercelMonitors`
   in `next.config.mjs` move under `webpack.*` in the next major.
 
+
+---
+
+## Dashboard UX pass (two review reports) — status: DONE
+
+Acceptance: `tests/acceptance/dashboard-ux.test.ts` (15 assertions, written RED
+first). Full suite green: 30 files, 729 passed / 2 skipped. `tsc --noEmit`
+clean, `next lint` clean of new warnings.
+
+The reviews ran against **production**, so several findings were already fixed
+in the working tree and are not re-fixed here. Findings were re-validated
+against local source before any change.
+
+**Revenue — an active plan could not be renewed**
+`subscription/page.tsx` disabled its only button whenever the plan was active
+(`disabled={isQrMenuActive || isTrialActive}`), and `openPayment()` returned
+early on the same condition. Renewal was reachable *only after expiry*, while
+the page told the owner "Renew to extend". `verify-payment` has always based a
+same-plan renewal on `Math.max(Date.now(), currentExpiryMs)` — the backend was
+built for early renewal and the UI forbade it. Button now reads "Extend by 30
+days — ₹299" while active.
+⚠️ The success detector watched "did any plan become active", which is already
+true during a renewal and resolved the modal before `verify-payment` wrote
+anything. It now compares expiry against a baseline captured when the modal
+opens (`expiryAtOpenRef`).
+
+**The printed poster**
+`qr_menu` was routed to `/brand poster scan order.png` — a baked PNG whose
+wording (an instruction to order) and artwork (sports equipment) are pixels, so
+neither was fixable as copy. Menu-only plans now get `drawMenuPoster()`, drawn
+on canvas at 1240×1754: design-system indigo, "SCAN FOR MENU" with the Tamil
+line, a three-step how-to, no ordering language. Ordering plans keep the baked
+templates for unfreezing.
+
+**Ordering copy in dashboard chrome**
+Seven strings swept. `ordering-roadmap-copy.test.ts` only reads `src/content/**`,
+so everything under `app/manage/`, `app/login`, `app/signup` and `components/`
+drifted freely — that is how "Manage your orders in real-time" survived.
+`dashboard-ux.test.ts` now covers those surfaces.
+
+**Dead controls**
+Header search was a bare `<input>` with no `onChange` and no results surface —
+now routes to `product-inventory?q=`, which the inventory page seeds from. The
+"⌘ + F" hint advertised a Mac chord to Windows/Android owners and bound
+nothing; it is Ctrl+K and actually bound. Login/signup "Support" and "Help
+Center" both pointed at `#`; one working Support link remains. Insights' "Today"
+was a `<span>` in link-blue reading as a range picker — `menu-summary` exposes
+no range parameter, so it is now styled as the label it is.
+
+**Layout**
+- Subscription: `lg:grid-cols-3` inside `max-w-3xl` with one card under the
+  freeze gave a 224px card in a 1105px column. Column count now follows card
+  count; features run two-up.
+- QR: tracks were `1fr 340px` with the poster in the narrow one. Now `1fr
+  340px` with the poster ordered into the wide track, and `order: 0` on mobile
+  so it is no longer 661px down a 583px viewport.
+- Inventory: added `ProductThumb` (list had no photos at all despite every
+  product having one), two-line mobile card, search box, "onwards" on variant
+  prices.
+- Setup guide: completed steps fold behind a "N done" row. Insights moved from
+  754px to 554px on the dashboard.
+
+**Touch targets**
+Mobile Edit and Delete were 30×30 with a 4px gap — a mistap destroyed menu
+data. Card body is now tap-to-edit, the sold-out switch sits between it and
+Delete, and every one of those is ≥44px. Category chips raised to 44.
+
+**Other**
+- Microsoft Clarity was loaded on every page and refused by our own CSP, so it
+  recorded nothing. Added `clarity.ms` to `script-src`/`connect-src`.
+- QR card request had **no City field** — the address was undeliverable. Added
+  through the route and the notification email, with pincode `inputMode`
+  numeric + 6-digit validation and a real Indian-mobile check. Shop name and
+  phone now prefill.
+- OTP inputs got `autocomplete="one-time-code"`, ids and per-digit labels.
+- `#99A1AF` (2.60:1 on white, below AA) replaced with `#6B6A7B` across the
+  dashboard surfaces.
+
+**Not done — needs backend or product decisions**
+- Invoice history / GST invoice download on the subscription page. There is no
+  invoice source for `qr_menu`; the layout leaves room for it.
+- A real Today/7-day/30-day range: `menu-summary` returns only `scans_today`
+  and all-time totals.
+- The ₹299 plan lists "NFC card + QR stickers" as included while the QR page
+  charges ₹99/card. **This is a pricing decision, not a code fix** — left for
+  the owner to settle, then change both strings together.
+- Structured opening hours, category title-casing, and moving "Delete Category"
+  out of the product drawer.
+
+---
+
+## Mobile UX pass + two reversals — status: DONE
+
+750 tests green (32 files), `tsc --noEmit` clean, lint clean. Verified in
+Chrome at 412×850 on every screen changed.
+
+**Removed rather than half-fixed**
+- Global header search (desktop inline, mobile icon and expanded row), the
+  Ctrl+K binding, and the `?q=` handoff. Owner's instruction: if it does not
+  work, remove it.
+- The in-page product search on `product-inventory`.
+- QR page "Design Tip" card and the disabled "Customise Poster — Soon" button.
+- The page-level "N products missing an image" banner. The same fact was on
+  every affected card, so the page looked like it had two problems. The flag
+  now sits beside the sold-out toggle, where the owner is already tapping.
+
+**Sticker order status**
+Ordering stickers only sends an email — there is no orders table — so the card
+looked untouched afterwards and an owner could not tell whether the request
+went through. Now records the order and shows "N stickers ordered on DATE".
+⚠️ Held in **localStorage**, so it is per-device: a second phone will not show
+it. Durable status needs a table and a migration, which was not in scope.
+
+**Mobile bug found while verifying**
+`.qr-poster` was `position: sticky` at every width. In the single-column mobile
+layout a sticky element taller than the viewport stays pinned and paints over
+what follows — it was completely hiding the sticker card. Sticky is now scoped
+to `min-width: 961px`.
+
+### Two reversals, both the owner's call
+
+**1. The poster is back on the owner's "Scan & Order" artwork.**
+`drawMenuPoster` is deleted; `qr_menu` composites onto
+`/brand poster scan order.png` again.
+⚠️ **This conflicts with the ordering freeze and that is known and accepted.**
+The poster goes on a customer's table telling them to order, while every order
+route returns 403. Flagged before implementing; the owner confirmed. Do not
+"fix" this silently — it is a decision, not an oversight.
+`tests/acceptance/dashboard-ux.test.ts` now guards the chosen shape and carries
+the before/after in a docblock.
+
+**2. No early renewal. Plain 30-day cycle.**
+`Extend by 30 days` removed; an active plan shows a disabled "Current plan"
+with "Active until <date>". `openPayment` refuses again while active, and the
+success detector no longer needs the expiry baseline (with no early renewal the
+plan is always inactive when the modal opens, so "a plan became active" is once
+again a sound signal on its own).
+⚠️ Accepted consequence: the owner cannot pay before expiry, so the menu is
+offline between expiry and payment. The T-3 reminder email is what keeps that
+window short.
+
+**Unchanged by request:** banner management, settings.
+
+---
+
+## Per-site invoices + zoom-robust layout — status: CODE DONE, MIGRATION PENDING
+
+752 tests green, `tsc` clean, lint clean.
+
+### 1. Invoice history was not isolable — schema gap, not a query bug
+
+`billing_history` had no `site_id`. It recorded *who* paid, never *which store
+the payment was for*, so an owner with five stores saw one merged list on all
+five. No query could have separated them.
+
+- **Migration `053_billing_history_site_id.sql`** adds `site_id uuid` →
+  `sites(id) ON DELETE SET NULL` (a deleted store must not erase the record
+  that money changed hands), plus `(user_id, site_id, created_at DESC)`.
+- **Backfill is deliberately partial.** Only 5 of 40 existing rows can be
+  attributed with confidence — those whose payer owns exactly one store. The
+  other 35 belong to multi-store owners and nothing distinguishes them:
+  `plan_name` does not name a store, and two stores on the same plan match on
+  amount and date. Guessing would file a real payment under the wrong store,
+  which is worse than leaving it NULL.
+- Both writers (`verify-payment`, `razorpay` webhook) now record `site_id`.
+- The endpoint **requires** `site_id` and 400s without it — defaulting to
+  "every store this user owns" is the bug being fixed.
+
+⚠️ **The migration has NOT been applied.** Until it is, the invoice panel shows
+its error state, because the query filters on a column that does not exist.
+Applying it is a schema change against production billing data and needs an
+explicit go-ahead.
+
+### 2. Zoom broke the layout because breakpoints measured the wrong box
+
+Chrome desktop zoom does not scale the layout — it changes how many CSS pixels
+fit. 150% on a 1440px monitor is a 960px viewport. That part is fine; the bug
+was that breakpoints measured the **window** while content sits in a column the
+sidebar has already narrowed. At a 1020px window the content area is 956px, so
+`lg:` (1024px) said "phone" and handed a 956px column the phone layout —
+stretched, with a dead gap between each dish and its toggle.
+
+Fixed with **container queries**, so a component responds to the space it
+actually has regardless of whether a sidebar, a zoom level or a small window
+took it:
+
+- `.cq` / `.cq-wide` / `.cq-narrow` in `globals.css`; the narrow layout is the
+  default and width must be *earned*.
+- Product list switches table↔cards on **container** width (720px), not
+  viewport.
+- Table tracks were ~742px of fixed columns — nothing could give ground when
+  space tightened. Now intrinsic `minmax()`, defined once as `GRID_TRACKS` and
+  shared by header, skeleton and rows so they cannot drift apart.
+- `.qr-grid` aside: hard `340px` → `minmax(260px, 340px)`.
+- `min-w-0-all` opts flex/grid children back into shrinking — the usual cause
+  of a row overflowing when squeezed.
+- Fluid type helpers (`clamp()`) available for headings.
+
+**Verified** at container widths 1200 / 956 / 820 / 720 / 640 / 520 / 420 /
+360: correct layout at every step and **zero horizontal overflow at any width**.
+
+---
+
+# Security remediation — 2026-09-12
+
+status: DONE
+
+All 14 findings from `SECURITY_FINDINGS.md` are fixed. `npx vitest run` 833
+passed / 1 skipped (37 files, was 752/2 across 32), `npx tsc --noEmit` clean,
+`npm run lint` clean (pre-existing warnings only).
+
+Five new suites, written failing-first:
+`tests/security/subscriptionReplay.test.ts`, `cronAuth.test.ts`,
+`aiCostAbuse.test.ts`, `publicEndpoints.test.ts`, `configHardening.test.ts`.
+
+## What was actually wrong
+
+**1 — CRITICAL. One ₹299 payment bought an unlimited subscription.**
+`verify-payment` deleted its replay check on the stated reasoning that "the
+subscription update below is idempotent". It was not: it computed
+`max(now, current_expiry) + 30 days` and ran unconditionally, so re-POSTing the
+same Razorpay success payload — a static HMAC the customer's own browser
+receives — added 30 days per call, 10/hour. The `billing_history` unique
+constraint was explicitly tolerated, so it deduplicated the *invoice* while the
+subscription kept extending, and one payment row was all the evidence left.
+Fixed by making activation a conditional update on `razorpay_status='created'`
+— the same predicate the Razorpay webhook already used — plus nulling the
+consumed `razorpay_subscription_id`. A replay now matches zero rows and returns
+`alreadyActive` with the *stored* expiry.
+
+**2 — HIGH. `curl -H 'x-vercel-cron: 1'` was a valid credential.** Sound on
+Vercel, which strips the header at the edge; vsite runs on DigitalOcean, which
+forwards it. The route fired paid ZeptoMail sends, stamped
+`expiry_reminder_sent_at` on live rows, and returned a churn dashboard in the
+response body. **5 — MEDIUM**, same family: `cron/cleanup` did
+`if (!secret) return true` in front of a bulk delete. The three cron routes had
+three hand-rolled auth checks — one correct, one fail-open, one bypassable.
+Replaced with one shared `authorizeCron`, fail-closed, constant-time.
+
+**3 — HIGH. `bulk-import/insert` had no rate limit and a quota that could not
+hold.** It charged `photosCount` (a request-body number, 1–5) for work driven by
+`items.length` (up to 300 → six parallel GPT-4o-mini calls); it charged *after*
+the spend and only on success; and it incremented by blind upsert of `read + n`,
+so twenty concurrent requests all read zero and the counter finished at one
+increment. Now: rate limited, metered in AI work units computed from the
+payload, and reserved by compare-and-swap *before* the first OpenAI call, with a
+release on failure.
+
+**4 — HIGH. GST verification was an unmetered pay-per-lookup drain**, cache
+bypassed by varying a GSTIN that was only format-checked. **Frozen**, per your
+call that GST belongs to the phased-out ordering product: `verify`, `complete`
+and `reset` now return `frozenResponse()`; `GET .../gst` stays open so settings
+can still render stored state. The settings tab was already unreachable
+(`qrMenuOnly` hides it, `normalizePlan` makes every store `qr_menu`), so this
+costs no working UI — the routes were reachable only by direct HTTP. Added to
+`ordering-frozen.test.ts`, so they come back with the product.
+
+**6-14** — `authorized` payments no longer activate a plan (funds reserved,
+never captured, auto-void); order/amount now asserted against Razorpay's own
+record; upload routes bound the body before `formData()` buffers it; the
+menu-scan limiter no longer keys on a header the caller writes, and gained a
+per-site bucket; `orders/[id]/status` is throttled *before* its 800ms timing pad
+rather than after; the Sentry example route and page are deleted; the invoice
+recipient list no longer includes the `X-User-Email` request header; CSP drops
+`unsafe-eval`; Postgres and ZeptoMail error text is logged instead of returned.
+
+## Behaviour changes a real user could notice
+
+- **Bulk import allowance is now metered by work, not photo count.** A 60-item
+  import costs 3 of 15 units/day (~5 imports); a 300-item one costs 7. Items
+  that arrive with descriptions are nearly free. The old counter was 15 of a
+  unit that did not track cost. Error copy says "of 15 today" rather than
+  "photos".
+- **Bulk import is capped at 10 requests/hour per user.** Placeholder — I have
+  no usage distribution. Say the word and I will re-tune it.
+- **A payment caught mid-capture returns 202 `PAYMENT_PENDING`** instead of
+  silently activating. The client should poll rather than show an error.
+- **Menu scans are capped at 120/minute per store.**
+- **Order-status polling is capped at 60/minute per IP** (the screen polls ~0.5/s).
+- **Invoices no longer go to an address passed in a request header** — only to
+  `sites.notification_emails` and `profiles.contact_email`.
+
+## Not closed from the repo — needs you
+
+1. **Set an ingress body limit** on the DO app. The in-handler checks cannot see
+   a chunked request, and `formData()` buffers before handler code runs.
+2. **Give the crons a real schedule.** `kind: PRE_DEPLOY` runs once per deploy.
+3. **Smoke-test signup (Firebase OTP) and a ₹299 checkout** after the CSP change.
+4. **Confirm `CRON_SECRET` is set on the DO app** — routes now fail closed.
+
+## Addendum — found by running the server, 2026-09-12
+
+**Finding 15. Two of the three cron routes answered 405 to the scheduler.**
+Every job in `.do/app.yaml` invokes its route with `curl -X POST`. `cleanup` and
+`process-emails` exported only `GET`. So on DigitalOcean neither has ever run:
+**the email queue has never been drained** — invoice and expiry mail have been
+queuing in `email_queue` since the platform move, not failing, just never
+picked up.
+
+Not a vulnerability, and no unit test would have caught it: each route
+authenticated correctly and then 405'd on the verb. It showed up in the first
+curl against a running server. `cronAuth.test.ts` now asserts each route answers
+the verb `.do/app.yaml` actually sends, and reads the spec file to check the two
+have not drifted apart again.
+
+Live-verified against `npm run dev` (all three routes):
+forged `x-vercel-cron` → 401 · no credentials → 401 · wrong secret → 401 ·
+correct secret → 200.
+
+Suite after the fix: 844 passed / 1 skipped, tsc clean, 0 lint errors.
+
+## Finding 13 (CSP) — verified end-to-end against a production build
+
+Removing `'unsafe-eval'` is **safe**. Verified in Chrome against `npm run build
+&& npm run start`, not against the dev server — the distinction turned out to
+matter.
+
+**The dev server reports a false positive.** On `npm run dev` the console shows:
+
+    EvalError: Evaluating a string as JavaScript violates the following
+    Content Security Policy directive ... 'unsafe-eval' is not an allowed source
+
+Its stack frame is `@next/react-refresh-utils/dist/runtime.js` — Fast Refresh,
+which exists only in development and is not in a production bundle. Reverting
+the CSP on that evidence would have restored the weakness to satisfy a tool that
+never ships. **Anyone re-testing this must use a production build.**
+
+Against the production build, the full phone-OTP path ran clean:
+
+  login → reCAPTCHA init → OTP send → OTP verify → Firebase token →
+  POST /api/auth/session (same-origin check enforced, NODE_ENV=production) →
+  cookie set → middleware verify → dashboard
+
+Zero CSP violations. Zero console errors of any kind. So reCAPTCHA — the bundle
+most likely to have wanted eval — does not need it.
+
+Also incidentally confirmed on the production build: `/api/auth/session`'s
+same-origin guard accepts a legitimate same-origin DELETE (it is only active
+when NODE_ENV=production, so a dev run never exercises it), and the middleware
+expired-token → `/auth/refresh` silent-refresh path works.
