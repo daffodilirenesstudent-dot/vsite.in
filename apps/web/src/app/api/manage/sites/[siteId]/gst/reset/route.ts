@@ -7,6 +7,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { audit } from '@/lib/platform/auditLog';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
+
+// ─── FROZEN WITH THE ORDERING PRODUCT ────────────────────────────────────────
+// GST exists to put a tax breakup on a BILL. vsite issues no bills: ordering is
+// frozen, so nothing on the platform can produce a document this data would
+// appear on. The Smart QR Menu shows prices and is untouched by this.
+//
+// It is frozen rather than deleted for the same reason the order routes are —
+// `ORDERING_FROZEN` is one switch, and GST comes back with the product it
+// belongs to. Reads (`GET .../gst`) stay open so the settings page can still
+// render whatever an owner already stored.
+//
+// This handler itself calls nothing paid — it only clears columns. It is frozen
+// for coherence: it exists to restart a wizard whose other two steps are gated,
+// so leaving it open would offer an owner a way to wipe stored GST state with no
+// way to set it again. Its siblings `verify` and `complete` are the ones that
+// reach the pay-per-lookup API (2026-09 assessment, Finding 4).
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -21,6 +40,8 @@ export async function POST(
     request: NextRequest,
     { params }: { params: { siteId: string } },
 ) {
+    // QR ordering is frozen — see @/lib/platform/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
     const userId = await authenticate(request);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

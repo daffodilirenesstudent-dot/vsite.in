@@ -37,6 +37,15 @@ const ORDER_TAKING_ROUTES = [
     'app/api/manage/table-checkout/route.ts',
     'app/api/manage/sites/[siteId]/whatsapp-orders/route.ts',
     'app/api/shop/payment-options/route.ts',
+    // GST exists to put a tax breakup on a BILL, and vsite issues no bills while
+    // ordering is frozen. The settings tab that drives these was already
+    // unreachable — `qrMenuOnly` hides it, and normalizePlan makes every store
+    // qr_menu — so the handlers were reachable only by direct HTTP, with no rate
+    // limit, and `verify`/`complete` each call a pay-per-lookup third-party API
+    // (2026-09 assessment, Finding 4). Frozen with the product they belong to.
+    'app/api/manage/sites/[siteId]/gst/verify/route.ts',
+    'app/api/manage/sites/[siteId]/gst/complete/route.ts',
+    'app/api/manage/sites/[siteId]/gst/reset/route.ts',
 ];
 
 describe('no order-taking route is reachable while frozen', () => {
@@ -59,6 +68,14 @@ describe('the revenue path stays open', () => {
         // Read-only, creates nothing. Signed email links to pre-freeze orders
         // must keep resolving.
         expect(src('app/api/orders/[id]/status/route.ts')).not.toMatch(/frozenResponse/);
+    });
+
+    it('reading a stored GST profile stays open', () => {
+        // The three GST WRITE paths are frozen above. This one is a scoped,
+        // read-only, zero-cost lookup: freezing it would make the settings page
+        // 403 while trying to render state an owner already has, and it buys
+        // nothing — there is no third-party call and nothing to spend.
+        expect(src('app/api/manage/sites/[siteId]/gst/route.ts')).not.toMatch(/frozenResponse/);
     });
 });
 

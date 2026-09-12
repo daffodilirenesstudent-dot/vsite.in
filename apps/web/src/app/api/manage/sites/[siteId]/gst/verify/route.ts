@@ -13,6 +13,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { verifyGstin, isValidGstinFormat } from '@/lib/payments/gstincheck';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { frozenResponse } from '@/lib/platform/frozenResponse';
+
+// ─── FROZEN WITH THE ORDERING PRODUCT ────────────────────────────────────────
+// GST exists to put a tax breakup on a BILL. vsite issues no bills: ordering is
+// frozen, so nothing on the platform can produce a document this data would
+// appear on. The Smart QR Menu shows prices and is untouched by this.
+//
+// It is frozen rather than deleted for the same reason the order routes are —
+// `ORDERING_FROZEN` is one switch, and GST comes back with the product it
+// belongs to. Reads (`GET .../gst`) stay open so the settings page can still
+// render whatever an owner already stored.
+//
+// Security note: while reachable, this path had no rate limit, and its 24h cache
+// is keyed on (site_id, gstin) — so varying the GSTIN, which is only checked
+// against a format regex, made every request a cache miss and a paid
+// gstincheck.co.in lookup (2026-09 assessment, Finding 4). If ordering is
+// unfrozen, that must be fixed BEFORE this gate is removed: rate limit per user,
+// validate the GSTIN checksum, and cache negative results.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const dynamic    = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -34,6 +54,8 @@ export async function POST(
     request: NextRequest,
     { params }: { params: { siteId: string } },
 ) {
+    // QR ordering is frozen — see @/lib/platform/productFlags to unfreeze.
+    if (ORDERING_FROZEN) return frozenResponse();
     const userId = await authenticate(request);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
