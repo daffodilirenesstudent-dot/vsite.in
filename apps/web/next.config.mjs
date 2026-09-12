@@ -9,6 +9,30 @@ import { withSentryConfig } from '@sentry/nextjs';
 //   We allow Razorpay (checkout SDK + cdn for fraud-detection bundle), Google
 //   Tag Manager (GA), Google reCAPTCHA (Firebase phone auth), and the Material
 //   Symbols stylesheet loader script.
+//
+//   'unsafe-eval' WAS here and has been removed (2026-09 assessment, Finding 13).
+//   It was never explained, and with 'unsafe-inline' beside it the policy had no
+//   XSS value at all — it was functioning purely as a resource allowlist.
+//
+//   ✅ VERIFIED 2026-09-12 against a PRODUCTION build: the full phone-OTP path
+//   (reCAPTCHA init → OTP send → verify → token → session cookie → dashboard)
+//   runs with zero CSP violations. reCAPTCHA does not need eval.
+//
+//   ⚠ RE-TEST ONLY AGAINST `npm run build && npm run start`. The DEV server
+//   throws a false positive here — Next.js Fast Refresh
+//   (@next/react-refresh-utils) evaluates a string at startup and trips this
+//   directive. That runtime does not exist in a production bundle. Do not
+//   restore 'unsafe-eval' on the strength of a `npm run dev` console error.
+//
+//   Razorpay Checkout has NOT been exercised under this policy (it needs a live
+//   test-mode payment). It is believed fine — it is a plain iframe SDK — but if
+//   checkout breaks, restore the single token here rather than widening anything
+//   else, and record which bundle needed it.
+//
+//   Still outstanding, deliberately not changed in the same pass: script-src
+//   allows https://*.googleapis.com, which is broader than anything known to be
+//   loaded. Narrowing it is worth doing, but changing two things at once makes a
+//   breakage hard to attribute — do it as its own change.
 // - connect-src: every external API the browser actually calls — Supabase
 //   (REST + realtime websocket), Firebase Auth, Google's identity APIs.
 // - frame-src: Razorpay's checkout iframe + reCAPTCHA challenge iframe.
@@ -19,11 +43,11 @@ const csp = [
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://checkout.razorpay.com https://cdn.razorpay.com https://www.google.com https://www.gstatic.com https://*.googleapis.com",
+    "script-src 'self' 'unsafe-inline' https://*.clarity.ms https://www.googletagmanager.com https://www.google-analytics.com https://checkout.razorpay.com https://cdn.razorpay.com https://www.google.com https://www.gstatic.com https://*.googleapis.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://www.google-analytics.com https://www.googletagmanager.com",
-    "connect-src 'self' blob: data: http://127.0.0.1:7878 https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.google-analytics.com https://o4511393511636992.ingest.us.sentry.io",
+    "img-src 'self' data: blob: https://*.clarity.ms https://*.supabase.co https://lh3.googleusercontent.com https://www.google-analytics.com https://www.googletagmanager.com",
+    "connect-src 'self' blob: data: https://*.clarity.ms http://127.0.0.1:7878 https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.google-analytics.com https://o4511393511636992.ingest.us.sentry.io",
     "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.google.com https://www.gstatic.com",
     "form-action 'self'",
     "upgrade-insecure-requests",
