@@ -34,10 +34,10 @@ export const qrMenuPage: SeoLandingData = {
             ['AI food photos', 'Included', 'Not offered'],
             ['Tamil language', 'Built-in toggle', 'English only'],
             ['NFC card included', 'Yes', 'No'],
-            ['Monthly cost', '₹299', '₹500 – ₹1,500'],
+            ['Monthly cost', '₹299', '₹99 – ₹699'],
             ['Per-order commission', 'None', '1.5% – 3%'],
         ]},
-        { type: 'callout', text: "vsite — India's fastest-growing digital menu software — is the only QR menu tool built specifically for Tamil Nadu restaurants — Tamil support, ₹299/mo, and AI-generated food photos included." },
+        { type: 'callout', text: "vsite is built in Tamil Nadu for Tamil Nadu restaurants: Tamil and English on every menu, ₹299/mo, and an AI-generated food photo for every dish — which no other tool in this price range includes." },
     ],
     relatedLinks: [
         { label: 'Digital Menu for Indian Restaurants →', href: '/digital-menu-india' },
@@ -51,7 +51,7 @@ export const qrMenuPage: SeoLandingData = {
     faqs: [
         { q: 'How do I create a QR code menu for my restaurant?', a: 'Sign up on vsite.in, upload a photo of your paper menu, and vsite\'s AI builds your digital menu with food photos automatically. You get a QR code and NFC card to display on your tables. The entire process takes under 3 minutes.' },
         { q: 'Do customers need to download an app to scan a QR menu?', a: 'No. Customers use their phone\'s native camera app to scan the QR code. The menu opens in their browser within 2–3 seconds. No app download, no signup, no friction.' },
-        { q: 'How much does a QR code menu cost in India?', a: 'vsite\'s QR Menu plan costs ₹299/month with no setup fee. This includes AI food photos, unlimited menu updates, a physical NFC card, and WhatsApp support. Competitors typically charge ₹500–₹1,500/month.' },
+        { q: 'How much does a QR code menu cost in India?', a: 'vsite\'s QR Menu plan costs ₹299/month with no setup fee. This includes AI food photos, unlimited menu updates, a physical NFC card, and WhatsApp support. DineCard is cheaper at about ₹99/month and MenuScan\'s tiers run ₹250–₹750/month. Neither generates a food photo for every dish, neither does menu engineering, and neither posts you physical QR and NFC stands. If you only need your text menu online, DineCard is worth a look.' },
         { q: 'Can I have a unique QR code for each table?', a: 'Yes. vsite generates a unique QR code per table, so a scan always tells you which table it came from. Your staff still take the order today — in-menu ordering with UPI payment is coming soon.' },
         { q: 'Does the QR menu work without internet on the customer\'s side?', a: 'Customers need mobile data or Wi-Fi to open the menu the first time. Once loaded, the menu runs entirely in their browser and works even on slow 4G connections.' },
     ],
@@ -97,7 +97,7 @@ export const digitalMenuIndiaPage: SeoLandingData = {
             ['MakeMyMenu', 'Freemium', 'No', 'No', 'None'],
             ['MenuGen', 'Low cost', 'No', 'No', 'None'],
         ]},
-        { type: 'callout', text: "vsite — India's fastest-growing digital menu software — is the only platform built specifically for Tamil Nadu restaurants. 7-day free trial. No credit card." },
+        { type: 'callout', text: "vsite is built in Tamil Nadu, for Tamil Nadu restaurants — support in Tamil, from the people who made it. 7-day free trial. No credit card." },
     ],
     relatedLinks: [
         { label: 'QR Code Menu →', href: '/qr-menu' },
@@ -148,7 +148,7 @@ export const aiMenuBuilderPage: SeoLandingData = {
             'Food photos — AI matching is free; a photo shoot costs ₹5,000–₹15,000',
             'Consistency — every dish gets a polished photo; manual entry leaves gaps',
         ]},
-        { type: 'callout', text: "vsite is India's fastest-growing digital menu software. No other tool in India uses AI to read your paper menu and generate photos automatically. This is vsite's unique capability." },
+        { type: 'callout', text: "vsite reads your paper menu with AI and generates a food photo for every dish. Other Indian tools extract menu text; the photographs are what vsite adds, and they are why a vsite menu looks like a menu rather than a price list." },
     ],
     relatedLinks: [
         { label: 'QR Code Menu →', href: '/qr-menu' },
@@ -208,7 +208,7 @@ export const cafeMenuPage: SeoLandingData = {
             ['Tamil support', 'Yes', 'No'],
             ['Per-table QR', 'Yes', 'Limited'],
             ['Setup time', '3 min', '1+ day'],
-            ['Monthly cost', '₹299', '₹500–₹1,500'],
+            ['Monthly cost', '₹299', '₹99 – ₹699'],
             ['NFC card', 'Included', 'Add-on'],
         ]},
         { type: 'callout', text: 'Whether you run a single boutique café in Coimbatore or a 10-outlet chain, vsite is the fastest way to a beautiful digital café menu in India.' },

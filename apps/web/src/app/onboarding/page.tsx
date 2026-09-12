@@ -71,6 +71,7 @@ function OnboardingContent() {
     step, setStep,
     setExtractedItems,
     items,
+    menuTheme, brandColor,
     resetOnboarding,
   } = useOnboarding();
 
@@ -251,6 +252,8 @@ function OnboardingContent() {
         },
         body: JSON.stringify({
           shopName: businessName.trim(),
+          menuTheme,
+          brandColor,
           items: items.map(item => ({
             name: item.name,
             price: item.price,
@@ -540,6 +543,7 @@ function OnboardingContent() {
         show={launching}
         done={launchDone}
         itemCount={launchItemCount}
+        shopName={businessName}
         slug={launchSlug}
         onRedirect={handleLaunchRedirect}
       />

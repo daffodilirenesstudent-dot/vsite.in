@@ -8,6 +8,7 @@ import DishWall from '@/components/home/DishWall';
 import MenuBento from '@/components/home/MenuBento';
 import DinerFlow from '@/components/home/DinerFlow';
 import Pricing from '@/components/home/Pricing';
+import EnterpriseBand from '@/components/home/EnterpriseBand';
 import Proof from '@/components/home/Proof';
 import FAQ from '@/components/home/FAQ';
 import FooterCTA from '@/components/home/FooterCTA';
@@ -140,6 +141,7 @@ export default function Home() {
         <MenuBento />
         <DinerFlow />
         <Pricing />
+        <EnterpriseBand />
         <Proof />
         <FAQ />
         <FooterCTA />

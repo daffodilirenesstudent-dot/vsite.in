@@ -195,6 +195,9 @@ async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
             const amountInr = Math.round(payment.amount / 100);
             const { error } = await supabaseServer.from('billing_history').insert({
                 user_id: site.user_id,
+                // Same reason as verify-payment: the store has to be recorded
+                // at write time, because nothing can infer it afterwards.
+                site_id: siteRow.site_id,
                 plan_name: `${planNameForBilling === 'qr_menu' ? 'Smart QR Menu' : planNameForBilling === 'qr_order' ? 'QR Ordering' : 'Pay & Eat'} — Payment (webhook)`,
                 amount: amountInr,
                 currency: payment.currency,

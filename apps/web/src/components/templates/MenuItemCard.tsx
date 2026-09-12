@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { T } from './menuTokens';
+import { T, TV } from './menuTokens';
+import { staggerDelayMs } from '@/lib/menu/menuMotion';
 import { resolveBadge } from '@/lib/menu/badges';
 import { resolveOffer } from '@/lib/menu/offer';
 
@@ -74,6 +75,8 @@ export interface MenuItemCardProps {
      * only thing that knows the running index across categories.
      */
     priority?: boolean;
+    /** Position in the opening list; drives the reveal stagger. Omit to skip it. */
+    revealIndex?: number;
     /** ADD button or quantity stepper. Supplied by the caller so this stays presentational. */
     action?: React.ReactNode;
 }
@@ -197,7 +200,7 @@ function Thumb({ src, alt, soldOut, priority }: {
         <div
             style={{
                 position: 'relative', width: THUMB, height: THUMB, flex: 'none',
-                borderRadius: 10, overflow: 'hidden',
+                borderRadius: TV.thumbRadius, overflow: 'hidden',
                 background: T.white,
                 border: `1px solid ${soldOut ? T.outLine : '#EFEFEF'}`,
             }}
@@ -230,6 +233,7 @@ export default function MenuItemCard({
     onSelect,
     soldOut = false,
     priority = false,
+    revealIndex,
     action,
 }: MenuItemCardProps) {
     const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
@@ -260,7 +264,15 @@ export default function MenuItemCard({
 
     return (
         <div
-            className={interactive ? 'qr-card qr-card-press' : 'qr-card'}
+            className={[
+                'qr-card',
+                interactive ? 'qr-card-press' : '',
+                // The reveal runs once, on the rows that are on screen when the
+                // menu opens. Rows further down simply appear as you reach them
+                // — animating on every scroll is what makes a list feel nauseous
+                // rather than alive.
+                revealIndex === undefined ? '' : 'qr-rise',
+            ].filter(Boolean).join(' ')}
             data-offer={showOffer ? 'true' : 'false'}
             data-soldout={soldOut ? 'true' : 'false'}
             data-testid="menu-item-card"
@@ -285,19 +297,23 @@ export default function MenuItemCard({
                 ].filter(Boolean).join('. ')
             }
             style={{
+                ...(revealIndex === undefined
+                    ? null
+                    : { animationDelay: `${staggerDelayMs(revealIndex)}ms` }),
                 position: 'relative', width: '100%',
-                display: 'grid', gridTemplateColumns: hasRightColumn ? `1fr ${THUMB}px` : '1fr', gap: 10,
+                display: 'grid', gridTemplateColumns: hasRightColumn ? `1fr ${THUMB}px` : '1fr',
+                gap: TV.cardGap,
                 alignItems: 'start',
-                padding: 10,
-                borderRadius: 8,
-                // The offer's whole signal. A sold-out card stays neutral.
-                background: soldOut ? T.cardBg : showOffer ? T.offerTint : T.white,
-                border: `1px solid ${soldOut ? T.outLine : T.border}`,
+                padding: TV.cardPadding,
+                borderRadius: TV.cardRadius,
+                // The offer's whole signal, and it is identical in every design:
+                // the tint IS the offer, so a theme may not restyle it. Same for
+                // the sold-out ground. Only the plain card follows the theme.
+                background: soldOut ? T.cardBg : showOffer ? T.offerTint : TV.cardBg,
+                border: soldOut ? `1px solid ${T.outLine}` : TV.cardBorder,
                 // The lift that separates a tappable row from the page. A
                 // sold-out row deliberately stays flat — it is not pressable.
-                boxShadow: soldOut
-                    ? 'none'
-                    : '0 1px 3px rgba(25,25,25,0.06), 0 1px 1px rgba(25,25,25,0.04)',
+                boxShadow: soldOut ? 'none' : TV.cardShadow,
                 cursor: interactive ? 'pointer' : 'default',
             }}
         >
@@ -307,7 +323,7 @@ export default function MenuItemCard({
                     <VegMark foodType={p.food_type} muted={soldOut} />
                     <p style={{
                         margin: 0, minWidth: 0,
-                        fontFamily: "'Poppins',sans-serif", fontWeight: 600,
+                        fontFamily: TV.fontDisplay, fontWeight: 600,
                         fontSize: 15, lineHeight: '21px', color: soldOut ? T.outName : '#231F23',
                         overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                     }}>{p.name}</p>
@@ -361,7 +377,7 @@ export default function MenuItemCard({
                 {description && (
                     <p style={{
                         margin: 0,
-                        fontFamily: "'Poppins',sans-serif", fontWeight: 400,
+                        fontFamily: TV.fontBody, fontWeight: 400,
                         fontSize: 13, lineHeight: '18px', color: soldOut ? T.outInk : T.descInk,
                         display: '-webkit-box', WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical', overflow: 'hidden',
@@ -390,8 +406,8 @@ export default function MenuItemCard({
                 ) : (
                     <p style={{
                         margin: '2px 0 0',
-                        fontFamily: "'Poppins',sans-serif", fontWeight: 600,
-                        fontSize: 16, lineHeight: '24px', color: soldOut ? T.outInk : T.pink,
+                        fontFamily: TV.fontDisplay, fontWeight: 600,
+                        fontSize: 16, lineHeight: '24px', color: soldOut ? T.outInk : TV.accent,
                     }}>
                         {CURR}{p.selling_price}
                         {kind?.priceIsFrom && !soldOut && (

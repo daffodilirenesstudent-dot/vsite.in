@@ -6,6 +6,7 @@ import { usePlan } from '@/components/PlanContext';
 import { useSite } from '@/components/SiteContext';
 import { firebaseAuth } from '@/lib/auth/firebase';
 import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { formatPrice } from '@/lib/platform/currency';
 
 // Per-plan monthly pricing. Keep in sync with create-subscription/route.ts.
 // 30-day cycle, no setup fee.
@@ -25,7 +26,6 @@ const QR_MENU_FEATURES = [
     'Edit menu anytime from dashboard',
     'Highlight offers & sold-out items live',
     'Works for dine-in & takeaway',
-    'NFC card + QR stickers',
     'Shareable QR code link',
 ];
 
@@ -48,6 +48,17 @@ const QR_ORDER_FEATURES = [
     'One-tap "Request Bill" button for customers',
     'Table-specific QR codes only',
 ];
+
+interface Invoice {
+    id: string;
+    invoiceNo: string;
+    planName: string;
+    amount: number;
+    currency: string;
+    status: string;
+    paidAt: string | null;
+    paymentId: string | null;
+}
 
 declare global {
     interface Window {
@@ -96,6 +107,8 @@ export default function SubscriptionPage() {
 
     // Was previously a paying customer (store_expires_at was set), plan now expired
     const isPlanExpired = !!sub?.store_expires_at && !isQrMenuActive && !isQrOrderingActive && !isQrOrderActive;
+    // Payment only reopens after the plan lapses, so a renewal is exactly an
+    // expired plan being paid for again.
     const isRenewal = isPlanExpired;
     const dueToday = QR_MENU_MONTHLY; // no setup fee
 
@@ -125,6 +138,12 @@ export default function SubscriptionPage() {
         }, 2000);
     };
 
+    // Kept for the guard in openPayment; with no early renewal the plan is
+    // always inactive when the modal opens, so "a plan became active" is once
+    // again a sound success signal on its own.
+    const expiryAtOpenRef = useRef<number | null>(null);
+    const currentExpiryMs = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
+
     // Detect plan activation during polling — any plan, not just qr_menu.
     React.useEffect(() => {
         const anyActive = isQrMenuActive || isQrOrderingActive || isQrOrderActive;
@@ -138,13 +157,51 @@ export default function SubscriptionPage() {
             }, 2500);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isQrMenuActive, isQrOrderingActive, isQrOrderActive, paymentState]);
+    }, [isQrMenuActive, isQrOrderingActive, isQrOrderActive, paymentState, currentExpiryMs]);
+
+    // ── Invoice history ─────────────────────────────────────────────────────
+    // `billing_history` has been recording every payment since the first
+    // subscription; nothing ever read it back, so the page asked owners to
+    // "Renew manually" while showing no proof they had ever paid.
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [invoicesState, setInvoicesState] = useState<'loading' | 'ready' | 'error'>('loading');
+
+    const loadInvoices = React.useCallback(async () => {
+        try {
+            const token = await firebaseAuth.currentUser?.getIdToken();
+            if (!token) { setInvoicesState('error'); return; }
+            // Scoped to the store being viewed. An owner with several stores
+            // was otherwise shown one merged list on every one of them.
+            const siteId = activeSite?.id;
+            if (!siteId) { setInvoicesState('error'); return; }
+            const res = await fetch(`/api/manage/billing-history?site_id=${encodeURIComponent(siteId)}`, {
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store',
+            });
+            if (!res.ok) { setInvoicesState('error'); return; }
+            const body = await res.json();
+            setInvoices(Array.isArray(body.invoices) ? body.invoices : []);
+            setInvoicesState('ready');
+        } catch {
+            setInvoicesState('error');
+        }
+    }, [activeSite?.id]);
+
+    React.useEffect(() => { loadInvoices(); }, [loadInvoices]);
+
+    // A fresh payment should appear without a manual reload.
+    React.useEffect(() => {
+        if (paymentState === 'success') loadInvoices();
+    }, [paymentState, loadInvoices]);
 
     // Cleanup on unmount
     React.useEffect(() => () => stopPolling(), []);
 
     const openPayment = () => {
+        // Nothing to buy while a plan or trial is running.
         if (isQrMenuActive || isTrialActive) return;
+        // No early renewal, so there is never a prior expiry to beat.
+        expiryAtOpenRef.current = null;
         setModalType('payment');
         setPaymentState('idle');
         // Preload Razorpay script as soon as the modal opens — by the time the
@@ -449,9 +506,16 @@ export default function SubscriptionPage() {
                 </div>
             )}
 
-            {/* Plan cards */}
+            {/* Plan cards.
+                The grid was a fixed 3 columns, but ORDERING_FROZEN leaves exactly
+                one sellable plan — so the single card was rendering at a third of
+                the container (~224px of 1105px) and wrapping its own feature text
+                while the rest of the page sat empty. Column count now follows how
+                many cards there actually are. */}
             {!isDataLoading && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className={ORDERING_FROZEN
+                    ? 'grid grid-cols-1 gap-4'
+                    : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'}>
 
                     {/* Smart QR Menu */}
                     <div
@@ -483,7 +547,10 @@ export default function SubscriptionPage() {
                                 No setup fee · Billed every 30 days
                             </div>
                         </div>
-                        <div style={{ flex: 1, marginBottom: 20 }}>
+                        <div
+                            style={{ flex: 1, marginBottom: 20 }}
+                            className={ORDERING_FROZEN ? 'sm:grid sm:grid-cols-2 sm:gap-x-6' : ''}
+                        >
                             {QR_MENU_FEATURES.map(f => (
                                 <div key={f} className="flex items-start gap-2" style={{ marginBottom: 9 }}>
                                     <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#16A34A', flexShrink: 0, marginTop: 1, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
@@ -491,28 +558,37 @@ export default function SubscriptionPage() {
                                 </div>
                             ))}
                         </div>
+                        {/* A plain 30-day cycle: pay, get 30 days, pay again when
+                            they run out. While the plan is running there is
+                            nothing to buy, so the button states the plan rather
+                            than selling it. */}
                         <button
                             onClick={openPayment}
                             disabled={isQrMenuActive || isTrialActive}
                             style={{
-                                width: '100%', height: 44, borderRadius: 10, fontSize: 14, fontWeight: 600,
+                                width: '100%', minHeight: 48, borderRadius: 10, fontSize: 14, fontWeight: 600,
                                 border: (isQrMenuActive || isTrialActive) ? 'none' : '2px solid #16A34A',
                                 background: isQrMenuActive ? '#F0FDF4' : isTrialActive ? '#F4F4F5' : 'transparent',
                                 color: isQrMenuActive ? '#16A34A' : isTrialActive ? '#71717A' : '#16A34A',
-                                cursor: (isQrMenuActive || isTrialActive) ? 'not-allowed' : 'pointer',
+                                cursor: (isQrMenuActive || isTrialActive) ? 'default' : 'pointer',
                                 transition: 'all 0.15s',
                             }}
                             onMouseEnter={e => { if (!isQrMenuActive && !isTrialActive) (e.currentTarget as HTMLButtonElement).style.background = '#F0FDF4'; }}
                             onMouseLeave={e => { if (!isQrMenuActive && !isTrialActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                         >
                             {isQrMenuActive
-                                ? 'Current Plan'
+                                ? 'Current plan'
                                 : isTrialActive
                                     ? `Available after trial (${trialDaysLeft}d left)`
                                     : isPlanExpired
                                         ? `Renew — ₹${QR_MENU_MONTHLY}/mo`
                                         : `Activate — ₹${QR_MENU_MONTHLY}/mo`}
                         </button>
+                        {isQrMenuActive && expiryLabel && (
+                            <p style={{ fontSize: 12, color: '#52525C', textAlign: 'center', marginTop: 8, lineHeight: '17px' }}>
+                                Active until {expiryLabel}. Renew from here once it ends.
+                            </p>
+                        )}
                     </div>
 
                     {/* The two QR-ordering plans are frozen — no upgrade path is
@@ -626,6 +702,92 @@ export default function SubscriptionPage() {
                     )}
                 </div>
             )}
+
+            {/* ── Invoice history ── */}
+            <div style={{ marginTop: 28, border: '1px solid #E4E4E7', borderRadius: 16, background: '#FFFFFF', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #E4E4E7' }}>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#0A0A0A' }}>Invoice history</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 13, color: '#71717A' }}>Payments for {activeSite?.name ?? 'this store'}</p>
+                </div>
+
+                {invoicesState === 'loading' && (
+                    <div style={{ padding: '20px' }}>
+                        {[0, 1, 2].map(i => (
+                            <div key={i} className="skeleton" style={{ height: 44, borderRadius: 8, marginBottom: i < 2 ? 10 : 0 }} />
+                        ))}
+                    </div>
+                )}
+
+                {invoicesState === 'error' && (
+                    <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#52525C' }}>
+                            Couldn&apos;t load your invoices. Your payments are safe — this is only the list.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => { setInvoicesState('loading'); loadInvoices(); }}
+                            style={{ minHeight: 40, padding: '0 18px', borderRadius: 8, border: '1px solid #E4E4E7', background: '#FFFFFF', color: '#0A0A0A', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                        >
+                            Try again
+                        </button>
+                    </div>
+                )}
+
+                {invoicesState === 'ready' && invoices.length === 0 && (
+                    <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: 13, color: '#71717A' }}>
+                            No payments for this store yet. Your first invoice appears here once you activate the plan.
+                        </p>
+                    </div>
+                )}
+
+                {invoicesState === 'ready' && invoices.length > 0 && (
+                    <div>
+                        {invoices.map((inv, i) => (
+                            <div
+                                key={inv.id}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                                    padding: '14px 20px',
+                                    borderTop: i === 0 ? 'none' : '1px solid #F4F4F5',
+                                }}
+                            >
+                                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                                    <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: '#0A0A0A' }}>
+                                        {inv.paidAt
+                                            ? new Date(inv.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                            : '—'}
+                                    </p>
+                                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#71717A' }}>
+                                        {inv.planName} · {inv.invoiceNo}
+                                    </p>
+                                </div>
+                                <span
+                                    style={{
+                                        fontSize: 11, fontWeight: 500, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap',
+                                        background: inv.status === 'Success' ? '#E8F5EE' : '#FBF4E2',
+                                        color: inv.status === 'Success' ? '#16794C' : '#8A6A08',
+                                    }}
+                                >
+                                    {inv.status}
+                                </span>
+                                <span style={{ fontSize: 15, fontWeight: 700, color: '#0A0A0A', fontVariantNumeric: 'tabular-nums' }}>
+                                    {formatPrice(inv.amount, inv.currency)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Said plainly, because an owner may be looking for a tax
+                    document. vsite has no GSTIN yet, so this must not be
+                    mistaken for one. */}
+                <div style={{ padding: '12px 20px', borderTop: '1px solid #E4E4E7', background: '#FAFAFA' }}>
+                    <p style={{ margin: 0, fontSize: 12, color: '#71717A' }}>
+                        This is a payment record, not a GST invoice. Need one for your accounts? Contact support.
+                    </p>
+                </div>
+            </div>
 
             <p className="mt-5 text-center text-[#71717A]" style={{ fontSize: 12 }}>
                 All payments are processed securely by Razorpay. Plans are valid for 30 days. Renew manually.

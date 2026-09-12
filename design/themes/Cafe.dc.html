@@ -1,0 +1,220 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;family=Manrope:wght@500;700;800&amp;family=Mukta+Malar:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #FBF7F0; font-family: 'Manrope', system-ui, sans-serif; }
+    a { color: #A04D31; } a:hover { color: #C2603F; }
+
+    /* ── CAFE — seven knobs move from Classic, nothing else:
+       surface #FBF7F0 · card #FFFDFA · radius 16 · warm shadow, no hairline
+       · accent #C2603F · Newsreader + Mukta Malar · density +2px.
+       IDENTICAL data vocabulary: banner, badge, variant, combo, egg,
+       no-photo collapse, sold-out. Frozen tokens untouched. */
+
+    .card { position: relative; display: grid; grid-template-columns: 1fr 120px; gap: 12px; align-items: start; padding: 12px; border-radius: 16px; background: #FFFDFA; border: 1px solid transparent; box-shadow: 0 2px 10px rgba(150,110,70,0.08), 0 1px 2px rgba(150,110,70,0.05); }
+    .card.noimg { grid-template-columns: 1fr; }
+    .card.offer { background: #FFECEC; }
+    .card.out { background: #F5F1EA; box-shadow: none; border-color: #E8E1D6; }
+
+    .left { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .nmrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+
+    .mark { width: 14px; height: 14px; flex: none; border-radius: 3px; display: flex; align-items: center; justify-content: center; border: 1.6px solid #13801C; }
+    .mark > span { width: 7px; height: 7px; border-radius: 50%; display: block; background: #13801C; }
+    .mark.nonveg { border-color: #FB2C36; } .mark.nonveg > span { background: #FB2C36; }
+    .mark.egg { border-color: #FFBC11; } .mark.egg > span { background: #FFBC11; }
+    .mark.muted { border-color: #B4AFB4; } .mark.muted > span { background: #B4AFB4; }
+
+    .nm { margin: 0; min-width: 0; font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: 16px; line-height: 21px; color: #2A2218; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .nm.ta { font-family: 'Mukta Malar', 'Newsreader', serif; font-size: 15px; }
+    .nm.out { color: #9A9086; }
+
+    .ds { margin: 0; font-family: 'Manrope', sans-serif; font-weight: 500; font-size: 13px; line-height: 18px; color: #6B5E4F; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ds.ta { font-family: 'Mukta Malar', sans-serif; }
+    .ds.out { color: #A79C90; }
+
+    .pr { margin: 3px 0 0; font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: 17px; line-height: 24px; }
+    .pr.out { color: #A79C90; }
+    .onwards { font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 12.5px; color: #8A7B69; margin-left: 5px; }
+
+    .offerrow { display: flex; align-items: baseline; gap: 7px; margin-top: 3px; font-family: 'Manrope', sans-serif; flex-wrap: wrap; }
+    .offernow { font-weight: 800; font-size: 19px; color: #191919; }
+    .offerwas { font-weight: 500; font-size: 12px; text-decoration: line-through; color: #918992; }
+    .offersave { font-weight: 800; font-size: 11.5px; color: #13801C; }
+
+    .badge { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 3px 9px 3px 7px; border-radius: 100px; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 11px; line-height: 15px; letter-spacing: 0.01em; }
+    .badge.best { background: #FFF6DE; color: #8A5B06; border: 1px solid #F2DFA8; }
+
+    .kind { display: inline-flex; align-items: center; gap: 5px; width: fit-content; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 11.5px; line-height: 16px; color: #8A7B69; }
+    .outtag { display: inline-flex; align-items: center; width: fit-content; padding: 3px 8px; border-radius: 4px; background: #EAE3D8; color: #6B5E4F; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 10.5px; line-height: 15px; letter-spacing: 0.06em; }
+
+    .th { width: 120px; height: 120px; flex: none; border-radius: 12px; overflow: hidden; border: 1px solid #F0E7DA; background: #FFFDFA; }
+    .th.out { filter: grayscale(1); opacity: 0.5; }
+    .thfill { width: 100%; height: 100%; display: block; }
+
+    .sec { display: flex; align-items: baseline; gap: 8px; padding: 22px 16px 12px; }
+    .sech { margin: 0; font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: 19px; line-height: 24px; color: #2A2218; }
+    .secn { font-family: 'Manrope', sans-serif; font-weight: 500; font-size: 13px; color: #A2957F; }
+
+    .chip { flex-shrink: 0; display: flex; align-items: center; height: 36px; padding: 0 2px; font-family: 'Manrope', sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; color: #8A7B69; white-space: nowrap; border-bottom: 2px solid transparent; box-sizing: border-box; }
+
+    .bnr { position: relative; border-radius: 14px; overflow: hidden; aspect-ratio: 351/134; }
+    .dots { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; }
+    .dot { width: 6px; height: 6px; border-radius: 100px; background: rgba(255,255,255,0.55); }
+    .dot.on { width: 18px; background: #FFFFFF; }
+
+    /* ── MOTION ── Byte-identical to Classic and Premium. Motion is NOT a
+       themeable knob. Transform/opacity only, settle curve only, no spring. */
+    @keyframes qrRise { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+
+    .anim .rise { animation: qrRise 400ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+    .anim .stack > .card:nth-child(1) { animation: qrRise 400ms cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: 130ms; }
+    .anim .stack > .card:nth-child(2) { animation: qrRise 400ms cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: 165ms; }
+    .anim .stack > .card:nth-child(3) { animation: qrRise 400ms cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: 200ms; }
+    .anim .stack > .card:nth-child(4) { animation: qrRise 400ms cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: 235ms; }
+    .anim .stack > .card:nth-child(5) { animation: qrRise 400ms cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: 270ms; }
+    .anim .hdr { animation: qrRise 380ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+    .anim .bnrwrap { animation: qrRise 380ms cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: 45ms; }
+    .anim .chiprow { animation: qrRise 380ms cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: 85ms; }
+
+    .chip { transition: transform 140ms cubic-bezier(0.32, 0.72, 0, 1), color 160ms ease, border-color 160ms ease; }
+    .chip:active { transform: scale(0.96); }
+    .card { transition: transform 160ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 160ms ease; }
+    .card:active { transform: scale(0.985); }
+
+    .stack { content-visibility: auto; contain-intrinsic-size: auto 700px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .anim .rise, .anim .stack > .card, .anim .hdr, .anim .bnrwrap, .anim .chiprow { animation: none; }
+      .chip, .card { transition: none; }
+    }
+  </style>
+</helmet>
+
+<div class="{{animClass}}" style="width: 390px; min-height: 1180px; background: #FBF7F0; display: flex; flex-direction: column;">
+
+  <!-- Header -->
+  <div class="hdr" style="display: flex; align-items: center; gap: 10px; padding: 18px 16px 14px; background: #FBF7F0;">
+    <div style="width: 28px; height: 28px; flex: none; border-radius: 50%; background: linear-gradient(140deg, #EEDDCB, #D9BF9F); display: {{logoDisplay}};"></div>
+    <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+      <span style="font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: 19px; line-height: 24px; color: {{accent}};">Anandha Bhavan</span>
+      <span style="font-family: 'Manrope', sans-serif; font-weight: 500; font-size: 11px; color: #A2957F;">Pure veg tiffin since 1994</span>
+    </div>
+  </div>
+
+  <!-- Banner carousel — same banners table, softer corner -->
+  <div class="bnrwrap" style="padding: 0 12px; background: #FBF7F0;">
+    <div class="bnr">
+      <div style="width: 100%; height: 100%; background: linear-gradient(115deg, #F0DCC2 0%, #E2C09A 55%, #D2A578 100%); display: flex; flex-direction: column; justify-content: center; padding: 0 20px; box-sizing: border-box;">
+        <span style="font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: 20px; line-height: 25px; color: #5A3A1C;">Pongal special</span>
+        <span style="font-family: 'Manrope', sans-serif; font-weight: 600; font-size: 12px; color: #7A5732;">Sakkarai pongal · all week</span>
+      </div>
+      <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+    </div>
+  </div>
+
+  <!-- Category bar — underline, not pill -->
+  <div class="chiprow" style="display: flex; align-items: center; gap: 18px; padding: 10px 16px; background: #FBF7F0; min-height: 60px; box-sizing: border-box; overflow: hidden; border-bottom: 1px solid #EFE7DA;">
+    <div class="chip" style="color: {{accent}}; border-bottom-color: {{accent}};">All</div>
+    <div class="chip">Tiffin</div>
+    <div class="chip">Rice</div>
+    <div class="chip">Non-veg</div>
+  </div>
+
+  <div class="sec rise"><h2 class="sech">Tiffin</h2><span class="secn">5 items</span></div>
+
+  <div class="stack" style="display: flex; flex-direction: column; gap: 12px; padding: 0 16px 20px;">
+
+    <!-- 1. Single + Best Seller badge -->
+    <div class="card">
+      <div class="left">
+        <div class="nmrow"><span class="mark"><span></span></span><p class="nm">Idli Sambar</p></div>
+        <span class="badge best">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A5B06" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.4l6.1-.8z"></path></svg>
+          Best Seller
+        </span>
+        <p class="ds">Two steamed rice cakes, lentil sambar and coconut chutney.</p>
+        <p class="pr" style="color: {{accent}};">₹40</p>
+      </div>
+      <div class="th"><div class="thfill" style="background: linear-gradient(150deg, #F6EDE2, #EADFCF);"></div></div>
+    </div>
+
+    <!-- 2. Variant + offer -->
+    <div class="card offer">
+      <div class="left">
+        <div class="nmrow"><span class="mark"><span></span></span><p class="nm">Ghee Roast Dosa</p></div>
+        <span class="kind">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A7B69" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"></path></svg>
+          3 sizes
+        </span>
+        <p class="ds">Crisp dosa roasted in ghee, served with sambar and two chutneys.</p>
+        <div class="offerrow"><span class="offernow">₹95</span><span class="offerwas">₹120</span><span class="offersave">₹25 OFF</span></div>
+      </div>
+      <div class="th"><div class="thfill" style="background: linear-gradient(150deg, #F4DFC4, #E3C39B);"></div></div>
+    </div>
+
+    <!-- 3. Combo + egg mark -->
+    <div class="card">
+      <div class="left">
+        <div class="nmrow"><span class="mark egg"><span></span></span><p class="nm">Tiffin Combo</p></div>
+        <span class="kind">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A7B69" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"></rect><rect x="13" y="3" width="8" height="8" rx="1.5"></rect><rect x="3" y="13" width="8" height="8" rx="1.5"></rect></svg>
+          Combo · 3 items
+        </span>
+        <p class="ds">Two idli, one egg dosa and filter coffee. Served all morning.</p>
+        <p class="pr" style="color: {{accent}};">₹120</p>
+      </div>
+      <div class="th"><div class="thfill" style="background: linear-gradient(150deg, #EFE3D0, #DCC7A8);"></div></div>
+    </div>
+
+    <!-- 4. Long Tamil name + NO photo -->
+    <div class="card noimg">
+      <div class="left">
+        <div class="nmrow"><span class="mark"><span></span></span><p class="nm ta">கார குழம்பு வெங்காய சாம்பார் சாதம்</p></div>
+        <p class="ds ta">காரமான குழம்பு, வெங்காய சாம்பார் மற்றும் சூடான சாதம்.</p>
+        <p class="pr" style="color: {{accent}};">₹85<span class="onwards">onwards</span></p>
+      </div>
+    </div>
+
+    <!-- 5. Sold out + non-veg -->
+    <div class="card out">
+      <div class="left">
+        <div class="nmrow"><span class="mark nonveg muted"><span></span></span><p class="nm out">Chicken Chettinad</p></div>
+        <span class="outtag">SOLD OUT</span>
+        <p class="ds out">Slow-cooked chicken with roasted spices, black pepper and curry leaf.</p>
+        <p class="pr out">₹180</p>
+      </div>
+      <div class="th out"><div class="thfill" style="background: linear-gradient(150deg, #E8CDBE, #CDA891);"></div></div>
+    </div>
+
+  </div>
+
+  <div style="margin-top: auto; padding: 16px; text-align: center;">
+    <span style="font-family: 'Manrope', sans-serif; font-weight: 500; font-size: 11px; color: #A2957F;">Crafted in தமிழ்நாடு</span>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#C2603F","options":["#C2603F","#8C6239","#1F6F4A","#EF59A1"],"section":"Brand"},"showLogo":{"editor":"boolean","default":true,"section":"Brand"},"animate":{"editor":"boolean","default":true,"section":"Motion"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const animate = this.props.animate ?? true;
+    const showLogo = this.props.showLogo ?? true;
+    return {
+      accent: this.props.accent ?? '#C2603F',
+      logoDisplay: showLogo ? 'block' : 'none',
+      animClass: animate ? 'anim' : '',
+    };
+  }
+}
+</script>
+</body>
+</html>

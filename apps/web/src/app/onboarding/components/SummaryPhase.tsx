@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useOnboarding } from '@/components/OnboardingContext';
+import MenuDesignPicker from '@/components/menu/MenuDesignPicker';
 
 interface SummaryPhaseProps {
   onLaunch: () => void;
@@ -9,7 +10,7 @@ interface SummaryPhaseProps {
 }
 
 export default function SummaryPhase({ onLaunch, launching }: SummaryPhaseProps) {
-  const { items, businessName } = useOnboarding();
+  const { items, businessName, menuTheme, brandColor, setMenuTheme, setBrandColor } = useOnboarding();
   const [showAll, setShowAll] = useState(false);
 
   const bestsellerCount = items.filter(i => i.star_rating === 4).length;
@@ -103,6 +104,31 @@ export default function SummaryPhase({ onLaunch, launching }: SummaryPhaseProps)
             )}
           </>
         )}
+      </div>
+
+      {/* Menu design.
+          Folded into the summary rather than given its own phase: onboarding
+          CLAUDE.md treats every added step as a regression, and this is the
+          highest-abandonment surface in the product. It costs no step, and it
+          lands at the moment the owner is most invested — he has just watched
+          his own menu get read off a photograph.
+
+          Classic is pre-selected, so an owner who ignores this entirely still
+          launches a finished menu by pressing the same button he was going to
+          press anyway. */}
+      <div className="pt-4 border-t border-slate-100 mt-4">
+        <h3 className="text-sm font-bold text-slate-900">Pick your menu design</h3>
+        <p className="mt-0.5 mb-3 text-xs text-slate-500 leading-relaxed">
+          This is how customers will see your menu. You can change it any time.
+        </p>
+        <MenuDesignPicker
+          compact
+          theme={menuTheme}
+          brandColor={brandColor}
+          dishNames={items.map(i => i.name)}
+          onThemeChange={setMenuTheme}
+          onColourChange={setBrandColor}
+        />
       </div>
 
       {/* Launch CTA */}

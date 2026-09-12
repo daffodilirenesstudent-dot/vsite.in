@@ -172,9 +172,51 @@ function PriceFields({ form, setForm, lbl }: { form: any; setForm: any; inp?: Re
     );
 }
 
+/**
+ * The dish photo, in the management list.
+ *
+ * Every product has an image, the edit drawer shows it and the customer menu
+ * shows it — but this list was text-only, so the owner had to *read* their menu
+ * instead of recognising it. For a Tamil/English menu where a category can be
+ * typed "Mani course", a photo is the only label that needs no translation. It
+ * doubles as quality control: a missing image is now visible at a glance rather
+ * than hidden behind a small red dot.
+ */
+// `alt` is empty on purpose: the product name sits beside it as real text, so
+// announcing the image too would just repeat it.
+function ProductThumb({ src, size = 40 }: { src: string | null; size?: number }) {
+    if (!src) {
+        return (
+            <div
+                title="No image yet — edit this item to add one"
+                style={{
+                    width: size, height: size, borderRadius: 8, flexShrink: 0,
+                    background: '#FDF0E7', border: '1px dashed #F0A868',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+            >
+                <span className="material-symbols-outlined" style={{ fontSize: size * 0.45, color: '#C2500B' }} aria-hidden>
+                    photo_camera
+                </span>
+            </div>
+        );
+    }
+    return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={src}
+            alt=""
+            width={size}
+            height={size}
+            loading="lazy"
+            style={{ width: size, height: size, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#F4F4F5' }}
+        />
+    );
+}
+
 export default function ProductInventoryPage() {
     const { activeSite } = useSite();
-    const { missingImageCount, refresh: refreshNotifications } = useNotifications();
+    const { refresh: refreshNotifications } = useNotifications();
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -544,6 +586,12 @@ export default function ProductInventoryPage() {
 
     const COLS = ['PRODUCT', 'DESCRIPTION', 'TYPE', 'CATEGORY', 'PRICE', 'AVAILABILITY', 'ACTIONS'];
 
+    // Intrinsic tracks, shared by the header, the skeleton and every row.
+    // The old definition was ~742px of fixed columns; once the sidebar took
+    // its share there was nothing left for the description, and at high zoom
+    // the row overflowed instead of reflowing.
+    const GRID_TRACKS = 'minmax(170px, 1.6fr) minmax(0, 2fr) minmax(92px, 1fr) minmax(84px, 0.9fr) minmax(72px, 0.6fr) minmax(104px, 0.8fr) minmax(96px, 0.7fr)';
+
     // products is already sorted on fetch; filter by activeCategory for the table
     const filteredProducts = (activeCategory === 'All' || !categories.includes(activeCategory))
         ? products
@@ -585,26 +633,6 @@ export default function ProductInventoryPage() {
                 </div>
             </div>
 
-            {/* ── Missing image alert banner ── */}
-            {missingImageCount > 0 && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    background: '#FFF7ED', border: '1px solid #FED7AA',
-                    borderRadius: 10, padding: '10px 16px', marginBottom: 20,
-                }}>
-                    <span className="material-symbols-outlined shrink-0" style={{ fontSize: 20, color: '#EA580C' }}>
-                        photo_camera
-                    </span>
-                    <div className="flex-1">
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#9A3412', margin: 0 }}>
-                            {missingImageCount} product{missingImageCount > 1 ? 's' : ''} missing an image
-                        </p>
-                        <p style={{ fontSize: 12, color: '#C2410C', margin: '2px 0 0' }}>
-                            Tap the <span style={{ fontWeight: 600 }}>edit</span> button on any highlighted product to add a photo.
-                        </p>
-                    </div>
-                </div>
-            )}
 
             {/* ── Category filter strip ── */}
             {categories.length > 0 && (
@@ -617,8 +645,11 @@ export default function ProductInventoryPage() {
                                 onClick={() => setActiveCategory(cat)}
                                 style={{
                                     border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7',
-                                    borderRadius: 20,
-                                    padding: '5px 16px',
+                                    borderRadius: 999,
+                                    // 44px tall so it clears the WCAG 2.5.5 minimum on a
+                                    // phone; the chip reads the same, the target is bigger.
+                                    minHeight: 44,
+                                    padding: '0 18px',
                                     fontSize: 13,
                                     fontWeight: active ? 600 : 500,
                                     background: active ? '#5137EF' : '#FFFFFF',
@@ -636,18 +667,23 @@ export default function ProductInventoryPage() {
                 </div>
             )}
 
-            {/* ── DESKTOP TABLE (md+) ── */}
-            <div className="hidden lg:block bg-white overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
-                <div className="grid" style={{ gridTemplateColumns: '160px 1fr 110px 110px 80px 110px 80px', background: '#F4F4F4', borderBottom: '1px solid #E4E4E7', padding: '0 24px' }}>
+            {/* ── WIDE: table · NARROW: cards ──
+                Chosen by how much room this list actually has, not by the
+                window width. With a sidebar in play the two disagree by ~250px,
+                which is why a zoomed-in desktop was getting the phone layout
+                stretched across the full content column. */}
+            <div className="cq">
+            <div className="cq-wide bg-white overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
+                <div className="grid" style={{ gridTemplateColumns: GRID_TRACKS, background: '#F4F4F4', borderBottom: '1px solid #E4E4E7', padding: '0 24px' }}>
                     {COLS.map(col => (
-                        <div key={col} className="text-[#71717A]" style={{ padding: '12px 0', fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase' }}>{col}</div>
+                        <div key={col} className="text-[#71717A] truncate" style={{ padding: '12px 8px 12px 0', minWidth: 0, fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase' }}>{col}</div>
                     ))}
                 </div>
                 {loading ? (
                     // Row skeletons mirror the real list shape so the page doesn't
                     // collapse and jump on load.
                     Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="grid items-center" style={{ gridTemplateColumns: '60px 1.5fr 120px 1fr 90px 110px 140px', padding: '12px 16px', borderBottom: i < 5 ? '1px solid #F4F4F5' : 'none', minHeight: 60 }}>
+                        <div key={i} className="grid items-center" style={{ gridTemplateColumns: GRID_TRACKS, padding: '12px 16px', borderBottom: i < 5 ? '1px solid #F4F4F5' : 'none', minHeight: 60 }}>
                             <div style={{ width: 40, height: 40, borderRadius: 8, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
                             <div style={{ height: 12, width: '70%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
                             <div style={{ height: 12, width: 80, borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
@@ -660,41 +696,40 @@ export default function ProductInventoryPage() {
                 ) : filteredProducts.length === 0 ? (
                     <div className="py-16 flex flex-col items-center gap-2">
                         <span className="material-symbols-outlined text-[#D4D4D8]" style={{ fontSize: 48 }}>inventory_2</span>
-                        <p className="text-sm text-[#99A1AF]">No products yet. Add your first product.</p>
+                        <p className="text-sm text-[#6B6A7B]">No products yet. Add your first product.</p>
                     </div>
                 ) : filteredProducts.map((product, idx) => {
                     const isOn = product.is_live !== false;
                     const typeLabel = DB_TO_ITEM_TYPE[product.item_type ?? ''] ?? 'Single Item';
                     const noImage = !product.image_url;
                     return (
-                        <div key={product.id} className="grid items-center" style={{ gridTemplateColumns: '160px 1fr 110px 110px 80px 110px 80px', padding: '0 24px', minHeight: 50, borderBottom: idx < filteredProducts.length - 1 ? '1px solid #E4E4E7' : 'none', background: noImage ? '#FFFBF5' : 'transparent' }}>
-                            <div className="truncate pr-3 flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 500, color: '#0A0A0A' }}>
-                                {noImage && (
-                                    <span title="No image — tap edit to add one" style={{
-                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                        width: 16, height: 16, borderRadius: '50%',
-                                        background: '#E7000B', flexShrink: 0,
-                                    }}>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 10, color: '#fff', fontVariationSettings: "'FILL' 1" }}>camera_alt</span>
-                                    </span>
-                                )}
-                                {product.name}
+                        <div key={product.id} className="grid items-center min-w-0-all" style={{ gridTemplateColumns: GRID_TRACKS, padding: '0 24px', minHeight: 64, borderBottom: idx < filteredProducts.length - 1 ? '1px solid #E4E4E7' : 'none', background: noImage ? '#FFFBF5' : 'transparent' }}>
+                            <div className="pr-3 flex items-center gap-2.5" style={{ fontSize: 12, fontWeight: 500, color: '#0A0A0A', minWidth: 0 }}>
+                                <ProductThumb src={product.image_url ?? null} size={40} />
+                                <span className="truncate">{product.name}</span>
                             </div>
                             <div className="truncate pr-4" style={{ fontSize: 12, color: '#52525C' }}>{product.description || '—'}</div>
                             <div><span style={{ display: 'inline-flex', alignItems: 'center', background: '#F0EDFF', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#5137EF' }}>{typeLabel}</span></div>
                             <div style={{ fontSize: 12, color: '#52525C' }}>{product.category || '—'}</div>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>₹{product.selling_price}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>
+                                ₹{product.selling_price}
+                                {typeLabel === 'Variants' && (
+                                    // The customer menu already says "onwards"; the table
+                                    // showed a bare lowest price, reading as a flat rate.
+                                    <span style={{ fontSize: 11, fontWeight: 500, color: '#52525C' }}> onwards</span>
+                                )}
+                            </div>
                             <div>
                                 <button type="button" role="switch" aria-checked={isOn} aria-label={`${isOn ? 'Disable' : 'Enable'} ${product.name}`} onClick={() => toggleAvailability(product.id, isOn)} style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 43, height: 20, borderRadius: 9999, background: isOn ? '#00A63E' : '#EE5A4F', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
                                     <span style={{ position: 'absolute', top: 2, left: isOn ? 25 : 2, width: 16, height: 16, borderRadius: '50%', background: '#FFFFFF', transition: 'left 0.2s' }} />
                                 </button>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button type="button" aria-label={`Edit ${product.name}`} title="Edit" className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => openEditDrawer(product)}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#0A0A0A' }} aria-hidden>edit</span>
+                            <div className="flex items-center gap-3">
+                                <button type="button" aria-label={`Edit ${product.name}`} title="Edit" className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => openEditDrawer(product)}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#0A0A0A' }} aria-hidden>edit</span>
                                 </button>
-                                <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => setDeleteTarget({ id: product.id, name: product.name })}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#E7000B' }}>delete</span>
+                                <button type="button" aria-label={`Delete ${product.name}`} title={`Delete ${product.name}`} className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => setDeleteTarget({ id: product.id, name: product.name })}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }} aria-hidden>delete</span>
                                 </button>
                             </div>
                         </div>
@@ -702,8 +737,8 @@ export default function ProductInventoryPage() {
                 })}
             </div>
 
-            {/* ── MOBILE CARDS ── */}
-            <div className="lg:hidden overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
+            {/* ── Narrow presentation ── */}
+            <div className="cq-narrow overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
                 {loading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                         <div key={i} style={{ padding: '14px 16px', borderBottom: i < 3 ? '1px solid #F4F4F5' : 'none', display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -717,7 +752,7 @@ export default function ProductInventoryPage() {
                 ) : filteredProducts.length === 0 ? (
                     <div className="py-16 flex flex-col items-center gap-2">
                         <span className="material-symbols-outlined text-[#D4D4D8]" style={{ fontSize: 40 }}>inventory_2</span>
-                        <p className="text-sm text-[#99A1AF]">No products yet.</p>
+                        <p className="text-sm text-[#6B6A7B]">No products yet.</p>
                     </div>
                 ) : filteredProducts.map((product, idx) => {
                     const isOn = product.is_live !== false;
@@ -726,46 +761,78 @@ export default function ProductInventoryPage() {
                     return (
                         <div
                             key={product.id}
-                            style={{ padding: '14px 16px', background: noImage ? '#FFFBF5' : '#FFFFFF', borderBottom: idx < filteredProducts.length - 1 ? '1px solid #E4E4E7' : 'none' }}
+                            style={{ padding: '10px 12px', background: '#FFFFFF', borderBottom: idx < filteredProducts.length - 1 ? '1px solid #E4E4E7' : 'none', display: 'flex', alignItems: 'center', gap: 12 }}
                         >
-                            {/* Row 1: Name + Actions */}
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                    {noImage && (
-                                        <span style={{
-                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                            width: 18, height: 18, borderRadius: '50%',
-                                            background: '#E7000B', flexShrink: 0,
-                                        }}>
-                                            <span className="material-symbols-outlined" style={{ fontSize: 11, color: '#fff', fontVariationSettings: "'FILL' 1" }}>camera_alt</span>
-                                        </span>
-                                    )}
-                                    <span style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>{product.name}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <button type="button" aria-label={`Edit ${product.name}`} title="Edit" className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 30, height: 30, borderRadius: 6 }} onClick={() => openEditDrawer(product)}>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#0A0A0A' }}>edit</span>
-                                    </button>
-                                    <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 30, height: 30, borderRadius: 6 }} onClick={() => setDeleteTarget({ id: product.id, name: product.name })}>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#E7000B' }}>delete</span>
-                                    </button>
-                                </div>
-                            </div>
-                            {/* Row 2: Type badge + Price + Toggle */}
-                            <div className="flex items-center gap-3">
-                                <span style={{ display: 'inline-flex', alignItems: 'center', background: '#F0EDFF', borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 500, color: '#5137EF' }}>{typeLabel}</span>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A' }}>₹{product.selling_price}</span>
-                                <button type="button" role="switch" aria-checked={isOn} aria-label={`${isOn ? 'Disable' : 'Enable'} ${product.name}`} onClick={() => toggleAvailability(product.id, isOn)} style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 40, height: 20, borderRadius: 9999, background: isOn ? '#00A63E' : '#EE5A4F', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0, marginLeft: 'auto' }}>
-                                    <span style={{ position: 'absolute', top: 2, left: isOn ? 22 : 2, width: 16, height: 16, borderRadius: '50%', background: '#FFFFFF', transition: 'left 0.2s' }} />
-                                </button>
-                            </div>
-                            {product.category && (
-                                <p style={{ fontSize: 11, color: '#99A1AF', marginTop: 4 }}>{product.category}</p>
+                            {/* Photo first: recognising a dish beats reading its name,
+                                especially on a Tamil/English menu. */}
+                            <ProductThumb src={product.image_url ?? null} size={56} />
+
+                            {/* Tapping the body edits — so Edit no longer needs to be a
+                                30px icon sitting 4px from Delete. */}
+                            <button
+                                type="button"
+                                onClick={() => openEditDrawer(product)}
+                                aria-label={`Edit ${product.name}`}
+                                style={{ flex: 1, minWidth: 0, minHeight: 56, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                            >
+                                <span className="truncate" style={{ fontSize: 15, fontWeight: 600, color: '#0A0A0A', maxWidth: '100%' }}>{product.name}</span>
+                                <span className="truncate" style={{ fontSize: 12, color: '#52525C', maxWidth: '100%' }}>
+                                    {product.category ? `${product.category} · ` : ''}
+                                    ₹{product.selling_price}{typeLabel === 'Variants' ? ' onwards' : ''}
+                                    {typeLabel !== 'Single Item' ? ` · ${typeLabel}` : ''}
+                                </span>
+                            </button>
+
+                            {/* Missing-image flag sits with the toggle, where the owner
+                                is already looking and already tapping. */}
+                            {noImage && (
+                                <span
+                                    title="No photo yet — tap this item to add one"
+                                    aria-label="No photo yet"
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                        width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                                        background: '#FDF0E7', border: '1px solid #F0A868',
+                                    }}
+                                >
+                                    <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#C2500B' }} aria-hidden>photo_camera</span>
+                                </span>
                             )}
+
+                            {/* Sold-out is the most frequent action in the product and it
+                                happens mid-service — give it a real 44px target. */}
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={isOn}
+                                aria-label={`${isOn ? 'Mark sold out' : 'Mark available'}: ${product.name}`}
+                                onClick={() => toggleAvailability(product.id, isOn)}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 52, minHeight: 44, background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}
+                            >
+                                <span style={{ position: 'relative', display: 'block', width: 44, height: 24, borderRadius: 9999, background: isOn ? '#00A63E' : '#EE5A4F', transition: 'background 0.2s' }}>
+                                    <span style={{ position: 'absolute', top: 3, left: isOn ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#FFFFFF', transition: 'left 0.2s' }} />
+                                </span>
+                            </button>
+
+                            {/* Delete is no longer a 30px icon 4px from Edit: it is a full
+                                44px target, and the sold-out switch now sits between it
+                                and the tap-to-edit body, so the two are not neighbours.
+                                A mistap here destroys menu data, the core asset. */}
+                            <button
+                                type="button"
+                                aria-label={`Delete ${product.name}`}
+                                title={`Delete ${product.name}`}
+                                className="flex items-center justify-center hover:bg-red-50 transition-colors"
+                                style={{ width: 44, minHeight: 44, borderRadius: 8, flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer' }}
+                                onClick={() => setDeleteTarget({ id: product.id, name: product.name })}
+                            >
+                                <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#B91C1C' }} aria-hidden>delete</span>
+                            </button>
                         </div>
                     );
                 })}
             </div>
+            </div>{/* /.cq */}
 
             {/* ── DELETE CONFIRMATION MODAL ──
                 Rendered via portal so it escapes the <main> stacking context
@@ -808,7 +875,7 @@ export default function ProductInventoryPage() {
                         </div>
 
                         {/* Warning */}
-                        <p className="text-[#99A1AF] text-center" style={{ fontSize: 12, marginBottom: 24 }}>
+                        <p className="text-[#6B6A7B] text-center" style={{ fontSize: 12, marginBottom: 24 }}>
                             This action cannot be undone.
                         </p>
 
@@ -891,7 +958,7 @@ export default function ProductInventoryPage() {
                                                 <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#71717A' }}>upload</span>
                                             </div>
                                             <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 14, marginBottom: 4 }}>Upload product image</p>
-                                            <p className="text-[#99A1AF] text-center" style={{ fontSize: 12, marginBottom: 12 }}>PNG, JPG or WebP (Max 2MB)</p>
+                                            <p className="text-[#6B6A7B] text-center" style={{ fontSize: 12, marginBottom: 12 }}>PNG, JPG or WebP (Max 2MB)</p>
                                             <button type="button" onClick={e => { e.stopPropagation(); imageInputRef.current?.click(); }} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF' }}>Choose File</button>
                                         </>
                                     )}
@@ -918,7 +985,7 @@ export default function ProductInventoryPage() {
                                         </>
                                     )}
                                 </button>
-                                <p style={{ fontSize: 11, color: '#99A1AF', textAlign: 'center', marginTop: 5 }}>Searches our curated food image library based on the product name</p>
+                                <p style={{ fontSize: 11, color: '#6B6A7B', textAlign: 'center', marginTop: 5 }}>Searches our curated food image library based on the product name</p>
                             </div>
 
                             {/* Product Type */}
@@ -1084,7 +1151,7 @@ export default function ProductInventoryPage() {
 
                                 {/* Show selected category name when no chips visible yet */}
                                 {categories.length === 0 && !showAddCategory && (
-                                    <p style={{ fontSize: 12, color: '#99A1AF', marginTop: 2 }}>No categories yet — click &ldquo;+ Add New&rdquo; to create one.</p>
+                                    <p style={{ fontSize: 12, color: '#6B6A7B', marginTop: 2 }}>No categories yet — click &ldquo;+ Add New&rdquo; to create one.</p>
                                 )}
                             </div>
 
@@ -1165,11 +1232,11 @@ export default function ProductInventoryPage() {
                             {/* ── PRICE FIELDS: common for all types ── */}
                             <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} />
 
-                            {/* Available for Orders */}
+                            {/* Show on menu */}
                             <div className="flex items-center justify-between" style={{ padding: '14px 16px', border: '1px solid #E4E4E7', borderRadius: 10, background: '#FAFAFA' }}>
                                 <div>
-                                    <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Available for Orders</p>
-                                    <p style={{ fontSize: 12, color: '#71717A', marginTop: 2 }}>Make this product available to customers</p>
+                                    <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Show on menu</p>
+                                    <p style={{ fontSize: 12, color: '#71717A', marginTop: 2 }}>Customers can see this item on your menu</p>
                                 </div>
                                 <button type="button" onClick={() => setForm(f => ({ ...f, available: !f.available }))}
                                     style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 43, height: 24, borderRadius: 9999, background: form.available ? '#00A63E' : '#D4D4D8', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0, flexShrink: 0 }}

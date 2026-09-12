@@ -169,7 +169,7 @@ export default function Sidebar() {
 
                     <div className="flex-1 overflow-y-auto" style={{ padding: '12px 12px 0' }}>
                         <div style={{ marginBottom: 8 }}>
-                            <p className="px-2 font-medium text-[#99A1AF]" style={{ fontSize: 12, lineHeight: '16px' }}>GENERAL</p>
+                            <p className="px-2 font-medium text-[#6B6A7B]" style={{ fontSize: 12, lineHeight: '16px' }}>GENERAL</p>
                         </div>
                         <nav className="flex flex-col gap-0.5">
                             {navItems.map((item) => {
@@ -241,17 +241,17 @@ export default function Sidebar() {
                                     <span className="material-symbols-outlined text-white" style={{ fontSize: 16 }}>group</span>
                                 </div>
                                 <div className="flex-1">
-                                    <p className="font-medium text-white" style={{ fontSize: 14, lineHeight: '20px' }}>Team</p>
+                                    <p className="font-medium text-white" style={{ fontSize: 14, lineHeight: '20px' }}>Your plan</p>
                                     <p className="text-white/80" style={{ fontSize: 12, lineHeight: '16px' }}>{planLabel}</p>
                                 </div>
-                                <span className="material-symbols-outlined text-white" style={{ fontSize: 12 }}>keyboard_arrow_down</span>
+
                             </div>
                             <Link href="/manage/subscription" className="flex w-full items-center justify-center text-white transition-colors" style={{ height: 28, background: 'rgba(255,255,255,0.2)', borderRadius: 10, fontSize: 12, lineHeight: '16px', marginBottom: 12, textDecoration: 'none' }}>
-                                Upgrade Plan
+                                Manage plan
                             </Link>
                         </div>
                         <div className="flex items-center justify-center pb-3" style={{ paddingTop: 8 }}>
-                            <span className="text-center text-[#99A1AF]" style={{ fontSize: 10, lineHeight: '15px' }}>© 2026 Vsite.com</span>
+                            <span className="text-center text-[#6B6A7B]" style={{ fontSize: 10, lineHeight: '15px' }}>© 2026 Vsite.com</span>
                         </div>
                     </div>
                 </aside>

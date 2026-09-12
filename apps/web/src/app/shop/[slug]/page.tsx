@@ -56,7 +56,7 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
     // 1. Fetch Site
     const { data: site, error: siteError } = await supabaseServer
         .from('sites')
-        .select('id, slug, name, description, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, image_url, tagline, social_links, type, is_live, created_at, user_id, qr_mode, table_count, gst_status, gst_rate_pct, whatsapp_order_taking, whatsapp_order_number, currency_code')
+        .select('id, slug, name, description, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, image_url, tagline, social_links, type, is_live, created_at, user_id, qr_mode, table_count, gst_status, gst_rate_pct, whatsapp_order_taking, whatsapp_order_number, currency_code, menu_theme, menu_font, show_logo, primary_color')
         .eq('slug', slug)
         .single();
 
@@ -145,6 +145,10 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
         social_links: site.social_links,
         type: site.type,
         is_live: site.is_live,
+        menu_theme: (site as Record<string, unknown>).menu_theme as string | null,
+        menu_font: (site as Record<string, unknown>).menu_font as string | null,
+        show_logo: (site as Record<string, unknown>).show_logo !== false,
+        primary_color: (site as Record<string, unknown>).primary_color as string | null,
     };
 
     // GST preview rate — only show tax on the cart when the store has completed

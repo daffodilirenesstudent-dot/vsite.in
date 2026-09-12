@@ -177,13 +177,13 @@ function LoginContent() {
           Home
         </Link>
         <div className="flex items-center gap-6">
-          <a href="#" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors">
+          {/* One link, one destination. These were two separate items both
+              pointing at "#" — dead at exactly the moment an owner who cannot
+              receive an OTP needs help. There is no help-centre route, so
+              advertising one would just be a second dead end. */}
+          <a href="/support" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors">
             <span className="material-symbols-outlined text-base" style={{ fontSize: 18 }}>headset_mic</span>
             Support
-          </a>
-          <a href="#" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors">
-            <span className="material-symbols-outlined text-base" style={{ fontSize: 18 }}>help_outline</span>
-            Help Center
           </a>
         </div>
       </header>
@@ -254,7 +254,7 @@ function PhoneStep({
         </div>
       )}
       <h1 className="mb-1 text-center text-2xl font-bold text-slate-800">Welcome Back</h1>
-      <p className="mb-8 text-center text-sm text-slate-400">Convert crowds into orders. No hassle needed.</p>
+      <p className="mb-8 text-center text-sm text-slate-400">Your menu, one scan away. No app to install.</p>
 
       <label className="mb-1.5 block text-sm font-medium text-slate-700">
         Mobile number <span className="text-red-500">*</span>
@@ -337,7 +337,7 @@ function OtpStep({
     <div>
       <h1 className="mb-1 text-center text-2xl font-bold text-slate-800">Verify your number</h1>
       <p className="mb-4 text-center text-sm text-slate-400">
-        Enter the 6-digit code sent to your mobile number to continue your order.
+        Enter the 6-digit code sent to your mobile number to continue.
       </p>
 
       {/* Phone display */}
@@ -361,6 +361,12 @@ function OtpStep({
             ref={(el) => { otpRefs.current[i] = el; }}
             type="text"
             inputMode="numeric"
+            // Lets Android/iOS offer the code straight from the SMS instead of
+            // making the owner memorise six digits and switch apps.
+            autoComplete={i === 0 ? 'one-time-code' : 'off'}
+            id={`otp-${i + 1}`}
+            name={`otp-${i + 1}`}
+            aria-label={`Digit ${i + 1} of 6`}
             maxLength={1}
             value={digit}
             onChange={(e) => onChange(i, e.target.value)}

@@ -55,3 +55,46 @@ export const T = {
 } as const;
 
 export type MenuTokens = typeof T;
+
+/**
+ * The themed subset of `T`, as CSS custom properties.
+ *
+ * `T` above is FROZEN and stays exactly as it is: it is the Classic design, it
+ * is what 56 live menus render, and `menu-card-system.test.ts` reads its
+ * literals straight out of this file. `TV` layers on top rather than replacing
+ * it — every entry carries the Classic value as its `var()` fallback, so the
+ * shipped colour still paints if a variable never lands, and still appears in
+ * source where the frozen suite expects it.
+ *
+ * Only the seven knobs a design may move are here. Everything else in `T`
+ * — the veg and non-veg marks, the offer tint, the saving green, the sold-out
+ * ramp — is identical in every theme, on purpose. Those are signals, not style:
+ * the food marks are regulated in India, the tint is an offer's entire visual
+ * signal, and the sold-out ramp has to say "finished today" rather than
+ * "something went wrong".
+ *
+ * Values are set once on the menu shell by `themeCssVars()` in
+ * `@/lib/menu/menuThemes`. Nothing the owner typed is ever concatenated into a
+ * style string; it arrives as a validated custom property.
+ */
+export const TV = {
+    accent: 'var(--qr-accent, #EF59A1)',
+    surface: 'var(--qr-surface, #FAFAFA)',
+    cardBg: 'var(--qr-card-bg, #FFFFFF)',
+    cardRadius: 'var(--qr-card-radius, 8px)',
+    chipRadius: 'var(--qr-chip-radius, 40px)',
+    thumbRadius: 'var(--qr-thumb-radius, 10px)',
+    sectionSize: 'var(--qr-section-size, 16px)',
+    sectionWeight: 'var(--qr-section-weight, 500)',
+    sectionTracking: 'var(--qr-section-tracking, normal)',
+    sectionTransform: 'var(--qr-section-transform, none)',
+    cardBorder: 'var(--qr-card-border, 1px solid #E6E6E6)',
+    cardShadow:
+        'var(--qr-card-shadow, 0 1px 3px rgba(25,25,25,0.06), 0 1px 1px rgba(25,25,25,0.04))',
+    fontDisplay: "var(--qr-font-display, 'Poppins', sans-serif)",
+    fontBody: "var(--qr-font-body, 'Manrope', sans-serif)",
+    fontTamil: "var(--qr-font-tamil, 'Noto Sans Tamil', 'Poppins', sans-serif)",
+    cardPadding: 'var(--qr-card-padding, 10px)',
+    cardGap: 'var(--qr-card-gap, 10px)',
+    listGap: 'var(--qr-list-gap, 10px)',
+} as const;

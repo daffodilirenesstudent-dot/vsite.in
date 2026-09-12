@@ -37,7 +37,15 @@ export type AuditAction =
     | 'gst_set_not_registered'
     | 'gst_reset'
     | 'whatsapp_order_taking_change'
-    | 'currency_change';
+    | 'currency_change'
+    /**
+     * Menu design changed. NOT a money action — it is here because this is the
+     * only typed, never-throws, non-blocking event trail the app has, and the
+     * October decision on whether to build more designs rests on one number:
+     * the share of stores that change design within 30 days. `details` carries
+     * { before, after, source: 'onboarding' | 'settings' }.
+     */
+    | 'menu_theme_change';
 
 export interface AuditEntry {
     userId: string;

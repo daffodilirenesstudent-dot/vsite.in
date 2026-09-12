@@ -171,6 +171,10 @@ export default function ShopPageClient({
         gstRatePct={gstRatePct}
         whatsappOrderTaking={whatsappOrderTaking}
         currencyCode={currencyCode}
+        menuTheme={shop.menu_theme}
+        menuFont={shop.menu_font}
+        brandColor={shop.primary_color}
+        showLogo={shop.show_logo !== false}
       />
     </Suspense>
   );

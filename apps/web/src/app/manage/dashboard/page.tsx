@@ -183,7 +183,7 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
             <div className="flex items-start justify-between mb-5 lg:mb-6">
                 <div>
                     <h1 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 26, lineHeight: '32px' }}>Dashboard</h1>
-                    <p className="text-[#52525C] mt-1" style={{ fontSize: 14, lineHeight: '22px' }}>Manage your orders in real-time</p>
+                    <p className="text-[#52525C] mt-1" style={{ fontSize: 14, lineHeight: '22px' }}>Your menu, live and up to date</p>
                 </div>
                 <a
                     href={siteUrl || '#'}
@@ -362,7 +362,7 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                                     <>
                                         <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
                                             <p style={{ fontSize: 11, color: '#71717A', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>Order Type</p>
-                                            <p style={{ fontSize: 11, color: '#99A1AF', margin: 0 }}>
+                                            <p style={{ fontSize: 11, color: '#6B6A7B', margin: 0 }}>
                                                 Avg ₹{insights.avg_order_value.toLocaleString('en-IN')}
                                             </p>
                                         </div>
@@ -648,7 +648,14 @@ function MenuInsights({
                         Live menu activity — updates every 30 seconds. Numbers count <strong>unique visitors</strong>, not refreshes.
                     </p>
                 </div>
-                <span style={{ fontSize: 11, color: '#0369A1', fontWeight: 600 }}>Today</span>
+                {/* A label, not a control. It was styled in the link blue and
+                    right-aligned like a date-range picker, so it read as a
+                    filter and did nothing on click. menu-summary exposes no
+                    range parameter, so the honest fix is to stop it looking
+                    interactive rather than fake a picker. */}
+                <span style={{ fontSize: 11, color: '#075985', fontWeight: 500, background: '#E0F2FE', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>
+                    Today so far
+                </span>
             </div>
 
             {/* Stat cards */}
@@ -664,7 +671,7 @@ function MenuInsights({
                         <p className="font-bold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: 1 }}>
                             {loading || !summary ? '—' : (card.value ?? 0).toLocaleString('en-IN')}
                         </p>
-                        <p style={{ fontSize: 11, color: '#99A1AF', marginTop: 6 }}>{card.hint}</p>
+                        <p style={{ fontSize: 11, color: '#6B6A7B', marginTop: 6 }}>{card.hint}</p>
                     </div>
                 ))}
             </div>

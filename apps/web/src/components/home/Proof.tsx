@@ -9,6 +9,7 @@ import {
     FOUNDER_TITLE,
     whatsappUrl,
 } from '@/lib/platform/brand';
+import { SMART_QR_MENU_LIVE_SINCE } from '@/content/roadmap';
 
 /**
  * Replaces SocialProof (and the interim EarlyAccess panel).
@@ -23,30 +24,43 @@ import {
  */
 
 /**
- * SINGLE SOURCE OF TRUTH for the public-facing counts.
+ * SINGLE SOURCE OF TRUTH for the public-facing claims.
  *
- * Update here and the homepage follows. Confirmed by the owner as accurate at
- * the time of writing — keep it that way: these are the numbers a prospective
- * customer will judge the whole site's honesty by.
+ * ─── EVERY VALUE HERE MUST BE VERIFIABLE TODAY ───────────────────────────────
+ * This block previously read `menusLive: '1,000+'` and `districts: '38'`. The
+ * production database held 57 stores across 30 owners, all of them feedback and
+ * testing accounts. Those numbers were removed on 10 Sep 2026.
+ *
+ * Not merely an honesty matter — it is a ranking one. AI search engines
+ * corroborate claims across sources before citing a brand, and a figure a model
+ * can falsify in one retrieval teaches it the domain is unreliable. India's
+ * Consumer Protection Act 2019 and the ASCI code also treat unsubstantiated
+ * quantified claims as misleading advertising.
+ *
+ * When the store count is real, put it back — with the date it was counted. A
+ * true "40 restaurants in Coimbatore" sells better than a false thousand,
+ * because the reader can check it and the specificity reads as confidence.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 export const PROOF_STATS = {
-    menusLive: '1,000+',
-    districts: '38',
+    /** From src/content/roadmap.ts — a checkable date, not a count. */
+    liveSince: SMART_QR_MENU_LIVE_SINCE,
+    languages: 'Tamil + English',
     setupMinutes: '3',
 } as const;
 
 const STATS = [
     {
         Icon: MapPin,
-        value: PROOF_STATS.menusLive,
-        label: 'menus live',
+        value: PROOF_STATS.liveSince,
+        label: 'serving Tamil Nadu',
         note: 'Restaurants, messes, cafés, bakeries and tiffin centres.',
     },
     {
         Icon: MapPin,
-        value: `All ${PROOF_STATS.districts}`,
-        label: 'districts of Tamil Nadu',
-        note: 'From Chennai to Kanyakumari — and the towns in between.',
+        value: PROOF_STATS.languages,
+        label: 'on every menu',
+        note: 'One tap to switch. Long Tamil dish names render properly.',
     },
     {
         Icon: Timer,
@@ -71,7 +85,7 @@ export default function Proof({
                         Where we are
                     </p>
                     <h2 className="mt-5 font-display text-h2 font-bold text-ink">
-                        A thousand menus, and still one person you can call.
+                        Built in Tamil Nadu. And there is still one person you can call.
                     </h2>
                     <p className="mt-5 text-body text-ink-70">
                         vsite is built and run from Tamil Nadu, for Tamil Nadu. That is not a marketing line —

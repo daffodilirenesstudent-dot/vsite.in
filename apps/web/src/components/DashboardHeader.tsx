@@ -26,10 +26,8 @@ export default function DashboardHeader() {
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const [confirmSignOut, setConfirmSignOut] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
-    const [searchOpen, setSearchOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const profileMenuRef = useRef<HTMLDivElement>(null);
-    const searchRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!user) return;
@@ -99,11 +97,6 @@ export default function DashboardHeader() {
         }
     };
 
-    // Focus search input when opened
-    useEffect(() => {
-        if (searchOpen) searchRef.current?.focus();
-    }, [searchOpen]);
-
     const displayName = profile?.full_name || 'User';
     const avatarLetter = displayName.charAt(0).toUpperCase();
     const avatarImg = activeSite?.image_url ?? null;
@@ -117,7 +110,7 @@ export default function DashboardHeader() {
         <header className="bg-white border-b border-[#E5E7EB] shrink-0" style={{ height: 60 }}>
 
             {/* ── Normal row ── */}
-            <div className={`flex items-center h-full ${searchOpen ? 'hidden' : 'flex'}`} style={{ padding: '0 16px', gap: 10 }}>
+            <div className="flex items-center h-full" style={{ padding: '0 16px', gap: 10 }}>
 
                 {/* Store selector */}
                 <div className="relative shrink-0" ref={dropdownRef}>
@@ -131,7 +124,7 @@ export default function DashboardHeader() {
                             {activeSite?.name ?? 'My Store'}
                         </span>
                         <span
-                            className="material-symbols-outlined text-[#99A1AF] shrink-0"
+                            className="material-symbols-outlined text-[#6B6A7B] shrink-0"
                             style={{ fontSize: 14, transition: 'transform 0.15s', transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                         >
                             keyboard_arrow_down
@@ -169,7 +162,7 @@ export default function DashboardHeader() {
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                                             <p className="truncate" style={{ fontSize: 13, fontWeight: 500, color: '#0A0A0A' }}>{site.name}</p>
-                                            <p style={{ fontSize: 11, color: '#99A1AF' }}>{site.is_live ? 'Live' : 'Offline'}</p>
+                                            <p style={{ fontSize: 11, color: '#6B6A7B' }}>{site.is_live ? 'Live' : 'Offline'}</p>
                                         </div>
                                         {isActive && (
                                             <span className="material-symbols-outlined shrink-0" style={{ fontSize: 16, color: '#5137EF' }}>check</span>
@@ -201,7 +194,7 @@ export default function DashboardHeader() {
                                     <>
                                         <div style={{ borderTop: '1px solid #E4E4E7', padding: '6px 14px 4px' }}>
                                             {!planLoading && (
-                                                <p style={{ fontSize: 10, fontWeight: 500, color: '#99A1AF', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                                <p style={{ fontSize: 10, fontWeight: 500, color: '#6B6A7B', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                                                     {`${allSites.length} / ${PAID_STORE_LIMIT} stores · ${paidCount} paid · ${activeTrialCount} trial`}
                                                 </p>
                                             )}
@@ -247,36 +240,9 @@ export default function DashboardHeader() {
                     )}
                 </div>
 
-                {/* Search bar — desktop only inline, mobile icon */}
-                <div
-                    className="hidden lg:flex items-center gap-1.5"
-                    style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '6px 10px', background: '#FFFFFF', width: 260 }}
-                >
-                    <span className="material-symbols-outlined text-[#99A1AF] shrink-0" style={{ fontSize: 14 }}>search</span>
-                    <input
-                        type="text"
-                        placeholder="Search"
-                        className="flex-1 bg-transparent text-[#0A0A0A] placeholder-[#99A1AF] outline-none min-w-0"
-                        style={{ fontSize: 12 }}
-                    />
-                    <span
-                        className="shrink-0 text-[#99A1AF]"
-                        style={{ fontSize: 9, fontWeight: 500, border: '1px solid #E4E4E7', borderRadius: 4, padding: '2px 4px', background: '#F4F4F4', lineHeight: '14px', whiteSpace: 'nowrap' }}
-                    >
-                        ⌘ + F
-                    </span>
-                </div>
 
-                {/* Mobile search icon */}
-                <button
-                    type="button"
-                    aria-label="Open search"
-                    className="lg:hidden flex items-center justify-center shrink-0"
-                    style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #E4E4E7', background: '#FFFFFF' }}
-                    onClick={() => setSearchOpen(true)}
-                >
-                    <span className="material-symbols-outlined text-[#71717A]" style={{ fontSize: 18 }} aria-hidden>search</span>
-                </button>
+
+
 
                 {/* Spacer */}
                 <div className="flex-1" />
@@ -309,10 +275,10 @@ export default function DashboardHeader() {
                             </div>
                             <div className="hidden sm:flex flex-col leading-tight" style={{ maxWidth: 110 }}>
                                 <span className="font-semibold text-[#0A0A0A] truncate text-left" style={{ fontSize: 13, lineHeight: '18px' }}>{displayName}</span>
-                                <span className="text-[#99A1AF] truncate hidden lg:block text-left" style={{ fontSize: 11, lineHeight: '15px' }}>Product Management</span>
+                                <span className="text-[#6B6A7B] truncate hidden lg:block text-left" style={{ fontSize: 11, lineHeight: '15px' }}>Product Management</span>
                             </div>
                             <span
-                                className="material-symbols-outlined text-[#99A1AF] hidden sm:block shrink-0"
+                                className="material-symbols-outlined text-[#6B6A7B] hidden sm:block shrink-0"
                                 style={{ fontSize: 16, transition: 'transform 0.15s', transform: profileMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                             >
                                 keyboard_arrow_down
@@ -328,7 +294,7 @@ export default function DashboardHeader() {
                                 <div style={{ padding: '12px 14px', borderBottom: '1px solid #F4F4F5' }}>
                                     <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>{displayName}</p>
                                     {profile?.phone_number && (
-                                        <p className="truncate" style={{ fontSize: 11, color: '#99A1AF', marginTop: 2 }}>{profile.phone_number}</p>
+                                        <p className="truncate" style={{ fontSize: 11, color: '#6B6A7B', marginTop: 2 }}>{profile.phone_number}</p>
                                     )}
                                 </div>
                                 <Link
@@ -408,28 +374,7 @@ export default function DashboardHeader() {
                 </div>
             )}
 
-            {/* ── Mobile search expanded row ── */}
-            {searchOpen && (
-                <div className="flex items-center h-full gap-2" style={{ padding: '0 16px' }}>
-                    <div className="flex items-center gap-2 flex-1" style={{ border: '1px solid #5137EF', borderRadius: 8, padding: '7px 12px', background: '#FFFFFF' }}>
-                        <span className="material-symbols-outlined text-[#5137EF] shrink-0" style={{ fontSize: 16 }}>search</span>
-                        <input
-                            ref={searchRef}
-                            type="text"
-                            placeholder="Search products, categories…"
-                            className="flex-1 bg-transparent text-[#0A0A0A] placeholder-[#99A1AF] outline-none min-w-0"
-                            style={{ fontSize: 14 }}
-                        />
-                    </div>
-                    <button
-                        onClick={() => setSearchOpen(false)}
-                        className="shrink-0 text-[#71717A] hover:text-[#0A0A0A] transition-colors"
-                        style={{ fontSize: 14, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
-                    >
-                        Cancel
-                    </button>
-                </div>
-            )}
+
         </header>
     );
 }

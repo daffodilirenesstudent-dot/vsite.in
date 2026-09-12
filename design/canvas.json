@@ -1,0 +1,86 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Menu list — in context"
+    },
+    {
+      "file": "DetailSheet.dc.html",
+      "x": 490,
+      "y": 0,
+      "w": 1180,
+      "h": 980,
+      "title": "Detail sheet — read, not order",
+      "is_interactive": true
+    },
+    {
+      "file": "CardTypes.dc.html",
+      "x": 0,
+      "y": 1120,
+      "w": 1000,
+      "h": 900,
+      "title": "Single / variant / combo"
+    },
+    {
+      "file": "Affordance.dc.html",
+      "x": 1100,
+      "y": 1120,
+      "w": 1080,
+      "h": 720,
+      "title": "Making the card look tappable"
+    },
+    {
+      "file": "OfferCard.dc.html",
+      "x": 0,
+      "y": 2140,
+      "w": 800,
+      "h": 700,
+      "title": "Offer card — before / after"
+    },
+    {
+      "file": "SoldOut.dc.html",
+      "x": 900,
+      "y": 2140,
+      "w": 800,
+      "h": 760,
+      "title": "Sold out — LOCKED"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -230,
+      "w": 470,
+      "text": "vsite QR menu — card system\n\nMatched to the shipped template: menuTokens.ts values, Poppins/Manrope, 108px thumb, 14px veg mark, 15/21 name, 13/18 description at #5C545C.\n\nThe menu is a READING surface. vsite takes no orders, so nothing on it may imply a transaction."
+    },
+    {
+      "id": "sheet-note",
+      "x": 490,
+      "y": -120,
+      "w": 420,
+      "text": "The sheet loops on a 5s cycle so the timing can be judged without clicking. Nothing here is selectable — that is the point of this pass."
+    },
+    {
+      "id": "open-call",
+      "x": 1100,
+      "y": 1000,
+      "w": 380,
+      "text": "OPEN: pick A, B or C for the tap affordance. Everything else on this canvas assumes A."
+    },
+    {
+      "id": "locked-note",
+      "x": 900,
+      "y": 2020,
+      "w": 380,
+      "text": "LOCKED — sold-out treatment is settled and will not change without you saying so."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

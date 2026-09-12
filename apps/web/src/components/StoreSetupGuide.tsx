@@ -81,6 +81,11 @@ export default function StoreSetupGuide({
   const [mounted, setMounted] = React.useState(false);
   const [hidden, setHidden] = React.useState(true);
   const [collapsed, setCollapsed] = React.useState(false);
+  // Finished steps stay folded away. At 5 of 6 the card was rendering four
+  // struck-through rows at full height above the one thing still to do, which
+  // pushed Insights — the reason the owner opened the dashboard — more than a
+  // screen down on a phone, every day, forever.
+  const [showDone, setShowDone] = React.useState(false);
   // `ready` flips true only after the first verify() resolves. The card stays
   // hidden until then, so we never flash a 0-of-N state or capture a false
   // completion baseline (which would mis-fire the celebration).
@@ -328,10 +333,26 @@ export default function StoreSetupGuide({
           />
         </div>
 
-        {/* Steps */}
+        {/* Steps — outstanding first, finished ones folded behind a summary row. */}
         {!collapsed && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {steps.map((step, i) => (
+            {doneCount > 0 && !allDone && (
+              <button
+                type="button"
+                onClick={() => setShowDone(v => !v)}
+                aria-expanded={showDone}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  minHeight: 44, padding: '0 4px', background: 'none', border: 'none',
+                  cursor: 'pointer', textAlign: 'left', color: '#52525C', fontSize: 13,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#16A34A' }} aria-hidden>check_circle</span>
+                {doneCount} done
+                <span className="material-symbols-outlined" style={{ fontSize: 18, transform: showDone ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} aria-hidden>keyboard_arrow_down</span>
+              </button>
+            )}
+            {steps.filter(step => allDone || showDone || !step.done).map((step, i) => (
               <div
                 key={step.id}
                 style={{

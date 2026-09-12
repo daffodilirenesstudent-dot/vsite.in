@@ -1,6 +1,9 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import {
+  DEFAULT_MENU_THEME, isMenuThemeId, isHexColor, type MenuThemeId,
+} from '@/lib/menu/menuThemes';
 
 // ── Extracted item shape from /api/onboarding/extract ────────────────────────
 
@@ -28,6 +31,14 @@ interface OnboardingState {
   businessName: string;
   step: WizardStep;
   items: WizardItem[];
+  /**
+   * Menu design, chosen on the summary step. Site-level, not per-item, so it
+   * sits here rather than on WizardItem. Persisted with the rest of the wizard
+   * state, which means an owner who drops off on a bad network and comes back
+   * still has the design he picked.
+   */
+  menuTheme: MenuThemeId;
+  brandColor: string | null;
 }
 
 interface OnboardingContextValue extends OnboardingState {
@@ -35,6 +46,8 @@ interface OnboardingContextValue extends OnboardingState {
   setStep: (step: WizardStep) => void;
   setExtractedItems: (items: ExtractedItem[]) => void;
   updateItemField: (index: number, field: 'star_rating' | 'profit_chip' | 'profit_tier' | 'prep_complexity_tier', value: number) => void;
+  setMenuTheme: (id: MenuThemeId) => void;
+  setBrandColor: (hex: string) => void;
   resetOnboarding: () => void;
 }
 
@@ -43,7 +56,11 @@ const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 const STORAGE_KEY = 'vsite:onboarding:v1';
 const STORAGE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
-const INITIAL_STATE: OnboardingState = { businessName: '', step: 'setup', items: [] };
+// Classic is pre-selected so that doing nothing is a complete, valid path.
+const INITIAL_STATE: OnboardingState = {
+  businessName: '', step: 'setup', items: [],
+  menuTheme: DEFAULT_MENU_THEME, brandColor: null,
+};
 
 function makeWizardItems(items: ExtractedItem[]): WizardItem[] {
   return items.map(item => ({
@@ -65,7 +82,16 @@ function loadFromStorage(): OnboardingState | null {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
-    return parsed.state;
+    // Merged over INITIAL_STATE, not returned raw: a session saved before the
+    // design picker shipped has no menuTheme at all, and spreading it straight
+    // into state would leave the picker rendering `undefined` for anyone
+    // mid-onboarding across the deploy.
+    return {
+      ...INITIAL_STATE,
+      ...parsed.state,
+      menuTheme: isMenuThemeId(parsed.state?.menuTheme) ? parsed.state.menuTheme : DEFAULT_MENU_THEME,
+      brandColor: isHexColor(parsed.state?.brandColor) ? parsed.state.brandColor : null,
+    };
   } catch {
     return null;
   }
@@ -120,6 +146,16 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const setMenuTheme = useCallback((id: MenuThemeId) => {
+    setState(prev => ({ ...prev, menuTheme: isMenuThemeId(id) ? id : DEFAULT_MENU_THEME }));
+  }, []);
+
+  // Guarded here as well as at the API: a colour rehydrated from localStorage
+  // is as untrusted as one off the wire — the tab it came from is not ours.
+  const setBrandColor = useCallback((hex: string) => {
+    setState(prev => ({ ...prev, brandColor: isHexColor(hex) ? hex : prev.brandColor }));
+  }, []);
+
   const resetOnboarding = useCallback(() => {
     setState(INITIAL_STATE);
     if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
@@ -127,7 +163,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   return (
     <OnboardingContext.Provider
-      value={{ ...state, setBusinessName, setStep, setExtractedItems, updateItemField, resetOnboarding }}
+      value={{ ...state, setBusinessName, setStep, setExtractedItems, updateItemField, setMenuTheme, setBrandColor, resetOnboarding }}
     >
       {children}
     </OnboardingContext.Provider>

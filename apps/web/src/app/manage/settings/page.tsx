@@ -10,6 +10,11 @@ import { useSite } from '@/components/SiteContext';
 import { useAuth } from '@/components/AuthContext';
 import { usePlan } from '@/components/PlanContext';
 import GstWizard, { type GstProfile } from './_components/GstWizard';
+import AppearancePanel, { type AppearanceState } from './_components/AppearancePanel';
+import {
+    MENU_THEMES, DEFAULT_MENU_THEME, DEFAULT_FONT_PAIR,
+    isMenuThemeId, isFontPairId, isHexColor,
+} from '@/lib/menu/menuThemes';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -25,14 +30,14 @@ export default function SettingsPage() {
     };
 
     // ── Active tab (persisted via ?tab=…) ─────────────────────────────────────
-    type TabId = 'store' | 'printing' | 'payments' | 'gst' | 'orders' | 'danger';
+    type TabId = 'store' | 'appearance' | 'printing' | 'payments' | 'gst' | 'orders' | 'danger';
     const [activeTab, setActiveTabState] = useState<TabId>('store');
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const t = new URLSearchParams(window.location.search).get('tab');
         const valid: TabId[] = qrMenuOnly
-            ? ['store', 'danger']
-            : ['store', 'printing', 'payments', 'gst', 'orders', 'danger'];
+            ? ['store', 'appearance', 'danger']
+            : ['store', 'appearance', 'printing', 'payments', 'gst', 'orders', 'danger'];
         if (t && (valid as string[]).includes(t)) setActiveTabState(t as TabId);
         else if (qrMenuOnly) setActiveTabState('store');
     }, [qrMenuOnly]);
@@ -59,6 +64,14 @@ export default function SettingsPage() {
     const MAX_NOTIFY_EMAILS = 3;
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const [logoUrl, setLogoUrl]       = useState<string | null>(null);
+    const [appearance, setAppearance] = useState<AppearanceState>({
+        menu_theme: DEFAULT_MENU_THEME,
+        menu_font: DEFAULT_FONT_PAIR,
+        primary_color: MENU_THEMES[DEFAULT_MENU_THEME].accent,
+        show_logo: true,
+    });
+    /** Real dish names for the design swatches — never placeholders. */
+    const [dishNames, setDishNames] = useState<string[]>([]);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [loading, setLoading]       = useState(true);
     const [saving, setSaving]         = useState(false);
@@ -134,7 +147,7 @@ export default function SettingsPage() {
         setLogoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
         supabase
             .from('sites')
-            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails')
+            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails, menu_theme, menu_font, primary_color, show_logo')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -149,6 +162,36 @@ export default function SettingsPage() {
                         timing: data.timing ?? '',
                     });
                     setLogoUrl(data.image_url);
+                    {
+                        // Newer columns are not on the hand-written Shop type, so
+                        // they come through the same Record cast the rest of this
+                        // page uses. Each falls back to the shipped default rather
+                        // than to undefined — a store row written before 052 must
+                        // render Classic, not a blank picker.
+                        const d = data as Record<string, unknown>;
+                        // The design swatches must preview the owner's OWN menu.
+                        // Two names is all a swatch shows, so this stays a tiny
+                        // query on a settings screen rather than a menu fetch.
+                        supabase
+                            .from('products')
+                            .select('name')
+                            .eq('site_id', activeSite.id)
+                            .order('display_order')
+                            .limit(2)
+                            .then(({ data: rows }) => {
+                                if (rows?.length) {
+                                    setDishNames(rows.map(r => String(r.name)));
+                                }
+                            });
+                        setAppearance({
+                            menu_theme: isMenuThemeId(d.menu_theme) ? d.menu_theme : DEFAULT_MENU_THEME,
+                            menu_font: isFontPairId(d.menu_font) ? d.menu_font : DEFAULT_FONT_PAIR,
+                            primary_color: isHexColor(d.primary_color)
+                                ? d.primary_color
+                                : MENU_THEMES[DEFAULT_MENU_THEME].accent,
+                            show_logo: d.show_logo !== false,
+                        });
+                    }
                     setKotModeState((data.kot_mode as 'manual' | 'automatic') ?? 'manual');
                     setKotModeLoaded(true);
                     setKotPrinterName((data as Record<string, unknown>).kot_printer_name as string | null ?? null);
@@ -782,16 +825,20 @@ export default function SettingsPage() {
             {/* Page header — breadcrumb + horizontal tab nav */}
             {(() => {
                 const ALL_TABS: Array<{ id: TabId; label: string; show?: boolean }> = [
-                    { id: 'store',    label: 'Store details' },
-                    { id: 'printing', label: 'Printing' },
+                    { id: 'store',      label: 'Store details' },
+                    { id: 'appearance', label: 'Menu design' },
+                    { id: 'printing',   label: 'Printing' },
                     { id: 'payments', label: 'Payments' },
                     { id: 'gst',      label: 'GST details' },
                     { id: 'orders',   label: 'Order taking' },
                     { id: 'danger',   label: 'Danger zone' },
                 ];
-                // qr_menu / base plan: only profile (store details) + danger zone
+                // qr_menu / base plan: profile, menu design, danger zone.
+                // 'appearance' MUST be in this list — while ORDERING_FROZEN every
+                // store normalizes to qr_menu, so anything missing here is a tab
+                // no current customer can ever reach.
                 const TABS = qrMenuOnly
-                    ? ALL_TABS.filter(t => t.id === 'store' || t.id === 'danger')
+                    ? ALL_TABS.filter(t => t.id === 'store' || t.id === 'appearance' || t.id === 'danger')
                     : ALL_TABS;
                 const activeLabel = TABS.find(t => t.id === activeTab)?.label ?? '';
                 return (
@@ -969,6 +1016,17 @@ export default function SettingsPage() {
             )}
 
             {/* ── Kitchen Printing (KOT) ── */}
+            {activeTab === 'appearance' && siteId && (
+                <AppearancePanel
+                    siteId={siteId}
+                    siteSlug={siteSlug || null}
+                    hasLogo={!!logoUrl}
+                    dishNames={dishNames}
+                    value={appearance}
+                    onChange={setAppearance}
+                />
+            )}
+
             {activeTab === 'printing' && kotModeLoaded && (
             <div className="bg-white" style={{ border: '1px solid #E4E4E7', borderRadius: 14, padding: '24px', marginBottom: 24 }}>
                 <div className="flex items-start gap-3 mb-5">
@@ -1592,7 +1650,7 @@ export default function SettingsPage() {
                     <div>
                         <p className="font-semibold" style={{ fontSize: 14, color: '#0A0A0A', marginBottom: 2 }}>Delete this store</p>
                         <p style={{ fontSize: 12, color: '#71717A', lineHeight: '18px' }}>
-                            Permanently removes the store, all products, banners, and orders. This cannot be undone.
+                            Permanently removes the store, all products, banners and menu data. This cannot be undone.
                         </p>
                     </div>
                     <button

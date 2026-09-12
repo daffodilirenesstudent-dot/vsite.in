@@ -61,6 +61,19 @@ export interface Shop {
   social_links?: Record<string, string> | null;
   type: 'Shop' | 'Menu';
   is_live?: boolean;
+
+  /**
+   * Menu design + brand controls (migration 052).
+   *
+   * Config, never content: these change how the menu LOOKS and never what it
+   * says. Nothing here may affect a product row, the slug, or the printed QR.
+   */
+  menu_theme?: string | null;
+  menu_font?: string | null;
+  /** Whether image_url is drawn on the menu. Opt-out — most stores have no logo. */
+  show_logo?: boolean;
+  /** Owner brand colour, six-digit hex. Validated before it reaches a style block. */
+  primary_color?: string | null;
 }
 
 export interface Product {

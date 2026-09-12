@@ -481,3 +481,56 @@ button, a, [role="button"] {
     box-shadow: none !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Zoom- and width-robust layout primitives.
+
+   Chrome's desktop zoom does not scale the layout: it changes how many CSS
+   pixels fit on screen. Zooming to 150% on a 1440px monitor gives a 960px
+   viewport, so every breakpoint the app has fires — which is correct, except
+   that our breakpoints were measuring the *window* while the content sits in
+   a column narrowed by the sidebar. At a 1020px window the content area is
+   956px, so the viewport said "desktop" and the content had phone-width space
+   (or the reverse, which is what left a stretched phone layout filling a
+   desktop screen).
+
+   Container queries fix this at the root: a component asks how much room it
+   actually has, so it renders the same way whether the space was taken by a
+   sidebar, a zoom level, or a small window. Everything below is plain CSS —
+   no new dependency — and `container-type: inline-size` is supported in every
+   browser this app targets.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Any element that owns a responsive region declares itself a container. */
+.cq {
+  container-type: inline-size;
+}
+
+/* Default: the narrow presentation. Widened only when the container earns it,
+   so the fallback is always the layout that survives least space. */
+.cq-wide { display: none; }
+.cq-narrow { display: block; }
+
+@container (min-width: 720px) {
+  .cq-wide { display: block; }
+  .cq-narrow { display: none; }
+}
+
+/* Fluid type. Scales smoothly between zoom levels instead of jumping at a
+   breakpoint, and never drops below a readable floor. */
+.fluid-h1 { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem); line-height: 1.15; }
+.fluid-sub { font-size: clamp(0.8125rem, 0.78rem + 0.2vw, 0.9375rem); }
+
+/* Flex and grid children refuse to shrink past their content by default,
+   which is the usual cause of a row overflowing its container when space
+   gets tight. These opt them back into shrinking. */
+.min-w-0-all > * { min-width: 0; }
+
+/* A row of actions that wraps rather than overflowing when the container is
+   squeezed — used for page headers with several buttons. */
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}

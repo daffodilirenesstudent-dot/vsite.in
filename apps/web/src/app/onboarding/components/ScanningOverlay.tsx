@@ -3,43 +3,39 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * ScanningOverlay — the menu-scan wait, turned into a confidence moment.
+ * ScanningOverlay — the menu-scan wait.
  *
- * Extraction is a single batched model call (all photos in, all items back at
- * once), so we can't show a real running count mid-scan. Instead:
- *   • while scanning → an animated scan + rotating messages + a community trust
- *     band, so the wait feels productive and trustworthy;
- *   • the instant the real items arrive (itemCount !== null) → a fast, honest
- *     count-up to the TRUE number, then onCountUpDone() hands back to the parent
- *     to slide forward.
+ * Extraction is a single batched model call, so there is no real per-dish
+ * progress to report. The screen therefore has one job: make a blind wait feel
+ * like work happening to *your* menu, and hand over the true count the moment
+ * it lands.
+ *
+ * The design is one focal object — a menu card whose rows light up under a
+ * scanning beam — and nothing competing with it. An earlier version stacked a
+ * card, a rotating headline, three stat chips and a caption; four things
+ * arguing for attention read as a busy screen, not a confident one.
  */
 
-const SCAN_MESSAGES = [
-  'Reading your menu…',
-  'Finding your dishes…',
-  'Detecting prices…',
-  'Organizing your menu…',
+const SCAN_STEPS = [
+  'Reading your menu',
+  'Finding your dishes',
+  'Picking up prices',
+  'Sorting into sections',
 ];
 
-// Owner-provided, approved social-proof figures. One place to update later.
-// Icons are Material Symbols (consistent with the rest of the app) — cleaner
-// and more professional than emoji.
-const TRUST_STATS = [
-  { icon: 'restaurant', value: 50, label: 'restaurants' },
-  { icon: 'local_cafe', value: 20, label: 'cafés' },
-  { icon: 'storefront', value: 70, label: 'shops' },
-];
+/** Rows in the mock menu card, as width percentages. */
+const CARD_ROWS = [72, 94, 58, 86, 44, 78];
 
 interface ScanningOverlayProps {
   show: boolean;
   /** null while scanning; the real item count once extraction resolves. */
   itemCount: number | null;
-  /** Fired after the "Found N items" count-up finishes. */
+  /** Fired after the "N dishes" count-up finishes. */
   onCountUpDone: () => void;
 }
 
 /** Animate a number from 0 → target over `durationMs` using rAF. */
-function useCountUp(target: number, active: boolean, durationMs = 800): number {
+function useCountUp(target: number, active: boolean, durationMs = 900): number {
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (!active) { setVal(0); return; }
@@ -50,8 +46,7 @@ function useCountUp(target: number, active: boolean, durationMs = 800): number {
     const start = performance.now();
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / durationMs);
-      // easeOutCubic
-      const eased = 1 - Math.pow(1 - t, 3);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
       setVal(Math.round(eased * target));
       if (t < 1) raf = requestAnimationFrame(tick);
     };
@@ -63,74 +58,66 @@ function useCountUp(target: number, active: boolean, durationMs = 800): number {
 
 export default function ScanningOverlay({ show, itemCount, onCountUpDone }: ScanningOverlayProps) {
   const found = itemCount !== null;
-  const [msgIdx, setMsgIdx] = useState(0);
+  const [step, setStep] = useState(0);
 
-  // Rotate scanning messages while we're still waiting.
   useEffect(() => {
     if (!show || found) return;
-    const id = setInterval(() => setMsgIdx(i => (i + 1) % SCAN_MESSAGES.length), 1700);
+    const id = setInterval(() => setStep(i => (i + 1) % SCAN_STEPS.length), 1800);
     return () => clearInterval(id);
   }, [show, found]);
 
-  // Count-up of the real item total, then hand back to the parent.
-  const counted = useCountUp(itemCount ?? 0, found, 800);
+  const counted = useCountUp(itemCount ?? 0, found);
   const doneRef = useRef(onCountUpDone);
   doneRef.current = onCountUpDone;
   useEffect(() => {
     if (!found) return;
-    // 800ms count-up + ~700ms to savour the final number.
-    const t = setTimeout(() => doneRef.current(), 1500);
+    const t = setTimeout(() => doneRef.current(), 1600);
     return () => clearTimeout(t);
   }, [found]);
-
-  // Trust-band figures count up once on mount.
-  const trustActive = show && !found;
 
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm px-6">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white px-6">
       <style dangerouslySetInnerHTML={{ __html: SCAN_CSS }} />
 
       {!found ? (
-        <div className="flex flex-col items-center gap-7 text-center">
-          {/* Scan visual — a menu card with a sweeping scan line */}
-          <div className="scan-card" aria-hidden>
-            <div className="scan-lines">
-              <span style={{ width: '70%' }} />
-              <span style={{ width: '90%' }} />
-              <span style={{ width: '55%' }} />
-              <span style={{ width: '80%' }} />
-              <span style={{ width: '40%' }} />
+        <div className="flex w-full max-w-[320px] flex-col items-center">
+          {/* The one focal object: a menu being read. */}
+          <div className="scan-stage" aria-hidden>
+            <div className="scan-card">
+              {CARD_ROWS.map((w, i) => (
+                <span key={i} className="scan-row" style={{ width: `${w}%`, animationDelay: `${i * 0.18}s` }} />
+              ))}
+              <div className="scan-beam" />
             </div>
-            <div className="scan-beam" />
           </div>
 
-          {/* Rotating message */}
-          <div className="h-7 overflow-hidden">
-            <p key={msgIdx} className="scan-msg text-lg font-semibold text-slate-800">
-              {SCAN_MESSAGES[msgIdx]}
+          {/* Status, set large enough to be the second thing you read. */}
+          <div className="mt-9 h-8 overflow-hidden">
+            <p key={step} className="scan-step text-[21px] font-bold tracking-[-0.01em] text-slate-900">
+              {SCAN_STEPS[step]}
             </p>
           </div>
 
-          {/* Community trust band — wraps on narrow phones so chips never overflow */}
-          <div className="flex flex-col items-center gap-2.5">
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-              {TRUST_STATS.map((s, i) => (
-                <TrustChip key={s.label} icon={s.icon} value={s.value} label={s.label} active={trustActive} delay={i * 120} />
-              ))}
-            </div>
-            <p className="text-xs text-slate-400">— and many more growing with vsite</p>
+          {/* A bounded-feeling track. Indeterminate, because the work genuinely
+              is — pretending to know a percentage would be a lie the owner
+              could catch when it stalls at 90%. */}
+          <div className="mt-5 h-[3px] w-32 overflow-hidden rounded-full bg-slate-100">
+            <div className="scan-track h-full w-1/2 rounded-full bg-primary" />
           </div>
+
+          <p className="mt-7 text-[13px] leading-relaxed text-slate-400">
+            Nothing is published until you check it
+          </p>
         </div>
       ) : (
-        <div className="scan-found flex flex-col items-center gap-3 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <span className="material-symbols-outlined text-primary" style={{ fontSize: 34 }}>auto_awesome</span>
-          </div>
-          <p className="text-5xl font-extrabold tracking-tight text-slate-900 tabular-nums">{counted}</p>
-          <p className="text-base font-semibold text-slate-700">
-            {itemCount === 1 ? 'item found on your menu ✨' : 'items found on your menu ✨'}
+        <div className="scan-found flex flex-col items-center text-center">
+          <p className="text-[64px] font-extrabold leading-none tracking-[-0.03em] text-slate-900 tabular-nums">
+            {counted}
+          </p>
+          <p className="mt-3 text-[17px] font-semibold text-slate-700">
+            {itemCount === 1 ? 'dish found on your menu' : 'dishes found on your menu'}
           </p>
         </div>
       )}
@@ -138,58 +125,72 @@ export default function ScanningOverlay({ show, itemCount, onCountUpDone }: Scan
   );
 }
 
-function TrustChip({ icon, value, label, active, delay }: { icon: string; value: number; label: string; active: boolean; delay: number }) {
-  const n = useCountUp(value, active, 900);
-  return (
-    <div
-      className="trust-chip flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <span className="material-symbols-outlined text-primary" style={{ fontSize: 16 }}>{icon}</span>
-      <span className="text-sm font-bold text-slate-800 tabular-nums">{n}+</span>
-      <span className="text-xs text-slate-500">{label}</span>
-    </div>
-  );
-}
-
 const SCAN_CSS = `
   @keyframes scanBeam {
-    0%   { top: 6%;  opacity: 0; }
-    15%  { opacity: 1; }
-    85%  { opacity: 1; }
-    100% { top: 90%; opacity: 0; }
+    0%   { transform: translateY(-14px); opacity: 0; }
+    12%  { opacity: 1; }
+    88%  { opacity: 1; }
+    100% { transform: translateY(216px); opacity: 0; }
   }
-  @keyframes scanMsgIn {
-    from { opacity: 0; transform: translateY(10px); }
+  @keyframes scanRowLit {
+    0%, 100% { background: #EDEBFA; }
+    50%      { background: #C9C3F7; }
+  }
+  @keyframes scanStepIn {
+    from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  @keyframes trustChipIn {
-    from { opacity: 0; transform: translateY(8px) scale(0.96); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
+  @keyframes scanTrack {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
   }
   @keyframes scanFoundIn {
-    from { opacity: 0; transform: scale(0.9); }
+    from { opacity: 0; transform: scale(0.88); }
     to   { opacity: 1; transform: scale(1); }
   }
-  .scan-card {
-    position: relative; width: 132px; height: 156px; border-radius: 16px;
-    background: #fff; border: 1px solid #E7E5F5;
-    box-shadow: 0 12px 30px rgba(84,82,246,0.14); overflow: hidden;
-    padding: 20px 18px;
+  @keyframes stageFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
   }
-  .scan-lines { display: flex; flex-direction: column; gap: 12px; }
-  .scan-lines span { display: block; height: 9px; border-radius: 5px; background: #EEEDFB; }
+
+  /* A soft bloom behind the card so it reads as lit rather than pasted on. */
+  .scan-stage {
+    position: relative;
+    animation: stageFloat 4s ease-in-out infinite;
+  }
+  .scan-stage::before {
+    content: '';
+    position: absolute; inset: -28px -22px;
+    background: radial-gradient(60% 50% at 50% 45%, rgba(84,82,246,0.16), rgba(84,82,246,0) 70%);
+  }
+  .scan-card {
+    position: relative;
+    width: 176px; height: 208px;
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 26px 22px;
+    border-radius: 20px;
+    background: #fff;
+    border: 1px solid #EAE7F8;
+    box-shadow: 0 18px 44px -12px rgba(84,82,246,0.28);
+    overflow: hidden;
+  }
+  .scan-row {
+    display: block; height: 10px; border-radius: 6px;
+    background: #EDEBFA;
+    animation: scanRowLit 1.9s ease-in-out infinite;
+  }
   .scan-beam {
-    position: absolute; left: 0; right: 0; height: 28px;
-    background: linear-gradient(180deg, rgba(84,82,246,0) 0%, rgba(84,82,246,0.20) 50%, rgba(84,82,246,0) 100%);
-    border-top: 2px solid #5452F6; border-bottom: 2px solid rgba(84,82,246,0.4);
+    position: absolute; left: 0; right: 0; top: 0; height: 40px;
+    background: linear-gradient(180deg, rgba(84,82,246,0) 0%, rgba(84,82,246,0.14) 45%, rgba(84,82,246,0) 100%);
+    border-bottom: 1.5px solid rgba(84,82,246,0.85);
     animation: scanBeam 1.9s cubic-bezier(0.45,0,0.55,1) infinite;
   }
-  .scan-msg   { animation: scanMsgIn 0.4s ease both; }
-  .trust-chip { animation: trustChipIn 0.5s cubic-bezier(0.22,1,0.36,1) both; }
-  .scan-found { animation: scanFoundIn 0.45s cubic-bezier(0.34,1.4,0.64,1) both; }
+  .scan-step  { animation: scanStepIn 0.42s cubic-bezier(0.22,1,0.36,1) both; }
+  .scan-track { animation: scanTrack 1.4s cubic-bezier(0.65,0,0.35,1) infinite; }
+  .scan-found { animation: scanFoundIn 0.5s cubic-bezier(0.34,1.4,0.64,1) both; }
+
   @media (prefers-reduced-motion: reduce) {
-    .scan-beam, .scan-msg, .trust-chip, .scan-found { animation: none !important; }
+    .scan-stage, .scan-row, .scan-step, .scan-track, .scan-found { animation: none !important; }
     .scan-beam { display: none; }
   }
 `;

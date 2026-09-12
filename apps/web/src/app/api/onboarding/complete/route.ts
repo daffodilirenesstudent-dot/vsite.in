@@ -17,6 +17,10 @@ import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { confidentKeywordImage } from '@/lib/menu/defaultImages';
 import { rateLimit } from '@/lib/platform/rateLimit';
 import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
+import {
+  isMenuThemeId, isHexColor, DEFAULT_MENU_THEME, MENU_THEMES,
+} from '@/lib/menu/menuThemes';
+import { audit } from '@/lib/platform/auditLog';
 import OpenAI from 'openai';
 import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 
@@ -65,6 +69,9 @@ interface EnrichedItem {
 interface CompletePayload {
   shopName: string;
   items: EnrichedItem[];
+  /** Menu design picked on the summary step. Optional — Classic is the default. */
+  menuTheme?: unknown;
+  brandColor?: unknown;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -109,8 +116,18 @@ function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; 
   // signup hits. Reject the shape before touching a single field.
   if (!isPlainObject(payload)) return { ok: false, error: 'Request body must be a JSON object' };
 
-  const { shopName, items = [] } = payload;
+  const { shopName, items = [], menuTheme, brandColor } = payload;
   if (typeof shopName !== 'string' || !shopName.trim()) return { ok: false, error: 'Shop name is required' };
+
+  // Both are optional — an owner who never touched the picker sends neither,
+  // and that must stay a completely valid launch. Present-but-wrong is a 400,
+  // never a 500: the fuzz suite hammers this route with malformed bodies.
+  if (menuTheme !== undefined && !isMenuThemeId(menuTheme)) {
+    return { ok: false, error: 'menuTheme must be classic, cafe or premium' };
+  }
+  if (brandColor !== undefined && brandColor !== null && !isHexColor(brandColor)) {
+    return { ok: false, error: 'brandColor must be a six-digit hex colour' };
+  }
   if (shopName.trim().length > 100) return { ok: false, error: 'Shop name must be 100 characters or fewer' };
   if (!Array.isArray(items)) return { ok: false, error: 'items must be an array' };
   if (items.length > MAX_ITEMS) return { ok: false, error: `Too many items — maximum ${MAX_ITEMS} allowed` };
@@ -276,6 +293,7 @@ async function writeIdempotencyCache(key: string, userId: string, status: number
 async function insertSiteWithUniqueSlug(
   userId: string,
   shopName: string,
+  design: { menu_theme: string; menu_font: string; primary_color: string },
 ): Promise<{ id: string; slug: string }> {
   const baseSlug = generateSlug(shopName);
   // Try base, base-1, base-2, ... up to 50 attempts.
@@ -290,6 +308,7 @@ async function insertSiteWithUniqueSlug(
         name: shopName,
         category: 'cafe',
         description: `${shopName} digital menu`,
+        ...design,
       })
       .select('id, slug')
       .single();
@@ -395,7 +414,32 @@ export async function POST(request: NextRequest) {
     // ── Atomic slug + site insert ────────────────────────────────────────────
     let site: { id: string; slug: string };
     try {
-      site = await withRetry(() => insertSiteWithUniqueSlug(userId, trimmedShopName));
+      // The design the owner picked at the counter, written on the same insert
+      // as the site itself. Font follows the theme's own pairing; the picker
+      // deliberately does not ask about type during onboarding, because every
+      // extra decision there is measured against the abandonment it costs.
+      const chosenTheme = isMenuThemeId(payload.menuTheme) ? payload.menuTheme : DEFAULT_MENU_THEME;
+      const design = {
+        menu_theme: chosenTheme,
+        menu_font: MENU_THEMES[chosenTheme].fontPair,
+        primary_color: isHexColor(payload.brandColor)
+          ? payload.brandColor
+          : MENU_THEMES[chosenTheme].accent,
+      };
+      site = await withRetry(() => insertSiteWithUniqueSlug(userId, trimmedShopName, design));
+
+      // The design chosen at signup, recorded as the BASELINE. Without it the
+      // October question — what share of owners change design in 30 days — has
+      // a numerator and no denominator, and the answer would silently count
+      // every store as never having chosen at all.
+      audit({
+        userId,
+        siteId: site.id,
+        action: 'menu_theme_change',
+        targetId: site.id,
+        details: { before: null, after: design, source: 'onboarding' },
+        request,
+      });
     } catch (err) {
       console.error('[onboarding/complete] site insert failed:', err);
       return NextResponse.json({ error: 'Failed to create site after retries' }, { status: 500 });

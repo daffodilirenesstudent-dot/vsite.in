@@ -7,7 +7,11 @@ import CounterWaitingScreen from './CounterWaitingScreen';
 import OrderConfirmedScreen from './OrderConfirmedScreen';
 import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 import MenuItemCard from './MenuItemCard';
-import { T } from './menuTokens';
+import { T, TV } from './menuTokens';
+import {
+  resolveTheme, resolveFontPair, resolveAccent, themeCssVars,
+} from '@/lib/menu/menuThemes';
+import { MENU_MOTION_CSS } from '@/lib/menu/menuMotion';
 import { resolveBadge } from '@/lib/menu/badges';
 import { useQuickReturn } from '@/hooks/useQuickReturn';
 import { prefersReducedMotion } from '@/hooks/useInView';
@@ -94,6 +98,13 @@ interface QRMenuTemplateProps {
   whatsappOrderTaking?: boolean;
   /** Display currency code — only changes the symbol shown; numbers are the same. */
   currencyCode?: 'INR' | 'AED';
+  /** Menu design. Config only — it never changes what the menu says. */
+  menuTheme?: string | null;
+  menuFont?: string | null;
+  /** Owner brand colour. Validated before it reaches a style block. */
+  brandColor?: string | null;
+  /** Whether to draw the logo. Opt-out: most stores have none. */
+  showLogo?: boolean;
   onAddToCart?: (product: MenuProduct, qty: number, variantSize?: string) => void;
 }
 
@@ -1051,8 +1062,24 @@ function BrowseResultCard({
 // ── MAIN TEMPLATE ─────────────────────────────────────────────────────────────
 export default function QRMenuTemplate({
   shopName, shopTagline, logoUrl, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
+  menuTheme, menuFont, brandColor, showLogo = true,
 }: QRMenuTemplateProps) {
   const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
+
+  /**
+   * The design, as CSS custom properties on the shell.
+   *
+   * Resolved once per render and handed to `.qr-shell`, so no component below
+   * ever learns a theme name — shop/CLAUDE.md: "Never branch on template name
+   * inside a component." An unknown or missing value falls back to Classic
+   * rather than throwing, because a menu that renders slightly wrong is a bug
+   * and a menu that does not render is a lost customer.
+   */
+  const theme = useMemo(() => resolveTheme(menuTheme), [menuTheme]);
+  const themeVars = useMemo(
+    () => themeCssVars(theme, resolveAccent(brandColor, theme.id), resolveFontPair(menuFont, theme)),
+    [theme, brandColor, menuFont],
+  ) as React.CSSProperties;
   const canOrder = tier === 'order' || tier === 'order_no_pay';
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeProduct, setActiveProduct] = useState<MenuProduct | null>(null);
@@ -1447,6 +1474,7 @@ export default function QRMenuTemplate({
           }
         }
         @keyframes qrCartIn  { from{transform:translate(-50%,80px);opacity:0} to{transform:translate(-50%,0);opacity:1} }
+        .qr-shell { background: var(--qr-surface, #FAFAFA); }
         .qr-wrap * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
         .qr-wrap *::-webkit-scrollbar { display:none; }
         .qr-wrap * { scrollbar-width:none; }
@@ -1494,9 +1522,10 @@ export default function QRMenuTemplate({
           .qr-thumb-img { opacity:1 !important; }
         }
         .qr-section-hdr { display:flex; flex-direction:row; justify-content:space-between; align-items:center; padding:0px 10px 0px 16px; width:100%; height:24px; }
+        ${MENU_MOTION_CSS}
       ` }} />
 
-      <div className="qr-wrap qr-shell">
+      <div className="qr-wrap qr-shell" style={themeVars}>
 
         {/* ── STICKY HEADER ── */}
         <header ref={headerRef} style={{
@@ -1529,13 +1558,13 @@ export default function QRMenuTemplate({
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {logoUrl && (
+              {showLogo && logoUrl && (
                 <img src={logoUrl} alt={shopName}
                   style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
               )}
               <span style={{
-                fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16,
-                color: T.pink, letterSpacing: '0.5px', textTransform: 'uppercase',
+                fontFamily: TV.fontDisplay, fontWeight: 700, fontSize: 16,
+                color: TV.accent, letterSpacing: '0.5px', textTransform: 'uppercase',
               }}>{shopName}</span>
             </div>
             {shopTagline && (
@@ -1642,17 +1671,17 @@ export default function QRMenuTemplate({
               {['All', ...categories].map(cat => {
                 const on = cat === activeCategory;
                 return (
-                  <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+                  <button key={cat} onClick={() => setActiveCategory(cat)} className="qr-chip" style={{
                     flexShrink: 0,
                     display: 'flex', flexDirection: 'row', alignItems: 'center',
                     padding: '8px 12px', gap: 8,
-                    height: 36, borderRadius: 40,
-                    border: `0.65px solid ${on ? T.pink : T.chipBorder}`,
-                    background: on ? T.pink : T.white,
+                    height: 36, borderRadius: TV.chipRadius,
+                    border: `0.65px solid ${on ? TV.accent : T.chipBorder}`,
+                    background: on ? TV.accent : T.white,
                     color: on ? T.white : T.chipText,
-                    fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 14,
+                    fontFamily: TV.fontDisplay, fontWeight: 400, fontSize: 14,
                     lineHeight: '20px', letterSpacing: '-0.15px',
-                    cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
                   }}>{cat}</button>
                 );
               })}
@@ -1692,22 +1721,27 @@ export default function QRMenuTemplate({
           paddingBottom: canOrder && cartItemCount > 0 ? 'calc(110px + env(safe-area-inset-bottom, 0px))' : 24,
         }}>
           {sections.map(({ category, products }) => (
-            <div key={category} style={{
+            <div key={category} className="qr-section" style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               padding: 0, gap: 10, width: '100%',
             }}>
               <div className="qr-section-hdr">
                 <span style={{
-                  fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 16,
+                  fontFamily: TV.fontDisplay,
+                  fontWeight: TV.sectionWeight as unknown as number,
+                  fontSize: TV.sectionSize,
+                  letterSpacing: TV.sectionTracking,
+                  textTransform: TV.sectionTransform as React.CSSProperties['textTransform'],
                   lineHeight: '24px', color: T.dark,
                 }}>{category}</span>
               </div>
 
               <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12,
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                gap: TV.listGap,
                 width: '100%', padding: '0 16px',
               }}>
-                {products.map(p => {
+                {products.map((p, revealIndex) => {
                   const desc = hasRealVariants(p.metadata) ? getVariantDishDesc(p.description) : p.description;
                   const cartQty = cart.filter(i => i.id === p.id).reduce((s, i) => s + i.qty, 0);
                   const hasVariants = Array.isArray(p.metadata?.variants) && (p.metadata!.variants as unknown[]).length > 0;
@@ -1773,6 +1807,7 @@ export default function QRMenuTemplate({
                       onSelect={() => openProduct(p)}
                       soldOut={p.is_live === false}
                       priority={eagerImageIds.has(p.id)}
+                      revealIndex={revealIndex}
                       action={p.is_live === false ? null : action}
                     />
                   );

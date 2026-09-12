@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&amp;family=Manrope:wght@500;700;800&amp;display=swap">
+  <style>
+    body { margin: 0; background: #FFFFFF; font-family: 'Poppins', system-ui, sans-serif; }
+    a { color: #C42A73; } a:hover { color: #EF59A1; }
+    .nm { margin: 0; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 15px; line-height: 21px; color: #231F23; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .ds { margin: 0; font-family: 'Poppins', sans-serif; font-weight: 400; font-size: 13px; line-height: 18px; color: #5C545C; }
+    .pr { margin: 2px 0 0; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 16px; line-height: 24px; color: #EF59A1; }
+    .veg { width: 14px; height: 14px; flex: none; border-radius: 3px; border: 1.6px solid #13801C; display: flex; align-items: center; justify-content: center; }
+    .veg > span { width: 7px; height: 7px; border-radius: 50%; background: #13801C; display: block; }
+    .th { width: 108px; height: 108px; flex: none; border-radius: 10px; overflow: hidden; border: 1px solid #EFEFEF; position: relative; }
+    .card { display: grid; grid-template-columns: 1fr 108px; gap: 10px; align-items: start; padding: 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E6E6E6; box-shadow: 0 1px 3px rgba(25,25,25,0.06), 0 1px 1px rgba(25,25,25,0.04); position: relative; }
+    .chev { position: absolute; right: 10px; bottom: 10px; }
+    .type { display: inline-flex; align-items: center; gap: 5px; width: fit-content; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 11.5px; line-height: 16px; color: #6B646B; }
+    .left { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .right { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; overflow: hidden; background: #FFFFFF; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: baseline; gap: 8px; padding: 20px 16px 12px;">
+    <h2 style="margin: 0; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 17px; line-height: 24px; color: #191919;">Tiffin</h2>
+    <span style="font-family: 'Manrope', sans-serif; font-weight: 500; font-size: 13px; color: #9A949A;">6 items</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 16px;">
+
+    <!-- Single -->
+    <div class="card">
+      <div class="left">
+        <div style="display: flex; align-items: center; gap: 6px;"><span class="veg"><span></span></span><p class="nm">Idli Sambar</p></div>
+        <p class="ds">Two steamed rice cakes, lentil sambar and coconut chutney.</p>
+        <p class="pr">₹40</p>
+      </div>
+      <div class="right"><div class="th" style="background: linear-gradient(150deg, #F6EDE2, #EADFCF);"></div></div>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B4AFB4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+    </div>
+
+    <!-- Variant + offer -->
+    <div class="card" style="background-color: #FFECEC">
+      <div class="left">
+        <div style="display: flex; align-items: center; gap: 6px;"><span class="veg"><span></span></span><p class="nm">Masala Dosa</p></div>
+        <span class="type">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"></path></svg>
+          2 sizes
+        </span>
+        <p class="ds">Crisp rice crepe folded over spiced potato, with chutney.</p>
+        <div style="display: flex; align-items: baseline; gap: 7px; margin-top: 2px; font-family: 'Manrope', sans-serif; flex-wrap: wrap;">
+          <span style="font-weight: 800; font-size: 19px; color: #191919;">₹80</span>
+          <span style="font-weight: 500; font-size: 12px; text-decoration: line-through; color: #918992;">₹120</span>
+          <span style="font-weight: 800; font-size: 11.5px; color: #13801C;">₹40 OFF</span>
+        </div>
+      </div>
+      <div class="right">
+        <div class="th" style="background: linear-gradient(150deg, #F3D9A8, #E0B268);">
+          
+        <div>
+            <span style="display: none">33% OFF</span>
+          </div></div>
+      </div>
+    </div>
+
+    <!-- Combo + badge -->
+    <div class="card">
+      <div class="left">
+        <div style="display: flex; align-items: center; gap: 6px;"><span class="veg"><span></span></span><p class="nm">Full Meals</p></div>
+        <span style="display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 3px 9px 3px 7px; border-radius: 100px; background: #FFF6E3; color: #8A5B00; border: 1px solid #F5DFAE; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 11px; line-height: 15px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.9L22 10l-5.5 4.8L18 22l-6-3.6L6 22l1.5-7.2L2 10l7.1-1.1z"></path></svg>
+          Best Seller
+        </span>
+        <p class="ds">Unlimited rice with the day's kuzhambu, poriyal and rasam.</p>
+        <p class="pr">₹140</p>
+      </div>
+      <div class="right"><div class="th" style="background: linear-gradient(150deg, #F6E2C8, #DDBE93);"></div></div>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B4AFB4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+    </div>
+
+    <!-- Variant -->
+    <div class="card">
+      <div class="left">
+        <div style="display: flex; align-items: center; gap: 6px;"><span class="veg"><span></span></span><p class="nm">Pongal</p></div>
+        <span class="type">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"></path></svg>
+          2 sizes
+        </span>
+        <p class="ds">Rice and moong dal cooked soft with pepper, cumin and ghee.</p>
+        <p class="pr">₹60 <span style="font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 12.5px; color: #6B646B;">onwards</span></p>
+      </div>
+      <div class="right"><div class="th" style="background: linear-gradient(150deg, #FBF3DF, #E9DCB8);"></div></div>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B4AFB4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+    </div>
+
+    <!-- Sold out — sunk to the bottom, not tappable, no chevron -->
+    <div style="display: grid; grid-template-columns: 1fr 108px; gap: 10px; align-items: start; padding: 10px; border-radius: 8px; background: #FAFAFA; border: 1px solid #EDEDED;">
+      <div class="left">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="width: 14px; height: 14px; flex: none; border-radius: 3px; border: 1.6px solid #B4AFB4; display: flex; align-items: center; justify-content: center;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #B4AFB4; display: block;"></span></span>
+          <p class="nm" style="color: #9A949A;">Ghee Roast</p>
+        </div>
+        <span style="display: inline-flex; align-items: center; width: fit-content; padding: 3px 8px; border-radius: 4px; background: #EFEDEF; color: #6B646B; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 10.5px; line-height: 15px; letter-spacing: 0.06em;">SOLD OUT</span>
+        <p class="ds" style="color: #A8A2A8;">Thin dosa roasted in ghee until deep golden and lacy.</p>
+        <p class="pr" style="color: #A8A2A8;">₹95</p>
+      </div>
+      <div class="right">
+        <div class="th" style="border-color: #EDEDED; background: linear-gradient(150deg, #F3D9A8, #E0B268); filter: grayscale(1); opacity: 0.5;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

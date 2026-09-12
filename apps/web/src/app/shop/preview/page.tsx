@@ -3,9 +3,15 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import QRMenuTemplate, { type Tier } from '@/components/templates/QRMenuTemplate';
+import { isMenuThemeId, DEFAULT_MENU_THEME, MENU_THEMES } from '@/lib/menu/menuThemes';
 
 /**
- * Sample menu for the preview route.
+ * Fallback menu for the preview route, used only when there is nothing to show.
+ *
+ * NOT what an owner sees when they pick a design: the theme picker previews
+ * THEIR menu, because the entire sales case is that the owner watches his own
+ * dishes appear. This set exists so /shop/preview still renders every card
+ * state for development on a store with no items.
  *
  * Deliberately covers every card state the template can render — plain, each
  * of the three recommendation badges, an active offer, an offer WITH a badge,
@@ -26,6 +32,11 @@ const SAMPLE_PRODUCTS = [
 function PreviewContent() {
   const params = useSearchParams();
   const tier = (params.get('tier') === 'order' ? 'order' : 'view') as Tier;
+  // ?theme= lets the owner (and the counter demo) see a design applied without
+  // touching the stored value. An unknown id falls back to Classic.
+  const themeParam = params.get('theme');
+  const menuTheme = isMenuThemeId(themeParam) ? themeParam : DEFAULT_MENU_THEME;
+  const brandColor = params.get('color');
 
   return (
     <div style={{ minHeight: '100dvh', background: '#F0F0F0', display: 'flex', flexDirection: 'column' }}>
@@ -62,6 +73,14 @@ function PreviewContent() {
             border: `1px solid ${tier === 'order' ? '#5452F6' : '#444'}`,
             color: '#FFFFFF', fontSize: 11, fontWeight: 500,
           }}>order</a>
+          {Object.values(MENU_THEMES).map(t => (
+            <a key={t.id} href={`/shop/preview?tier=${tier}&theme=${t.id}`} style={{
+              padding: '4px 10px', borderRadius: 6, textDecoration: 'none',
+              background: menuTheme === t.id ? '#5452F6' : 'transparent',
+              border: `1px solid ${menuTheme === t.id ? '#5452F6' : '#444'}`,
+              color: '#FFFFFF', fontSize: 11, fontWeight: 500,
+            }}>{t.label}</a>
+          ))}
           <a href="/manage/dashboard" style={{
             padding: '4px 10px', borderRadius: 6, textDecoration: 'none',
             border: '1px solid #444', color: '#FFFFFF', fontSize: 11, fontWeight: 500,
@@ -79,6 +98,8 @@ function PreviewContent() {
           tier={tier}
           shopId="preview"
           shopSlug="preview"
+          menuTheme={menuTheme}
+          brandColor={brandColor}
         />
       </div>
     </div>

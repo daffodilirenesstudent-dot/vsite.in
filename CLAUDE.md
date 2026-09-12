@@ -1,5 +1,9 @@
 # vsite.in — Claude Context
 
+Repository-wide rules only. Area-specific conventions live in the per-feature
+files listed under [Feature instructions](#feature-instructions); Claude loads
+each one on demand when it reads files in that directory.
+
 ## Repository Map (read this first)
 
 **The application is `apps/web/`. Run every command from there.**
@@ -17,30 +21,104 @@
 | `delete/` | Staged for manual deletion | No |
 
 **Doc precedence:** `CLAUDE.md` (this file) is authoritative.
-`AGENTS.md` holds cross-tool gotchas. `docs/GOAL.md`,
-`docs/PLAN.md`, `docs/PROGRESS.md` drive the feature workflow.
-Anything in `archive/docs/` is superseded — do not act on it.
+`AGENTS.md` holds cross-tool gotchas. `docs/GOAL.md`, `docs/PLAN.md`,
+`docs/PROGRESS.md` drive the feature workflow. Anything in `archive/docs/`
+is superseded — do not act on it.
 
 **Deployment:** DigitalOcean App Platform, Source Directory = `apps/web`.
 Vercel and Netlify are retired; their configs are in `archive/`.
 
-## Product
-AI-powered digital menu platform for restaurants and cafés in Tamil Nadu / South India. B2B SaaS, solo-developer build. Core flows: QR-menu scanning by end customers, in-app ordering, KOT/printer output, Razorpay payments, GST-compliant billing, WhatsApp ordering.
+## Feature instructions
 
-## Stack (detected)
+Detailed conventions, the per-feature test command, and local gotchas live next
+to the code. Read the relevant one before working in that area.
+
+| Area | File |
+|---|---|
+| Onboarding (signup → first menu) | `apps/web/src/app/onboarding/CLAUDE.md` |
+| Dashboard (`/manage`: analytics, inventory, settings) | `apps/web/src/app/manage/CLAUDE.md` |
+| Shop (`/shop/[slug]` — the QR menu customers scan) | `apps/web/src/app/shop/CLAUDE.md` |
+| Payments / subscription (sensitive) | `apps/web/src/lib/payments/CLAUDE.md` |
+
+Areas without their own file inherit this one: marketing/SEO landing pages
+(`app/<keyword>/`), policies (`app/privacy`, `app/terms`), auth, and blog.
+
+## Product
+
+AI-powered digital menu platform for restaurants and cafés in Tamil Nadu /
+South India. B2B SaaS, solo-developer build.
+
+**vsite sells exactly one product: the Smart QR Menu (`qr_menu`, ₹299/mo).**
+The customer scans a QR code and reads the menu. That is the whole product.
+
+Live: QR-menu scanning, AI menu extraction, AI food photos, Tamil/English
+menus, real-time menu edits, sold-out toggles, menu analytics, GST-compliant
+billing fields, and Razorpay for the owner's own ₹299 subscription.
+
+Users are restaurant/café owners, mostly Tamil Nadu. Assume low digital
+literacy for end-customer flows. Pricing and copy stay in INR.
+**Menu data is the core asset** — protect its integrity, never bulk-delete
+without confirmation.
+
+### The ordering freeze (applies everywhere)
+
+**vsite takes no orders, by any method.** In-app ordering, the counter/token
+flow, table checkout, bill requests, KOT output and WhatsApp order-taking are
+all frozen behind `ORDERING_FROZEN` in `src/lib/platform/productFlags.ts`, and
+every order route returns 403 via `frozenResponse()`. Staff take orders exactly
+as they did before. **Do not add an ordering path.**
+
+Two suites guard this and must both stay green:
+`tests/acceptance/ordering-frozen.test.ts` asserts every order route is gated;
+`tests/security/paymentAttacks.test.ts` forces `ORDERING_FROZEN: false` so the
+payment defences behind the freeze stay covered for the day it is lifted.
+
+`/api/subscription/verify-payment` is the revenue path and is **never** frozen.
+
+### How content may talk about ordering
+
+Never as available. Always fine as coming soon — the owner wants the roadmap
+public. Ordering with UPI payment is publicly promised as forthcoming, at no
+extra cost, inside the same ₹299. The canonical strings live in
+`src/content/roadmap.ts` (`ORDERING_COMING_SOON`,
+`SMART_QR_MENU_LIVE_SINCE = 'March 2026'`) — reuse them rather than writing a
+new phrasing, and revisit whatever imports them when ordering ships.
+`tests/acceptance/ordering-roadmap-copy.test.ts` enforces both halves: it fails
+if content claims ordering works today, and it also fails if ordering is
+scrubbed out of the content entirely.
+
+## Stack
 - **Framework:** Next.js 14.2.35 (App Router, `src/app/`), React 18.
-- **Language:** TypeScript 5, `strict: true` (no emit, `isolatedModules`, `moduleResolution: bundler`). Path alias `@/* → ./src/*`.
-- **Database:** Supabase / Postgres via `@supabase/supabase-js`. Server access through `src/lib/supabase-server.ts` (service-role client, `import 'server-only'`). Heavy use of Postgres RPC functions (e.g. `process_order_v2`). **No Prisma, no Drizzle, no migrations folder in repo.** Firebase (`firebase` pkg) is used only for phone-OTP auth.
+- **Language:** TypeScript 5, `strict: true` (no emit, `isolatedModules`,
+  `moduleResolution: bundler`). Path alias `@/* → ./src/*`.
+- **Database:** Supabase / Postgres via `@supabase/supabase-js`. Server access
+  through `src/lib/supabase-server.ts` (service-role client,
+  `import 'server-only'`). Heavy use of Postgres RPC functions (e.g.
+  `process_order_v2`). **No Prisma, no Drizzle, no migrations folder in repo.**
+  Firebase (`firebase` pkg) is used only for phone-OTP auth.
 - **Styling:** Tailwind CSS 3.4 (`tailwind.config.ts`), `clsx` + `tailwind-merge`.
 - **Package manager:** npm (`package-lock.json`).
-- **Deployment target:** Vercel (Sentry via `@sentry/nextjs` in `next.config.mjs`, `automaticVercelMonitors`, cron routes under `src/app/api/cron/`).
+- **Errors:** Sentry via `@sentry/nextjs` in `next.config.mjs`; cron routes
+  under `src/app/api/cron/`.
 
-## Project conventions (detected + inferred)
-- **API response shape:** App-Router route handlers return `NextResponse.json(...)`. Errors: `NextResponse.json({ error: '<message>' }, { status: 4xx/5xx })`. Success: `NextResponse.json({ success: true, ...data })`. Auth failures use `401 Unauthorized` / `401 Invalid token` / `403 Forbidden`.
-- **DB access:** Import `supabaseServer` from `@/lib/supabase-server` in server code only. Prefer existing RPCs for hot paths over multi-query logic. Never import it into a client component (`server-only` makes the build fail by design).
-- **Folder layout:** `src/app/` (routes + `api/*/route.ts`), `src/components/`, `src/lib/` (domain logic + integrations), `src/hooks/`, `src/utils/`, `src/types/`, `src/content/`. Middleware in `src/middleware.ts`. Tests in `tests/` (NOT colocated).
-- **Naming:** camelCase files in `src/lib/` (e.g. `menuExtractor.ts`, `qrSignature.ts`). Route handlers are always `route.ts`. Tests `*.test.ts` (vitest) and `*.spec.ts` (playwright).
-- **i18n:** Tamil + English where user-facing. Pricing/copy stays in INR.
+## Project conventions
+- **API response shape:** App-Router route handlers return
+  `NextResponse.json(...)`. Errors:
+  `NextResponse.json({ error: '<message>' }, { status: 4xx/5xx })`. Success:
+  `NextResponse.json({ success: true, ...data })`. Auth failures use
+  `401 Unauthorized` / `401 Invalid token` / `403 Forbidden`.
+- **DB access:** Import `supabaseServer` from `@/lib/supabase-server` in server
+  code only. Prefer existing RPCs for hot paths over multi-query logic. Never
+  import it into a client component (`server-only` makes the build fail by
+  design).
+- **Folder layout:** `src/app/` (routes + `api/*/route.ts`), `src/components/`,
+  `src/lib/` (domain logic + integrations), `src/hooks/`, `src/utils/`,
+  `src/types/`, `src/content/`. Middleware in `src/middleware.ts`.
+  Tests in `tests/` (NOT colocated).
+- **Naming:** camelCase files in `src/lib/` (e.g. `menuExtractor.ts`,
+  `qrSignature.ts`). Route handlers are always `route.ts`. Tests `*.test.ts`
+  (vitest) and `*.spec.ts` (playwright).
+- **i18n:** Tamil + English where user-facing.
 
 ## Hard rules
 - TypeScript strict. No `any`. No `console.log` in committed code.
@@ -55,29 +133,47 @@ AI-powered digital menu platform for restaurants and cafés in Tamil Nadu / Sout
 2. Write failing acceptance test in `tests/acceptance/<feature>.spec.ts`.
 3. Run it. Confirm RED. Commit: `test(<feature>): failing acceptance`.
 4. Write PLAN.md: numbered tasks with file paths.
-5. Implement until GREEN. Re-run full suite after every edit.
+5. Implement until GREEN. Re-run the affected suite after every edit.
 6. Refactor with tests green.
 7. Update PROGRESS.md every iteration. Append gotchas to AGENTS.md.
 8. When all acceptance criteria pass, write `status: DONE` in PROGRESS.md.
 
 ## Testing
-- **Unit / API / load / security:** Vitest. `npx vitest run` (config `vitest.config.ts`, env `node`, globals on, setup `tests/setup.ts`, includes `tests/**/*.test.ts`, excludes `*.spec.ts`).
-- **E2E:** Playwright. `npx playwright test` (config `playwright.config.ts`, `testDir: ./tests/e2e`, baseURL `http://localhost:3000`, chromium, workers: 1). Needs `npm run dev` running.
-- **Acceptance tests live in `tests/acceptance/`** (new dir — create on first feature). Vitest currently includes only `tests/**/*.test.ts`; if acceptance tests are Playwright `.spec.ts`, place them under `tests/e2e/` OR widen the playwright `testDir` — note the choice in PLAN.md.
-- **Lint:** `npm run lint` (`next lint`). **Run before any commit:** `npx vitest run && npm run lint`.
-- ⚠️ There are NO `test`/`typecheck` scripts in `package.json`. Use the explicit commands above. Typecheck via `npx tsc --noEmit`.
+
+**Scope the run to what you touched.** Each feature file above names the
+command for its area. Use the full suite before a merge, not after every edit.
+
+- **Full unit / API / load / security:** `npx vitest run` (config
+  `vitest.config.ts`, env `node`, globals on, setup `tests/setup.ts`, includes
+  `tests/**/*.test.ts`, excludes `*.spec.ts`).
+- **Single file:** `npx vitest run tests/<path>.test.ts`
+- **E2E:** Playwright. `npx playwright test` (config `playwright.config.ts`,
+  `testDir: ./tests/e2e`, baseURL `http://localhost:3000`, chromium,
+  workers: 1). Needs `npm run dev` running.
+- **Acceptance tests live in `tests/acceptance/`** as vitest `*.test.ts`.
+  Vitest includes only `tests/**/*.test.ts`; if an acceptance test must be
+  Playwright `*.spec.ts`, place it under `tests/e2e/` and note the choice in
+  PLAN.md.
+- **Typecheck:** `npx tsc --noEmit` • **Lint:** `npm run lint` (`next lint`)
+- **Before any commit:** `npx vitest run && npm run lint`
+
+⚠️ There are NO `test`/`typecheck` scripts in `package.json`. Use the explicit
+commands above.
 
 ## Hooks (enforced — do not bypass)
-`.claude/settings.json` runs a **PostToolUse** hook on `Edit|Write|Bash`: `code-review-graph update --skip-flows` (keeps the knowledge graph current). It also runs `code-review-graph status` on SessionStart. There is no commit-time hook — Claude Code has no `PreCommit` event, so run `code-review-graph detect-changes --brief` by hand if you want it. NOTE: these hooks maintain the review graph — they do NOT run the test/lint/secret-scan suite for you. You must run `npx vitest run && npm run lint` manually before every commit. If a hook fails, fix the cause — do not disable the hook.
-
-## Domain notes
-- Users are restaurant/café owners, mostly Tamil Nadu. Low digital literacy assumed for end-customer flows (QR menu scanners).
-- Pricing/copy stays in INR (current plans ₹299 / ₹499 / ₹699).
-- Menu data is the core asset: protect integrity, never bulk-delete without confirmation.
-- Payments: Razorpay (incl. per-restaurant OAuth Partner Connect). GST compliance and WhatsApp ordering are live features — treat `src/lib/server/*`, billing, and webhook code as sensitive.
+`.claude/settings.json` runs a **PostToolUse** hook on `Edit|Write|Bash`:
+`code-review-graph update --skip-flows` (keeps the knowledge graph current). It
+also runs `code-review-graph status` on SessionStart. There is no commit-time
+hook — Claude Code has no `PreCommit` event, so run
+`code-review-graph detect-changes --brief` by hand if you want it. NOTE: these
+hooks maintain the review graph — they do NOT run the test/lint/secret-scan
+suite for you. You must run `npx vitest run && npm run lint` manually before
+every commit. If a hook fails, fix the cause — do not disable the hook.
 
 ## When stuck
-Log the blocker to AGENTS.md with: symptom, what you tried, hypothesis. Move to next sub-task. Do NOT loop on the same failing approach more than twice. (Ralph loop is capped at **3 loops** for this workflow.)
+Log the blocker to AGENTS.md with: symptom, what you tried, hypothesis. Move to
+next sub-task. Do NOT loop on the same failing approach more than twice. (Ralph
+loop is capped at **3 loops** for this workflow.)
 
 ## Never do
 - Don't refactor unrelated code "while you're there".
@@ -86,7 +182,9 @@ Log the blocker to AGENTS.md with: symptom, what you tried, hypothesis. Move to 
 - Don't write to `/migrations`, `/.env*`, or billing/auth code without explicit goal.
 
 ## MCP Tools: code-review-graph
-This project has a knowledge graph. update it when our start using it  Prefer the `code-review-graph` MCP tools when available; fall back to Grep/Glob/Read if they're unavailable, fail, or return nothing. Never block on MCP availability.
+This project has a knowledge graph. Prefer the `code-review-graph` MCP tools
+when available; fall back to Grep/Glob/Read if they're unavailable, fail, or
+return nothing. Never block on MCP availability.
 - **Exploring code:** `semantic_search_nodes` / `query_graph` instead of Grep.
 - **Impact:** `get_impact_radius` instead of manually tracing imports.
 - **Review:** `detect_changes` + `get_review_context` instead of reading whole files.

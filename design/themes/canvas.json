@@ -1,0 +1,75 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 1180,
+      "title": "Classic — the control (shipped today)"
+    },
+    {
+      "file": "Cafe.dc.html",
+      "x": 490,
+      "y": 0,
+      "w": 390,
+      "h": 1180,
+      "title": "Cafe — warm, softer, hand-made"
+    },
+    {
+      "file": "Premium.dc.html",
+      "x": 980,
+      "y": 0,
+      "w": 390,
+      "h": 1180,
+      "title": "Premium — crisp, spare, expensive"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -330,
+      "w": 620,
+      "text": "vsite — menu design themes (3, not 6)\n\nClassic is the CONTROL: values lifted from shipped source, not redrawn. Card r8, pad 10, gap 10, THUMB 120 (r10, #EFEFEF hairline), name 15/21 #231F23, desc 13/18 #5C545C, price 16/24, offer 19 / struck 12 #918992 / 11.5 green, banner ratio 351/134 with 18x6 dots.\n\nCafe and Premium move SEVEN knobs only: page surface, card ground, card radius, card border/shadow, accent, font pair, density. Every other value is identical.\n\nThat restraint is the economic case: it is why a 4th theme later costs under half a day instead of forking a 2,141-line component three ways."
+    },
+    {
+      "id": "data-parity",
+      "x": 1470,
+      "y": 0,
+      "w": 330,
+      "text": "SAME DATA, DIFFERENT DESIGN.\n\nAll three artboards render the identical record set, so nothing the admin can create loses a home in a theme. Reading down each column:\n\n· Header — sites.image_url, name, tagline\n· Banner carousel — banners table, is_active + sort_order, with dots\n· Category chips — from products.category\n· Card 1 — single + Best Seller badge (ks_quadrant = Star)\n· Card 2 — variant (metadata.variants -> \"3 sizes\", price is a minimum) + offer (metadata)\n· Card 3 — combo (metadata.comboItems -> \"Combo · 3 items\") + egg food_type\n· Card 4 — long Tamil name, NO photo\n· Card 5 — sold out (is_live = false) + non-veg\n\nIf a shape renders in Classic it must render in all three. That is the acceptance bar."
+    },
+    {
+      "id": "frozen",
+      "x": 1470,
+      "y": 470,
+      "w": 330,
+      "text": "FROZEN — identical in all three. An owner must never be able to change these:\n\n· Veg / non-veg / egg marks (#13801C, #FB2C36, #FFBC11). Legally meaningful in India.\n· Offer tint #FFECEC — the entire offer signal.\n· Saving green #13801C.\n· Badge palette — deliberately never green, because green already means vegetarian on this card.\n· Sold-out ramp: greyed, desaturated, flat, no lift. Muted, never red — nothing has gone wrong.\n· THUMB 120 and the 2-column grid.\n\nAsserted by tests/acceptance/menu-card-system.test.ts, which reads component SOURCE."
+    },
+    {
+      "id": "accent-tweak",
+      "x": 1470,
+      "y": 940,
+      "w": 330,
+      "text": "Three tweaks sit above each artboard.\n\nACCENT — the owner's brand colour, the one thing they set themselves. Try a pale one: the price and shop name are the accent drawn as TEXT on a light ground, so a light brand colour makes the price unreadable. That is why the build clamps the chosen colour toward 4.5:1 for text uses while keeping the raw colour for fills.\n\nSHOW LOGO — the logo is opt-out, not mandatory. sites.show_logo, on by default when a logo exists. Turn it off and the header keeps its balance: the name simply takes the space. That has to hold, because most menus have no logo at all.\n\nANIMATE — toggle the motion off to feel the difference."
+    },
+    {
+      "id": "motion",
+      "x": 1470,
+      "y": 1420,
+      "w": 330,
+      "text": "MOTION — one system, shared by all three.\n\nMotion is deliberately NOT a themeable knob. \"Smooth\" is a baseline quality, not a brand attribute, and tripling motion QA would blow the ~1.5x tax straight back out to 2.5x. So the eighth knob does not exist: all three artboards run identical timings.\n\nRules, all three enforced by the existing codebase:\n\n1. Transform and opacity ONLY — never height/top/left. Animating layout relayouts the whole list every frame on the cheap Androids our readers use.\n\n2. NO spring or overshoot curves. menu-card-system.test.ts explicitly forbids cubic-bezier(0.34,1.2,0.64,1) here — \"the bouncing curve makes a photo panel look cheap\". Everything uses the settle curve, cubic-bezier(0.32,0.72,0,1), which the detail sheet already opens on.\n\n3. Every animation sits behind prefers-reduced-motion.\n\nWhat is drawn: header, banner and chips rise in sequence, then the cards stagger at 35ms intervals. Press states on chips and cards. content-visibility on the list so a long menu does not paint offscreen sections.\n\nThe app feel comes from restraint and consistent timing, not from more animation. Anything that moves twice for one intent gets cut."
+    },
+    {
+      "id": "tamil-finding",
+      "x": 0,
+      "y": 1250,
+      "w": 620,
+      "text": "FINDING — needs a decision, but not necessarily in this feature.\n\nCard 4 in each column carries a long Tamil name and no photo. Two real behaviours are drawn honestly:\n\n1. The card collapses to a single column when a dish has no photo. Correct, and the state we render most often.\n\n2. The name TRUNCATES with an ellipsis — it does not wrap. That is the shipped behaviour (MenuItemCard.tsx: whiteSpace nowrap, textOverflow ellipsis), but apps/web/src/app/shop/CLAUDE.md says \"long Tamil dish names wrap to two lines\". The doc and the code disagree, and the code is what the diner sees.\n\nTheming does not cause this and does not fix it. But Tamil names run longer than their English equivalents, so it bites hardest in exactly our market. Say if you want it fixed alongside."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

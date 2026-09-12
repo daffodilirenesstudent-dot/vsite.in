@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&amp;family=Manrope:wght@500;700;800&amp;display=swap">
+  <style>
+    body { margin: 0; background: #FFFFFF; font-family: 'Poppins', system-ui, sans-serif; }
+    a { color: #C42A73; } a:hover { color: #EF59A1; }
+    .lbl { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #9A949A; }
+    .note { font-family: 'Poppins', sans-serif; font-weight: 400; font-size: 12.5px; line-height: 19px; color: #5C545C; margin: 0; }
+    .nm { margin: 0; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 15px; line-height: 21px; color: #231F23; }
+    .ds { margin: 0; font-family: 'Poppins', sans-serif; font-weight: 400; font-size: 13px; line-height: 18px; color: #5C545C; }
+    .pr { margin: 2px 0 0; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 16px; line-height: 24px; color: #EF59A1; }
+    .veg { width: 14px; height: 14px; flex: none; border-radius: 3px; border: 1.6px solid #13801C; display: flex; align-items: center; justify-content: center; }
+    .veg > span { width: 7px; height: 7px; border-radius: 50%; background: #13801C; display: block; }
+    .th { width: 108px; height: 108px; flex: none; border-radius: 10px; overflow: hidden; border: 1px solid #EFEFEF; background: linear-gradient(150deg, #F3D9A8, #E0B268); }
+
+    @keyframes nudge {
+      0%, 62%, 100% { transform: translateX(0); }
+      68% { transform: translateX(-4px); }
+      74% { transform: translateX(2px); }
+      80% { transform: translateX(0); }
+    }
+    .nudge { animation: nudge 4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .nudge { animation: none !important; } }
+  </style>
+</helmet>
+
+<div style="width: 1080px; padding: 32px; background: #FFFFFF; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px;">
+
+  <div style="display: flex; flex-direction: column; gap: 6px;">
+    <h1 style="margin: 0; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 22px; line-height: 30px; color: #191919;">Making the card look tappable</h1>
+    <p class="note" style="max-width: 680px;">The card opens a detail sheet, but nothing on it says so. Google's tappability study found people routinely misjudge whether a flat element is interactive — and the fix is a <i>signifier</i>, a visible mark, not just the affordance itself. Our diner is often 45+, on a borrowed phone, in a dim room, and has no Swiggy habit to fall back on. Three ways to say it, from quietest to loudest.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start;">
+
+    <!-- A -->
+    <div style="display: flex; flex-direction: column; gap: 11px;">
+      <span class="lbl" style="color: #13801C;">Option A · Chevron + lift</span>
+      <div style="display: grid; grid-template-columns: 1fr 108px; gap: 10px; align-items: start; padding: 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E6E6E6; box-shadow: 0 1px 3px rgba(25,25,25,0.06), 0 1px 1px rgba(25,25,25,0.04); box-sizing: border-box; position: relative;">
+        <div style="display: flex; flex-direction: column; gap: 5px; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 6px;"><span class="veg"><span></span></span><p class="nm">Masala Dosa</p></div>
+          <p class="ds">Crisp rice crepe folded over spiced potato.</p>
+          <p class="pr">₹80</p>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;"><div class="th"></div></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B4AFB4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; right: 10px; bottom: 10px;"><path d="M9 18l6-6-6-6"></path></svg>
+      </div>
+      <p class="note"><b>Card lifts off the page</b> — white ground instead of #FAFAFA, plus a 1px/3px shadow — and a chevron marks the direction. Reads as a row you can open.</p>
+      <p class="note" style="color: #9A949A;"><b>Cost:</b> shadows on every row make a long menu feel busy, and the chevron competes with the offer flag for the same corner.</p>
+    </div>
+
+    <!-- B -->
+    <div style="display: flex; flex-direction: column; gap: 11px;">
+      <span class="lbl">Option B · Say it in words</span>
+      <div style="display: grid; grid-template-columns: 1fr 108px; gap: 10px; align-items: start; padding: 10px; border-radius: 8px; background: #FAFAFA; border: 1px solid #E6E6E6; box-sizing: border-box;">
+        <div style="display: flex; flex-direction: column; gap: 5px; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 6px;"><span class="veg"><span></span></span><p class="nm">Masala Dosa</p></div>
+          <p class="ds">Crisp rice crepe folded over spiced potato.</p>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
+            <p class="pr" style="margin: 0;">₹80</p>
+            <span style="display: inline-flex; align-items: center; gap: 4px; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 12px; color: #C42A73;">
+              View details
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+            </span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;"><div class="th"></div></div>
+      </div>
+      <p class="note"><b>A worded link on every card.</b> No convention required — it states the action. Strongest for a first-time scanner who has never used a QR menu.</p>
+      <p class="note" style="color: #9A949A;"><b>Cost:</b> repeated on 60 rows it becomes visual noise, and it needs a Tamil translation to serve half the audience.</p>
+    </div>
+
+    <!-- C -->
+    <div style="display: flex; flex-direction: column; gap: 11px;">
+      <span class="lbl">Option C · Teach once, then quiet</span>
+      <div class="nudge" style="display: grid; grid-template-columns: 1fr 108px; gap: 10px; align-items: start; padding: 10px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E6E6E6; box-shadow: 0 1px 3px rgba(25,25,25,0.06); box-sizing: border-box; position: relative;">
+        <div style="display: flex; flex-direction: column; gap: 5px; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 6px;"><span class="veg"><span></span></span><p class="nm">Masala Dosa</p></div>
+          <p class="ds">Crisp rice crepe folded over spiced potato.</p>
+          <p class="pr">₹80</p>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;"><div class="th"></div></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B4AFB4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; right: 10px; bottom: 10px;"><path d="M9 18l6-6-6-6"></path></svg>
+        <div style="position: absolute; left: 10px; top: -30px; display: inline-flex; align-items: center; gap: 6px; background: #191919; padding: 6px 10px; border-radius: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"><path d="M9 11.5V6a1.8 1.8 0 0 1 3.6 0v8"></path><path d="M12.6 12.5a1.8 1.8 0 0 1 3.6 0v1"></path><path d="M16.2 13.5a1.8 1.8 0 0 1 3.6 0V17a4 4 0 0 1-4 4h-2.6a4 4 0 0 1-3.1-1.5L7 16.5"></path></svg>
+          <span style="font-family: 'Poppins', sans-serif; font-weight: 500; font-size: 12px; color: #FFFFFF;">Tap any dish to see more</span>
+        </div>
+      </div>
+      <p class="note"><b>Option A, plus a one-time coach tip</b> on the first card of a diner's first visit, with a small horizontal nudge. Dismissed on the first tap and never shown again (localStorage).</p>
+      <p class="note" style="color: #9A949A;"><b>Cost:</b> real state to store and a tooltip to position; wasted on the regular who scans the same menu twice a week.</p>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 10px; align-items: flex-start; padding: 15px 16px; background: #F1EFF0; border: 1px solid #E6E6E6; border-radius: 8px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C545C" stroke-width="1.8" style="flex: none; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.01" stroke-linecap="round"></path></svg>
+    <p class="note"><b>My pick: A, and only A.</b> The chevron is the cheapest honest signal and it survives a 60-item menu. B is louder but the phrase repeats down the whole page, and it needs Tamil to be fair to half your diners. C is the right answer if you find in testing that people genuinely do not tap — but it is state and a tooltip for a problem a chevron may already solve, so it is worth measuring before building. <b>Whichever you pick, the card also needs a pressed state</b> — a brief <span style="font-family: ui-monospace, monospace; font-size: 11.5px;">scale(0.985)</span> — because on a phone there is no hover, and the press is the only confirmation the tap registered.</p>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

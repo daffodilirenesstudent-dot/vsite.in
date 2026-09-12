@@ -35,8 +35,8 @@ export default function TrustBar() {
                 <p className="flex shrink-0 items-center gap-2 rounded-full bg-paper-2 px-4 py-2 text-[15px] text-ink-70">
                     <MapPin className="h-4 w-4 shrink-0 text-accent-text" strokeWidth={1.9} aria-hidden />
                     <span>
-                        <strong className="font-semibold text-ink">{PROOF_STATS.menusLive} menus</strong> live across
-                        all {PROOF_STATS.districts} districts
+                        <strong className="font-semibold text-ink">Tamil Nadu</strong>, since{' '}
+                        {PROOF_STATS.liveSince}
                     </span>
                 </p>
             </Reveal>

@@ -95,8 +95,8 @@ export default function FooterCTA() {
                     </div>
 
                     <p className="mt-6 text-[15px] text-on-night-45">
-                        {PROOF_STATS.menusLive} menus already live across all {PROOF_STATS.districts} districts
-                        of Tamil Nadu.
+                        Serving Tamil Nadu since {PROOF_STATS.liveSince}. Menus in {PROOF_STATS.languages},
+                        live in {PROOF_STATS.setupMinutes} minutes.
                     </p>
                 </Reveal>
             </section>

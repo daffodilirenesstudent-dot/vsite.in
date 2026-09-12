@@ -3,11 +3,19 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
+/**
+ * What the owner sees while the store is being created.
+ *
+ * These used to describe our processing steps — "Menu engineering…" is a term
+ * from a business textbook, not something a café owner has ever needed. Each
+ * line now names something being done *to their menu*, in words they would use
+ * themselves, so the wait reads as work rather than as a stalled screen.
+ */
 const MESSAGES = [
-  { text: 'Analyzing menu…',           icon: 'manage_search' },
-  { text: 'Getting ready to publish…', icon: 'cloud_upload'  },
-  { text: 'Menu engineering…',         icon: 'auto_awesome'  },
-  { text: 'Almost done.',              icon: 'pending'        },
+  { text: 'Saving your dishes…',      icon: 'restaurant_menu' },
+  { text: 'Adding your prices…',      icon: 'sell'            },
+  { text: 'Building your QR menu…',   icon: 'qr_code_2'       },
+  { text: 'Almost ready…',            icon: 'pending'         },
 ];
 
 const STEP_MS = 2500;
@@ -19,6 +27,8 @@ interface LaunchLoadingScreenProps {
   itemCount: number;
   /** Live store slug → used for the "View live menu" / "Share" actions. */
   slug: string;
+  /** The owner's own business name. Seeing it is the proof that it worked. */
+  shopName?: string;
   onRedirect: () => void;
 }
 
@@ -27,6 +37,7 @@ export default function LaunchLoadingScreen({
   done,
   itemCount,
   slug,
+  shopName,
   onRedirect,
 }: LaunchLoadingScreenProps) {
   const [msgIdx, setMsgIdx]       = useState(0);
@@ -116,7 +127,6 @@ export default function LaunchLoadingScreen({
   // Built client-side only (this screen never renders during SSR), so window is
   // safe. Works in dev (localhost) and prod (vsite.in) alike.
   const liveUrl = slug && typeof window !== 'undefined' ? `${window.location.origin}/shop/${slug}` : '';
-  const liveUrlLabel = liveUrl.replace(/^https?:\/\//, '');
 
   const viewLiveMenu = () => {
     if (liveUrl) window.open(liveUrl, '_blank', 'noopener,noreferrer');
@@ -183,11 +193,11 @@ export default function LaunchLoadingScreen({
           <p className="text-xs text-slate-400 mt-2">Setting up your store — just a moment</p>
         </div>
       ) : (
-        <div className="launch-success relative flex w-full max-w-sm flex-col items-center gap-5 text-center">
+        <div className="launch-success relative isolate flex w-full max-w-sm flex-col items-center gap-5 text-center">
           <style dangerouslySetInnerHTML={{ __html: LAUNCH_CSS }} />
 
           {/* Confetti / flower burst */}
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-4 h-0">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-4 z-0 h-0">
             {LAUNCH_CONFETTI.map((c, i) => (
               <span
                 key={i}
@@ -213,31 +223,44 @@ export default function LaunchLoadingScreen({
           </div>
 
           {/* Success circle */}
-          <div className="launch-pop flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
-            <span className="material-symbols-outlined text-emerald-600" style={{ fontSize: 40 }}>
-              check_circle
+          <div className="launch-pop relative z-10 flex h-[68px] w-[68px] items-center justify-center rounded-full bg-emerald-50 ring-[3px] ring-emerald-500/25">
+            <span className="material-symbols-outlined text-emerald-600" style={{ fontSize: 36, fontVariationSettings: "'wght' 500" }}>
+              check
             </span>
           </div>
 
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">🎉 Your menu is live!</h2>
-            <p className="mt-1.5 text-sm text-slate-500">
-              {itemCount > 0
-                ? `${itemCount} menu item${itemCount !== 1 ? 's' : ''} published successfully.`
-                : 'Your store is ready. Add items from the dashboard.'}
-            </p>
+          {/* One thing to read first: their own name. A café owner who handed
+              photos to software ten minutes ago is asking "did it work, and is
+              it mine?" — their business name, set large, answers both before
+              any sentence about menus can. */}
+          <div className="relative z-10 flex flex-col items-center gap-2">
+            <h2 className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-slate-900 [text-wrap:balance]">
+              {shopName?.trim() || 'Your menu'} is live
+            </h2>
+
+            {/* The count as a fact, not a sentence. A dot-separated pair reads
+                as a status line rather than a paragraph the owner has to parse. */}
+            <div className="flex items-center gap-2.5 text-[15px] text-slate-500">
+              <span className="font-semibold text-slate-700 tabular-nums">
+                {itemCount > 0 ? `${itemCount} ${itemCount === 1 ? 'dish' : 'dishes'}` : 'No dishes yet'}
+              </span>
+              <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden />
+              <span className="flex items-center gap-1.5">
+                <span className="live-dot h-[7px] w-[7px] rounded-full bg-emerald-500" aria-hidden />
+                Ready to scan
+              </span>
+            </div>
           </div>
 
-          {/* Live URL chip */}
-          {liveUrlLabel && (
-            <div className="flex max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 16 }}>link</span>
-              <span className="truncate text-xs font-medium text-slate-600">{liveUrlLabel}</span>
-            </div>
-          )}
+          {/* No card around this. It is one short instruction, and boxing it
+              gave it the same weight as the actions below it. */}
+          <p className="relative z-10 max-w-[290px] text-[14px] leading-relaxed text-slate-500">
+            Put your QR on the tables. Price changes and sold-out dishes reach
+            customers instantly.
+          </p>
 
           {/* Actions */}
-          <div className="mt-1 flex w-full flex-col gap-2.5">
+          <div className="relative z-10 mt-1 flex w-full flex-col gap-2.5">
             {liveUrl && (
               <button
                 onClick={viewLiveMenu}
@@ -287,6 +310,12 @@ const LAUNCH_CONFETTI = Array.from({ length: 22 }).map((_, i) => {
 });
 
 const LAUNCH_CSS = `
+  @keyframes liveDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.45; transform: scale(0.82); }
+  }
+  .live-dot { animation: liveDot 1.8s ease-in-out infinite; }
+
   @keyframes launchPop {
     0%   { transform: scale(0); }
     60%  { transform: scale(1.15); }
@@ -305,6 +334,7 @@ const LAUNCH_CSS = `
   .launch-pop      { animation: launchPop 0.5s cubic-bezier(0.34,1.5,0.64,1) both; }
   .launch-confetti { animation: launchConfetti 2s cubic-bezier(0.4,0,0.6,1) forwards; }
   @media (prefers-reduced-motion: reduce) {
+    .live-dot { animation: none !important; }
     .launch-success, .launch-pop, .launch-confetti { animation: none !important; }
     .launch-confetti { display: none; }
   }
