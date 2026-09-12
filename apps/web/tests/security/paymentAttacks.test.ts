@@ -18,6 +18,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import crypto from 'crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ── Required env ─────────────────────────────────────────────────────────────
 process.env.RAZORPAY_KEY_ID                  = 'rzp_test_admin';
@@ -31,6 +33,25 @@ process.env.PAYMENTS_ENC_KEY                 = Buffer.alloc(32, 7).toString('bas
 
 // ── Mock infrastructure ──────────────────────────────────────────────────────
 vi.mock('server-only', () => ({}));
+
+/**
+ * Run the attack scenarios with ordering UNFROZEN.
+ *
+ * vsite takes no orders today, so `/api/orders/[id]/verify-payment` returns
+ * 403 before any of these defences execute — which would make this whole file
+ * pass vacuously and quietly delete the coverage. The suite's job is to prove
+ * signature forgery, replay, amount tampering and IDOR are all still rejected
+ * on the day ordering is switched back on, so it forces the flag off and
+ * exercises the real handler.
+ *
+ * `ordering-frozen.test.ts` is the counterpart that asserts the route IS
+ * frozen in production. The two together mean neither property can regress:
+ * that suite guards the freeze, this one guards what the freeze is hiding.
+ */
+vi.mock('@/lib/platform/productFlags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/platform/productFlags')>()),
+  ORDERING_FROZEN: false,
+}));
 vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
   verifyFirebaseToken: vi.fn(async (t: string) => (t === 'admin-token' ? 'admin-user' : null)),
 }));
@@ -327,8 +348,27 @@ describe('G1. /api/manage/payments/razorpay/status must not leak tokens', async 
 // ATTACK CLASS H — Race conditions (documented)
 // =============================================================================
 describe('H. Race: webhook + verify-payment', () => {
-  it.skip('documented in threat report — verify-payment is idempotent against billing_history (23505) and only activates from razorpay_status=created via the webhook safety net', () => {
-    // Integration test would require real DB; verified manually after the fix.
+  /**
+   * This was an `it.skip` asserting that "verify-payment is idempotent against
+   * billing_history (23505) and only activates from razorpay_status=created".
+   *
+   * Half of that was false. The webhook carried the `razorpay_status='created'`
+   * guard; verify-payment never did, and tolerating the 23505 made it *less*
+   * safe rather than more — the unique constraint deduplicated the billing row
+   * while the subscription update ran unconditionally and added 30 days every
+   * time. Because the claim sat in a skipped test, nothing ever contradicted it
+   * (2026-09 assessment, Finding 1).
+   *
+   * The behaviour is now covered for real, against the handler, in
+   * tests/security/subscriptionReplay.test.ts. A skipped test that asserts a
+   * property is worse than no test: it reads as coverage in a grep.
+   */
+  it('the replay guard is covered in subscriptionReplay.test.ts', () => {
+    const route = readFileSync(
+      join(__dirname, '..', '..', 'src', 'app', 'api', 'subscription', 'verify-payment', 'route.ts'),
+      'utf8',
+    );
+    expect(route).toMatch(/\.eq\('razorpay_status',\s*'created'\)/);
   });
 });
 
