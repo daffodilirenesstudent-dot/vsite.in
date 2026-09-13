@@ -161,7 +161,6 @@ export default function ShopPageClient({
       <Template
         shopName={shop.name}
         shopTagline={shop.tagline ?? undefined}
-        logoUrl={shop.image_url}
         menuProducts={products}
         banners={banners}
         tier={tier}
@@ -174,7 +173,6 @@ export default function ShopPageClient({
         menuTheme={shop.menu_theme}
         menuFont={shop.menu_font}
         brandColor={shop.primary_color}
-        showLogo={shop.show_logo !== false}
       />
     </Suspense>
   );

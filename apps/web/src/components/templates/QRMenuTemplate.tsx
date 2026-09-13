@@ -83,7 +83,6 @@ export interface ShopBanner {
 interface QRMenuTemplateProps {
   shopName: string;
   shopTagline?: string;
-  logoUrl?: string | null;
   menuProducts: MenuProduct[];
   banners: ShopBanner[];
   tier: Tier;
@@ -104,7 +103,6 @@ interface QRMenuTemplateProps {
   /** Owner brand colour. Validated before it reaches a style block. */
   brandColor?: string | null;
   /** Whether to draw the logo. Opt-out: most stores have none. */
-  showLogo?: boolean;
   onAddToCart?: (product: MenuProduct, qty: number, variantSize?: string) => void;
 }
 
@@ -1061,8 +1059,8 @@ function BrowseResultCard({
 
 // ── MAIN TEMPLATE ─────────────────────────────────────────────────────────────
 export default function QRMenuTemplate({
-  shopName, shopTagline, logoUrl, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
-  menuTheme, menuFont, brandColor, showLogo = true,
+  shopName, shopTagline, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
+  menuTheme, menuFont, brandColor,
 }: QRMenuTemplateProps) {
   const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
 
@@ -1558,10 +1556,9 @@ export default function QRMenuTemplate({
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {showLogo && logoUrl && (
-                <img src={logoUrl} alt={shopName}
-                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-              )}
+              {/* The shop name stands alone. 052 already conceded that most
+                  stores have no logo and that the header must read as finished
+                  without one — 054 makes that the only case. */}
               <span style={{
                 fontFamily: TV.fontDisplay, fontWeight: 700, fontSize: 16,
                 color: TV.accent, letterSpacing: '0.5px', textTransform: 'uppercase',

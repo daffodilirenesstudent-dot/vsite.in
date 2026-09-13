@@ -307,7 +307,6 @@ async function insertSiteWithUniqueSlug(
         type: 'Menu',
         name: shopName,
         category: 'cafe',
-        description: `${shopName} digital menu`,
         ...design,
       })
       .select('id, slug')

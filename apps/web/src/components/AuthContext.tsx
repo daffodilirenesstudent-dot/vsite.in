@@ -19,6 +19,12 @@ const isLocalhost = typeof window !== 'undefined' && window.location.hostname ==
 // Minimal user shape — all components only need `.id` and `.name`
 interface AuthUser {
     id: string;
+    /**
+     * The number this session was verified with, straight off the Firebase
+     * user. Read-only and additive — it exists so screens can prefill a phone
+     * field instead of asking for a number the owner proved minutes ago.
+     */
+    phoneNumber: string | null;
 }
 
 interface AuthContextType {
@@ -141,7 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // the HttpOnly cookie in lockstep with the Firebase session.
         const unsubscribe = onIdTokenChanged(firebaseAuth, async (firebaseUser) => {
             if (firebaseUser) {
-                const authUser: AuthUser = { id: firebaseUser.uid };
+                const authUser: AuthUser = {
+                    id: firebaseUser.uid,
+                    phoneNumber: firebaseUser.phoneNumber,
+                };
                 setUser(authUser);
                 setSession({ user: authUser });
                 await syncCookie(firebaseUser);

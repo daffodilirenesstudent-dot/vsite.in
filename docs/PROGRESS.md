@@ -1331,3 +1331,110 @@ Also incidentally confirmed on the production build: `/api/auth/session`'s
 same-origin guard accepts a legitimate same-origin DELETE (it is only active
 when NODE_ENV=production, so a dev run never exercises it), and the middleware
 expired-token → `/auth/refresh` silent-refresh path works.
+
+---
+
+## 2026-09-13 — Signup friction pass: OTP entry, menu questions, Store Details
+
+status: DONE (code) · migration 054 PENDING APPLY
+
+Three small, high-traffic surfaces. Everything shipped TDD: failing
+acceptance committed first, then implementation. Full suite green —
+916 passed, 1 skipped, 40 files. No new dependencies.
+
+### 1. OTP entry (`tests/acceptance/otp-entry.test.ts`)
+
+Three defects, one cause. `handleOtpChange` did `value.slice(-1)` — it
+assumed a box only ever receives one character, which is what typing
+looks like. Paste and iOS/Android autofill both deliver all six digits
+to a single box, so five were discarded; and `handleOtpPaste` never
+called `preventDefault()`, so the native paste re-entered that same
+handler and undid the six boxes it had just set. Auto-verify did not
+exist at all.
+
+New rule: a box may receive any number of characters, from any source,
+and the form distributes them. Parsing is now a pure module
+(`src/lib/auth/otpInput.ts`), the React parts a shared hook
+(`src/hooks/useOtpInput.ts`), so /login and /signup cannot drift again.
+
+Auto-submit is guarded by a ref keyed on the code — Firebase consumes a
+code on first use, so a double fire flashes "invalid code" at an owner
+whose login succeeded. Same reasoning as the post-otp-handoff fix.
+
+**Deliberately NOT built: the WebOTP API.** It only fires for an SMS
+whose last line is `@domain #code`. Firebase Auth does not send that
+format, so it would be dead code that looks like a feature.
+
+`AuthUser` gained a read-only `phoneNumber` (off the Firebase user) so
+settings can prefill the number the owner already verified. Additive;
+no auth logic touched.
+
+### 2. Onboarding menu questions (`tests/acceptance/onboarding-navigation.test.ts`)
+
+All of it follows from one fact: a real menu is 40+ items, so reaching
+Continue means being scrolled to the bottom.
+
+- `transition()` swapped the step without resetting scroll, so question
+  2 opened partway down its own grid, heading off-screen. Reset now
+  happens inside the 280ms fade where the jump is invisible.
+- Back existed only in a non-sticky header — gone from view at exactly
+  the moment it is wanted. Each question now has its own Back beside
+  its own Continue. The header one stays.
+- Publish loader gained "Adding images to your items…", before "Almost
+  ready…". It is the slowest step and the one being paid for.
+- Skip removed (owner request): with nothing selected, Continue already
+  produced the same menu.
+
+### 3. Store Details (`tests/acceptance/store-details.test.ts`)
+
+Removed the two fields that ask an owner to do marketing — logo upload
+and description — plus the `show_logo` toggle that existed only to hide
+the first. 052 had already conceded the point in a schema comment
+("most stores have no logo") and shipped the toggle anyway.
+
+Added what is true of every store and answerable in a tap: business
+type (5 chips, TN-weighted — mess/tiffin is not a restaurant), location
++ PIN with validation, and a timing picker (24h chip or half-hourly
+dropdowns) replacing the free-text box that collected "9-11" and
+"morning to night". Mobile is seeded from the OTP-verified sign-in
+number when blank, and stays editable — a shop's published number is
+often the counter landline.
+
+**The one real loss, and its replacement.** `sites.description` was the
+meta description and OG blurb for every public menu. It is now BUILT
+from type + location (`buildMenuDescription`), so every menu gets its
+own sentence without anyone writing one, and it cannot go stale. Per-
+store OG images are gone with the logo; the root layout default covers
+the card.
+
+Two dead components (`MenuTemplate.tsx`, `ShopTemplate.tsx`) were
+unreferenced by anything and only surfaced because they read the
+dropped columns. Moved to `delete/` rather than patched — one of them
+carried placeholder copy about "artisans worldwide" from a different
+product entirely.
+
+**Tests deleted, with explicit owner sign-off:** the `show_logo`
+assertions in `tests/acceptance/menu-theme.test.ts` and
+`tests/api/menuThemeRoute.test.ts`. This is feature removal, not
+test-gaming — `store-details.test.ts` now asserts the ABSENCE of all
+three columns, which is strictly stronger. Flagged and approved before
+the change because CLAUDE.md forbids editing tests to make them pass.
+
+### Migration 054 — NOT YET APPLIED
+
+`supabase/migrations/054_drop_site_branding.sql` drops
+`sites.image_url`, `sites.description`, `sites.show_logo` and the two
+archive columns, and adds `sites_pincode_format`.
+
+Order is load-bearing and asserted by the test: `delete_site()` (from
+015) is rewritten BEFORE the columns it SELECTs into `deleted_sites`
+are dropped, and offending legacy PINs are NULLed before the CHECK is
+added. One transaction.
+
+**The app code is already deployed-shaped for post-migration.** Nothing
+selects the dropped columns any more — Supabase 400s a whole query on
+an unknown column, so a stale name would take out the entire settings
+screen, not just one field. Apply 054 before shipping this code.
+
+Uploaded logo FILES are intentionally left in storage. Deleting bytes
+is not something a schema migration should do silently.

@@ -46,7 +46,6 @@ export interface Shop {
   id: string;
   slug: string;
   name: string;
-  description: string | null;
   products: Product[];
   timings: string | null;
   location: string | null;
@@ -56,7 +55,6 @@ export interface Shop {
   raw_json: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
-  image_url: string | null;
   tagline?: string | null;
   social_links?: Record<string, string> | null;
   type: 'Shop' | 'Menu';
@@ -70,8 +68,6 @@ export interface Shop {
    */
   menu_theme?: string | null;
   menu_font?: string | null;
-  /** Whether image_url is drawn on the menu. Opt-out — most stores have no logo. */
-  show_logo?: boolean;
   /** Owner brand colour, six-digit hex. Validated before it reaches a style block. */
   primary_color?: string | null;
 }

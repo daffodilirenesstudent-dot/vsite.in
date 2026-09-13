@@ -199,7 +199,10 @@ describe('a theme is config, never content', () => {
         expect(shipped(SHOP_PAGE), 'the shop page must select the theme columns')
             .toMatch(/menu_theme/);
         expect(shipped(SHOP_PAGE)).toMatch(/primary_color/);
-        expect(shipped(SHOP_PAGE)).toMatch(/show_logo/);
+        // show_logo was asserted here until 054 dropped it. The toggle existed
+        // only to hide sites.image_url, and image_url is gone — see
+        // tests/acceptance/store-details.test.ts, which now asserts the
+        // ABSENCE of all three.
     });
 
     it('is applied as CSS variables, not by branching on the name', () => {

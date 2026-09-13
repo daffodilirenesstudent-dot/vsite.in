@@ -9,7 +9,7 @@ import {
 } from '@/lib/menu/menuThemes';
 
 /**
- * The Appearance tab — menu design, brand colour, lettering, logo visibility.
+ * The Appearance tab — menu design, brand colour, lettering.
  *
  * ─── WHY THIS SCREEN EXISTS AT ALL ───────────────────────────────────────────
  * The product decision says "onboarding picker only, no settings screen", and
@@ -41,20 +41,17 @@ export interface AppearanceState {
     menu_theme: MenuThemeId;
     menu_font: FontPairId;
     primary_color: string;
-    show_logo: boolean;
 }
 
 export default function AppearancePanel({
     siteId,
     siteSlug,
-    hasLogo,
     dishNames,
     value,
     onChange,
 }: {
     siteId: string;
     siteSlug: string | null;
-    hasLogo: boolean;
     /** Real dish names, so the swatches preview the owner's own menu. */
     dishNames: string[];
     value: AppearanceState;
@@ -182,34 +179,6 @@ export default function AppearancePanel({
                 </p>
             </div>
 
-            <div style={cardStyle}>
-                <span style={labelStyle}>Show my logo</span>
-                <p style={{ ...hintStyle, marginBottom: 14 }}>
-                    {hasLogo
-                        ? 'Your logo appears next to your shop name at the top of the menu.'
-                        : 'Add a logo under Store details first. Until then your shop name shows on its own — which is how most menus look.'}
-                </p>
-                <button
-                    role="switch"
-                    aria-checked={value.show_logo}
-                    aria-label="Show my logo on the menu"
-                    disabled={saving || !hasLogo}
-                    onClick={() => save({ show_logo: !value.show_logo })}
-                    style={{
-                        width: 48, height: 28, borderRadius: 999, border: 'none', padding: 3,
-                        display: 'flex', justifyContent: value.show_logo ? 'flex-end' : 'flex-start',
-                        background: value.show_logo && hasLogo ? '#5137EF' : '#D4D4D8',
-                        cursor: !hasLogo ? 'not-allowed' : saving ? 'wait' : 'pointer',
-                        opacity: hasLogo ? 1 : 0.6,
-                        transition: 'background 160ms ease',
-                    }}
-                >
-                    <span style={{
-                        width: 22, height: 22, borderRadius: '50%', background: '#FFFFFF',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                    }} />
-                </button>
-            </div>
         </>
     );
 }

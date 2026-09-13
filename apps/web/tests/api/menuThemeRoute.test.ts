@@ -46,7 +46,7 @@ function qb(result: { data?: unknown; error?: unknown } = {}) {
     return chain as never;
 }
 
-const PREV = { menu_theme: 'classic', menu_font: 'classic', primary_color: '#EF59A1', show_logo: true };
+const PREV = { menu_theme: 'classic', menu_font: 'classic', primary_color: '#EF59A1' };
 
 const req = (body: unknown, token = 'Bearer t') =>
     new NextRequest(
@@ -99,10 +99,6 @@ describe('validation', () => {
         expect((await call({ menu_font: 'comic' })).status).toBe(400);
     });
 
-    it('rejects a non-boolean logo flag', async () => {
-        expect((await call({ show_logo: 'yes' })).status).toBe(400);
-    });
-
     it('rejects an empty patch rather than writing nothing', async () => {
         expect((await call({})).status).toBe(400);
     });
@@ -140,7 +136,7 @@ describe('a successful change', () => {
     });
 
     it('accepts a partial patch — the panel saves one control at a time', async () => {
-        expect((await call({ show_logo: false })).status).toBe(200);
+        expect((await call({ menu_font: 'warm' })).status).toBe(200);
     });
 
     it('writes the audit row the October decision is computed from', async () => {
@@ -174,10 +170,10 @@ describe('a successful change', () => {
             });
             return chain as never;
         });
-        await call({ menu_theme: 'premium', menu_font: 'sharp', show_logo: false });
+        await call({ menu_theme: 'premium', menu_font: 'sharp', primary_color: '#1F3A5F' });
         expect(updates).toHaveLength(1);
         const keys = Object.keys(updates[0]);
-        expect(keys.sort()).toEqual(['menu_font', 'menu_theme', 'show_logo']);
+        expect(keys.sort()).toEqual(['menu_font', 'menu_theme', 'primary_color']);
         expect(keys).not.toContain('slug');
         expect(keys).not.toContain('qr_secret');
     });

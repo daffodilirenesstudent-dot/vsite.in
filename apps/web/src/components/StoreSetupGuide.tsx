@@ -11,7 +11,7 @@ import { useSite } from './SiteContext';
  *
  * Design intent (the top-SaaS playbook — Stripe/Shopify setup guides):
  *  - A checklist, never a blocking wizard. The owner can ignore it and explore.
- *  - Steps AUTO-VERIFY from real data (logo uploaded? product added? etc.) so
+ *  - Steps AUTO-VERIFY from real data (product added? banner added? etc.) so
  *    there's no manual "mark done" busywork, and they re-check when the owner
  *    returns to the tab after doing one elsewhere.
  *  - Plan-aware: the "Connect payments" step only exists for pay-and-eat.
@@ -54,7 +54,6 @@ export default function StoreSetupGuide({
 }) {
   const { activeSite } = useSite();
   const storeName = activeSite?.name?.trim() || 'there';
-  const hasLogo = !!activeSite?.image_url;
 
   // Per-site keys so multi-store owners get independent setup state.
   // K_DISMISS lives in sessionStorage (NOT localStorage): the ✕ only hides the
@@ -178,8 +177,7 @@ export default function StoreSetupGuide({
 
   // ── Build the step list (plan-aware) ───────────────────────────────────────
   const steps: Step[] = [
-    { id: 'details', label: 'Complete your store details', desc: 'Add your phone number & opening hours', icon: 'storefront', done: hasStoreDetails, href: '/manage/settings?tab=store', cta: 'Add details' },
-    { id: 'logo', label: 'Upload your logo', desc: 'Show your brand on the menu', icon: 'image', done: hasLogo, href: '/manage/settings?tab=store', cta: 'Upload' },
+    { id: 'details', label: 'Complete your store details', desc: 'Add your location, type & opening hours', icon: 'storefront', done: hasStoreDetails, href: '/manage/settings?tab=store', cta: 'Add details' },
     { id: 'products', label: 'Add your first product', desc: 'Start building your menu', icon: 'lunch_dining', done: productCount > 0, href: '/manage/product-inventory', cta: 'Add product' },
     { id: 'banner', label: 'Add a banner', desc: 'Promote offers on your menu', icon: 'wallpaper', done: bannerCount > 0, href: '/manage/banner-management', cta: 'Add banner' },
     ...(isPayEat

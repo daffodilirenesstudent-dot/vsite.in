@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import ShopPageClient from './ShopPageClient';
 import type { MenuProduct, ShopBanner } from './ShopPageClient';
 import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/platform/productFlags';
+import { buildMenuDescription } from '@/lib/store/businessTypes';
 
 // ISR: Cache pages for 10 seconds so toggle/live changes reflect quickly.
 export const revalidate = 10;
@@ -20,16 +21,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const { slug } = await params;
     const { data: site } = await supabaseServer
         .from('sites')
-        .select('name, description, image_url, slug')
+        .select('name, slug, type, location')
         .eq('slug', slug)
         .single();
 
     if (!site) return {};
 
     const title = `${site.name} — Digital Menu`;
-    const description = site.description
-        ? `${site.description} Browse the full menu from your phone. No app needed.`
-        : `Browse ${site.name}'s full menu and place your order directly from your phone. No app needed.`;
+    // Built, not written. sites.description was an owner-authored blurb that
+    // was empty on most rows, so most menus shipped the generic fallback
+    // anyway. Deriving it from type + location gives every menu its own
+    // sentence without asking anyone to write one — and it cannot go stale.
+    const description = buildMenuDescription({
+        name: site.name,
+        type: (site as Record<string, unknown>).type as string | null,
+        location: (site as Record<string, unknown>).location as string | null,
+    });
     const url = `${BASE_URL}/shop/${site.slug}`;
 
     return {
@@ -41,13 +48,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
             description,
             url,
             type: 'website',
-            images: site.image_url ? [{ url: site.image_url, width: 1200, height: 630, alt: `${site.name} menu` }] : [],
+            // No per-store OG image: the logo it used to point at is gone,
+            // and the site-wide default in the root layout is a better card
+            // than an empty images array.
+            images: [],
         },
         twitter: {
             card: 'summary_large_image',
             title,
             description,
-            images: site.image_url ? [site.image_url] : [],
+            images: [],
         },
     };
 }
@@ -56,7 +66,7 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
     // 1. Fetch Site
     const { data: site, error: siteError } = await supabaseServer
         .from('sites')
-        .select('id, slug, name, description, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, image_url, tagline, social_links, type, is_live, created_at, user_id, qr_mode, table_count, gst_status, gst_rate_pct, whatsapp_order_taking, whatsapp_order_number, currency_code, menu_theme, menu_font, show_logo, primary_color')
+        .select('id, slug, name, established_year, address, location, state, pincode, timing, contact_number, email, whatsapp_number, tagline, social_links, type, is_live, created_at, user_id, qr_mode, table_count, gst_status, gst_rate_pct, whatsapp_order_taking, whatsapp_order_number, currency_code, menu_theme, menu_font, primary_color')
         .eq('slug', slug)
         .single();
 
@@ -126,7 +136,6 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
         id: site.id,
         slug: site.slug,
         name: site.name,
-        description: site.description || '',
         products: [],
         timings: site.timing,
         location: site.location,
@@ -140,14 +149,12 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
         raw_json: null,
         created_at: site.created_at,
         updated_at: site.created_at,
-        image_url: site.image_url,
         tagline: site.tagline,
         social_links: site.social_links,
         type: site.type,
         is_live: site.is_live,
         menu_theme: (site as Record<string, unknown>).menu_theme as string | null,
         menu_font: (site as Record<string, unknown>).menu_font as string | null,
-        show_logo: (site as Record<string, unknown>).show_logo !== false,
         primary_color: (site as Record<string, unknown>).primary_color as string | null,
     };
 

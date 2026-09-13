@@ -1,6 +1,6 @@
 // PATCH /api/manage/sites/[siteId]/menu-theme
 //
-// Changes the menu's design, font pairing, brand colour and logo visibility.
+// Changes the menu's design, font pairing and brand colour.
 //
 // ─── THIS ROUTE MUST NEVER TOUCH MENU DATA ───────────────────────────────────
 // A design is config on the site row. It writes four columns and nothing else:
@@ -33,7 +33,6 @@ interface Body {
     menu_theme?: unknown;
     menu_font?: unknown;
     primary_color?: unknown;
-    show_logo?: unknown;
 }
 
 export async function PATCH(
@@ -96,13 +95,6 @@ export async function PATCH(
         patch.primary_color = body.primary_color;
     }
 
-    if (body.show_logo !== undefined) {
-        if (typeof body.show_logo !== 'boolean') {
-            return NextResponse.json({ error: 'show_logo must be a boolean' }, { status: 400 });
-        }
-        patch.show_logo = body.show_logo;
-    }
-
     if (Object.keys(patch).length === 0) {
         return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
@@ -111,7 +103,7 @@ export async function PATCH(
     // as absent, so an attacker learns nothing from the difference.
     const { data: prev } = await supabaseServer
         .from('sites')
-        .select('menu_theme, menu_font, primary_color, show_logo')
+        .select('menu_theme, menu_font, primary_color')
         .eq('id', params.siteId)
         .eq('user_id', userId)
         .maybeSingle();

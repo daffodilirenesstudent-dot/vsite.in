@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/platform/db/supabase';
-import { compressImage } from '@/utils/compressImage';
 import { useSite } from '@/components/SiteContext';
 import { useAuth } from '@/components/AuthContext';
 import { usePlan } from '@/components/PlanContext';
@@ -15,6 +14,8 @@ import {
     MENU_THEMES, DEFAULT_MENU_THEME, DEFAULT_FONT_PAIR,
     isMenuThemeId, isFontPairId, isHexColor,
 } from '@/lib/menu/menuThemes';
+import { BUSINESS_TYPES, isBusinessType, isValidPincode } from '@/lib/store/businessTypes';
+import { TIME_SLOTS, formatTiming, parseTiming, type StoreTiming } from '@/lib/store/storeTiming';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -56,27 +57,32 @@ export default function SettingsPage() {
 
     const [siteId, setSiteId]     = useState('');
     const [siteSlug, setSiteSlug] = useState('');
-    const [form, setForm] = useState({ businessName: '', phoneNumber: '', description: '', timing: '' });
+    const [form, setForm] = useState({
+        businessName: '', phoneNumber: '', location: '', pincode: '', businessType: '',
+    });
+    const [timing, setTiming] = useState<StoreTiming>({ open247: false, opensAt: null, closesAt: null });
+    /**
+     * The raw sites.timing value as loaded. Anything the picker cannot
+     * represent (everything the old free-text box collected) is preserved and
+     * only overwritten once the owner actually picks something — otherwise
+     * merely opening this tab would rewrite a store's published hours.
+     */
+    const [rawTiming, setRawTiming] = useState('');
 
     // Billing-notification emails (up to 3). Receives plan invoices on
     // activation/renewal and a T-3-day expiry reminder.
     const [notificationEmails, setNotificationEmails] = useState<string[]>([]);
     const MAX_NOTIFY_EMAILS = 3;
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const [logoUrl, setLogoUrl]       = useState<string | null>(null);
     const [appearance, setAppearance] = useState<AppearanceState>({
         menu_theme: DEFAULT_MENU_THEME,
         menu_font: DEFAULT_FONT_PAIR,
         primary_color: MENU_THEMES[DEFAULT_MENU_THEME].accent,
-        show_logo: true,
     });
     /** Real dish names for the design swatches — never placeholders. */
     const [dishNames, setDishNames] = useState<string[]>([]);
-    const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [loading, setLoading]       = useState(true);
     const [saving, setSaving]         = useState(false);
-    const [uploadingLogo, setUploadingLogo] = useState(false);
-    const logoInputRef = useRef<HTMLInputElement>(null);
 
     // Delete store state
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -142,12 +148,9 @@ export default function SettingsPage() {
     useEffect(() => {
         if (!activeSite) return;
         setLoading(true);
-        // Revoke any blob preview from the previously-selected store so it
-        // doesn't sit in memory forever.
-        setLogoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
         supabase
             .from('sites')
-            .select('id, slug, name, description, contact_number, timing, image_url, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails, menu_theme, menu_font, primary_color, show_logo')
+            .select('id, slug, name, contact_number, timing, location, pincode, type, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails, menu_theme, menu_font, primary_color')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -155,13 +158,28 @@ export default function SettingsPage() {
                 if (data) {
                     setSiteId(data.id);
                     setSiteSlug(data.slug ?? '');
+                    const row = data as Record<string, unknown>;
                     setForm({
                         businessName: data.name ?? '',
+                        // Seeded below from the OTP-verified sign-in number if
+                        // this store has never had one saved.
                         phoneNumber: data.contact_number ?? '',
-                        description: data.description ?? '',
-                        timing: data.timing ?? '',
+                        location: (row.location as string | null) ?? '',
+                        pincode: (row.pincode as string | null) ?? '',
+                        businessType: isBusinessType(row.type) ? (row.type as string) : '',
                     });
-                    setLogoUrl(data.image_url);
+                    const storedTiming = (data.timing as string | null) ?? '';
+                    setRawTiming(storedTiming);
+                    setTiming(parseTiming(storedTiming));
+                    // The owner verified a number by OTP minutes ago. Asking
+                    // for it again is asking a question we already know the
+                    // answer to — so seed it, but only when nothing is stored:
+                    // a shop's published number is often the counter landline,
+                    // not the owner's personal phone, and overwriting a saved
+                    // one would be a silent edit.
+                    if (!data.contact_number && user?.phoneNumber) {
+                        setForm(f => ({ ...f, phoneNumber: user.phoneNumber ?? '' }));
+                    }
                     {
                         // Newer columns are not on the hand-written Shop type, so
                         // they come through the same Record cast the rest of this
@@ -189,7 +207,6 @@ export default function SettingsPage() {
                             primary_color: isHexColor(d.primary_color)
                                 ? d.primary_color
                                 : MENU_THEMES[DEFAULT_MENU_THEME].accent,
-                            show_logo: d.show_logo !== false,
                         });
                     }
                     setKotModeState((data.kot_mode as 'manual' | 'automatic') ?? 'manual');
@@ -208,49 +225,14 @@ export default function SettingsPage() {
                 }
                 setLoading(false);
             });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads only on store switch; user is read once for the phone seed.
     }, [activeSite]);
-
-    // Revoke any blob URL still held when the page unmounts.
-    useEffect(() => () => {
-        setLogoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
-    }, []);
-
-    // ── Logo upload ───────────────────────────────────────────────────────────
-    const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        // Reset so picking the same file again still fires the change event.
-        e.target.value = '';
-        if (!file || !siteId || !siteSlug) return;
-        if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
-        if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
-
-        setUploadingLogo(true);
-        try {
-            const compressed = await compressImage(file, { maxWidth: 800, quality: 0.85 });
-            const ext = compressed.name.split('.').pop() ?? 'jpg';
-            const filePath = `${siteSlug}/logo-${Date.now()}.${ext}`;
-            const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, compressed);
-            if (uploadError) throw uploadError;
-            const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
-            setLogoUrl(publicUrl);
-            // Revoke previous blob (if any) before creating a fresh one.
-            setLogoPreview(prev => {
-                if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
-                return URL.createObjectURL(file);
-            });
-            toast.success('Logo uploaded');
-        } catch (err) {
-            console.error('Logo upload error:', err);
-            toast.error('Failed to upload logo');
-        } finally {
-            setUploadingLogo(false);
-        }
-    };
 
     // ── Save ──────────────────────────────────────────────────────────────────
     const handleSave = async () => {
         if (!siteId) return;
         if (!form.businessName.trim()) { toast.error('Business name is required'); return; }
+        if (!isValidPincode(form.pincode)) { toast.error('Enter a valid 6-digit PIN code'); return; }
 
         // Notification emails: trim, drop blanks, validate format, dedupe.
         const cleanedEmails = Array.from(new Set(
@@ -263,15 +245,21 @@ export default function SettingsPage() {
             return;
         }
 
+        const pickedTiming = formatTiming(timing);
+
         setSaving(true);
         const { error } = await supabase
             .from('sites')
             .update({
                 name: form.businessName.trim(),
-                description: form.description.trim() || null,
                 contact_number: form.phoneNumber.trim() || null,
-                timing: form.timing.trim() || null,
-                image_url: logoUrl,
+                location: form.location.trim() || null,
+                pincode: form.pincode.trim() || null,
+                type: form.businessType || null,
+                // Only overwrite hours the picker can actually express. An
+                // owner whose stored value is old free text and who did not
+                // touch the picker keeps what they published.
+                timing: pickedTiming || rawTiming || null,
                 notification_emails: cleanedEmails,
             })
             .eq('id', siteId);
@@ -280,6 +268,7 @@ export default function SettingsPage() {
         if (error) { toast.error('Failed to save changes'); }
         else {
             setNotificationEmails(cleanedEmails);
+            setRawTiming(pickedTiming || rawTiming);
             toast.success('Settings saved');
             refreshSites();
         }
@@ -761,6 +750,16 @@ export default function SettingsPage() {
     const labelStyle: React.CSSProperties = {
         fontSize: 14, fontWeight: 500, color: '#0A0A0A', lineHeight: '20px', marginBottom: 6, display: 'block',
     };
+    const hintStyle: React.CSSProperties = {
+        fontSize: 12, lineHeight: '18px', color: '#71717A', marginTop: 6,
+    };
+
+    // Only ever wrong once something has been typed — an empty box on arrival
+    // is an unanswered optional question, not an error.
+    const pincodeInvalid = form.pincode.length > 0 && !isValidPincode(form.pincode);
+    // Stored hours the picker cannot express: free text from the old box.
+    const legacyTiming = rawTiming.trim() !== '' && !timing.open247
+        && timing.opensAt === null && timing.closesAt === null;
 
     if (loading) {
         return (
@@ -916,35 +915,156 @@ export default function SettingsPage() {
                         <input type="text" value={form.businessName} onChange={e => setForm(f => ({ ...f, businessName: e.target.value }))} style={inputStyle} placeholder="e.g. Cream Story" disabled={saving} />
                     </div>
                     <div>
-                        <label style={labelStyle}>Phone Number</label>
-                        <input type="tel" value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} style={inputStyle} placeholder="+91 9876543210" disabled={saving} />
-                    </div>
-                    <div>
-                        <label style={labelStyle}>Opening Hours</label>
-                        <input type="text" value={form.timing} onChange={e => setForm(f => ({ ...f, timing: e.target.value }))} style={inputStyle} placeholder="e.g. 9:00 AM – 11:00 PM" disabled={saving} />
-                    </div>
-                    <div>
-                        <label style={labelStyle}>Description</label>
-                        <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} style={{ ...inputStyle, resize: 'none' }} placeholder="Tell customers about your business..." disabled={saving} />
+                        <label style={labelStyle}>Mobile Number</label>
+                        <input
+                            type="tel"
+                            inputMode="tel"
+                            value={form.phoneNumber}
+                            onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                            style={inputStyle}
+                            placeholder="+91 9876543210"
+                            disabled={saving}
+                        />
+                        <p style={hintStyle}>
+                            Filled in from the number you signed in with. Change it if customers should call a different one.
+                        </p>
                     </div>
 
-                    {/* Business Logo */}
-                    <div>
-                        <label style={labelStyle}>Business Logo</label>
-                        <div className="flex flex-col items-center justify-center" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '24px 16px', background: '#FAFAFA', minHeight: 160 }}>
-                            {(logoPreview || logoUrl) ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={logoPreview ?? logoUrl!} alt="Logo" style={{ maxHeight: 100, maxWidth: 200, objectFit: 'contain', borderRadius: 8, marginBottom: 12 }} />
-                            ) : (
-                                <div style={{ width: 80, height: 80, borderRadius: 8, background: '#E4E4E7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                                    <span className="material-symbols-outlined text-[#99A1AF]" style={{ fontSize: 32 }}>image</span>
-                                </div>
-                            )}
-                            <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} disabled={uploadingLogo} />
-                            <button onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo} className="transition-colors hover:bg-neutral-100 disabled:opacity-50" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '6px 20px', fontSize: 13, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: uploadingLogo ? 'wait' : 'pointer' }}>
-                                {uploadingLogo ? 'Uploading…' : 'Change Logo'}
-                            </button>
+                    {/* Where the store is. Two fields, one row on desktop —
+                        they are answered together and reading them apart makes
+                        the PIN look like a second, unrelated question. */}
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <div style={{ flex: 2 }}>
+                            <label style={labelStyle}>Location</label>
+                            <input
+                                type="text"
+                                value={form.location}
+                                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                                style={inputStyle}
+                                placeholder="e.g. Anna Nagar, Madurai"
+                                disabled={saving}
+                            />
                         </div>
+                        <div style={{ flex: 1 }}>
+                            <label style={labelStyle}>PIN Code</label>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={form.pincode}
+                                // Digits only at the keystroke, so the error
+                                // state below can only ever mean "too short" —
+                                // one rule for the owner to work out, not two.
+                                onChange={e => setForm(f => ({ ...f, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                                style={{ ...inputStyle, border: pincodeInvalid ? '1px solid #E7000B' : '1px solid #E4E4E7' }}
+                                placeholder="625001"
+                                aria-invalid={pincodeInvalid}
+                                disabled={saving}
+                            />
+                            {pincodeInvalid && (
+                                <p style={{ ...hintStyle, color: '#E7000B' }}>Enter all 6 digits.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Business type — five chips, not a dropdown. A dropdown
+                        is a field an owner scrolls past. */}
+                    <div>
+                        <label style={labelStyle}>Business Type</label>
+                        <div className="flex flex-wrap gap-2">
+                            {BUSINESS_TYPES.map(type => {
+                                const selected = form.businessType === type.id;
+                                return (
+                                    <button
+                                        key={type.id}
+                                        type="button"
+                                        aria-pressed={selected}
+                                        disabled={saving}
+                                        // Tapping the current choice clears it.
+                                        // The field is optional and a chip row
+                                        // with no other way out traps the first
+                                        // owner who taps the wrong one.
+                                        onClick={() => setForm(f => ({ ...f, businessType: selected ? '' : type.id }))}
+                                        className="flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                        style={{
+                                            border: selected ? '1.5px solid #5137EF' : '1px solid #E4E4E7',
+                                            background: selected ? '#F1EEFE' : '#FFFFFF',
+                                            color: selected ? '#5137EF' : '#3F3F46',
+                                            borderRadius: 999,
+                                            padding: '9px 14px',
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            minHeight: 42,
+                                            cursor: saving ? 'wait' : 'pointer',
+                                        }}
+                                    >
+                                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{type.icon}</span>
+                                        {type.label}
+                                        <span style={{ fontSize: 12, opacity: 0.7 }}>· {type.labelTa}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Opening hours — tapped, never typed. The free-text box
+                        this replaces collected "9-11", "morning to night" and
+                        mostly nothing, none of which reads on a menu header. */}
+                    <div>
+                        <label style={labelStyle}>Opening Hours</label>
+                        <button
+                            type="button"
+                            aria-pressed={timing.open247}
+                            disabled={saving}
+                            onClick={() => setTiming(t => ({ ...t, open247: !t.open247 }))}
+                            className="flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                            style={{
+                                border: timing.open247 ? '1.5px solid #5137EF' : '1px solid #E4E4E7',
+                                background: timing.open247 ? '#F1EEFE' : '#FFFFFF',
+                                color: timing.open247 ? '#5137EF' : '#3F3F46',
+                                borderRadius: 999, padding: '9px 14px', fontSize: 13,
+                                fontWeight: 500, minHeight: 42, marginBottom: 12,
+                                cursor: saving ? 'wait' : 'pointer',
+                            }}
+                        >
+                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>schedule</span>
+                            Open 24 hours
+                        </button>
+
+                        {!timing.open247 && (
+                            <div className="flex items-center gap-3">
+                                <select
+                                    value={timing.opensAt ?? ''}
+                                    onChange={e => setTiming(t => ({ ...t, opensAt: e.target.value || null }))}
+                                    style={{ ...inputStyle, flex: 1 }}
+                                    aria-label="Opening time"
+                                    disabled={saving}
+                                >
+                                    <option value="">Opens at…</option>
+                                    {TIME_SLOTS.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                                </select>
+                                <span style={{ fontSize: 13, color: '#71717A' }}>to</span>
+                                <select
+                                    value={timing.closesAt ?? ''}
+                                    onChange={e => setTiming(t => ({ ...t, closesAt: e.target.value || null }))}
+                                    style={{ ...inputStyle, flex: 1 }}
+                                    aria-label="Closing time"
+                                    disabled={saving}
+                                >
+                                    <option value="">Closes at…</option>
+                                    {TIME_SLOTS.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                                </select>
+                            </div>
+                        )}
+
+                        {legacyTiming && (
+                            // Their published hours are free text from the old
+                            // box. Say so rather than silently showing an empty
+                            // picker that looks like the hours were lost.
+                            <p style={hintStyle}>
+                                Currently showing “{rawTiming}”. Pick times above to replace it.
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -1008,7 +1128,7 @@ export default function SettingsPage() {
 
                 {/* Save button */}
                 <div className="mt-6 flex justify-stretch md:justify-end">
-                    <button onClick={handleSave} disabled={saving || uploadingLogo} className="flex w-full md:w-auto items-center justify-center gap-2 text-white transition-opacity hover:opacity-90 disabled:opacity-60" style={{ background: '#5137EF', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 500, minHeight: 46, cursor: saving ? 'wait' : 'pointer' }}>
+                    <button onClick={handleSave} disabled={saving} className="flex w-full md:w-auto items-center justify-center gap-2 text-white transition-opacity hover:opacity-90 disabled:opacity-60" style={{ background: '#5137EF', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 500, minHeight: 46, cursor: saving ? 'wait' : 'pointer' }}>
                         {saving ? (<><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Saving…</>) : 'Save Changes'}
                     </button>
                 </div>
@@ -1020,7 +1140,6 @@ export default function SettingsPage() {
                 <AppearancePanel
                     siteId={siteId}
                     siteSlug={siteSlug || null}
-                    hasLogo={!!logoUrl}
                     dishNames={dishNames}
                     value={appearance}
                     onChange={setAppearance}
