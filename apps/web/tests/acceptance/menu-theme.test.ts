@@ -206,6 +206,44 @@ describe('a theme is config, never content', () => {
     });
 
     /**
+     * The custom properties must cover the OVERLAYS, not just the shell.
+     *
+     * `themeVars` sat on `.qr-wrap.qr-shell`, and every overlay — search, the
+     * detail sheet, and the seven frozen ordering screens — is a SIBLING of
+     * that element, not a child. Custom properties inherit through the DOM, so
+     * none of them reached the overlays: every `TV.*` silently fell back to its
+     * Classic default. A store branded black rendered a black main list and a
+     * pink search overlay, from the very same MenuItemCard.
+     *
+     * This is why fixing the chips to use TV.accent appeared to do nothing.
+     * The colour was never the bug; the scope of the variables was.
+     *
+     * The wrapper carries ONLY custom properties (themeCssVars returns nothing
+     * else), so it is visually inert — and it fixes every current overlay plus
+     * every one added later, which passing the vars to each would not.
+     */
+    it('scopes the theme variables above every overlay', () => {
+        const src = shipped(TEMPLATE);
+        const root = src.slice(src.lastIndexOf('return (', src.indexOf('qr-wrap qr-shell')));
+        expect(
+            root.slice(0, 200),
+            'the returned root must carry themeVars, or overlays fall back to Classic',
+        ).toMatch(/<div style=\{themeVars\}>/);
+    });
+
+    it('keeps the overlays inside that root', () => {
+        // If an overlay ever moves above the wrapper it silently goes pink
+        // again, with no error anywhere.
+        const src = shipped(TEMPLATE);
+        const rootStart = src.indexOf('<div style={themeVars}>');
+        expect(rootStart, 'no themed root found').toBeGreaterThan(-1);
+        for (const overlay of ['<SearchOverlay', '<ProductDetailSheet']) {
+            expect(src.indexOf(overlay), `${overlay} renders outside the themed root`)
+                .toBeGreaterThan(rootStart);
+        }
+    });
+
+    /**
      * The brand colour has to reach every SELECTED state, not most of them.
      *
      * Three surfaces on the visible menu were written before the theme system

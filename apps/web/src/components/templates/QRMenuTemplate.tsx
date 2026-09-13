@@ -1438,8 +1438,19 @@ export default function QRMenuTemplate({
     setTimeout(() => setBannerPaused(false), 8000);
   };
 
+  // The theme's custom properties are applied on the OUTERMOST element, not
+  // on .qr-wrap alone. Every overlay — search, the detail sheet, and the
+  // frozen ordering screens — is a SIBLING of the shell, and custom
+  // properties inherit through the DOM, so vars set on the shell never
+  // reached them: every TV.* silently fell back to its Classic default. That
+  // is how a black-branded store rendered a pink search overlay from the very
+  // same MenuItemCard as its black main list.
+  //
+  // themeCssVars returns ONLY custom properties, so this wrapper paints
+  // nothing of its own. The shell keeps its copy: brandColorInjection.test.ts
+  // asserts that exact attribute, and a second application is harmless.
   return (
-    <>
+    <div style={themeVars}>
       {/* Injected via dangerouslySetInnerHTML rather than as a JSX child.
           React escapes quotes and apostrophes inside a text child differently
           on the server than on the client, so attribute selectors like
@@ -2168,6 +2179,6 @@ export default function QRMenuTemplate({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

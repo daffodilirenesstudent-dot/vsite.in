@@ -471,3 +471,24 @@ Three offenders sat outside that list (`SiteContext`, `NotificationContext`,
 reads (`site.<column>`). `NotificationContext` branched on `site.description`
 to compute "settings incomplete" — with only the query fixed, every owner would
 have been flagged incomplete forever.
+
+## Menu theme vars must sit above the overlays (2026-09-13)
+
+`themeCssVars()` is applied with `style={themeVars}`, and CSS custom properties
+inherit through the **DOM**. In `QRMenuTemplate` the vars sat on
+`.qr-wrap.qr-shell`, but all nine overlays — search, the product detail sheet,
+and the seven frozen ordering screens — are **siblings** of that element, not
+children.
+
+So no overlay ever saw a variable. Every `TV.*` inside one silently resolved to
+its `var(…, fallback)` Classic default. A store branded black rendered a black
+main list and a **pink** search overlay from the same `MenuItemCard` — with no
+error, no warning, and nothing wrong in either component.
+
+This is worth remembering because it masks unrelated fixes: changing a chip from
+`T.pink` to `TV.accent` inside an overlay appeared to do nothing at all, which
+looks like the edit failed rather than like a scoping bug.
+
+The vars now sit on the component's outermost element. **Any new overlay must
+render inside it** — `menu-theme.test.ts` asserts SearchOverlay and
+ProductDetailSheet appear after the themed root.
