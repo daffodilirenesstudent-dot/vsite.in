@@ -1,5 +1,5 @@
 -- 054_drop_site_branding.sql — retire the logo and the description; make the
--- store's real-world identity (type, place, PIN) the thing we actually collect.
+-- store's real-world identity (business type, place, PIN) what we collect.
 --
 -- ─── WHY ─────────────────────────────────────────────────────────────────────
 -- Two fields on the Store Details tab asked the owner to do marketing:
@@ -23,10 +23,13 @@
 --
 -- So the page now BUILDS that sentence from fields the owner can answer in a
 -- tap — "Cream Story — Café in Madurai. Browse the full menu from your phone."
--- — using sites.type, sites.location and sites.pincode, which already exist on
--- this table and which the rewritten Store Details tab now actually collects.
--- Derived beats owner-written here: it is never empty, never stale, and never
--- a paragraph of keywords.
+-- — using a NEW sites.business_type plus sites.location, which the rewritten
+-- Store Details tab now actually collects. Derived beats owner-written here:
+-- it is never empty, never stale, and never a paragraph of keywords.
+--
+-- Of the 59 live rows, 55 descriptions were the string onboarding wrote for
+-- them ('<name> digital menu') and 4 were owner-written. Five rows have a logo.
+-- That is the whole loss.
 --
 -- ─── ORDER MATTERS ───────────────────────────────────────────────────────────
 -- delete_site() (015_db_hardening) SELECTs both columns into deleted_sites. It
@@ -69,13 +72,13 @@ BEGIN
         id, original_created_at, user_id, social_links, is_live,
         owner_name, contact_number, timing, established_year, location,
         state, pincode, address, slug, email, whatsapp_number,
-        tagline, type, name
+        tagline, type, business_type, name
     )
     SELECT
         id, created_at, user_id, social_links, is_live,
         owner_name, contact_number, timing, established_year, location,
         state, pincode, address, slug, email, whatsapp_number,
-        tagline, type, name
+        tagline, type, business_type, name
     FROM public.sites
     WHERE id = site_id;
 
@@ -100,7 +103,33 @@ ALTER TABLE public.deleted_sites
   DROP COLUMN IF EXISTS image_url,
   DROP COLUMN IF EXISTS description;
 
--- ── 3. Validate the PIN we are now asking for ───────────────────────────────
+-- ── 3. business_type — a NEW column, deliberately not sites.type ────────────
+-- sites.type is already taken. It holds 'Shop' | 'Menu' on all 59 live rows: a
+-- product-kind discriminator that PosterGenerator prints onto the QR poster
+-- ("MENU" vs "SHOP") and that ShopCard and SiteInfo branch on. Writing 'cafe'
+-- into it would have mislabelled printed standees already on tables.
+--
+-- Constrained to the five ids the chips offer, so a value the UI cannot render
+-- can never be stored. NULL is legal: every existing row has one, and the field
+-- is optional.
+ALTER TABLE public.sites
+  ADD COLUMN IF NOT EXISTS business_type TEXT;
+
+ALTER TABLE public.deleted_sites
+  ADD COLUMN IF NOT EXISTS business_type TEXT;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'sites_business_type_valid'
+  ) THEN
+    ALTER TABLE public.sites
+      ADD CONSTRAINT sites_business_type_valid
+      CHECK (business_type IS NULL OR business_type IN
+        ('restaurant', 'cafe', 'takeaway', 'mess', 'tea_shop'));
+  END IF;
+END $$;
+
+-- ── 4. Validate the PIN we are now asking for ───────────────────────────────
 -- sites.pincode has been on this table since before 015 and was never
 -- constrained. The tab now collects it deliberately, so it gets the same rule
 -- 046 gave gst_pincode — plus the leading-zero exclusion: no Indian PIN starts
@@ -129,8 +158,8 @@ END $$;
 COMMENT ON COLUMN public.sites.pincode IS
   'Six-digit Indian PIN for the store itself. Distinct from gst_pincode, which is the registered GST address and may differ.';
 
-COMMENT ON COLUMN public.sites.type IS
-  'Business type, chosen from a fixed list in Store Details. Feeds the public menu''s meta description. See src/lib/store/businessTypes.ts.';
+COMMENT ON COLUMN public.sites.business_type IS
+  'Business type, chosen from a fixed list in Store Details. Feeds the public menu''s meta description. NOT the same as sites.type, which is the Shop/Menu product discriminator printed on the QR poster. See src/lib/store/businessTypes.ts.';
 
 COMMENT ON COLUMN public.sites.timing IS
   'Opening hours as one display string, e.g. "9:00 AM - 11:00 PM" or "Open 24 hours". Written by a picker, never free text. See src/lib/store/storeTiming.ts.';

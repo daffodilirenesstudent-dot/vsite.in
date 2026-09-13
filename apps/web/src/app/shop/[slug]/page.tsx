@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const { slug } = await params;
     const { data: site } = await supabaseServer
         .from('sites')
-        .select('name, slug, type, location')
+        .select('name, slug, business_type, location')
         .eq('slug', slug)
         .single();
 
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // sentence without asking anyone to write one — and it cannot go stale.
     const description = buildMenuDescription({
         name: site.name,
-        type: (site as Record<string, unknown>).type as string | null,
+        type: (site as Record<string, unknown>).business_type as string | null,
         location: (site as Record<string, unknown>).location as string | null,
     });
     const url = `${BASE_URL}/shop/${site.slug}`;

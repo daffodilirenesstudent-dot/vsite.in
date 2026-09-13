@@ -429,3 +429,23 @@ glyph, so no component has to branch on script.
   plausibly want it. A CSP violation in the console names the directive.
 - **Confirm `CRON_SECRET` is set on the DO app.** Every cron route now fails
   closed, so an unset value stops the jobs (visibly) rather than opening them.
+
+## sites.type is NOT the business type (2026-09-13)
+
+`sites.type` holds `'Shop' | 'Menu'` on every live row. It is the product-kind
+discriminator: `PosterGenerator.tsx` prints it onto the **QR poster** ("MENU"
+vs "SHOP"), and `ShopCard` and `SiteInfo` branch on it. The TS type says
+`type: 'Shop' | 'Menu'` and means it.
+
+Business type (restaurant / cafe / takeaway / mess / tea_shop) is a separate
+column, `sites.business_type`, added in 054 and CHECK-constrained to those five
+ids.
+
+The first draft of 054 reused `sites.type` because it looked free from the
+column name and the app code read it loosely (`site.type as string | null`).
+Only a `GROUP BY type` against production caught it — all 59 rows were `'Menu'`.
+Writing `'cafe'` there would have mislabelled printed standees already sitting
+on tables, which is unrecoverable without a reprint.
+
+**Check what a column actually holds before reusing it.** A schema name plus a
+loose TS cast is not evidence that a column is unused.

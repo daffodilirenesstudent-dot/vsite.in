@@ -103,6 +103,33 @@ describe('migration 054', () => {
         expect(cleanup).toBeLessThan(add);
     });
 
+    it('adds business_type as a new column', () => {
+        expect(sql()).toMatch(/ADD COLUMN IF NOT EXISTS business_type TEXT/);
+    });
+
+    it('constrains business_type to the five ids the chips offer', () => {
+        // A value the UI cannot render must not be storable, or the chip row
+        // silently shows nothing selected for a store that did choose.
+        expect(sql()).toMatch(/sites_business_type_valid/);
+    });
+
+    it('never repurposes sites.type', () => {
+        // sites.type is 'Shop' | 'Menu' on every live row — the product-kind
+        // discriminator PosterGenerator prints onto the QR poster and that
+        // ShopCard and SiteInfo branch on. Writing 'cafe' into it would
+        // mislabel standees already sitting on tables. This assertion exists
+        // because the first draft of this migration did exactly that.
+        const s = sql();
+        expect(s).not.toMatch(/^\s*(ALTER|UPDATE)[^\n]*\btype\b\s*=/m);
+        expect(s).not.toMatch(/DROP COLUMN IF EXISTS type\b/);
+    });
+
+    it('archives business_type on delete like every other field', () => {
+        const s = sql();
+        const fn = s.slice(s.indexOf('CREATE OR REPLACE FUNCTION'), s.indexOf('$$;'));
+        expect(fn.match(/business_type/g) ?? []).toHaveLength(2); // insert + select
+    });
+
     it('runs as one transaction', () => {
         const s = sql();
         expect(s).toMatch(/^BEGIN;/m);

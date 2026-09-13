@@ -150,7 +150,7 @@ export default function SettingsPage() {
         setLoading(true);
         supabase
             .from('sites')
-            .select('id, slug, name, contact_number, timing, location, pincode, type, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails, menu_theme, menu_font, primary_color')
+            .select('id, slug, name, contact_number, timing, location, pincode, business_type, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails, menu_theme, menu_font, primary_color')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -166,7 +166,9 @@ export default function SettingsPage() {
                         phoneNumber: data.contact_number ?? '',
                         location: (row.location as string | null) ?? '',
                         pincode: (row.pincode as string | null) ?? '',
-                        businessType: isBusinessType(row.type) ? (row.type as string) : '',
+                        // sites.business_type, NOT sites.type — the latter is
+                        // the Shop/Menu discriminator printed on the QR poster.
+                        businessType: isBusinessType(row.business_type) ? (row.business_type as string) : '',
                     });
                     const storedTiming = (data.timing as string | null) ?? '';
                     setRawTiming(storedTiming);
@@ -255,7 +257,7 @@ export default function SettingsPage() {
                 contact_number: form.phoneNumber.trim() || null,
                 location: form.location.trim() || null,
                 pincode: form.pincode.trim() || null,
-                type: form.businessType || null,
+                business_type: form.businessType || null,
                 // Only overwrite hours the picker can actually express. An
                 // owner whose stored value is old free text and who did not
                 // touch the picker keeps what they published.
