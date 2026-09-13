@@ -49,7 +49,18 @@ const SHOP_CLIENT = 'app/shop/[slug]/ShopPageClient.tsx';
 describe('offer card', () => {
     it('marks an offer with the tinted ground', () => {
         expect(read(TOKENS)).toMatch(/offerTint/);
-        expect(shipped(TOKENS)).toMatch(/#FFECEC/i);
+        expect(shipped(TOKENS)).toMatch(/#FAF5EC/i);
+    });
+
+    it('does not tint the ground in a hue that is already a signal', () => {
+        // The tint was #FFECEC, a pale RED — and the non-veg mark (#FB2C36) is
+        // red, so the one mark Indian law requires to be unmistakable sat on a
+        // ground of its own hue. The Popular badge (#FFEDE9) was a near match
+        // for it too, so that pill all but vanished on a discounted row.
+        // Warm sand collides with neither, and with nothing else in the palette.
+        const tokens = shipped(TOKENS);
+        expect(tokens).not.toMatch(/offerTint: '#FFE/i);
+        expect(tokens).toMatch(/offerTint: '#FAF5EC'/i);
     });
 
     it('has no ribbon element at all', () => {

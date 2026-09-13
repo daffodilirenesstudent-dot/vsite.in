@@ -20,7 +20,7 @@
  *
  *   · The veg / non-veg / egg marks. These are regulated signals in India, not
  *     decoration. An owner must not be able to recolour "this contains meat".
- *   · `offerTint` (#FFECEC). It is an offer's ENTIRE visual signal — the ribbon,
+ *   · `offerTint` (#FAF5EC). It is an offer's ENTIRE visual signal — the ribbon,
  *     wash, border and shadow were all removed precisely so one thing carries it.
  *   · `saveGreen` (#13801C). Money.
  *   · The sold-out ramp. It says "finished today", never "something went wrong",

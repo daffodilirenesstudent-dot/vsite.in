@@ -98,7 +98,7 @@ describe('classic', () => {
         // menu-card-system.test.ts reads these literals out of source. The
         // theme layer sits ON TOP of T; it does not rewrite it.
         const src = shipped(TOKENS);
-        expect(src).toMatch(/#FFECEC/i);
+        expect(src).toMatch(/#FAF5EC/i);
         expect(src).toMatch(/offerTint/);
         expect(src).toMatch(/#EF59A1/i);
     });
@@ -130,7 +130,7 @@ describe('what a theme may change', () => {
         const { MENU_THEMES } = await import('@/lib/menu/menuThemes');
         for (const theme of Object.values(MENU_THEMES)) {
             const json = JSON.stringify(theme);
-            expect(json).not.toContain('#FFECEC');
+            expect(json).not.toContain('#FAF5EC');
             expect(json).not.toContain('#13801C');
         }
     });

@@ -25,8 +25,20 @@ export const T = {
   saveGreen: '#13801C',
   saveWash: '#E9F5EA',
 
-  /** An offer's entire visual signal: a tinted card ground. Nothing else. */
-  offerTint: '#FFECEC',
+  /**
+   * An offer's entire visual signal: a tinted card ground. Nothing else.
+   *
+   * Warm sand, NOT a pale red. The previous #FFECEC was a tint of red, which
+   * collided with the two things that have to stay legible on a discounted row:
+   *   · nonvegRed (#FB2C36) — a regulated mark in India, sitting on a ground of
+   *     its own hue.
+   *   · the Popular badge (#FFEDE9) — near-identical, so the pill all but
+   *     vanished exactly on the rows an owner most wants read.
+   * Sand collides with nothing in the palette, stays warm enough to flatter
+   * food photography, and is neutral under every brand colour — which matters
+   * because this value is fixed for all stores and never owner-settable.
+   */
+  offerTint: '#FAF5EC',
 
   /** Sold-out ramp. Muted, never red — nothing has gone wrong. */
   outName: '#9A949A',
