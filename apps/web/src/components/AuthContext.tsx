@@ -165,11 +165,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => unsubscribe();
     }, []);
 
-    const resetOTP = () => {
-        // Called when user clicks "edit number" — destroy the verifier so a
-        // fresh one is created against the re-mounted DOM node on next send
-        recaptchaVerifierRef.current?.clear();
+    /**
+     * Tear the reCAPTCHA all the way down.
+     *
+     * `clear()` unregisters the widget but leaves the DOM grecaptcha injected
+     * into #recaptcha-container. That container is NOT re-mounted between
+     * steps — it sits at page level in both /login and /signup, outside the
+     * step conditional — so the next `new RecaptchaVerifier(...).render()`
+     * runs against an element that already holds a widget and throws. The code
+     * it throws is not in friendlyAuthError's map, so the owner just sees
+     * "Something went wrong. Please try again." and cannot get past it without
+     * reloading the page.
+     *
+     * Emptying the node is what makes the next render a first render again.
+     * Every teardown goes through here so the two call sites cannot diverge.
+     */
+    const destroyRecaptcha = () => {
+        try {
+            recaptchaVerifierRef.current?.clear();
+        } catch {
+            // clear() throws if the widget is already gone. Nothing to undo —
+            // the point is only that the next render starts clean.
+        }
         recaptchaVerifierRef.current = null;
+        if (typeof document !== 'undefined') {
+            const container = document.getElementById('recaptcha-container');
+            if (container) container.innerHTML = '';
+        }
+    };
+
+    const resetOTP = () => {
+        // "Edit number". Drop the confirmation too: a code issued for the old
+        // number must never be confirmable against the new one.
+        destroyRecaptcha();
         confirmationResultRef.current = null;
     };
 
@@ -192,14 +220,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             confirmationResultRef.current = confirmation;
             return { error: null };
         } catch (err: unknown) {
-            recaptchaVerifierRef.current?.clear();
-            recaptchaVerifierRef.current = null;
+            // Same teardown as "edit number": a failed send leaves a rendered
+            // widget behind, so without this every retry fails identically
+            // until the page is reloaded.
+            destroyRecaptcha();
             return { error: friendlyAuthError(err) };
         }
     };
 
     const verifyOTP = async (otp: string, name?: string): Promise<{ error: string | null; isNewUser: boolean }> => {
         if (!confirmationResultRef.current) {
+            // Reached if the verifier was torn down between send and verify.
+            // Leave nothing half-built behind before asking for a fresh code.
+            destroyRecaptcha();
             return { error: 'Please request an OTP first', isNewUser: false };
         }
         try {

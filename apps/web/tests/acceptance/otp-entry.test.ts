@@ -204,7 +204,61 @@ describe.each(Object.entries(OTP_PAGES))('%s OTP step', (_name, file) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. The hook itself
+// 5. Changing your mind about the number
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * "Edit number", then send again.
+ *
+ * Tapping the pencil on the OTP step calls resetOTP(), which destroyed the
+ * RecaptchaVerifier and commented that a fresh one would be built "against the
+ * re-mounted DOM node on next send". That node is never re-mounted: it lives at
+ * page level in both /login and /signup, outside the step conditional, so it
+ * survives every step change.
+ *
+ * verifier.clear() unregisters the widget but leaves grecaptcha's injected DOM
+ * inside the container. The next sendOTP then calls render() on a container
+ * that already holds a widget, Firebase throws with a code friendlyAuthError
+ * does not map, and the owner is told "Something went wrong. Please try again."
+ * — on the one screen where they cannot get any further.
+ *
+ * The same residue is left behind by sendOTP's own catch block, so a send that
+ * fails once fails identically on every retry until a full page reload.
+ */
+describe('the reCAPTCHA verifier lifecycle', () => {
+    const src = () => shipped('components/AuthContext.tsx');
+
+    it('empties the container, not just the verifier', () => {
+        // The container id alone is not evidence — sendOTP already names it
+        // when constructing the verifier. What has to exist is the teardown of
+        // the DOM grecaptcha injected into it.
+        expect(
+            src(),
+            'clear() leaves the rendered widget in the DOM; the next render() throws on it',
+        ).toMatch(/(innerHTML\s*=\s*''|replaceChildren\(\))/);
+    });
+
+    it('tears down through one helper, used by every caller', () => {
+        // resetOTP and sendOTP's catch both destroy the verifier. Two copies is
+        // how one of them keeps the bug.
+        const s = src();
+        // Arrow const, matching how resetOTP/sendOTP are declared in this file.
+        expect(s).toMatch(/(const|function) destroyRecaptcha/);
+        expect(s.match(/destroyRecaptcha\(\)/g) ?? [], 'every teardown must go through the helper')
+            .toHaveLength(3); // definition-adjacent calls: resetOTP + sendOTP catch + verify guard
+    });
+
+    it('still clears the confirmation result when the number changes', () => {
+        // The old code is only half wrong: dropping confirmationResult on edit
+        // is correct and must survive the fix, or the new number would verify
+        // against the previous number's code.
+        const reset = src().slice(src().indexOf('const resetOTP'), src().indexOf('const sendOTP'));
+        expect(reset).toMatch(/confirmationResultRef\.current = null/);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. The hook itself
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('useOtpInput', () => {
