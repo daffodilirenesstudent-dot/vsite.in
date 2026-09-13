@@ -11,8 +11,6 @@ export interface BusinessType {
     id: string;
     /** Shown on the chip. */
     label: string;
-    /** Tamil label — most owners here read this first. */
-    labelTa: string;
     /** Material symbol name for the chip. */
     icon: string;
     /**
@@ -34,12 +32,14 @@ export interface BusinessType {
  * owner will accept "Takeaway" far more readily than a mess owner will accept
  * "Restaurant".
  */
+// English only. The DASHBOARD is the owner's own admin and stays in English;
+// Tamil belongs on the customer-facing menu, where diners actually read it.
 export const BUSINESS_TYPES: readonly BusinessType[] = [
-    { id: 'restaurant', label: 'Restaurant', labelTa: 'உணவகம்',        icon: 'restaurant',      descriptor: 'Restaurant' },
-    { id: 'cafe',       label: 'Café',       labelTa: 'கஃபே',           icon: 'local_cafe',      descriptor: 'Café' },
-    { id: 'takeaway',   label: 'Takeaway',   labelTa: 'பார்சல் கடை',    icon: 'takeout_dining',  descriptor: 'Takeaway' },
-    { id: 'mess',       label: 'Mess / Tiffin', labelTa: 'மெஸ் / டிஃபன்', icon: 'dinner_dining', descriptor: 'Mess and tiffin centre' },
-    { id: 'tea_shop',   label: 'Tea / Juice', labelTa: 'டீ / ஜூஸ் கடை', icon: 'emoji_food_beverage', descriptor: 'Tea and juice shop' },
+    { id: 'restaurant', label: 'Restaurant', icon: 'restaurant',      descriptor: 'Restaurant' },
+    { id: 'cafe',       label: 'Café',       icon: 'local_cafe',      descriptor: 'Café' },
+    { id: 'takeaway',   label: 'Takeaway',   icon: 'takeout_dining',  descriptor: 'Takeaway' },
+    { id: 'mess',       label: 'Mess / Tiffin', icon: 'dinner_dining', descriptor: 'Mess and tiffin centre' },
+    { id: 'tea_shop',   label: 'Tea / Juice', icon: 'emoji_food_beverage', descriptor: 'Tea and juice shop' },
 ] as const;
 
 export function isBusinessType(value: unknown): boolean {

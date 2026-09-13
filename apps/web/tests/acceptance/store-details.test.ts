@@ -276,12 +276,20 @@ describe('business types', () => {
         ]);
     });
 
-    it('labels every one in Tamil as well as English', async () => {
+    it('labels every one in English only', async () => {
+        // The dashboard is the owner's own admin and stays English. CLAUDE.md's
+        // "Tamil + English where user-facing" means the CUSTOMER-facing menu,
+        // where diners read it — not this screen. Dual-labelling the chips made
+        // them long and cluttered for no reader.
         const { BUSINESS_TYPES } = await import('@/lib/store/businessTypes');
         for (const t of BUSINESS_TYPES) {
-            expect(t.label.length, `${t.id} has no English label`).toBeGreaterThan(0);
-            expect(t.labelTa, `${t.id} has no Tamil label`).toMatch(/[஀-௿]/);
+            expect(t.label.length, `${t.id} has no label`).toBeGreaterThan(0);
+            expect(t.label, `${t.id} carries Tamil in the dashboard`).not.toMatch(/[஀-௿]/);
         }
+    });
+
+    it('keeps Tamil out of the Store Details tab entirely', () => {
+        expect(shipped(SETTINGS), 'Tamil script in the dashboard').not.toMatch(/[஀-௿]/);
     });
 
     it('accepts only ids it offers', async () => {

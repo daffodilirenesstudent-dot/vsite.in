@@ -1002,7 +1002,6 @@ export default function SettingsPage() {
                                     >
                                         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{type.icon}</span>
                                         {type.label}
-                                        <span style={{ fontSize: 12, opacity: 0.7 }}>· {type.labelTa}</span>
                                     </button>
                                 );
                             })}
