@@ -4,6 +4,8 @@ import { LogoMark } from '@/components/Logo';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthContext';
+import { useOtpInput } from '@/hooks/useOtpInput';
+import { OTP_LENGTH } from '@/lib/auth/otpInput';
 import { TRIAL_DAYS, PLAN_PRICE_INR, BILLING_CYCLE_DAYS } from '@/content/policy';
 
 export default function SignupPage() {
@@ -12,7 +14,6 @@ export default function SignupPage() {
   const [step, setStep] = useState<'details' | 'otp'>('details');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -21,7 +22,15 @@ export default function SignupPage() {
   // to come first.
   const [agreed, setAgreed] = useState(false);
 
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Assigned during render, not in an effect: the hook's auto-submit effect is
+  // registered before this component's effects, so on the commit that lands the
+  // sixth digit an effect-based assignment would still hold the PREVIOUS
+  // render's closure.
+  const verifyRef = useRef<(code: string) => void>(() => {});
+  const {
+    otp, inputRefs: otpRefs, handleChange: handleOtpChange,
+    handleKeyDown: handleOtpKeyDown, handlePaste: handleOtpPaste, resetOtp,
+  } = useOtpInput({ onComplete: (code) => verifyRef.current(code) });
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // If user already has a valid Firebase session (cookie expired but session
@@ -62,30 +71,18 @@ export default function SignupPage() {
     startCountdown();
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return;
-    const next = [...otp];
-    next[index] = value.slice(-1);
-    setOtp(next);
-    if (value && index < 5) otpRefs.current[index + 1]?.focus();
-  };
+  // Entry, focus and auto-submit all live in useOtpInput so /login and /signup
+  // cannot drift apart again.
 
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus();
-  };
-
-  const handleOtpPaste = (e: React.ClipboardEvent) => {
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length === 6) { setOtp(pasted.split('')); otpRefs.current[5]?.focus(); }
-  };
-
-  const handleVerify = async () => {
+  const handleVerify = async (submitted?: string) => {
     setError('');
-    const code = otp.join('');
-    if (code.length < 6) { setError('Enter the complete 6-digit code.'); return; }
+    const code = submitted ?? otp.join('');
+    if (code.length < OTP_LENGTH) { setError('Enter the complete 6-digit code.'); return; }
     setLoading(true);
     const { error: err } = await verifyOTP(code, name.trim());
-    if (err) { setLoading(false); setError(err); return; }
+    // Hand the form back empty on failure. The auto-submit guard is keyed on
+    // the code, so leaving the rejected digits in place would swallow the retry.
+    if (err) { setLoading(false); setError(err); resetOtp(); return; }
     // Deliberately stay in the loading state. `replace()` starts a full-document
     // navigation and /auth/continue resolves four awaits before it redirects, so
     // the browser keeps showing THIS page for the whole handoff. Clearing the
@@ -98,10 +95,12 @@ export default function SignupPage() {
     window.location.replace('/auth/continue');
   };
 
+  verifyRef.current = (code: string) => { void handleVerify(code); };
+
   const handleResend = async () => {
     if (countdown > 0) return;
     setError('');
-    setOtp(['', '', '', '', '', '']);
+    resetOtp();
     resetOTP(); // destroy previous verifier so a fresh one is created
     setLoading(true);
     const digits = phone.replace(/\D/g, '');
@@ -162,8 +161,8 @@ export default function SignupPage() {
               onChange={handleOtpChange}
               onKeyDown={handleOtpKeyDown}
               onPaste={handleOtpPaste}
-              onVerify={handleVerify}
-              onEdit={() => { resetOTP(); setStep('details'); setOtp(['', '', '', '', '', '']); setError(''); }}
+              onVerify={() => { void handleVerify(); }}
+              onEdit={() => { resetOTP(); setStep('details'); resetOtp(); setError(''); }}
               onResend={handleResend}
               countdown={countdown}
               formatCountdown={formatCountdown}
@@ -293,7 +292,7 @@ function OtpStep({
   otpRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   onChange: (i: number, v: string) => void;
   onKeyDown: (i: number, e: React.KeyboardEvent<HTMLInputElement>) => void;
-  onPaste: (e: React.ClipboardEvent) => void;
+  onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   onVerify: () => void;
   onEdit: () => void;
   onResend: () => void;
@@ -323,7 +322,7 @@ function OtpStep({
       </div>
 
       <label className="mb-3 block text-sm font-medium text-slate-700">Enter OTP</label>
-      <div className="flex justify-between gap-2" onPaste={onPaste}>
+      <div className="flex justify-between gap-2">
         {otp.map((digit, i) => (
           <input
             key={i}
@@ -331,15 +330,25 @@ function OtpStep({
             type="text"
             inputMode="numeric"
             // Lets Android/iOS offer the code straight from the SMS instead of
-            // making the owner memorise six digits and switch apps.
-            autoComplete={i === 0 ? 'one-time-code' : 'off'}
+            // making the owner memorise six digits and switch apps. It sits on
+            // EVERY box, not just the first: the OS fills whichever box has
+            // focus, and an owner who taps box 3 first is otherwise offered
+            // nothing.
+            autoComplete="one-time-code"
             id={`otp-${i + 1}`}
             name={`otp-${i + 1}`}
             aria-label={`Digit ${i + 1} of 6`}
-            maxLength={1}
+            // No maxLength: autofill and paste both deliver all six digits to
+            // a single box, and the browser would truncate them before React
+            // ever saw the value. The handler distributes them instead.
             value={digit}
             onChange={(e) => onChange(i, e.target.value)}
             onKeyDown={(e) => onKeyDown(i, e)}
+            onPaste={onPaste}
+            // With maxLength gone, typing into a filled box would otherwise
+            // append. Selecting on focus makes a keystroke replace, which is
+            // what the owner expects from a single-character box.
+            onFocus={(e) => e.currentTarget.select()}
             autoFocus={i === 0}
             className={`w-full max-w-[52px] rounded-[10px] border text-center text-lg font-bold text-slate-800 outline-none transition-all
               ${digit
