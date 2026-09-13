@@ -14,6 +14,10 @@ import toast from 'react-hot-toast';
 const MESSAGES = [
   { text: 'Saving your dishes…',      icon: 'restaurant_menu' },
   { text: 'Adding your prices…',      icon: 'sell'            },
+  // The slowest step of the launch and the one the owner is paying for: a
+  // generated food photo per dish. Naming it turns the longest part of the
+  // wait from a suspected hang into the feature being delivered.
+  { text: 'Adding images to your items…', icon: 'add_photo_alternate' },
   { text: 'Building your QR menu…',   icon: 'qr_code_2'       },
   { text: 'Almost ready…',            icon: 'pending'         },
 ];

@@ -38,6 +38,13 @@ function useSlideTransition() {
     setVisible(false);
     setTimeout(() => {
       onDone();
+      // Each question is the owner's whole menu in a scrollable grid, so
+      // reaching Continue means being scrolled to the bottom. Without this the
+      // browser keeps that offset and the next question opens partway down its
+      // own list, heading and instructions off-screen — a wall of dishes and
+      // no question. Reset happens HERE, inside the fade, so the jump is never
+      // visible; 'auto' rather than 'smooth' for the same reason.
+      window.scrollTo({ top: 0, behavior: 'auto' });
       setVisible(true);
     }, 280);
   };
@@ -516,10 +523,16 @@ function OnboardingContent() {
 
             {/* ── Wizard phases ── */}
             {step === 'bestsellers' && (
-              <BestsellersPhase onNext={() => goNext('profitable')} />
+              <BestsellersPhase
+                onNext={() => goNext('profitable')}
+                onBack={() => goBack('setup')}
+              />
             )}
             {step === 'profitable' && (
-              <ProfitablePhase onNext={() => goNext('summary')} />
+              <ProfitablePhase
+                onNext={() => goNext('summary')}
+                onBack={() => goBack('bestsellers')}
+              />
             )}
             {step === 'summary' && (
               <>

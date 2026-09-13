@@ -86,9 +86,17 @@ describe.each(Object.entries(QUESTION_PHASES))('%s phase', (_name, file) => {
         // Not merely present somewhere in the file — in the footer, beside the
         // primary action, which is the only part of a long page guaranteed to
         // be on screen when the owner is deciding.
-        const footer = src().slice(src().lastIndexOf('Skip for now') - 600);
+        const footer = src().slice(src().lastIndexOf('Continue') - 900);
         expect(footer).toMatch(/Back/);
         expect(footer).toMatch(/Continue/);
+    });
+
+    it('offers no Skip', () => {
+        // Continue with nothing selected already produces the same menu Skip
+        // did, so Skip was a second button for one outcome — and on the
+        // highest-abandonment screen in the product, a button labelled Skip
+        // invites abandoning the step that makes the menu worth reading.
+        expect(src()).not.toMatch(/Skip/);
     });
 });
 

@@ -8,9 +8,10 @@ const DEFAULT_VALUE = 2;
 
 interface BestsellersPhaseProps {
   onNext: () => void;
+  onBack: () => void;
 }
 
-export default function BestsellersPhase({ onNext }: BestsellersPhaseProps) {
+export default function BestsellersPhase({ onNext, onBack }: BestsellersPhaseProps) {
   const { items, updateItemField } = useOnboarding();
 
   const selectedCount = items.filter(i => i.star_rating === SELECTED_VALUE).length;
@@ -24,15 +25,6 @@ export default function BestsellersPhase({ onNext }: BestsellersPhaseProps) {
     }
     if (limitReached) return;
     updateItemField(idx, 'star_rating', SELECTED_VALUE);
-  }
-
-  function handleSkip() {
-    items.forEach((item, idx) => {
-      if (item.star_rating !== DEFAULT_VALUE) {
-        updateItemField(idx, 'star_rating', DEFAULT_VALUE);
-      }
-    });
-    onNext();
   }
 
   return (
@@ -130,13 +122,18 @@ export default function BestsellersPhase({ onNext }: BestsellersPhaseProps) {
       </div>
 
       {/* Footer */}
-      <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+      {/* Back sits HERE, not only in the header. The grid above is the owner's
+          whole menu, so by the time they are deciding they have scrolled the
+          header off the screen — and a Back button you cannot see reads as a
+          Back button that does not exist. */}
+      <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={handleSkip}
-          className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+          onClick={onBack}
+          className="flex items-center gap-1 rounded-[10px] border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 active:scale-[0.98]"
         >
-          Skip for now
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
+          Back
         </button>
         <button
           onClick={onNext}
