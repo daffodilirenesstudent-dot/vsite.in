@@ -145,7 +145,7 @@ function useBodyScrollLock() {
 
 // ── RADIO CIRCLE ─────────────────────────────────────────────────────────────
 function RadioCircle({ selected }: { selected: boolean }) {
-  const color = selected ? '#EF59A1' : '#B3B3B3';
+  const color = selected ? TV.accent : '#B3B3B3';
   return (
     <div style={{
       width: 20, height: 20, borderRadius: '50%',
@@ -948,15 +948,15 @@ function SearchOverlay({
             style={{
               display: 'flex', alignItems: 'center',
               padding: '8px 16px', height: 36,
-              border: `0.65px solid ${!activeChip ? T.pink : '#D1D5DC'}`,
-              borderRadius: 40, background: !activeChip ? '#FFF0F8' : T.white,
+              border: `0.65px solid ${!activeChip ? TV.accent : '#D1D5DC'}`,
+              borderRadius: 40, background: !activeChip ? TV.accent : T.white,
               cursor: 'pointer', flexShrink: 0,
             }}
           >
             <span style={{
               fontFamily: "'Poppins',sans-serif", fontWeight: !activeChip ? 600 : 400,
               fontSize: 14, lineHeight: '20px', letterSpacing: '-0.15px',
-              color: !activeChip ? T.pink : '#0A0A0A', whiteSpace: 'nowrap',
+              color: !activeChip ? T.white : '#0A0A0A', whiteSpace: 'nowrap',
             }}>All</span>
           </button>
 
@@ -970,16 +970,16 @@ function SearchOverlay({
                 style={{
                   display: 'flex', alignItems: 'center',
                   padding: '8px 12px', height: 36,
-                  border: `0.65px solid ${isActive ? T.pink : '#D1D5DC'}`,
+                  border: `0.65px solid ${isActive ? TV.accent : '#D1D5DC'}`,
                   borderRadius: 40,
-                  background: isActive ? '#FFF0F8' : T.white,
+                  background: isActive ? TV.accent : T.white,
                   cursor: 'pointer', flexShrink: 0,
                 }}
               >
                 <span style={{
                   fontFamily: "'Poppins',sans-serif", fontWeight: 400,
                   fontSize: 14, lineHeight: '20px', letterSpacing: '-0.15px',
-                  color: '#0A0A0A', whiteSpace: 'nowrap',
+                  color: isActive ? T.white : '#0A0A0A', whiteSpace: 'nowrap',
                 }}>{cat}</span>
               </button>
             );

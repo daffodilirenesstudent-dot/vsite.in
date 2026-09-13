@@ -205,6 +205,70 @@ describe('a theme is config, never content', () => {
         // ABSENCE of all three.
     });
 
+    /**
+     * The brand colour has to reach every SELECTED state, not most of them.
+     *
+     * Three surfaces on the visible menu were written before the theme system
+     * and kept painting the frozen Classic pink (#EF59A1) regardless of what
+     * the owner chose: the search overlay's category chips, the variant radio
+     * in the detail sheet, and the card focus ring. A store branded black got
+     * black chips on the main row and pink ones inside search — which reads as
+     * a bug in the menu, not a style choice.
+     *
+     * Scope note: T.pink is still correct in the qty stepper, add-to-cart,
+     * cart badge and order-id blocks. Those are the ORDERING flow, frozen
+     * behind ORDERING_FROZEN and not on screen. They get migrated when
+     * ordering unfreezes; widening this test to them now would mean editing
+     * frozen surfaces for no visible gain.
+     */
+    describe('selected states follow the owner brand colour', () => {
+        const body = (fnName: string) => {
+            const src = shipped(TEMPLATE);
+            const start = src.indexOf(`function ${fnName}(`);
+            expect(start, `${fnName} not found`).toBeGreaterThan(-1);
+            const next = src.indexOf('\nfunction ', start + 1);
+            return src.slice(start, next === -1 ? undefined : next);
+        };
+
+        it('paints the variant radio with the accent', () => {
+            const radio = body('RadioCircle');
+            expect(radio).toMatch(/TV\.accent/);
+            expect(radio, 'RadioCircle still hardcodes the Classic pink').not.toMatch(/#EF59A1/);
+        });
+
+        it('paints the search chips with the accent', () => {
+            const overlay = body('SearchOverlay');
+            expect(overlay).toMatch(/TV\.accent/);
+            expect(overlay, 'search chips still hardcode the Classic pink').not.toMatch(/T\.pink|#FFF0F8/);
+        });
+
+        it('matches the main chip row instead of inventing a second style', () => {
+            // The shipped active chip is a SOLID accent fill with white text.
+            // A tinted variant would need a derived colour (color-mix), which
+            // is one more thing to get wrong on an old Android browser — and
+            // a pale tint of a dark brand colour is invisible anyway.
+            const overlay = body('SearchOverlay');
+            expect(overlay).toMatch(/background:[^,;]*TV\.accent/);
+        });
+
+        it('leaves the focus ring on the frozen Classic pink, deliberately', () => {
+            // This one selected state does NOT follow the brand colour, and
+            // that is the correct trade.
+            //
+            // The ring lives in the dangerouslySetInnerHTML stylesheet, and
+            // brandColorInjection.test.ts forbids the brand colour appearing
+            // inside that block under ANY name — a defence-in-depth rule that
+            // also catches the literal `var(--qr-accent, …)`, since the custom
+            // property's own name contains it. The colour is only ever allowed
+            // in through the style prop, which React escapes.
+            //
+            // Themeing a focus ring is not worth weakening that. T.pink is a
+            // frozen module constant with no owner input in it, and the ring
+            // stays clearly visible on every shipped surface.
+            expect(shipped(TEMPLATE)).toMatch(/focus-visible \{ outline:2px solid \$\{T\.pink\}/);
+        });
+    });
+
     it('is applied as CSS variables, not by branching on the name', () => {
         // shop/CLAUDE.md: "Never branch on template name inside a component."
         const src = shipped(TEMPLATE);
