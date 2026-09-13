@@ -18,11 +18,23 @@ import { withSentryConfig } from '@sentry/nextjs';
 //   (reCAPTCHA init → OTP send → verify → token → session cookie → dashboard)
 //   runs with zero CSP violations. reCAPTCHA does not need eval.
 //
-//   ⚠ RE-TEST ONLY AGAINST `npm run build && npm run start`. The DEV server
-//   throws a false positive here — Next.js Fast Refresh
-//   (@next/react-refresh-utils) evaluates a string at startup and trips this
-//   directive. That runtime does not exist in a production bundle. Do not
-//   restore 'unsafe-eval' on the strength of a `npm run dev` console error.
+//   ⚠ RE-TEST ONLY AGAINST `npm run build && npm run start`. Do not restore
+//   'unsafe-eval' to the PRODUCTION policy on the strength of a `npm run dev`
+//   console error — that runtime does not exist in a production bundle.
+//
+//   ── Correction, 2026-09-13 ──────────────────────────────────────────────
+//   The note above called the dev error a "false positive". It is a false
+//   positive about production RISK, but it is not cosmetic: `next dev`
+//   compiles with webpack devtool 'eval-source-map', so EVERY client module is
+//   wrapped in eval(), not just Fast Refresh. With the token absent, nothing
+//   on the client executes — the dev server serves server-rendered HTML that
+//   never hydrates, which reads as a blank page, not a warning.
+//
+//   So the token is restored for DEVELOPMENT ONLY, below. The production
+//   header is byte-identical to what the 2026-09 assessment signed off:
+//   SCRIPT_SRC is the signed-off literal and the dev branch only appends to
+//   it, so there is no second copy to drift. Asserted by
+//   tests/security/configHardening.test.ts.
 //
 //   Razorpay Checkout has NOT been exercised under this policy (it needs a live
 //   test-mode payment). It is believed fine — it is a plain iframe SDK — but if
@@ -38,12 +50,21 @@ import { withSentryConfig } from '@sentry/nextjs';
 // - frame-src: Razorpay's checkout iframe + reCAPTCHA challenge iframe.
 // - frame-ancestors 'none': anti-clickjacking — vsite is never embedded.
 // - upgrade-insecure-requests: any http:// asset references get rewritten.
+const isDev = process.env.NODE_ENV !== 'production';
+
+/** The signed-off production policy. Never conditionally spelled. */
+const SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://*.clarity.ms https://www.googletagmanager.com https://www.google-analytics.com https://checkout.razorpay.com https://cdn.razorpay.com https://www.google.com https://www.gstatic.com https://*.googleapis.com";
+
+// Appended, never substituted — so the production string above stays the one
+// source of truth and cannot drift from a second hand-maintained copy.
+const scriptSrc = isDev ? `${SCRIPT_SRC} 'unsafe-eval'` : SCRIPT_SRC;
+
 const csp = [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    "script-src 'self' 'unsafe-inline' https://*.clarity.ms https://www.googletagmanager.com https://www.google-analytics.com https://checkout.razorpay.com https://cdn.razorpay.com https://www.google.com https://www.gstatic.com https://*.googleapis.com",
+    scriptSrc,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://*.clarity.ms https://*.supabase.co https://lh3.googleusercontent.com https://www.google-analytics.com https://www.googletagmanager.com",

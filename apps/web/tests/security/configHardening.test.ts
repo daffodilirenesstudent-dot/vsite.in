@@ -29,6 +29,46 @@ describe('Finding 13: Content-Security-Policy', () => {
         expect(scriptSrc).not.toContain('unsafe-eval');
     });
 
+    /**
+     * The dev-server carve-out (2026-09-13).
+     *
+     * Finding 13 removed 'unsafe-eval' and the config told the next reader not
+     * to restore it "on the strength of a `npm run dev` console error". That
+     * was right about production and wrong about the consequence: `next dev`
+     * compiles with devtool 'eval-source-map', so EVERY client module is
+     * wrapped in eval(). With the token gone the dev server served HTML that
+     * never hydrated — a blank page, not a console warning.
+     *
+     * So the token comes back for development ONLY. The production header must
+     * stay byte-identical to what the assessment signed off, which is what
+     * these three assertions together pin down.
+     */
+    it('gates the dev allowance on NODE_ENV, never shipping it', () => {
+        expect(nextConfig).toMatch(/NODE_ENV\s*!==\s*'production'/);
+    });
+
+    it("mentions 'unsafe-eval' only inside the development branch", () => {
+        // Every occurrence in the file must sit on a line that also names the
+        // dev flag. A bare occurrence anywhere else is the regression.
+        const codeLines = nextConfig
+            .split('\n')
+            .filter(l => !l.trimStart().startsWith('//'))
+            .filter(l => l.includes('unsafe-eval'));
+
+        expect(codeLines.length, "no 'unsafe-eval' carve-out found").toBeGreaterThan(0);
+        for (const line of codeLines) {
+            expect(line, `'unsafe-eval' is not gated on this line: ${line.trim()}`)
+                .toMatch(/isDev|NODE_ENV/);
+        }
+    });
+
+    it('keeps the production script-src as its own untouched literal', () => {
+        // The dev branch must APPEND to the signed-off policy, not re-spell it.
+        // Two hand-maintained copies is how production quietly drifts.
+        expect(scriptSrc).toContain("'self'");
+        expect(scriptSrc).toContain("'unsafe-inline'");
+    });
+
     it('still keeps the directives that are doing real work', () => {
         expect(nextConfig).toContain("frame-ancestors 'none'");
         expect(nextConfig).toContain("object-src 'none'");
