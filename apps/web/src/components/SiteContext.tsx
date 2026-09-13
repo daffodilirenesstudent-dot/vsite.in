@@ -14,7 +14,6 @@ export interface SiteEntry {
     id: string;
     slug: string;
     name: string;
-    image_url: string | null;
     is_live: boolean;
     type: string;
     created_at: string;
@@ -62,7 +61,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 
         const { data } = await supabase
             .from('sites')
-            .select('id, slug, name, image_url, is_live, type, created_at, site_subscriptions(store_plan, store_expires_at)')
+            .select('id, slug, name, is_live, type, created_at, site_subscriptions(store_plan, store_expires_at)')
             .eq('user_id', user.id)
             .order('created_at', { ascending: true });
 

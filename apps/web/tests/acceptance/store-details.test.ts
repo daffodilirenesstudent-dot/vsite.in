@@ -142,19 +142,61 @@ describe('migration 054', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('the dropped columns', () => {
-    const SITE_READERS = [SETTINGS, APPEARANCE, GUIDE, SHOP_PAGE, SHOP_CLIENT];
+    /**
+     * Every `from('sites').select(...)` in the tree, not a hand-listed few.
+     *
+     * The first version of this test named five files it expected to be
+     * affected. Two others — SiteContext and NotificationContext — also read
+     * sites.image_url, were missed, and shipped. The result was not a missing
+     * field: PostgREST rejects the WHOLE query with 42703, SiteContext
+     * destructures only `data`, so every owner's site list came back empty and
+     * the gate marched them into "create your first store" on repeat.
+     *
+     * A list of files is not coverage. Enumerate the call sites instead.
+     */
+    const SRC_FILES = (function walk(dir: string): string[] {
+        return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+            const full = join(dir, entry.name);
+            if (entry.isDirectory()) return walk(full);
+            return /\.tsx?$/.test(entry.name) ? [full] : [];
+        });
+    })(SRC);
 
-    it.each(SITE_READERS)('%s no longer selects sites.image_url', (file) => {
-        // Product images are a different column on a different table and stay.
-        // This looks only at the site-row select lists.
-        const src = shipped(file);
-        const selects = src.match(/\.select\((['`])[\s\S]*?\1\)/g) ?? [];
-        const siteSelects = selects.filter(s => /\bslug\b|\bcontact_number\b|\bmenu_theme\b/.test(s));
-        for (const sel of siteSelects) {
-            expect(sel, `${file} still selects a dropped column`).not.toMatch(/\bimage_url\b/);
-            expect(sel).not.toMatch(/\bshow_logo\b/);
-            expect(sel).not.toMatch(/\bdescription\b/);
+    /** Select lists belonging to a `from('sites')` chain. */
+    function siteSelects(source: string): string[] {
+        const clean = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        const re = /\.from\(\s*['"`]sites['"`]\s*\)[\s\S]{0,400}?\.select\(\s*['"`]([^'"`]*)['"`]/g;
+        return Array.from(clean.matchAll(re), m => m[1]);
+    }
+
+    it('are selected from sites nowhere in the tree', () => {
+        const offenders: string[] = [];
+        for (const file of SRC_FILES) {
+            for (const list of siteSelects(readFileSync(file, 'utf8'))) {
+                for (const col of ['image_url', 'description', 'show_logo']) {
+                    if (new RegExp(`\\b${col}\\b`).test(list)) {
+                        offenders.push(`${file.slice(SRC.length + 1)} → ${col}`);
+                    }
+                }
+            }
         }
+        expect(offenders, 'a dropped column is still selected from sites').toEqual([]);
+    });
+
+    it('are not read off a site object anywhere', () => {
+        // The select is only half of it. NotificationContext also BRANCHED on
+        // site.description and site.image_url to decide whether settings were
+        // complete — so even with the query fixed, every owner would have been
+        // flagged incomplete forever.
+        const offenders: string[] = [];
+        for (const file of SRC_FILES) {
+            const clean = readFileSync(file, 'utf8')
+                .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+            for (const m of clean.matchAll(/\bsite\.(image_url|description|show_logo)\b/g)) {
+                offenders.push(`${file.slice(SRC.length + 1)} → site.${m[1]}`);
+            }
+        }
+        expect(offenders, 'a dropped column is still read off a site row').toEqual([]);
     });
 
     it('leaves no logo upload on the settings tab', () => {

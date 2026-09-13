@@ -99,7 +99,8 @@ export default function DashboardHeader() {
 
     const displayName = profile?.full_name || 'User';
     const avatarLetter = displayName.charAt(0).toUpperCase();
-    const avatarImg = activeSite?.image_url ?? null;
+    // Stores have no logo since 054; the initial is the avatar everywhere.
+    const avatarImg = null;
 
     const handleSwitchStore = (id: string) => {
         setActiveSiteId(id);
@@ -153,12 +154,7 @@ export default function DashboardHeader() {
                                         }}
                                     >
                                         <div style={{ width: 30, height: 30, borderRadius: 7, background: isActive ? '#EEEBFD' : '#F4F4F5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                                            {site.image_url ? (
-                                                // eslint-disable-next-line @next/next/no-img-element
-                                                <img src={site.image_url} alt={site.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                            ) : (
-                                                <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#5137EF' : '#71717A' }}>{initials}</span>
-                                            )}
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#5137EF' : '#71717A' }}>{initials}</span>
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                                             <p className="truncate" style={{ fontSize: 13, fontWeight: 500, color: '#0A0A0A' }}>{site.name}</p>

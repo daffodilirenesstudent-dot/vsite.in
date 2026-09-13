@@ -449,3 +449,25 @@ on tables, which is unrecoverable without a reprint.
 
 **Check what a column actually holds before reusing it.** A schema name plus a
 loose TS cast is not evidence that a column is unused.
+
+## Dropping a column: enumerate call sites, do not list files (2026-09-13)
+
+PostgREST rejects the **entire** query with `42703` when a select names a
+column that no longer exists — it does not omit the field. Most Supabase call
+sites here destructure only `data` and ignore `error`, so the failure surfaces
+as **empty data**, not as an error.
+
+After 054 dropped `sites.image_url`, `SiteContext` still selected it. Its site
+list came back `[]`, the onboarding gate read that as "no stores", and every
+existing owner — including multi-store accounts — was redirected to
+`/onboarding?intent=first-store`, then looped straight back after completing it.
+
+The acceptance test had been written against a hand-listed set of five files.
+Three offenders sat outside that list (`SiteContext`, `NotificationContext`,
+`DashboardHeader`). Rewriting it to walk `src/**/*.ts(x)` and regex every
+`from('sites').select(...)` found all three immediately.
+
+**When dropping a column:** scan the whole tree for both the select AND the
+reads (`site.<column>`). `NotificationContext` branched on `site.description`
+to compute "settings incomplete" — with only the query fixed, every owner would
+have been flagged incomplete forever.

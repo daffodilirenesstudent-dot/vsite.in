@@ -57,17 +57,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             // 2. Settings completeness — check required site fields
             const { data: site, error: e2 } = await supabase
                 .from('sites')
-                .select('name, contact_number, description, timing, image_url')
+                .select('name, contact_number, location, business_type, timing')
                 .eq('id', siteId)
                 .single();
             if (seq !== checkSeq.current) return;
             if (!e2 && site) {
+                // Tracks what Store Details now actually asks for. Keeping
+                // description/image_url here would have flagged every owner
+                // incomplete forever, since neither column exists any more.
+                const row = site as Record<string, string | null>;
                 const incomplete =
-                    !site.name?.trim() ||
-                    !site.contact_number?.trim() ||
-                    !site.description?.trim() ||
-                    !site.timing?.trim() ||
-                    !site.image_url;
+                    !row.name?.trim() ||
+                    !row.contact_number?.trim() ||
+                    !row.location?.trim() ||
+                    !row.business_type?.trim() ||
+                    !row.timing?.trim();
                 setSettingsIncomplete(incomplete);
             }
 
