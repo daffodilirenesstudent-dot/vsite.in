@@ -25,6 +25,12 @@ export const STOP: ReadonlySet<string> = new Set([
  * unrelated modifiers — without this, `mor` could never reach butter-milk.jpeg.
  */
 export const PHRASES: ReadonlyArray<readonly [readonly string[], string]> = [
+  // MUST come first. "non veg" tokenises to `non` + `veg`, which previously made
+  // tandoori-non-veg-platter read as VEGETARIAN — an inverted diet, worse than
+  // an unknown one.
+  [['non', 'veg'], 'NONVEG'],
+  [['non', 'vegetarian'], 'NONVEG'],
+  [['nonveg'], 'NONVEG'],
   [['butter', 'milk'], 'BUTTERMILK'],
   [['cottage', 'cheese'], 'PANEER'],
   [['ladies', 'finger'], 'OKRA'],
@@ -64,7 +70,7 @@ const FORMS: Readonly<Record<string, readonly string[]>> = {
   BIRYANI: ['biryani', 'biriyani', 'briyani', 'biriyaani', 'biryaani', 'bryani', 'dum'],
   PULAO: ['pulao', 'pulav', 'pilaf', 'palav'],
   // ── non-vegetarian cores ──────────────────────────────────────────────────
-  CHICKEN: ['chicken', 'chiken', 'kozhi', 'murgh', 'murg', 'chikken'],
+  CHICKEN: ['chicken', 'chiken', 'kozhi', 'murgh', 'murg', 'chikken', 'wings'],
   MUTTON: ['mutton', 'ghosht', 'gosht', 'aatu', 'lamb', 'goat'],
   BEEF: ['beef', 'maatu'],
   PORK: ['pork'],
@@ -73,6 +79,7 @@ const FORMS: Readonly<Record<string, readonly string[]>> = {
   CRAB: ['crab', 'nandu'],
   LOBSTER: ['lobster'],
   EGG: ['egg', 'eggs', 'muttai', 'anda'],
+  NONVEG: ['nonveg'],
   // ── vegetarian cores ──────────────────────────────────────────────────────
   PANEER: ['paneer', 'panner', 'panir', 'pannir', 'panneer'],
   DAL: ['dal', 'daal', 'dhal', 'paruppu', 'lentil', 'lentils'],
@@ -173,6 +180,8 @@ export const DIET: Readonly<Record<string, Diet>> = {
   // correct picture.
   CHICKEN: 'nv', MUTTON: 'nv', BEEF: 'nv', PORK: 'nv', FISH: 'nv',
   PRAWN: 'nv', CRAB: 'nv', LOBSTER: 'nv',
+  // Explicit "non veg" label on an image or an item name.
+  NONVEG: 'nv',
   EGG: 'egg',
   PANEER: 'v', DAL: 'v', GOBI: 'v', ALOO: 'v', MUSHROOM: 'v', OKRA: 'v',
   PALAK: 'v', SOYA: 'v', CORN: 'v', VEG: 'v', SWEETCORN: 'v', CURDRICE: 'v',
