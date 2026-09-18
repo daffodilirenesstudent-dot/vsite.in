@@ -1438,3 +1438,150 @@ screen, not just one field. Apply 054 before shipping this code.
 
 Uploaded logo FILES are intentionally left in storage. Deleting bytes
 is not something a schema migration should do silently.
+
+### 2026-09-17 — Reliability audit: three live defects fixed
+status: DONE
+
+A full-stack bug hunt (UI → API → auth → DB → external services). Three
+confirmed defects, each reproduced with a failing test before any fix, plus one
+finding reported and deliberately left unimplemented. Full suite 953 passing,
+`tsc --noEmit` clean, `next lint` exit 0.
+
+**1. Rate-limit windows longer than 5 minutes did not exist (P1).**
+`sweep()` in `lib/platform/rateLimit.ts` evicted buckets on a hardcoded
+5-minute idle threshold, and `rateLimit()` sweeps before it reads the key — so
+the bucket was rebuilt empty on the next call. All seven `windowMs: 60*60_000`
+call sites were really ~5-minute limiters. Worst case is
+`/api/onboarding/extract`, where that limiter is the ONLY thing in front of a
+paid GPT-4o vision call. Eviction is now derived from each bucket's own
+`windowMs`. Regression: `tests/unit/rateLimit.test.ts`.
+
+**2. Paying customers who abandoned a renewal stopped getting expiry warnings (P2).**
+`razorpay_status` is the activation replay guard, so create-subscription resets
+it to `'created'` on every order — including an early renewal by an active
+customer. Abandon the Razorpay modal and the row stays `'created'`. The
+expiry-reminder cron filtered on `'active'` and silently skipped them; the store
+went dark with no warning. The sweep now keys off `store_expires_at`, which is
+NULL by default and written only after capture. Regression:
+`tests/api/expiryReminder.test.ts`.
+
+**3. Un-awaited Supabase writes could exit the process (P1).**
+Six fire-and-forget chains used `.then(({ error }) => ...)` with no rejection
+handler. PostgREST errors resolve in band, but transport failures reject —
+unhandled, on Node 22, that exits the process, and `instance_count: 1` means the
+whole platform. `notify()` is on the revenue path (verify-payment, un-awaited).
+Fixed with `then`'s second argument, because `PostgrestBuilder` only implements
+`PromiseLike` and has no `.catch()`. Regression:
+`tests/unit/fireAndForget.test.ts`, whose scanner is await-aware so it does not
+demand handlers on awaited chains that already surface as a 500.
+
+**REPORTED, NOT FIXED — `/api/manage/menu-summary` scans_total (P2).**
+`scans_total` selects every `menu_scans` row a site has ever recorded, with no
+bound, and dedupes visitor_ids in JS — on an endpoint the dashboard polls every
+30s. One row is written per pageload, not per visitor, so the table grows with
+traffic forever and nothing purges it (`cron/cleanup` does not touch it). Two
+consequences: wasted CPU/network that scales with store age, and — if the
+project's PostgREST "Max Rows" is at the Supabase default of 1000 — a silently
+truncated "Total Visitors".
+
+The correct fix is a `count(distinct visitor_id)` RPC, which needs a migration.
+CLAUDE.md forbids writing migrations without explicit instruction, so this is
+left for a decision rather than implemented. Suggested shape: one SQL function
+returning today's and all-time distinct counts, replacing both row-fetches.
+
+### 2026-09-17 — One loading system, replacing 47 ad-hoc indicators
+status: DONE
+
+Every loading affordance in the product was hand-rolled. The audit found 47:
+29 `animate-spin` rings across 14 files, 18 inline `animation: spin` across 7,
+`@keyframes spin` declared 6 separate times, five duplicate opacity-pulse
+keyframes, and 4 raw "Loading..." strings — drawn in four different purples
+(`#5137EF`, `#5452F6`, `#5E17EB`, a stray `blue-600`).
+
+**Design.** Every one of the 47 was a rotating ring — the most generic loading
+affordance in software, and one that collapses to a grey smudge at 12px on the
+phones this dashboard actually runs on. `BrandLoader` already owned a better
+gesture: the vsite mark assembling by raising its four bars in sequence. That
+stagger is now the loading gesture at every scale, same easing, same 0.12s
+offset, so the splash and a 12px button spinner are one idea at two sizes.
+Skeleton sweep and progress track travel the same left-to-right axis.
+
+**Built** (`src/components/loading/`, motion once in globals.css):
+Spinner (5 sizes × 4 tones), Skeleton/SkeletonText/SkeletonRows, ProgressTrack
+(indeterminate + determinate), SectionLoader, PageLoader, LoadingOverlay.
+
+**Two judgement calls, not oversights.** The dashboard refresh button keeps a
+rotating icon — the glyph is the affordance and bars would remove its meaning;
+it moved to the shared `.vs-icon-spin`. `LaunchLoadingScreen`'s ring became a
+static icon well plus a ProgressTrack, because menu extraction runs to 60s and a
+spinner held that long reads as stuck, which is when owners reload and lose
+their upload. `BrandLoader` keeps its inlined CSS (hydration-critical).
+
+**Accessibility.** Decorative by default — a spinner in a button labelled
+"Saving…" must not announce itself twice. Only region-level loaders take
+`role="status"`; ProgressTrack is a `role="progressbar"`. Reduced motion keeps
+every indicator visible and drops the movement.
+
+**Verified.** Reviewed in-browser on a temporary kitchen-sink page (since
+deleted): the first pass rested at 0.32 opacity and read as pale lavender
+dashes at small sizes, so the floor was raised to 0.55 — the resting state is
+what a spinner mostly looks like, not the peak. `tsc --noEmit` exit 0,
+`next lint` exit 0, `vitest` 953 passing. No ad-hoc indicator remains: rotating
+rings 0, inline spins 0, duplicate keyframes 0.
+
+---
+
+## Concept-based dish-image matching — status: DONE (pending backfill decision)
+
+Branch `feat/concept-image-matching`. Goal: `docs/GOAL.md`. Research and evidence:
+`docs/image-matching-rnd.md`. Benchmark output: `docs/poc/image-matching/BENCHMARK.txt`.
+
+**Why.** `Dal Fry` was showing the **fish fry** photo. Tracing it found the
+keyword tier was innocent (it correctly returned null at 0.50 against a 0.80
+bar) — the wrong image came from the vector layer beneath it. Three structural
+causes: the index embeds two-sentence *descriptions* rather than dish names; the
+thresholds (0.35 / 0.45) sit below the measured noise floor, where 88% of the
+library has a decoy above 0.45; and the matcher had no way to abstain. Cosine
+was being used as a decision when it is only a ranking.
+
+**What shipped.** `conceptVocabulary.ts` (data: ~190 concepts, aliases, diet,
+core/head roles) and `conceptMatcher.ts` (normalise → phrase concepts → token
+concepts with a Damerau-Levenshtein typo fallback → five hard gates →
+IDF-weighted Jaccard → specific/generic/abstain). `imageLibrary.ts` caches the
+library per process, selecting only `image_url, description` — never
+`embedding`, which is ~4–5 MB of egress per cold start. Both call sites now
+share one matcher, ending the 0.35-vs-0.45 disagreement between onboarding and
+the inventory screen. The OpenAI embedding call, the gpt-4o-mini rerank and the
+`match_default_image` RPC are gone from the request path.
+
+**Measured, 1,067 real production item names:**
+
+| | before | after |
+|---|---|---|
+| veg item shown a non-veg photo | **20** | **0** |
+| coverage | 85.8% | 83.5% |
+| gained an image | — | +82 |
+| lost an image | — | −106 (only **17** were plausible; 89 were already wrong) |
+| per-item latency | network-bound | **0.28 ms** |
+| OpenAI calls per onboarding | 1 + N reranks | **0** |
+
+**Three bugs the tests found, not anticipated.** SHAWARMA was classified as
+inherently non-veg, which made the matcher reject `veg shawarma`'s own correct
+picture. `fries` (a potato dish) was conflated with `fry` (a method), sending
+"loaded fries" to fried-wings. And Gate 4 originally blocked any coreless query
+from a cored image, which cost 8 shawarma variants their photo — relaxed to
+require a head disagreement too, recovering 32 items.
+
+**Known follow-ups, not done here.**
+- 17 genuine regressions, all one shape: a known core plus a modifier-only query
+  (`butter paneer`, `chilli fish`, `mushroom chilly`) where Gate 5 abstains
+  rather than crossing a head boundary. Fixable in the vocabulary.
+- The 20 wrong images already live are **untouched**. Nothing recomputes stored
+  `image_url`; only items created or edited after deploy use the new matcher.
+  A backfill needs a dry-run report and explicit approval first.
+- `roll` appears on 28 distinct menus and the library has no roll photograph.
+  No matcher change substitutes for taking the picture.
+
+**Verified.** `npx vitest run` 1047 passing / 1 skipped (44 files, includes 94
+new acceptance assertions across 10 acceptance criteria), `npx tsc --noEmit`
+exit 0, `npm run lint` clean for all new files.

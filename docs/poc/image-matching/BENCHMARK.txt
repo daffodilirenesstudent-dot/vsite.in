@@ -1,0 +1,91 @@
+═══ BEFORE / AFTER — concept image matcher ═══
+distinct production menu names: 1067   library: 353 images
+
+SAFETY  (vegetarian item shown a non-vegetarian photo)
+  before : 20
+  after  : 0
+
+COVERAGE  (item receives some library image)
+  before : 915  (85.8%)
+  after  : 891  (83.5%)
+
+CHURN
+  unchanged            : 355  (33.3%)
+  changed image        : 524
+  gained an image      : 82   <- positive
+  lost an image        : 106   <- NEGATIVE (now shows upload box)
+     …of which the old image was PLAUSIBLE : 17   <- the true regression
+     …of which the old image was ALREADY WRONG : 89   <- silently fixed
+
+PERFORMANCE
+  before : 1 OpenAI embedding call + 1 pgvector RPC per item (~network bound)
+  after  : 0.2898 ms per item, no network
+  300-item menu: 86.9 ms total
+
+DIET VIOLATIONS FIXED (20):
+  + veg fried rice: chicken-rice -> veg-fried-rice-v5
+  + veg soft noodles: chicken-noodles -> veg-atho-noodles
+  + vegetable fried rice: chicken-rice -> veg-fried-rice-v5
+  + veg. noodles: chicken-noodles -> veg-atho-noodles
+  + fried rice - paneer / mushroom: chicken-rice -> mushroom-fried-rice-v5a
+  + veg schezwan fried rice: chicken-rice -> veg-schezwan-fried-rice
+  + tandoori non veg platter: grill-chicken -> tandoori-non-veg-platter
+  + tandoori gobi: chicken-tandoori -> tandoori-gobi
+  + daal fry: fish-fry -> dal-fry-v5
+  + dal tadka: chicken-tandoori -> dal-tadka-v5
+  + veg fried rice with chilli gobi and coke[250ml]: chicken-rice -> gobi-fried-rice
+  + spinach corn & cheese wontons [5 pieces]: chicken-rice -> (upload box)
+  + kadai veg: kadai-chicken -> kadai-veg-subzi
+  + veg schezwan noodles: chicken-noodles -> veg-schezwan-noodles
+  + mushroom schezwan fried rice: chicken-rice -> mushroom-fried-rice-v5a
+  + veg. chowmein: chicken-noodles -> veg-atho-noodles
+  + veg. chilly garlic noodles: chicken-noodles -> veg-atho-noodles
+  + veg. hot & sour with hakka noodle / fried rice: chicken-rice -> veg-fried-rice-v5
+  + veg. manchurian with fried rice / noodles: chicken-rice -> veg-fried-rice-v5
+  + paneer malai tikka: malai-chicken -> malai-paneer-tikka
+
+ITEMS THAT LOST AN IMAGE — the regression (106), first 20:
+  - butter paneer  (was paneer-butter-masala)  <- was plausible
+  - cream paneer  (was grill-paneer)  <- was plausible
+  - chilli fish  (was fish-fry)  <- was plausible
+  - dragon fish  (was fish-fry)  <- was plausible
+  - fish tacos  (was fish-fry)  <- was plausible
+  - mushroom do plaza  (was mushroom-tikka)  <- was plausible
+  - sichuan style chicken  (was chicken-noodles-2)  <- was plausible
+  - fire cracker lotus stem with chicken  (was chicken-leg-lollipop)  <- was plausible
+  - veg chilli cheese wontons [5 pieces]  (was veg-noodles)  <- was plausible
+  - achari chicken  (was chicken-65)  <- was plausible
+  - cheese tomato sandwich  (was paneer-sandwich)  <- was plausible
+  - mushroom sizzler  (was mushroom-tikka)  <- was plausible
+  - mushroom chilly  (was mushroom-salt-and-pepper)  <- was plausible
+  - butter garlic prawn  (was prawn-salt-and-pepper)  <- was plausible
+  - chicken cheese nachos  (was cheese-chicken-loaded-fries)  <- was plausible
+  - achari chicken (q/h/f)  (was achari-chicken-tandoori)  <- was plausible
+  - lemongrill chicken (q/h/f)  (was chicken-65)  <- was plausible
+
+SAMPLE OF CHANGED ASSIGNMENTS (first 25):
+  ~ bbq paneer:  grill-paneer  ->  irani-bbq
+  ~ hot bbq chicken:  grill-chicken  ->  chicken-bbq
+  ~ chicken chilly dry:  grill-chicken  ->  chilli-chicken-dry-v5
+  ~ butter chicken:  grill-chicken  ->  butter-chicken-v5
+  ~ veg biryani:  biriyani  ->  veg-biryani-v5
+  ~ chicken biryani:  biriyani  ->  chicken-biryani-v5
+  ~ mutton biryani:  biriyani  ->  mutton-biriyani
+  ~ veg manchurian:  veg-atho-noodles  ->  veg-manchurian-dry-v5
+  ~ chilli paneer:  grill-paneer  ->  chilli-paneer-dry-v5
+  ~ paneer manchurian:  grill-paneer  ->  dhaba-style-paneer
+  ~ paneer 65:  grill-paneer  ->  paneer-65-v5
+  ~ paneer schezwan:  grill-paneer  ->  dhaba-style-paneer
+  ~ chilli chicken:  grill-chicken  ->  chilli-chicken-dry-v5
+  ~ chocolate cake shake:  brownie  ->  kitkat-milkshake
+  ~ veg fried rice:  chicken-rice  ->  veg-fried-rice-v5
+  ~ egg fried rice:  chicken-rice  ->  egg-fried-rice-v5
+  ~ chicken fried rice:  chicken-rice  ->  chicken-fried-rice-v5
+  ~ schezwan chicken fried rice:  chicken-rice  ->  chicken-fried-rice-v5
+  ~ veg soft noodles:  chicken-noodles  ->  veg-atho-noodles
+  ~ egg soft noodles:  chicken-noodles  ->  egg-noodles-v5
+  ~ schezwan soft noodles:  chicken-noodles  ->  veg-schezwan-noodles
+  ~ mini combo paneer/chicken:  grill-paneer  ->  dhaba-style-paneer
+  ~ egg biryani:  biriyani  ->  egg-biriyani
+  ~ chicken red masala:  grill-chicken  ->  dhaba-style-chicken-curry
+  ~ masala chicken:  grill-chicken  ->  dhaba-style-chicken-curry

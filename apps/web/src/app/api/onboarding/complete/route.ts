@@ -14,14 +14,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
-import { confidentKeywordImage } from '@/lib/menu/defaultImages';
+import { getImageLibrary } from '@/lib/menu/imageLibrary';
+import { matchImage } from '@/lib/menu/conceptMatcher';
 import { rateLimit } from '@/lib/platform/rateLimit';
 import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
 import {
   isMenuThemeId, isHexColor, DEFAULT_MENU_THEME, MENU_THEMES,
 } from '@/lib/menu/menuThemes';
 import { audit } from '@/lib/platform/auditLog';
-import OpenAI from 'openai';
 import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 
 import { logger } from '@/lib/platform/logger';
@@ -40,16 +40,6 @@ const MAX_VARIANTS = 10;
 const MAX_ITEM_PRICE_INR = 100_000;
 const TRIAL_STORE_LIMIT = 2;
 const PAID_STORE_LIMIT  = 5;
-const SIM_THRESHOLD = 0.45;
-const RPC_CONCURRENCY = 10;
-
-// ── OpenAI singleton ─────────────────────────────────────────────────────────
-
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  return _openai;
-}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -194,67 +184,33 @@ function validatePayload(payload: CompletePayload): { ok: true } | { ok: false; 
 
 // ── Bounded-concurrency Promise.all (no extra dep) ───────────────────────────
 
-async function mapWithLimit<T, R>(items: T[], limit: number, fn: (x: T, i: number) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-  const workers = Array(Math.min(limit, items.length)).fill(0).map(async () => {
-    while (true) {
-      const i = cursor++;
-      if (i >= items.length) return;
-      results[i] = await fn(items[i], i);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
+// ── Image matching: one shared matcher, no network ──────────────────────────
 
-// ── Image matching: ONE batched embedding call + bounded RPC concurrency ────
-
+/**
+ * Resolve a library image for each menu item.
+ *
+ * Uses the same matcher as /api/images/match, so onboarding and the inventory
+ * screen can no longer disagree about the same dish name — they previously ran
+ * different thresholds (0.45 vs 0.35) against the vector index.
+ *
+ * Returns null for an item when the matcher abstains. That is deliberate: an
+ * empty image slot prompts the owner to upload their own photo, which is
+ * strictly better than showing a wrong dish.
+ */
 async function findImagesForItems(itemNames: string[]): Promise<Array<string | null>> {
-  // Step 1: keyword fallback (free, instant) — only accept CONFIDENT hits.
-  // Low-confidence generic/token guesses are dropped (→ null) so those items
-  // fall through to the vector search below instead of being locked to a
-  // wrong/generic image. Mirrors the >= 0.75 gate in /api/images/match.
-  const keywordHits = itemNames.map(name => confidentKeywordImage(name));
-
-  // Step 2: collect items that need vector search
-  const indicesNeedingEmbedding: number[] = [];
-  itemNames.forEach((_, i) => { if (!keywordHits[i]) indicesNeedingEmbedding.push(i); });
-
-  if (indicesNeedingEmbedding.length === 0) return keywordHits;
-
-  // Step 3: ONE embedding call for all of them (OpenAI accepts arrays — saves 100s of round trips)
-  let embeddings: number[][] = [];
+  let library: Awaited<ReturnType<typeof getImageLibrary>>;
   try {
-    const openai = getOpenAI();
-    const res = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: indicesNeedingEmbedding.map(i => itemNames[i].slice(0, 500).toLowerCase()),
-    });
-    embeddings = res.data.map(d => d.embedding);
+    library = await getImageLibrary();
   } catch (err) {
-    console.warn('[onboarding/complete] batched embedding call failed:', err);
-    return keywordHits; // give up gracefully — items get null image
+    logger.warn('[onboarding/complete] image library unavailable:', err);
+    return itemNames.map(() => null);
   }
 
-  // Step 4: pgvector RPC with bounded concurrency
-  const rpcResults = await mapWithLimit(indicesNeedingEmbedding, RPC_CONCURRENCY, async (origIdx, posIdx) => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabaseServer as any).rpc('match_default_image', {
-        query_embedding: embeddings[posIdx],
-        match_threshold: SIM_THRESHOLD,
-        match_count: 1,
-      });
-      if (!error && data?.length) return { origIdx, url: data[0].image_url as string };
-    } catch (err) {
-      console.warn(`[onboarding/complete] RPC failed for "${itemNames[origIdx]}":`, err);
-    }
-    return { origIdx, url: null };
+  return itemNames.map((name) => {
+    const result = matchImage(name, library.index);
+    if (result.decision === 'abstain' || !result.image) return null;
+    return library.byName.get(result.image)?.imageUrl ?? null;
   });
-
-  for (const { origIdx, url } of rpcResults) keywordHits[origIdx] = url;
-  return keywordHits;
 }
 
 // ── Idempotency ──────────────────────────────────────────────────────────────

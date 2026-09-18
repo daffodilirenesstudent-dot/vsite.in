@@ -64,6 +64,7 @@ vi.mock('@/lib/menu/menuExtractor', () => ({
 
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { resetImageLibraryCache } from '@/lib/menu/imageLibrary';
 import { POST as onboardingPost } from '@/app/api/onboarding/complete/route';
 import { POST as imagesMatchPost } from '@/app/api/images/match/route';
 import { POST as createSubPost } from '@/app/api/subscription/create-subscription/route';
@@ -253,16 +254,16 @@ describe('POST /api/images/match', () => {
   });
 
   it('returns image_url and similarity on a successful match', async () => {
-    // OpenAI is mocked globally to return a fake embedding vector.
-    // Wire up Supabase RPC to return a match.
-    vi.mocked(supabaseServer as any).rpc = vi.fn().mockResolvedValue({
+    // The route no longer embeds the query or calls a pgvector RPC; it matches
+    // in-process against the cached default_images library. Same assertion,
+    // new collaborator.
+    resetImageLibraryCache();
+    vi.mocked(supabaseServer.from).mockImplementation(() => qb({
       data: [{
         image_url: 'https://test.supabase.co/storage/v1/object/public/default-images/pani-puri.jpg',
         description: 'Pani Puri',
-        similarity: 0.78,
       }],
-      error: null,
-    });
+    }));
 
     const req = cookieRequest({ query: 'pani puri' });
     const res = await imagesMatchPost(req);
@@ -271,19 +272,17 @@ describe('POST /api/images/match', () => {
     expect(body.image_url).toBe(
       'https://test.supabase.co/storage/v1/object/public/default-images/pani-puri.jpg'
     );
-    expect(body.similarity).toBe(0.78);
     expect(body.description).toBe('Pani Puri');
+    expect(body.similarity).toBeGreaterThan(0);
+    expect(body.similarity).toBeLessThanOrEqual(1);
   });
 
-  it('returns null gracefully when Supabase RPC returns an error', async () => {
-    vi.mocked(supabaseServer as any).rpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: { message: 'rpc not found' },
-    });
+  it('returns null gracefully when the image library cannot be loaded', async () => {
+    resetImageLibraryCache();
+    vi.mocked(supabaseServer.from).mockImplementation(() => qb({
+      data: null, error: { message: 'relation does not exist' },
+    }));
 
-    // NOT a dish the keyword table knows: 'burger' now hits the tier-1 exact
-    // keyword match and returns before the RPC is ever called, so it could
-    // never exercise this path. The vector fallback is what is under test.
     const req = cookieRequest({ query: 'unknown exotic dish' });
     const res = await imagesMatchPost(req);
     expect(res.status).toBe(200);
@@ -291,14 +290,13 @@ describe('POST /api/images/match', () => {
     expect(body.image_url).toBeNull();
   });
 
-  it('returns null gracefully when Supabase RPC returns no matches', async () => {
-    vi.mocked(supabaseServer as any).rpc = vi.fn().mockResolvedValue({
-      data: [],
-      error: null,
-    });
+  it('returns null when nothing in the library matches', async () => {
+    resetImageLibraryCache();
+    vi.mocked(supabaseServer.from).mockImplementation(() => qb({ data: [] }));
 
     const req = cookieRequest({ query: 'unknown exotic dish' });
     const res = await imagesMatchPost(req);
+    expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.image_url).toBeNull();
   });
