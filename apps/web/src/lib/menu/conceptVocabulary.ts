@@ -98,11 +98,15 @@ const FORMS: Readonly<Record<string, readonly string[]>> = {
   FRENCHFRY: ['fries', 'fryes'],
   CURRY: ['curry', 'curri', 'kari', 'kuzhambu', 'gravy', 'masala', 'salan'],
   ROAST: ['roast', 'roasted'],
-  GRILL: ['grill', 'grilled', 'grilling'],
+  // BBQ and grill are the same plate in this domain — a "bbq paneer" and a
+  // "grilled paneer" are one photograph. Keeping them apart made the head gate
+  // reject grill-paneer for "bbq paneer", which then fell through to
+  // irani-bbq (a chicken dish). TANDOORI stays separate: the red marinade
+  // genuinely looks different.
+  GRILL: ['grill', 'grilled', 'grilling', 'bbq', 'barbecue', 'barbeque', 'charcoal'],
   TANDOORI: ['tandoori', 'tandori', 'tanduri', 'tandhoori'],
   TIKKA: ['tikka', 'tika', 'tikkah'],
   KEBAB: ['kebab', 'kabab', 'kabob', 'seekh', 'sheek'],
-  BBQ: ['bbq', 'barbecue', 'barbeque', 'charcoal'],
   SOUP: ['soup', 'soop', 'shorba', 'rasam'],
   NOODLES: ['noodles', 'noodle', 'chowmein', 'chow', 'hakka', 'atho'],
   MANCHURIAN: ['manchurian', 'manchuria', 'machurian'],
@@ -194,7 +198,7 @@ export const CORE: ReadonlySet<string> = new Set(Object.keys(DIET));
 /** A HEAD is the dish form. Different head = a visually different plate. */
 export const HEAD: ReadonlySet<string> = new Set([
   'BIRYANI', 'PULAO', 'RICE', 'FRY', 'CURRY', 'ROAST', 'GRILL', 'TANDOORI',
-  'TIKKA', 'KEBAB', 'BBQ', 'SOUP', 'NOODLES', 'MANCHURIAN', 'MOMOS', 'DOSA',
+  'TIKKA', 'KEBAB', 'SOUP', 'NOODLES', 'MANCHURIAN', 'MOMOS', 'DOSA',
   'IDLI', 'VADA', 'UTHAPPAM', 'SALAD', 'SANDWICH', 'BURGER', 'WRAP', 'PIZZA',
   'PASTA', 'ROTI', 'PAROTTA', 'PARATHA', 'NAAN', 'PURI', 'POPCORN', 'LOLLIPOP',
   'FINGER', 'PLATTER', 'MILKSHAKE', 'JUICE', 'TEA', 'COFFEE', 'SODA',

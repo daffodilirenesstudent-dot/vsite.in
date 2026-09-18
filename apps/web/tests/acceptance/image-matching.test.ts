@@ -238,6 +238,34 @@ describe('AC9 — one matcher, stable answers', () => {
   });
 });
 
+// ── AC11 — Synonymous preparations resolve to the same picture ──────────────
+// Reported from manual testing: "bbq paneer" returned irani-bbq (a chicken
+// dish) even though grill-paneer exists. BBQ and grill are the same plate.
+describe('AC11 — bbq and grill are the same preparation', () => {
+  it.each(['bbq paneer', 'grill paneer', 'grilled paneer', 'barbeque paneer'])(
+    '“%s” resolves to the paneer grill image', (q) => {
+      expect(specific(q)).toBe('grill-paneer');
+    });
+
+  it.each(['bbq paneer', 'barbeque paneer', 'bbq veg', 'grill paneer'])(
+    '“%s” is never given a non-veg image', (q) => {
+      const got = img(q);
+      if (got !== null) expect(isNonVegImage(got), `${q} -> ${got}`).toBe(false);
+    });
+
+  it.each(['bbq chicken', 'grill chicken', 'hot bbq chicken'])(
+    '“%s” still resolves to a chicken grill image', (q) => {
+      expect(specific(q)).toMatch(/chicken/);
+    });
+
+  it('keeps tikka distinct from plain grilling', () => {
+    // Deliberately not asserting `specific`: the library holds five paneer
+    // tikka variants that tie, so a generic answer is the honest one. What
+    // matters here is that tikka does not collapse into the grill family.
+    expect(img('paneer tikka')).toMatch(/tikka/);
+  });
+});
+
 // ── AC10 — Portion / modifier noise ─────────────────────────────────────────
 describe('AC10 — portion and modifier noise does not derail the match', () => {
   it.each([
