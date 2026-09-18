@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { buildImageIndex, type ImageIndex } from '@/lib/menu/conceptMatcher';
+import type { Diet } from '@/lib/menu/conceptVocabulary';
 import { logger } from '@/lib/platform/logger';
 
 // In-process cache of the default image library.
@@ -18,6 +19,8 @@ export interface LibraryRow {
   description: string;
   /** Filename stem — what the matcher indexes, e.g. "chicken-biryani-v5". */
   name: string;
+  /** Reviewed dietary label. Null only for rows seeded before the diet column. */
+  diet: Diet | null;
 }
 
 export interface Library {
@@ -40,20 +43,23 @@ export function imageNameFromUrl(url: string): string {
 async function load(): Promise<Library> {
   const { data, error } = await supabaseServer
     .from('default_images')
-    .select('image_url, description');
+    .select('image_url, description, diet');
 
   if (error) throw new Error(`default_images load failed: ${error.message}`);
 
   const byName = new Map<string, LibraryRow>();
-  for (const row of (data ?? []) as Array<{ image_url: string; description: string | null }>) {
+  for (const row of (data ?? []) as Array<{ image_url: string; description: string | null; diet: Diet | null }>) {
     if (!row.image_url) continue;
     const name = imageNameFromUrl(row.image_url);
     // First row wins — keeps the index deterministic if two rows collide.
     if (name && !byName.has(name)) {
-      byName.set(name, { imageUrl: row.image_url, description: row.description ?? '', name });
+      byName.set(name, { imageUrl: row.image_url, description: row.description ?? '', name, diet: row.diet ?? null });
     }
   }
-  return { index: buildImageIndex(Array.from(byName.keys())), byName };
+  // Pass the reviewed diet through: the matcher must not fall back to guessing
+  // protein from the filename, which is what let "bbq veg" reach irani-bbq.
+  const entries = Array.from(byName.values()).map((r) => ({ name: r.name, diet: r.diet }));
+  return { index: buildImageIndex(entries), byName };
 }
 
 /**

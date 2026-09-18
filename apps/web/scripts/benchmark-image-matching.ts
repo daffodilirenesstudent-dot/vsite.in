@@ -39,15 +39,24 @@ async function pageAll<T>(table: string, select: string): Promise<T[]> {
   return out;
 }
 
+const vegImage = (n: string, m: Map<string, string|null>) => m.get(n) === 'v';
 const isVegQuery = (s: string) => {
   const cs = dishConcepts(s);
   return cs.some((c) => DIET[c] === 'v') && !cs.some((c) => DIET[c] === 'nv');
 };
 
 async function main() {
-  const lib = await pageAll<{ image_url: string }>('default_images', 'image_url');
-  const libNames = [...new Set(lib.map((r) => nameOf(r.image_url)))];
-  const index = buildImageIndex(libNames);
+  const lib = await pageAll<{ image_url: string; diet: 'v' | 'nv' | 'egg' | null }>('default_images', 'image_url,diet');
+  const seenLib = new Set<string>();
+  const libEntries = lib.flatMap((r) => {
+    const n = nameOf(r.image_url);
+    if (!n || seenLib.has(n)) return [];
+    seenLib.add(n);
+    return [{ name: n, diet: r.diet }];
+  });
+  const libNames = libEntries.map((e) => e.name);
+  const index = buildImageIndex(libEntries);
+  const dietMap = new Map(libEntries.map((e) => [e.name, e.diet]));
 
   const prods = await pageAll<{ name: string; image_url: string | null }>('products', 'name,image_url');
   const seen = new Set<string>();
@@ -79,11 +88,11 @@ async function main() {
     if (after) covAfter++;
 
     const veg = isVegQuery(r.name);
-    if (veg && r.before && isNonVegImage(r.before)) {
+    if (veg && r.before && (dietMap.get(r.before) ?? (isNonVegImage(r.before) ? 'nv' : 'v')) === 'nv') {
       vBefore++;
-      if (!after || !isNonVegImage(after)) fixedDiet.push(`${r.name}: ${r.before} -> ${after ?? '(upload box)'}`);
+      if (!after || dietMap.get(after) !== 'nv') fixedDiet.push(`${r.name}: ${r.before} -> ${after ?? '(upload box)'}`);
     }
-    if (veg && after && isNonVegImage(after)) vAfter++;
+    if (veg && after && dietMap.get(after) === 'nv') vAfter++;
 
     if (r.before === after) same++;
     else {

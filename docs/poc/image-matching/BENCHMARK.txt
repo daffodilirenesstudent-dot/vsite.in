@@ -2,39 +2,41 @@
 distinct production menu names: 1067   library: 353 images
 
 SAFETY  (vegetarian item shown a non-vegetarian photo)
-  before : 20
+  before : 22
   after  : 0
 
 COVERAGE  (item receives some library image)
   before : 915  (85.8%)
-  after  : 891  (83.5%)
+  after  : 893  (83.7%)
 
 CHURN
-  unchanged            : 355  (33.3%)
-  changed image        : 524
-  gained an image      : 82   <- positive
-  lost an image        : 106   <- NEGATIVE (now shows upload box)
+  unchanged            : 347  (32.5%)
+  changed image        : 532
+  gained an image      : 83   <- positive
+  lost an image        : 105   <- NEGATIVE (now shows upload box)
      …of which the old image was PLAUSIBLE : 17   <- the true regression
-     …of which the old image was ALREADY WRONG : 89   <- silently fixed
+     …of which the old image was ALREADY WRONG : 88   <- silently fixed
 
 PERFORMANCE
   before : 1 OpenAI embedding call + 1 pgvector RPC per item (~network bound)
-  after  : 0.2898 ms per item, no network
-  300-item menu: 86.9 ms total
+  after  : 0.5911 ms per item, no network
+  300-item menu: 177.3 ms total
 
-DIET VIOLATIONS FIXED (20):
+DIET VIOLATIONS FIXED (22):
   + veg fried rice: chicken-rice -> veg-fried-rice-v5
   + veg soft noodles: chicken-noodles -> veg-atho-noodles
   + vegetable fried rice: chicken-rice -> veg-fried-rice-v5
   + veg. noodles: chicken-noodles -> veg-atho-noodles
   + fried rice - paneer / mushroom: chicken-rice -> mushroom-fried-rice-v5a
   + veg schezwan fried rice: chicken-rice -> veg-schezwan-fried-rice
-  + tandoori non veg platter: grill-chicken -> tandoori-non-veg-platter
   + tandoori gobi: chicken-tandoori -> tandoori-gobi
+  + mushroom and swiss burger: burger -> mushroom-65
+  + aloo tikki burger: burger -> mustard-potato
   + daal fry: fish-fry -> dal-fry-v5
   + dal tadka: chicken-tandoori -> dal-tadka-v5
   + veg fried rice with chilli gobi and coke[250ml]: chicken-rice -> gobi-fried-rice
   + spinach corn & cheese wontons [5 pieces]: chicken-rice -> (upload box)
+  + dahi seekh kebab: dahi-seekh-kebab -> dahi-papdi-chaat
   + kadai veg: kadai-chicken -> kadai-veg-subzi
   + veg schezwan noodles: chicken-noodles -> veg-schezwan-noodles
   + mushroom schezwan fried rice: chicken-rice -> mushroom-fried-rice-v5a
@@ -44,7 +46,7 @@ DIET VIOLATIONS FIXED (20):
   + veg. manchurian with fried rice / noodles: chicken-rice -> veg-fried-rice-v5
   + paneer malai tikka: malai-chicken -> malai-paneer-tikka
 
-ITEMS THAT LOST AN IMAGE — the regression (106), first 20:
+ITEMS THAT LOST AN IMAGE — the regression (105), first 20:
   - butter paneer  (was paneer-butter-masala)  <- was plausible
   - cream paneer  (was grill-paneer)  <- was plausible
   - chilli fish  (was fish-fry)  <- was plausible
@@ -64,7 +66,7 @@ ITEMS THAT LOST AN IMAGE — the regression (106), first 20:
   - lemongrill chicken (q/h/f)  (was chicken-65)  <- was plausible
 
 SAMPLE OF CHANGED ASSIGNMENTS (first 25):
-  ~ bbq paneer:  grill-paneer  ->  irani-bbq
+  ~ grilled chicken:  grill-chicken  ->  chicken-bbq
   ~ hot bbq chicken:  grill-chicken  ->  chicken-bbq
   ~ chicken chilly dry:  grill-chicken  ->  chilli-chicken-dry-v5
   ~ butter chicken:  grill-chicken  ->  butter-chicken-v5

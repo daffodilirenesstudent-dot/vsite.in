@@ -119,21 +119,51 @@ interface IndexedImage extends Roles {
   concepts: string[];
   set: Set<string>;
   weight: number;
+  /** Reviewed label when the library supplies one; null when only inferred. */
+  verifiedDiet: Diet | null;
 }
 
 export interface ImageIndex {
   items: IndexedImage[];
   idf(concept: string): number;
+  byName: Map<string, IndexedImage>;
+}
+
+/** A library entry. A bare string keeps name-only inference for callers that have no labels. */
+export type ImageInput = string | { name: string; diet?: Diet | null };
+
+/**
+ * The dietary class of a library image.
+ *
+ * Prefers the reviewed label. Falls back to inferring from the name, which is
+ * lossy — `irani-bbq` is chicken and its name never says so — which is exactly
+ * why the label exists.
+ */
+export function imageDiet(imageName: string, index: ImageIndex): Diet | null {
+  const item = index.byName.get(imageName);
+  if (item?.verifiedDiet) return item.verifiedDiet;
+  const concepts = item?.concepts ?? dishConcepts(imageName);
+  const diets = new Set(concepts.map((c) => DIET[c]).filter(Boolean) as Diet[]);
+  if (diets.has('nv')) return 'nv';
+  if (diets.has('v')) return 'v';
+  return diets.has('egg') ? 'egg' : null;
 }
 
 /**
  * Build the searchable index from library image names.
  * Cost is linear in library size and paid once per process.
  */
-export function buildImageIndex(names: readonly string[]): ImageIndex {
-  const items: IndexedImage[] = names.map((name) => {
+export function buildImageIndex(entries: readonly ImageInput[]): ImageIndex {
+  const items: IndexedImage[] = entries.map((entry) => {
+    const name = typeof entry === 'string' ? entry : entry.name;
+    const verifiedDiet = typeof entry === 'string' ? null : entry.diet ?? null;
     const concepts = dishConcepts(name);
-    return { name, concepts, set: new Set(concepts), weight: 0, ...roles(concepts) };
+    const r = roles(concepts);
+    // A reviewed label overrides whatever the name implies, in both directions:
+    // it marks irani-bbq non-veg, and stops veg-biryani being read as non-veg
+    // because its description happens to say "meat-free".
+    const diets = verifiedDiet ? [verifiedDiet] : r.diets;
+    return { name, concepts, set: new Set(concepts), weight: 0, ...r, diets, verifiedDiet };
   });
 
   const docFreq = new Map<string, number>();
@@ -148,10 +178,12 @@ export function buildImageIndex(names: readonly string[]): ImageIndex {
   const idf = (c: string): number =>
     c.startsWith(UNKNOWN_PREFIX) ? UNKNOWN_WEIGHT : Math.log(n / (docFreq.get(c) ?? 0.5)) + 0.5;
 
+  const byName = new Map<string, IndexedImage>();
   for (const item of items) {
     item.weight = item.concepts.reduce((s, c) => s + idf(c), 0);
+    if (!byName.has(item.name)) byName.set(item.name, item);
   }
-  return { items, idf };
+  return { items, idf, byName };
 }
 
 // ── 5–6. Match ───────────────────────────────────────────────────────────────

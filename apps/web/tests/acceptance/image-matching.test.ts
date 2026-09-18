@@ -14,12 +14,14 @@ import {
   matchImage,
   dishConcepts,
   isNonVegImage,
+  imageDiet,
   type ImageIndex,
 } from '@/lib/menu/conceptMatcher';
 import library from '../fixtures/defaultImageLibrary.json';
+import libraryDiet from '../fixtures/defaultImageLibraryDiet.json';
 
 let index: ImageIndex;
-beforeAll(() => { index = buildImageIndex(library as string[]); });
+beforeAll(() => { index = buildImageIndex(libraryDiet as Array<{ name: string; diet: 'v' | 'nv' | 'egg' }>); });
 
 /** The image name a query resolves to, or null when the matcher abstains. */
 const img = (q: string): string | null => {
@@ -276,5 +278,54 @@ describe('AC10 — portion and modifier noise does not derail the match', () => 
     'chicken biryani - quarter/half/full',
   ])('“%s” resolves to the chicken biryani image', (q) => {
     expect(specific(q)).toBe('chicken-biryani-v5');
+  });
+});
+
+// ── AC12 — Diet is verified data, not a guess from the filename ─────────────
+// Until now the safety gate inferred "is this photo non-vegetarian?" from the
+// image NAME. Six library images defeat that (irani-bbq is chicken; its name
+// never says so), and the AC1 sweep could not catch them because it inferred
+// diet the same way the matcher did — a circular guarantee. These assertions
+// require an explicit, reviewed label per image.
+describe('AC12 — every image carries a verified diet label', () => {
+  it('every image in the library has an explicit label', () => {
+    const missing = (library as string[]).filter((n) => imageDiet(n, index) === null);
+    expect(missing).toEqual([]);
+  });
+
+  it.each([
+    '65-biryani', 'afghani-bbq', 'irani-bbq',
+    'chilli-garlic-pops', 'cheese-seekh-kebab', 'mixed-fried-rice',
+  ])('“%s” is labelled non-vegetarian despite its name', (n) => {
+    expect(imageDiet(n, index)).toBe('nv');
+  });
+
+  it.each([
+    'veg-biryani-v5', 'paneer-butter-masala-v5', 'veggie-finger',
+    'plain-biryani', 'parotta', 'chilli-paneer-dry-v5', 'veg-seekh-kebab',
+  ])('“%s” is not misread as non-vegetarian', (n) => {
+    expect(imageDiet(n, index)).not.toBe('nv');
+  });
+
+  it('a vegetarian query never reaches a name-opaque non-veg image', () => {
+    for (const q of ['bbq veg', 'bbq paneer', 'veg platter', 'veg biryani', 'paneer bbq']) {
+      const r = matchImage(q, index);
+      if (r.decision !== 'abstain' && r.image) {
+        expect(imageDiet(r.image, index), `${q} -> ${r.image}`).not.toBe('nv');
+      }
+    }
+  });
+
+  it('the whole library, as queries, respects verified diet', () => {
+    const offenders: string[] = [];
+    for (const name of library as string[]) {
+      if (imageDiet(name, index) !== 'v') continue;
+      const q = name.replace(/-v\d[ab]?$/, '').replace(/-/g, ' ');
+      const r = matchImage(q, index);
+      if (r.decision !== 'abstain' && r.image && imageDiet(r.image, index) === 'nv') {
+        offenders.push(`${q} -> ${r.image}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
