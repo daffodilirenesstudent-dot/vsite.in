@@ -1,0 +1,56 @@
+
+══ SAME ACCEPTANCE CRITERIA, BOTH MATCHERS (62 cases) ══
+
+criterion            OLD      NEW
+  AC1 safety         15/18    18/18
+  AC10 noise          1/3     3/3
+  AC2 dal fry         1/2     2/2
+  AC3 core            5/8     8/8
+  AC4 synonyms        7/11    11/11
+  AC5 partial         5/7     7/7
+  AC6 abstain         5/9     8/9
+  AC7 typo            3/4     4/4
+
+  TOTAL              42/62 (68%)   61/62 (98%)
+
+── cases the OLD matcher fails and the NEW one passes ──
+  [AC1 safety] "dal fry"
+        OLD -> fish-fry      NEW -> dal-fry-v5
+  [AC1 safety] "veg fried rice"
+        OLD -> chicken-rice      NEW -> veg-fried-rice-v5
+  [AC1 safety] "kadai veg"
+        OLD -> kadai-chicken      NEW -> kadai-veg-subzi
+  [AC2 dal fry] "dal fry"
+        OLD -> fish-fry      NEW -> dal-fry-v5
+  [AC3 core] "chicken biryani"
+        OLD -> biriyani      NEW -> chicken-biryani-v5
+  [AC3 core] "veg biryani"
+        OLD -> biriyani      NEW -> veg-biryani-v5
+  [AC3 core] "prawn fry"
+        OLD -> crab-fry      NEW -> prawn-fry
+  [AC4 synonyms] "phulka"
+        OLD -> plain-roti-v5      NEW -> roti-chapathi
+  [AC4 synonyms] "meen varuval"
+        OLD -> (none)      NEW -> fish-fry
+  [AC4 synonyms] "kozhi biryani"
+        OLD -> mutton-biriyani      NEW -> chicken-biryani-v5
+  [AC4 synonyms] "murgh biryani"
+        OLD -> mutton-biriyani      NEW -> chicken-biryani-v5
+  [AC5 partial] "mutton sukka"
+        OLD -> mutton-biriyani      NEW -> mutton-chukka
+  [AC5 partial] "mutton garlic"
+        OLD -> mutton-biriyani      NEW -> mutton-chukka
+  [AC6 abstain] "vellayappam"
+        OLD -> uthappam      NEW -> (abstain)
+  [AC6 abstain] "sirloin steak"
+        OLD -> burger      NEW -> (abstain)
+  [AC6 abstain] "meal 1"
+        OLD -> full-meals      NEW -> (abstain)
+  [AC7 typo] "chiken biriyani"
+        OLD -> biriyani      NEW -> chicken-biryani-v5
+  [AC10 noise] "special chicken biryani full"
+        OLD -> egg-biriyani      NEW -> chicken-biryani-v5
+  [AC10 noise] "chicken biryani (serves 2)"
+        OLD -> egg-biriyani      NEW -> chicken-biryani-v5
+
+── cases the NEW matcher fails and the OLD one passes (0) ──

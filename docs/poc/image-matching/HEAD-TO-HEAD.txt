@@ -1,0 +1,76 @@
+head-to-head on 400 distinct production item names
+
+════ RESULTS ════
+veg item shown NON-VEG image   OLD 1   NEW 0
+coverage                        OLD 362 (90.5%)   NEW 332 (83.0%)
+identical answer                162 (40.5%)
+
+latency  OLD 43116 ms total (107.8 ms/item, 8-way parallel, network)
+         NEW 134 ms total (0.335 ms/item, serial, no network)
+         speedup ~322x
+
+── DIET VIOLATIONS THE OLD MATCHER PRODUCES LIVE (1) ──
+  ! veg fried rice
+        OLD -> chicken-rice   NEW -> veg-fried-rice-v5
+
+── SAMPLE DISAGREEMENTS (174 total, first 20) ──
+  ~ bbq paneer
+        OLD -> grill-paneer
+        NEW -> irani-bbq
+  ~ biryani + 1kg chicken
+        OLD -> 65-biryani
+        NEW -> chicken-biryani-v5
+  ~ lemon juice
+        OLD -> lemon-juice
+        NEW -> fresh-lemon-juice
+  ~ lemon soda
+        OLD -> lemon-soda
+        NEW -> fresh-lemon-soda
+  ~ maryland crab soup
+        OLD -> crab-fry
+        NEW -> coriander-soup
+  ~ broccoli cheddar soup
+        OLD -> chicken-soup
+        NEW -> coriander-soup
+  ~ coffee with milk
+        OLD -> milk-tea
+        NEW -> badam-milk
+  ~ test tea
+        OLD -> elaichi-cardamom-tea
+        NEW -> black-tea
+  ~ butter chicken
+        OLD -> chicken-tikka
+        NEW -> butter-chicken-v5
+  ~ chicken lolly pop
+        OLD -> chicken-leg-lollipop
+        NEW -> chicken-lollipop-v5
+  ~ veg biryani
+        OLD -> biriyani
+        NEW -> veg-biryani-v5
+  ~ chicken biryani
+        OLD -> biriyani
+        NEW -> chicken-biryani-v5
+  ~ chicken
+        OLD -> chicken-noodles-2
+        NEW -> chicken-bharra
+  ~ paneer manchurian
+        OLD -> paneer-butter-masala
+        NEW -> dhaba-style-paneer
+  ~ paneer schezwan
+        OLD -> veg-schezwan-fried-rice
+        NEW -> dhaba-style-paneer
+  ~ chicken lollypop
+        OLD -> chicken-leg-lollipop
+        NEW -> chicken-lollipop-v5
+  ~ chocolate cake shake
+        OLD -> oreo-milkshake
+        NEW -> kitkat-milkshake
+  ~ chicken drumstick
+        OLD -> chicken-lollipop-garlic-sauce
+        NEW -> chicken-bharra
+  ~ veg fried rice
+        OLD -> chicken-rice
+        NEW -> veg-fried-rice-v5
+  ~ egg fried rice
+        OLD -> chicken-rice
+        NEW -> egg-fried-rice-v5
