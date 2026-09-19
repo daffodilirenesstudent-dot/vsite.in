@@ -2,6 +2,22 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-19 — Dependency: `pdfjs-dist` (PDF menu upload)
+status: APPROVED by owner 2026-09-19 (chose "pdf.js in browser" over OpenAI native PDF input)
+
+**Why:** owners asked to upload PDF menus (up to 15 pages). Mozilla pdf.js
+(Apache-2.0) renders each page to a JPEG **in the browser**, so every page then
+travels the existing hardened photo pipeline unchanged: per-page extraction and
+fallback ladder, "page N couldn't be read" disclosure, memory admission, magic-
+byte validation. The server never parses PDF bytes — no PDF-parser attack
+surface, no extra server RAM. Alternative rejected: OpenAI native PDF input
+(one call per PDF, no per-page isolation or retry, no reliable server-side page
+count without a PDF library anyway, higher token cost).
+
+**Footprint:** loaded with a dynamic `import()` only when an owner picks a PDF
+on the onboarding page; never in the server bundle or any other page. Pinned
+exactly. Legacy build for older Android WebViews.
+
 ### 2026-09-10 — Feature: menu design themes (3, not 6)
 status: IN REVIEW — public menu + owner controls built, not yet committed
 
