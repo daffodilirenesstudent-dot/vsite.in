@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-pdf-worker.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -21,6 +23,7 @@
     "next": "14.2.35",
     "ogl": "^1.0.11",
     "openai": "^6.16.0",
+    "pdfjs-dist": "6.3.289",
     "qr-code-styling": "^1.9.2",
     "qrcode.react": "^4.2.0",
     "razorpay": "^2.9.6",

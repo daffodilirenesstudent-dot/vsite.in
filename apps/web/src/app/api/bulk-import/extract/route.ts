@@ -10,6 +10,9 @@ import { validateImageFile } from '@/lib/platform/fileValidation';
 import { rateLimit } from '@/lib/platform/rateLimit';
 import { extractMenuItemsFromImages, extractMenuItems } from '@/lib/menu/menuExtractor';
 import { imageToMenuText } from '@/lib/menu/sarvamVision';
+import { boundBody } from '@/lib/platform/boundedBody';
+import { admitUpload } from '@/lib/platform/uploadAdmission';
+import { aiSpendAllowed } from '@/lib/menu/aiSpendGuard';
 
 import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
@@ -29,16 +32,21 @@ const EXTRACT_LIMIT_PER_HR = 20;
  */
 const MAX_BODY_BYTES = MAX_PHOTOS * 2 * 1024 * 1024;
 
-export async function POST(request: NextRequest) {
+export async function POST(incoming: NextRequest) {
   const t0 = Date.now();
+  let releaseAdmission: (() => void) | null = null;
   try {
     // Auth
-    const auth = request.headers.get('Authorization');
+    const auth = incoming.headers.get('Authorization');
     if (!auth?.startsWith('Bearer '))
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const userId = await verifyFirebaseToken(auth.replace('Bearer ', ''));
     if (!userId)
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+
+    // Same daily AI budget as onboarding: one ceiling for all extraction spend.
+    if (!aiSpendAllowed())
+      return NextResponse.json({ error: 'Menu scanning is paused for today. You can add items by hand.', code: 'AI_PAUSED' }, { status: 503 });
 
     // Rate limit
     const rl = rateLimit(`bulk-extract:${userId}`, { limit: EXTRACT_LIMIT_PER_HR, windowMs: 60 * 60_000 });
@@ -54,12 +62,31 @@ export async function POST(request: NextRequest) {
       { error: 'Those photos are too large. Please retry — the app will compress them.', code: 'PAYLOAD_TOO_LARGE' },
       { status: 413 },
     );
-    if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return tooLarge;
+    const declaredLength = Number(incoming.headers.get('content-length') ?? 0);
+    if (declaredLength > MAX_BODY_BYTES) return tooLarge;
 
-    // Parse form
+    // Shares the onboarding memory budget: same process, same 512MB. Admitted
+    // before the body is read, so a refused request costs nothing.
+    const admission = await admitUpload({
+      userId, bytes: declaredLength > 0 ? declaredLength : MAX_BODY_BYTES, maxWaitMs: 10_000,
+    });
+    if (!admission.ok) {
+      return NextResponse.json(
+        { error: 'The scanner is busy. Please try again in a moment.', code: admission.reason === 'user-busy' ? 'SCAN_IN_PROGRESS' : 'BUSY' },
+        { status: admission.reason === 'user-busy' ? 409 : 503, headers: { 'Retry-After': String(admission.retryAfterSec) } },
+      );
+    }
+    releaseAdmission = admission.ticket.release;
+
+    // Parse form, bounded while it streams (a chunked body declares no length).
+    const bounded = boundBody(incoming, MAX_BODY_BYTES);
+    const request = bounded.request;
     let formData: FormData;
     try { formData = await request.formData(); }
-    catch { return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 }); }
+    catch {
+      if (bounded.exceeded()) return tooLarge;
+      return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+    }
 
     // Chunked uploads declare no Content-Length; re-check what actually arrived
     // before spending anything on it.
@@ -132,5 +159,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('[bulk-import/extract] unexpected error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    releaseAdmission?.();
   }
 }

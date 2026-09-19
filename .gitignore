@@ -51,3 +51,6 @@ delete/
 *.log
 .vercel
 .firebaserc
+
+# pdf.js worker, copied from node_modules at build (scripts/copy-pdf-worker.mjs)
+apps/web/public/pdfjs/

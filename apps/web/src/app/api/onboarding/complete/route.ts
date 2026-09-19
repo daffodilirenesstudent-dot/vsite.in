@@ -22,7 +22,7 @@ import {
   isMenuThemeId, isHexColor, DEFAULT_MENU_THEME, MENU_THEMES,
 } from '@/lib/menu/menuThemes';
 import { audit } from '@/lib/platform/auditLog';
-import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
+import { checkStoreEligibility } from '@/lib/platform/storeEligibility';
 
 import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
@@ -38,8 +38,6 @@ const MAX_VARIANTS = 10;
 // a 400 that discards the WHOLE menu — one over-cap catering tray losing the
 // other 200 items the owner just photographed.
 const MAX_ITEM_PRICE_INR = 100_000;
-const TRIAL_STORE_LIMIT = 2;
-const PAID_STORE_LIMIT  = 5;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -309,48 +307,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Existing-store + trial-limit check
-    const { data: existingSites, error: existingSitesError } = await supabaseServer
-      .from('sites')
-      .select('id, created_at, site_subscriptions(store_expires_at)')
-      .eq('user_id', userId);
-
-    // Fail CLOSED. The error was previously discarded, so a failed query left
-    // `existingSites` null, `totalSites` computed as 0, and both the 5-store
-    // and 2-trial-store caps were skipped — a DB blip (or anything that could
-    // induce one) granted unlimited stores. Refusing to create a store during
-    // an outage is recoverable; silently lifting the limit is not.
-    if (existingSitesError) {
-      console.error('[onboarding/complete] could not read existing sites:', existingSitesError);
-      return NextResponse.json(
-        { error: 'Could not verify your existing stores. Please try again in a moment.' },
-        { status: 503 },
-      );
-    }
-
-    const nowMs = Date.now();
-    const totalSites = existingSites?.length ?? 0;
-    const trialSites = (existingSites ?? []).filter(s => {
-      const rawSub = (s as unknown as { site_subscriptions: unknown }).site_subscriptions;
-      const sub = (Array.isArray(rawSub) ? rawSub[0] : rawSub) as
-        | { store_expires_at: string | null } | null | undefined;
-      const paidExpiry = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
-      if (paidExpiry > nowMs) return false;
-      const trialEnd = new Date(s.created_at).getTime() + TRIAL_DURATION_MS;
-      return trialEnd > nowMs;
-    }).length;
-
-    if (totalSites >= PAID_STORE_LIMIT) {
-      return NextResponse.json(
-        { error: `You have reached the maximum of ${PAID_STORE_LIMIT} stores on your account.`, code: 'PLAN_LIMIT' },
-        { status: 403 }
-      );
-    }
-    if (trialSites >= TRIAL_STORE_LIMIT) {
-      return NextResponse.json(
-        { error: `Free trial allows up to ${TRIAL_STORE_LIMIT} stores at once. Activate a plan on an existing store to create more.`, code: 'TRIAL_LIMIT' },
-        { status: 403 }
-      );
+    // Existing-store + trial-limit check (shared with /extract, which asks
+    // first so an ineligible user never pays for a scan).
+    const eligibility = await checkStoreEligibility(userId);
+    if (!eligibility.ok) {
+      const body = eligibility.code === 'ELIGIBILITY_UNAVAILABLE'
+        ? { error: eligibility.error }
+        : { error: eligibility.error, code: eligibility.code };
+      return NextResponse.json(body, { status: eligibility.status });
     }
 
     // Parse + validate body

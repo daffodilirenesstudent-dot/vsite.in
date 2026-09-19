@@ -1,32 +1,92 @@
-// src/lib/menuExtractor.ts
+// src/lib/menu/menuExtractor.ts
 //
-// Two-pass pipeline for high accuracy on large menus (200–300+ items) within
-// Vercel Hobby's 60s function ceiling.
+// Menu photos → structured items, built to survive a burst of onboardings on a
+// single small instance without losing items silently.
 //
-//   Pass 1 — EXTRACT (images → GPT-4o, COMPACT JSON output, 3 imgs/batch parallel)
-//     Images are chunked into batches of 3 with detail:'high' for maximum OCR
-//     accuracy on dense menu pages. All batches run in parallel (~6-8s total).
-//     Output is a tuple-array — ["name", price, "category", typeChar, foodChar, [["sz",p]]]
+//   Pass 1 — EXTRACT, one call per photo (gpt-4o, detail:'high', compact tuples)
+//     Each page is its own call, so a failure costs one page, not three, and
+//     `max_tokens` can be sized to one page (2,500) instead of reserving 16,000
+//     against the per-minute limit for ~3,000 actually used.
+//
+//     Per-page fallback ladder:
+//       429 / 5xx / timeout → retry once on the same model (after retry-after)
+//                           → gpt-4o-mini, a separate rate-limit pool
+//       finish_reason "length" → one retry at 5,000 tokens
+//                              → salvage every complete tuple from the cut JSON
+//       anything else → the page is reported in `failedPages`; the rest survive
 //
 //   Pass 2 — DESCRIBE (gpt-4o-mini, parallel batches of 50)
-//     Writes South Indian style descriptions per item. Uses gpt-4o-mini for
-//     ~10x cost savings vs gpt-4o. Runs concurrently so wall time ≈ 6-8s.
+//     Writes South Indian style descriptions per item. Keyword-library fallback
+//     when a batch fails.
+//
+//   A scan has an output-token budget (45k): every page's first attempt fits,
+//   and the long retries draw on what is left. Without it, an upload of dense
+//   pages that all claim truncation could force a long retry on every page.
+//
+//   Every call goes through the process-wide token scheduler
+//   (`openaiScheduler.ts`) and records its cost (`aiSpendGuard.ts`). The client
+//   has an explicit timeout and no hidden SDK retries: retries are decided
+//   here, where their cost is visible.
 //
 //   Post-processing (deterministic, no LLM):
-//     • Dedup by (normalized_name, price)
+//     • Dedup by (normalized_name, price), keeping same-name items that sit in
+//       different non-empty sections
 //     • Price sanity check (clamp impossibly large hallucinations)
 //     • Description fallback: keyword match if Pass 2 returned empty
-//
-// Fallback: aggregated OCR text path used only if Pass 1 image call returns 0 items.
 
 import OpenAI from 'openai';
 import { matchByKeyword } from '@/lib/menu/defaultImages';
+import { rateScheduler, SchedulerError } from '@/lib/menu/openaiScheduler';
+import { recordAiUsage } from '@/lib/menu/aiSpendGuard';
 
 import { logger } from '@/lib/platform/logger';
+
+// ── Constants — env-overridable ──────────────────────────────────────────────
+
+// INR. Was 10,000, which is a normal price for a catering tray, a party
+// platter or a whole-goat biryani — and anything above it was rewritten to 0
+// and published to a live public menu as a free item. The ceiling now marks
+// genuinely impossible input (an OCR misread of a phone number, say) rather
+// than an expensive real dish; SUSPICIOUS_PRICE still logs the grey zone.
+const MAX_PRICE = 100_000;
+const SUSPICIOUS_PRICE = 3_000;    // log a warning above this
+const MAX_VARIANTS = 10;
+const DESCRIBE_BATCH_SIZE = 50;
+/** One dense page is ~100 tuples × ~22 tokens. Bigger pages take the retry. */
+const PAGE_MAX_TOKENS = 2_500;
+const PAGE_RETRY_MAX_TOKENS = 5_000;   // ~225 tuples: beyond any real page
+/** Output tokens one scan may request across Pass 1: 15 pages × 2,500 + spare for retries. */
+const SCAN_OUTPUT_BUDGET = 45_000;
+/** Below this, a call cannot hold even a sparse page. */
+const MIN_PAGE_TOKENS = 500;
+const TEXT_MAX_TOKENS = 16_000;    // OCR-text path: a whole menu in one call
+const PASS2_MAX_TOKENS = 8_000;
+const OPENAI_TIMEOUT_MS = 45_000;
+const DEFAULT_DEADLINE_MS = 50_000;
+
+// Token estimates used to reserve rate-limit budget BEFORE a call. Deliberately
+// on the high side: under-reserving is what produces 429s.
+const EXTRACT_PROMPT_TOKENS = 450;
+const DESCRIBE_PROMPT_TOKENS = 1_150;
+/** Per image at detail:'high', 6 tiles. gpt-4o-mini bills images at ~33× the tokens. */
+const IMAGE_TOKENS: Record<string, number> = { 'gpt-4o': 1_105, 'gpt-4o-mini': 36_835 };
+
+const PRIMARY_MODEL = 'gpt-4o';
+const FALLBACK_MODEL = 'gpt-4o-mini';
+
 // ── Module-level singleton — reuses HTTPS connection across calls ────────────
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
-  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      // The SDK default is a 10-minute timeout and two silent retries. Under
+      // load those retries fired into the same exhausted rate limit and their
+      // cost was invisible here. Retries are decided by the ladder below.
+      timeout: OPENAI_TIMEOUT_MS,
+      maxRetries: 0,
+    });
+  }
   return _openai;
 }
 
@@ -47,20 +107,39 @@ export interface MenuItem {
   variants?: MenuItemVariant[];
 }
 
-// ── Constants — env-overridable ──────────────────────────────────────────────
+export interface PageReport {
+  /** 0-based position in the images passed in. */
+  index: number;
+  status: 'ok' | 'failed';
+  items: number;
+  /** Model that produced the result, e.g. "gpt-4o" or "gpt-4o-mini". */
+  via?: string;
+  /** Why a page failed: rate_limited | server_error | busy | circuit_open | rejected | truncated. */
+  reason?: string;
+}
 
-// INR. Was 10,000, which is a normal price for a catering tray, a party
-// platter or a whole-goat biryani — and anything above it was rewritten to 0
-// and published to a live public menu as a free item. The ceiling now marks
-// genuinely impossible input (an OCR misread of a phone number, say) rather
-// than an expensive real dish; SUSPICIOUS_PRICE still logs the grey zone.
-const MAX_PRICE = 100_000;
-const SUSPICIOUS_PRICE = 3_000;    // log a warning above this
-const MAX_VARIANTS = 10;
-const DESCRIBE_BATCH_SIZE = 50;
-const PASS1_BATCH_SIZE = 3;           // images per extraction call — sweet spot for accuracy vs cost
-const PASS1_MAX_TOKENS = 16_000;
-const PASS2_MAX_TOKENS = 8_000;
+export interface ExtractionReport {
+  items: MenuItem[];
+  pages: PageReport[];
+  /** 0-based indexes of pages whose items could not be read. */
+  failedPages: number[];
+}
+
+export interface ExtractOptions {
+  signal?: AbortSignal;
+  /** Epoch ms; queued calls not started by then are abandoned. Default: now + 50s. */
+  deadline?: number;
+  /** Account the spend is charged to, for the per-user daily cap. */
+  spendKey?: string;
+  /** Capacity promised to this scan at admission; drawn down as pages start. */
+  claim?: CapacityClaim;
+}
+
+/** Tokens promised to admitted scans whose pages have not yet reached the scheduler. */
+export interface CapacityClaim {
+  consume(tokens: number): void;
+  release(): void;
+}
 
 // ── Pass 1 prompt: COMPACT tuple output ──────────────────────────────────────
 
@@ -178,7 +257,7 @@ function normalizeName(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFKC')
-    .replace(/[\s -/:-@[-`{-~]+/g, '');
+    .replace(/[\s\x00-/:-@[-`{-~]+/g, '');
 }
 
 function clampPrice(raw: unknown): number {
@@ -272,19 +351,62 @@ function tupleToItem(t: unknown): Omit<MenuItem, 'description'> | null {
   return null;
 }
 
-function parseRawTuples(raw: string): Array<Omit<MenuItem, 'description'>> {
-  let parsed: Record<string, unknown> = {};
-  try { parsed = JSON.parse(raw) as Record<string, unknown>; }
-  catch (err) {
-    console.error('[menuExtractor] JSON parse failed (likely truncated):', err);
+/**
+ * Recover every complete element of the first array nested in an object from
+ * JSON that was cut off mid-stream (`finish_reason: "length"`).
+ *
+ * `{"items":[["A",..],["B",..],["C",3` → [["A",..],["B",..]]. Tracks depth
+ * outside strings; an element of the items array ends when depth returns to 2.
+ */
+function salvageItemsArray(raw: string): unknown[] {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let arrayStart = -1;
+  let lastComplete = -1;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{' || ch === '[') {
+      depth++;
+      if (depth === 2 && ch === '[' && arrayStart < 0) arrayStart = i;
+    } else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 2 && arrayStart >= 0) lastComplete = i + 1;
+      if (depth < 2 && arrayStart >= 0) break;
+    }
+  }
+  if (arrayStart < 0 || lastComplete < 0) return [];
+  try {
+    const arr = JSON.parse(`${raw.slice(arrayStart, lastComplete)}]`) as unknown;
+    return Array.isArray(arr) ? arr : [];
+  } catch {
     return [];
   }
+}
 
+function parseRawTuples(raw: string): Array<Omit<MenuItem, 'description'>> {
   let items: unknown[] = [];
-  if (Array.isArray(parsed.items)) items = parsed.items;
-  else {
-    const key = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
-    if (key) items = parsed[key] as unknown[];
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (Array.isArray(parsed.items)) items = parsed.items;
+    else {
+      const key = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+      if (key) items = parsed[key] as unknown[];
+    }
+  } catch {
+    items = salvageItemsArray(raw);
+    if (items.length > 0) {
+      logger.warn(`[menuExtractor] salvaged ${items.length} items from truncated JSON`);
+    } else {
+      console.error('[menuExtractor] JSON parse failed and nothing could be salvaged');
+    }
   }
 
   return items.map(tupleToItem).filter((i): i is Omit<MenuItem, 'description'> => i !== null);
@@ -292,20 +414,194 @@ function parseRawTuples(raw: string): Array<Omit<MenuItem, 'description'>> {
 
 // ── Deterministic dedup: same item appearing on multiple pages ───────────────
 
-function dedupItems<T extends { name: string; price: number }>(items: T[]): T[] {
-  const seen = new Map<string, T>();
+/**
+ * Same name and price is the same dish — unless both copies carry a section
+ * and the sections differ. South Indian menus name items relative to their
+ * section ("Plain ₹60" under Dosa and again under Uthappam), and the previous
+ * name|price key dropped one of them. A copy with no section (a cover page, a
+ * specials board) still merges into the sectioned one.
+ */
+function dedupItems<T extends { name: string; price: number; category?: string }>(items: T[]): T[] {
+  const byKey = new Map<string, T[]>();
+  const out: T[] = [];
+  const section = (c: string | undefined) => normalizeName(c ?? '');
   for (const item of items) {
     const key = `${normalizeName(item.name)}|${item.price}`;
-    if (!seen.has(key)) seen.set(key, item);
+    const seen = byKey.get(key) ?? [];
+    const cat = section(item.category);
+    const dup = seen.find(o => !section(o.category) || !cat || section(o.category) === cat);
+    if (dup) {
+      if (!section(dup.category) && cat) dup.category = item.category;
+      continue;
+    }
+    seen.push(item);
+    byKey.set(key, seen);
+    out.push(item);
   }
-  return Array.from(seen.values());
+  return out;
+}
+
+// ── One scheduled, metered model call ────────────────────────────────────────
+
+type ChatParams = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming, 'model'>;
+
+interface CallResult {
+  content: string;
+  finish: string | null;
+}
+
+interface CallContext {
+  deadline: number;
+  signal?: AbortSignal;
+  spendKey?: string;
+  claim?: CapacityClaim;
+  /** Pass 1 output tokens this scan may still request. Shared by all its pages. */
+  output: { remaining: number };
+}
+
+function httpStatus(err: unknown): number | undefined {
+  const s = (err as { status?: unknown } | null)?.status;
+  return typeof s === 'number' ? s : undefined;
+}
+
+function errorHeaders(err: unknown): Headers | Record<string, string> | undefined {
+  return (err as { headers?: Headers | Record<string, string> } | null)?.headers;
+}
+
+/**
+ * Worth one more try: 5xx, 408/409, and failures with no HTTP status at all
+ * (timeouts, dropped connections). A 4xx with a status is the request's fault
+ * and will not improve on retry.
+ */
+function isTransient(err: unknown): boolean {
+  if (err instanceof SchedulerError) return false;
+  const status = httpStatus(err);
+  if (status === undefined) return true;
+  return status >= 500 || status === 408 || status === 409;
+}
+
+async function callModel(model: string, params: ChatParams, reserveTokens: number, ctx: CallContext): Promise<CallResult> {
+  const scheduler = rateScheduler();
+  const lease = await scheduler.acquire(model, reserveTokens, { deadline: ctx.deadline, signal: ctx.signal });
+  // Now counted by the scheduler itself; stop counting it as promised.
+  if (model === PRIMARY_MODEL) ctx.claim?.consume(reserveTokens);
+  try {
+    const request = getOpenAI().chat.completions.create({ ...params, model }, { signal: ctx.signal });
+    let completion: OpenAI.Chat.Completions.ChatCompletion;
+    if (typeof (request as { withResponse?: unknown }).withResponse === 'function') {
+      const { data, response } = await request.withResponse();
+      completion = data;
+      scheduler.learn(model, response.headers);
+    } else {
+      completion = await request;
+    }
+    lease.ok();
+    recordAiUsage(model, completion.usage, ctx.spendKey);
+    const choice = completion.choices?.[0];
+    return { content: choice?.message?.content ?? '{}', finish: choice?.finish_reason ?? null };
+  } catch (err) {
+    if (httpStatus(err) === 429) scheduler.rateLimited(model, errorHeaders(err));
+    else if (isTransient(err)) lease.fail();
+    throw err;
+  }
+}
+
+function extractReserve(model: string, maxTokens: number): number {
+  return EXTRACT_PROMPT_TOKENS + (IMAGE_TOKENS[model] ?? IMAGE_TOKENS[PRIMARY_MODEL]) + maxTokens;
+}
+
+// ── Pass 1: one page, with the fallback ladder ───────────────────────────────
+
+interface PageResult {
+  items: Array<Omit<MenuItem, 'description'>>;
+  report: PageReport;
+}
+
+async function extractPage(
+  image: { buffer: Buffer; mime: string },
+  index: number,
+  ctx: CallContext,
+): Promise<PageResult> {
+  const messages: ChatParams['messages'] = [
+    { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:${image.mime};base64,${image.buffer.toString('base64')}`, detail: 'high' } },
+        { type: 'text', text: 'Extract every menu item from this image. Use the compact tuple format.' },
+      ],
+    },
+  ];
+
+  let model = PRIMARY_MODEL;
+  let maxTokens = PAGE_MAX_TOKENS;
+  let retriedSameModel = false;
+  let triedFallback = false;
+  let triedLonger = false;
+  let salvaged: Array<Omit<MenuItem, 'description'>> = [];
+
+  const ok = (items: Array<Omit<MenuItem, 'description'>>): PageResult =>
+    ({ items, report: { index, status: 'ok', items: items.length, via: model } });
+  const failed = (reason: string): PageResult =>
+    ({ items: [], report: { index, status: 'failed', items: 0, via: model, reason } });
+
+  // Bounded: at most two calls per model plus one longer retry.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    // Draw this call's output allowance from the scan's shared budget.
+    const allowance = Math.min(maxTokens, ctx.output.remaining);
+    if (allowance < MIN_PAGE_TOKENS) return salvaged.length > 0 ? ok(salvaged) : failed('budget');
+    ctx.output.remaining -= allowance;
+    try {
+      const res = await callModel(
+        model,
+        { messages, response_format: { type: 'json_object' }, max_tokens: allowance },
+        extractReserve(model, allowance),
+        ctx,
+      );
+      const items = parseRawTuples(res.content);
+      if (res.finish !== 'length') return ok(items);
+
+      if (items.length > salvaged.length) salvaged = items;
+      if (!triedLonger) {
+        triedLonger = true;
+        maxTokens = PAGE_RETRY_MAX_TOKENS;
+        continue;
+      }
+      return salvaged.length > 0 ? ok(salvaged) : failed('truncated');
+    } catch (err) {
+      // No completion came back, so nothing was generated: give the allowance
+      // back, or a burst of 429s would starve the scan's later pages.
+      ctx.output.remaining += allowance;
+      if (err instanceof SchedulerError) {
+        if (err.code === 'CIRCUIT_OPEN' && !triedFallback) {
+          triedFallback = true;
+          model = FALLBACK_MODEL;
+          retriedSameModel = false;
+          continue;
+        }
+        return failed(err.code === 'SCHEDULER_TIMEOUT' ? 'busy' : err.code.toLowerCase());
+      }
+      const status = httpStatus(err);
+      const retryable = status === 429 || isTransient(err);
+      if (!retryable || ctx.signal?.aborted) return failed('rejected');
+      if (!retriedSameModel) { retriedSameModel = true; continue; }
+      if (!triedFallback) {
+        triedFallback = true;
+        model = FALLBACK_MODEL;
+        retriedSameModel = false;
+        continue;
+      }
+      return failed(status === 429 ? 'rate_limited' : 'server_error');
+    }
+  }
+  return salvaged.length > 0 ? ok(salvaged) : failed('exhausted');
 }
 
 // ── Pass 2: parallel batched description generation ─────────────────────────
 
 async function generateDescriptions(
-  openai: OpenAI,
-  items: Array<Omit<MenuItem, 'description'>>
+  items: Array<Omit<MenuItem, 'description'>>,
+  ctx: CallContext,
 ): Promise<string[]> {
   const descriptions = new Array<string>(items.length).fill('');
   const batches = chunk(items.map((item, idx) => ({ item, idx })), DESCRIBE_BATCH_SIZE);
@@ -317,20 +613,24 @@ async function generateDescriptions(
       food_type: item.food_type,
       variants: item.variants ?? [],
     }));
+    const userText = `Write descriptions for these ${payload.length} items:\n\n${JSON.stringify(payload)}`;
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: DESCRIBE_SYSTEM_PROMPT },
-          { role: 'user', content: `Write descriptions for these ${payload.length} items:\n\n${JSON.stringify(payload)}` },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: PASS2_MAX_TOKENS,
-      });
+      const res = await callModel(
+        FALLBACK_MODEL,
+        {
+          messages: [
+            { role: 'system', content: DESCRIBE_SYSTEM_PROMPT },
+            { role: 'user', content: userText },
+          ],
+          response_format: { type: 'json_object' },
+          max_tokens: PASS2_MAX_TOKENS,
+        },
+        DESCRIBE_PROMPT_TOKENS + Math.ceil(userText.length / 4) + PASS2_MAX_TOKENS,
+        ctx,
+      );
 
-      const raw = completion.choices[0]?.message?.content ?? '{}';
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const parsed = JSON.parse(res.content) as Record<string, unknown>;
       const descs = Array.isArray(parsed.descriptions)
         ? (parsed.descriptions as unknown[]).map(d => String(d ?? '').trim())
         : [];
@@ -355,71 +655,84 @@ async function generateDescriptions(
   return descriptions;
 }
 
+function contextFrom(opts: ExtractOptions): CallContext {
+  return {
+    deadline: opts.deadline ?? Date.now() + DEFAULT_DEADLINE_MS,
+    signal: opts.signal,
+    spendKey: opts.spendKey,
+    claim: opts.claim,
+    output: { remaining: SCAN_OUTPUT_BUDGET },
+  };
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
-/**
- * Pass 1+2: images → batched extraction (3 imgs/call, parallel) → dedup → descriptions.
- *
- * Batching in groups of 3 with detail:'high' gives much better accuracy on dense
- * menu pages vs sending all 15 images in a single call with detail:'auto'.
- * Parallel execution keeps wall-clock time similar (~6-8s for 15 photos).
- * Net cost is lower because Pass 2 now uses gpt-4o-mini.
- */
-export async function extractMenuItemsFromImages(
-  images: Array<{ buffer: Buffer; mime: string }>
-): Promise<MenuItem[]> {
-  if (images.length === 0) return [];
+let promisedTokens = 0;
 
-  const openai = getOpenAI();
+/**
+ * Promise capacity to a scan the moment it is admitted.
+ *
+ * Between admission and its pages reaching the scheduler, a scan reads its
+ * body and validates photos — long enough for a crowd arriving together to
+ * all see an idle budget and all be admitted, then time out in the queue.
+ * Claimed tokens count against the next admission decision until the pages
+ * take them over (`consume`) or the scan ends (`release`).
+ */
+export function claimExtractionCapacity(pages: number): CapacityClaim {
+  let left = pages * extractReserve(PRIMARY_MODEL, PAGE_MAX_TOKENS);
+  promisedTokens += left;
+  return {
+    consume(tokens) {
+      const d = Math.min(left, tokens);
+      left -= d;
+      promisedTokens -= d;
+    },
+    release() {
+      promisedTokens -= left;
+      left = 0;
+    },
+  };
+}
+
+/**
+ * How long a scan of `pages` photos would wait for rate-limit budget if it
+ * started now, behind everything reserved, queued and promised. Zero when the
+ * model lane is idle: a scan bigger than a whole window is still admitted then
+ * (its late pages are reported, not hidden), because refusing it would refuse
+ * it forever.
+ */
+export function extractionQueueWaitMs(pages: number): number {
+  const scheduler = rateScheduler();
+  const st = scheduler.stats(PRIMARY_MODEL);
+  if (st.reservedTokens === 0 && st.queuedTokens === 0 && promisedTokens === 0) return 0;
+  return scheduler.projectedWaitMs(PRIMARY_MODEL, pages * extractReserve(PRIMARY_MODEL, PAGE_MAX_TOKENS) + promisedTokens);
+}
+
+/**
+ * Pass 1+2 with a per-page report: images → one scheduled call per page
+ * (fallback ladder) → dedup → descriptions.
+ *
+ * Pages run concurrently; the scheduler, not this function, decides how many
+ * are in flight, so a burst of users queues instead of tripping the rate limit.
+ */
+export async function extractMenuPages(
+  images: Array<{ buffer: Buffer; mime: string }>,
+  opts: ExtractOptions = {},
+): Promise<ExtractionReport> {
+  if (images.length === 0) return { items: [], pages: [], failedPages: [] };
+  const ctx = contextFrom(opts);
   const t0 = Date.now();
 
-  // Pass 1 — parallel batched GPT-4o calls (3 images per batch)
-  const imageBatches = chunk(images, PASS1_BATCH_SIZE);
-  const batchResults = await Promise.allSettled(
-    imageBatches.map(async (batch, batchIdx) => {
-      const imageContent = batch.map(({ buffer, mime }) => ({
-        type: 'image_url' as const,
-        image_url: {
-          url: `data:${mime};base64,${buffer.toString('base64')}`,
-          detail: 'high' as const,
-        },
-      }));
+  const results = await Promise.all(images.map((img, i) => extractPage(img, i, ctx)));
+  const pages = results.map(r => r.report);
+  const failedPages = pages.filter(p => p.status === 'failed').map(p => p.index);
+  const rawTuples = results.flatMap(r => r.items);
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: [
-              ...imageContent,
-              { type: 'text', text: 'Extract every menu item from these images. Use the compact tuple format.' },
-            ],
-          },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: PASS1_MAX_TOKENS,
-      });
-
-      const items = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
-      logger.debug(`[menuExtractor] Pass 1 batch ${batchIdx + 1}/${imageBatches.length}: ${items.length} items`);
-      return items;
-    })
-  );
-
-  // Merge results from all batches — skip failed batches gracefully
-  const rawTuples: Array<Omit<MenuItem, 'description'>> = [];
-  for (const result of batchResults) {
-    if (result.status === 'fulfilled') {
-      rawTuples.push(...result.value);
-    } else {
-      console.error('[menuExtractor] Pass 1 batch failed:', result.reason);
-    }
+  logger.debug(`[menuExtractor] Pass 1: ${rawTuples.length} items from ${images.length} pages (${failedPages.length} failed) in ${Date.now() - t0}ms`);
+  if (failedPages.length > 0) {
+    logger.warn(`[menuExtractor] ${failedPages.length}/${images.length} pages failed: ${pages.filter(p => p.status === 'failed').map(p => p.reason).join(',')}`);
   }
-
-  logger.debug(`[menuExtractor] Pass 1 total: ${rawTuples.length} items from ${imageBatches.length} batches in ${Date.now() - t0}ms`);
-
-  if (rawTuples.length === 0) return [];
+  if (rawTuples.length === 0) return { items: [], pages, failedPages };
 
   // Dedup before Pass 2 (don't waste tokens describing the same item twice)
   const deduped = dedupItems(rawTuples);
@@ -427,36 +740,50 @@ export async function extractMenuItemsFromImages(
     logger.debug(`[menuExtractor] dedup: ${rawTuples.length} → ${deduped.length}`);
   }
 
-  // Pass 2 — descriptions (gpt-4o-mini, parallel batches of 50)
   const t1 = Date.now();
-  const descriptions = await generateDescriptions(openai, deduped);
+  const descriptions = await generateDescriptions(deduped, ctx);
   logger.debug(`[menuExtractor] Pass 2 (descriptions): ${descriptions.filter(Boolean).length}/${deduped.length} in ${Date.now() - t1}ms`);
 
-  return deduped.map((item, idx) => ({ ...item, description: descriptions[idx] }));
+  return {
+    items: deduped.map((item, idx) => ({ ...item, description: descriptions[idx] })),
+    pages,
+    failedPages,
+  };
+}
+
+/** Items only — for callers that do not report per-page outcomes (bulk import). */
+export async function extractMenuItemsFromImages(
+  images: Array<{ buffer: Buffer; mime: string }>,
+  opts: ExtractOptions = {},
+): Promise<MenuItem[]> {
+  return (await extractMenuPages(images, opts)).items;
 }
 
 /**
- * OCR text fallback path. Same structure as image path — used when Pass 1
- * image call returns 0 items (model couldn't read images).
+ * OCR text fallback path. Same structure as the image path — used by bulk
+ * import when the image path returns 0 items.
  */
-export async function extractMenuItems(ocrText: string): Promise<MenuItem[]> {
+export async function extractMenuItems(ocrText: string, opts: ExtractOptions = {}): Promise<MenuItem[]> {
   if (!ocrText.trim()) return [];
-
-  const openai = getOpenAI();
+  const ctx = contextFrom(opts);
+  const userText = `Menu OCR text:\n\n${ocrText}`;
 
   let rawTuples: Array<Omit<MenuItem, 'description'>> = [];
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
-        { role: 'user', content: `Menu OCR text:\n\n${ocrText}` },
-      ],
-      response_format: { type: 'json_object' },
-      max_tokens: PASS1_MAX_TOKENS,
-    });
-
-    rawTuples = parseRawTuples(completion.choices[0]?.message?.content ?? '{}');
+    const res = await callModel(
+      PRIMARY_MODEL,
+      {
+        messages: [
+          { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+          { role: 'user', content: userText },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: TEXT_MAX_TOKENS,
+      },
+      EXTRACT_PROMPT_TOKENS + Math.ceil(userText.length / 4) + TEXT_MAX_TOKENS,
+      ctx,
+    );
+    rawTuples = parseRawTuples(res.content);
     logger.debug(`[menuExtractor] Pass 1 (OCR): ${rawTuples.length} items`);
   } catch (err) {
     console.error('[menuExtractor] Pass 1 (OCR extraction) failed:', err);
@@ -466,6 +793,6 @@ export async function extractMenuItems(ocrText: string): Promise<MenuItem[]> {
   if (rawTuples.length === 0) return [];
 
   const deduped = dedupItems(rawTuples);
-  const descriptions = await generateDescriptions(openai, deduped);
+  const descriptions = await generateDescriptions(deduped, ctx);
   return deduped.map((item, idx) => ({ ...item, description: descriptions[idx] }));
 }

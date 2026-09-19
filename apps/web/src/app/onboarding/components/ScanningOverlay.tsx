@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { ScanMessage } from '../scanMessages';
 
 /**
  * ScanningOverlay — the menu-scan wait.
@@ -32,6 +33,20 @@ interface ScanningOverlayProps {
   itemCount: number | null;
   /** Fired after the "N dishes" count-up finishes. */
   onCountUpDone: () => void;
+  /**
+   * Something the owner should know, in both languages: "you're in the queue"
+   * while waiting, or "photo 4 couldn't be read" once the count lands.
+   */
+  notice?: ScanMessage | null;
+}
+
+function Notice({ message }: { message: ScanMessage }) {
+  return (
+    <div role="status" className="mt-6 max-w-[320px] rounded-xl bg-amber-50 px-4 py-3 text-center">
+      <p className="text-[13px] font-medium leading-relaxed text-amber-800">{message.en}</p>
+      <p lang="ta" className="mt-1 text-[13px] leading-relaxed text-amber-700">{message.ta}</p>
+    </div>
+  );
 }
 
 /** Animate a number from 0 → target over `durationMs` using rAF. */
@@ -56,7 +71,7 @@ function useCountUp(target: number, active: boolean, durationMs = 900): number {
   return val;
 }
 
-export default function ScanningOverlay({ show, itemCount, onCountUpDone }: ScanningOverlayProps) {
+export default function ScanningOverlay({ show, itemCount, onCountUpDone, notice }: ScanningOverlayProps) {
   const found = itemCount !== null;
   const [step, setStep] = useState(0);
 
@@ -69,11 +84,13 @@ export default function ScanningOverlay({ show, itemCount, onCountUpDone }: Scan
   const counted = useCountUp(itemCount ?? 0, found);
   const doneRef = useRef(onCountUpDone);
   doneRef.current = onCountUpDone;
+  // A notice about unread photos needs time to be read before we move on.
+  const hasNotice = Boolean(notice);
   useEffect(() => {
     if (!found) return;
-    const t = setTimeout(() => doneRef.current(), 1600);
+    const t = setTimeout(() => doneRef.current(), hasNotice ? 5000 : 1600);
     return () => clearTimeout(t);
-  }, [found]);
+  }, [found, hasNotice]);
 
   if (!show) return null;
 
@@ -107,9 +124,11 @@ export default function ScanningOverlay({ show, itemCount, onCountUpDone }: Scan
             <div className="scan-track h-full w-1/2 rounded-full bg-primary" />
           </div>
 
-          <p className="mt-7 text-[13px] leading-relaxed text-slate-400">
-            Nothing is published until you check it
-          </p>
+          {notice ? <Notice message={notice} /> : (
+            <p className="mt-7 text-[13px] leading-relaxed text-slate-400">
+              Nothing is published until you check it
+            </p>
+          )}
         </div>
       ) : (
         <div className="scan-found flex flex-col items-center text-center">
@@ -119,6 +138,7 @@ export default function ScanningOverlay({ show, itemCount, onCountUpDone }: Scan
           <p className="mt-3 text-[17px] font-semibold text-slate-700">
             {itemCount === 1 ? 'dish found on your menu' : 'dishes found on your menu'}
           </p>
+          {notice && <Notice message={notice} />}
         </div>
       )}
     </div>

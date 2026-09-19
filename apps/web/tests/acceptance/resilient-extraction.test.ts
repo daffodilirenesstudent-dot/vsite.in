@@ -124,7 +124,7 @@ function page(marker: string): { buffer: Buffer; mime: string } {
 }
 
 function photoFile(marker: string): File {
-  return new File([page(marker).buffer], `${marker}.jpg`, { type: 'image/jpeg' });
+  return new File([new Uint8Array(page(marker).buffer)], `${marker}.jpg`, { type: 'image/jpeg' });
 }
 
 function extractRequest(token: string, markers: string[], shopName = 'Placeholder Cafe'): NextRequest {
@@ -315,6 +315,16 @@ describe('AC6: a rate-limited page falls back to the other model pool', () => {
 });
 
 describe('AC7: right-sized reservations and an honest client', () => {
+  it('a scan of dense pages cannot spend more than its output-token budget', async () => {
+    // Every page claims to be cut off: the worst case an attacker can force.
+    handler = (c) => (c.text.startsWith('Write descriptions') ? itemsFor(c)
+      : { content: '{"items":[["A",10,"","s","v",[]],["B"', finish_reason: 'length' });
+    await extractMenuPages(Array.from({ length: 15 }, (_, i) => page(`p${i}`)));
+    const requested = calls.filter(c => c.images.length > 0).reduce((sum, c) => sum + c.max_tokens, 0);
+    expect(requested).toBeLessThanOrEqual(45_000);
+  });
+
+
   it('first attempt per page asks for at most 2,500 output tokens', async () => {
     await extractMenuPages([page('p0'), page('p1')]);
     for (const c of calls.filter(x => x.images.length > 0)) expect(c.max_tokens).toBeLessThanOrEqual(2500);
@@ -356,6 +366,41 @@ describe('AC8: the scheduler keeps reservations inside the rate window', () => {
     const t0 = Date.now();
     (await s.acquire('m', 10)).ok();
     expect(Date.now() - t0).toBeGreaterThanOrEqual(100);
+  });
+
+  it('projects how long a new reservation would wait behind the backlog', async () => {
+    const s = createRateScheduler({ windowMs: 1000 });
+    s.setLimits('m', { tokens: 1000, requests: 100 });
+    expect(s.projectedWaitMs('m', 500)).toBe(0);
+    (await s.acquire('m', 900)).ok();
+    expect(s.projectedWaitMs('m', 500)).toBeGreaterThanOrEqual(900);
+    expect(s.projectedWaitMs('m', 50)).toBe(0);
+  });
+
+  it('the route leaves a scan in the queue (BUSY) when tokens, not memory, are the bottleneck', async () => {
+    // Token-aware admission lives on the shared scheduler the route uses.
+    const { rateScheduler } = await import('@/lib/menu/openaiScheduler');
+    rateScheduler().setLimits('gpt-4o', { tokens: 10_000, requests: 1000 });
+    (await rateScheduler().acquire('gpt-4o', 10_000)).ok();
+    const res = await extractPost(extractRequest(freshToken(), ['p1', 'p2', 'p3']));
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe('BUSY');
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('scans arriving together cannot all be admitted into the same idle token budget', async () => {
+    // Real 60s window: the first 3-page scan (~12k tokens) fits the 15k budget;
+    // a second one arriving in the same instant would wait a whole window.
+    const { rateScheduler } = await import('@/lib/menu/openaiScheduler');
+    rateScheduler().setLimits('gpt-4o', { tokens: 15_000, requests: 1000 });
+    const req = (t: string) => {
+      const r = extractRequest(t, ['p1', 'p2', 'p3']);
+      r.headers.set('x-photo-count', '3');
+      return r;
+    };
+    const [a, b] = await Promise.all([extractPost(req(freshToken())), extractPost(req(freshToken()))]);
+    expect([a.status, b.status].sort()).toEqual([200, 503]);
   });
 
   it('gives up at the deadline instead of queueing forever', async () => {
@@ -401,6 +446,22 @@ describe('AC10: daily AI spend guard', () => {
     expect(res.status).toBe(503);
     expect((await res.json()).code).toBe('AI_PAUSED');
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('AC10b: per-user daily AI cap', () => {
+  it('one account hitting its own cap does not pause anyone else', async () => {
+    process.env.EXTRACTION_USER_DAILY_BUDGET_USD = '0.05';
+    const heavy = freshToken();
+    recordAiUsage('gpt-4o', { prompt_tokens: 10_000, completion_tokens: 10_000 }, `uid-${heavy}`);
+    expect(aiSpendAllowed(`uid-${heavy}`)).toBe(false);
+    expect(aiSpendAllowed('uid-someone-else')).toBe(true);
+
+    const res = await extractPost(extractRequest(heavy, ['p1']));
+    expect(res.status).toBe(429);
+    expect((await res.json()).code).toBe('DAILY_SCAN_LIMIT');
+    expect(calls).toHaveLength(0);
+    delete process.env.EXTRACTION_USER_DAILY_BUDGET_USD;
   });
 });
 

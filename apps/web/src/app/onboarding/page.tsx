@@ -15,8 +15,33 @@ import LaunchLoadingScreen from './components/LaunchLoadingScreen';
 import ScanningOverlay from './components/ScanningOverlay';
 import type { WizardStep } from '@/components/OnboardingContext';
 import { compressImage } from '@/lib/menu/imageCompress';
+import {
+  scanMessage, partialScanNotice, pdfMessage, SKIPPABLE_CODES, SCAN_MESSAGES,
+  type ScanMessage,
+} from './scanMessages';
+import { pdfToPageImages, PdfPagesError } from '@/lib/menu/pdfPages';
 
 const MAX_PHOTOS = 15;
+
+/** Client gives up on one attempt after this. Server: ≤10s admission wait + 50s extraction. */
+const SCAN_ATTEMPT_TIMEOUT_MS = 80_000;
+/**
+ * How long to keep an owner in the BUSY queue before offering the skip path.
+ * Measured: at OpenAI Tier 2 a burst of 100 simultaneous signups is fully served
+ * in ~10.5 min. An owner watching "you're in the queue" waits that long; one
+ * told "try again later" often does not come back.
+ */
+const QUEUE_MAX_MS = 12 * 60_000;
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+function isPdf(file: File): boolean {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+}
+
+function isHeic(file: File): boolean {
+  return /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+}
 
 const STEP_LABELS = ['Setup', 'Bestsellers', 'Top Earners', 'Launch'];
 
@@ -101,6 +126,18 @@ function OnboardingContent() {
   const [photos, setPhotos] = useState<PreviewPhoto[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [error, setError] = useState('');
+  // Setup-step problems carry a code so they can be worded in Tamil and English
+  // and so we know whether to offer the way forward without a scan.
+  const [scanError, setScanError] = useState<{ code: string; message: ScanMessage } | null>(null);
+  // "You're in the queue" while waiting, then "photo 4 couldn't be read".
+  const [scanNotice, setScanNotice] = useState<ScanMessage | null>(null);
+  const [partialNotice, setPartialNotice] = useState<ScanMessage | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  // "Reading PDF… page 3 of 12" while a PDF is turned into pages.
+  const [pdfProgress, setPdfProgress] = useState<string | null>(null);
+  // Photos already added, read synchronously while PDF pages are still arriving.
+  const photosRef = useRef<PreviewPhoto[]>([]);
+  useEffect(() => { photosRef.current = photos; }, [photos]);
 
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -109,6 +146,20 @@ function OnboardingContent() {
   useEffect(() => {
     setIsMobile(window.matchMedia('(pointer: coarse)').matches);
   }, []);
+
+  // A file dropped anywhere outside the drop zone makes the browser open it in
+  // this tab — leaving onboarding and losing every photo already added.
+  useEffect(() => {
+    const block = (e: DragEvent) => { e.preventDefault(); };
+    window.addEventListener('dragover', block);
+    window.addEventListener('drop', block);
+    return () => {
+      window.removeEventListener('dragover', block);
+      window.removeEventListener('drop', block);
+    };
+  }, []);
+
+  const showScanError = (code: string) => setScanError({ code, message: scanMessage(code) });
 
   useEffect(() => {
     if (loading) return;
@@ -134,14 +185,13 @@ function OnboardingContent() {
     };
   }, []);
 
-  const addFiles = useCallback((files: FileList | File[]) => {
-    const incoming = Array.from(files).filter(f => f.type.startsWith('image/'));
+  const appendPhotos = useCallback((files: File[]) => {
     setPhotos(prev => {
       const slots = MAX_PHOTOS - prev.length;
       if (slots <= 0) return prev;
       return [
         ...prev,
-        ...incoming.slice(0, slots).map(f => ({
+        ...files.slice(0, slots).map(f => ({
           id: `${f.name}-${f.size}-${Math.random()}`,
           url: URL.createObjectURL(f),
           file: f,
@@ -150,6 +200,35 @@ function OnboardingContent() {
       ];
     });
   }, []);
+
+  // Photos go straight in. Each PDF is turned into one JPEG per page, in the
+  // browser, and those pages join the photos — so a PDF menu travels exactly
+  // the same pipeline, and counts against the same 15-page limit.
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const all = Array.from(files);
+    const images = all.filter(f => !isPdf(f) && (f.type.startsWith('image/') || isHeic(f)));
+    const pdfs = all.filter(isPdf);
+    setScanError(null);
+
+    let used = Math.min(MAX_PHOTOS, photosRef.current.length + images.length);
+    appendPhotos(images);
+
+    for (const pdf of pdfs) {
+      setPdfProgress('Reading PDF…');
+      try {
+        const pages = await pdfToPageImages(pdf, MAX_PHOTOS - used, (done, total) => {
+          setPdfProgress(`Reading PDF… page ${done} of ${total}`);
+        });
+        appendPhotos(pages);
+        used += pages.length;
+      } catch (err) {
+        const e = err instanceof PdfPagesError ? err : new PdfPagesError('PDF_UNREADABLE');
+        setScanError({ code: e.code, message: pdfMessage(e.code, { pages: e.pages, room: e.room }) });
+      } finally {
+        setPdfProgress(null);
+      }
+    }
+  }, [appendPhotos]);
 
   const removePhoto = (id: string) => {
     setPhotos(prev => {
@@ -162,73 +241,117 @@ function OnboardingContent() {
   // ── Step 0 "Next": extract only — no DB writes yet ──────────────────────────
   const handleExtract = async () => {
     if (!user || extracting) return;
-    if (!businessName.trim()) { setError('Please enter your business name.'); return; }
-    if (photos.length === 0) { setError('Please upload at least one menu photo to continue.'); return; }
+    if (!businessName.trim()) { showScanError('NO_SHOP_NAME'); return; }
+    if (photos.length === 0) { showScanError('NO_PHOTOS'); return; }
 
     setError('');
+    setScanError(null);
+    setScanNotice(null);
+    setPartialNotice(null);
     setExtracting(true);
     setLoadingMsg(photos.length > 5 ? 'Compressing & scanning your menu…' : 'Scanning your menu…');
 
-    // Server caps at 60s (Vercel Hobby). 70s gives a small buffer for round-trip
-    // network latency before we surface a timeout to the user.
-    const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 70_000);
+    const stop = (code: string) => { showScanError(code); setScanNotice(null); setExtracting(false); };
 
     try {
-      const firebaseUser = firebaseAuth.currentUser;
-      if (!firebaseUser) { setError('Session expired. Please log in again.'); setExtracting(false); return; }
-      const token = await firebaseUser.getIdToken();
+      if (!firebaseAuth.currentUser) { stop('SESSION_EXPIRED'); return; }
 
-      // Compress every image before upload — Vercel body cap is ~4.5MB.
-      // Compression runs in parallel and reduces a 10-photo batch from ~50MB
-      // to ~3-5MB. Failures fall back to the original file.
+      // Compress every image before upload. A photo the browser cannot decode
+      // (HEIC outside Safari) cannot be compressed and the server cannot read
+      // it either — leave it out and say so, rather than failing the scan.
       const compressed = await Promise.all(
         photos.map(async p => {
           try { return await compressImage(p.file); }
-          catch { return p.file; }
+          catch { return isHeic(p.file) ? null : p.file; }
         })
       );
-
+      // Photo numbers as the owner sees them, for each file actually sent.
+      const sentPhotoNumbers: number[] = [];
       const formData = new FormData();
       formData.append('shopName', businessName.trim());
-      compressed.forEach(file => formData.append('photos', file));
-
-      const res = await fetch('/api/onboarding/extract', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-        signal: ctrl.signal,
+      compressed.forEach((file, i) => {
+        if (!file) return;
+        formData.append('photos', file);
+        sentPhotoNumbers.push(i + 1);
       });
+      const heicSkipped = compressed.map((f, i) => (f ? 0 : i + 1)).filter(Boolean);
+      if (sentPhotoNumbers.length === 0) { stop('HEIC_UNSUPPORTED'); return; }
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error ?? 'Something went wrong. Please try again.');
-        setExtracting(false);
+      const queueStarted = Date.now();
+      for (;;) {
+        const firebaseUser = firebaseAuth.currentUser;
+        if (!firebaseUser) { stop('SESSION_EXPIRED'); return; }
+        // Refreshed per attempt: a long queue can outlive a one-hour token.
+        const token = await firebaseUser.getIdToken();
+
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), SCAN_ATTEMPT_TIMEOUT_MS);
+        let res: Response;
+        try {
+          res = await fetch('/api/onboarding/extract', {
+            method: 'POST',
+            // Lets the server estimate this scan's token cost before reading the body.
+            headers: { Authorization: `Bearer ${token}`, 'X-Photo-Count': String(sentPhotoNumbers.length) },
+            body: formData,
+            signal: ctrl.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        const data = await res.json().catch(() => ({}));
+
+        // Server is full (BUSY) or still finishing this user's previous attempt
+        // (SCAN_IN_PROGRESS): wait as told by Retry-After and go again. The
+        // body was never read, so nothing was spent.
+        const queued = (res.status === 503 && data.code === 'BUSY') || (res.status === 409 && data.code === 'SCAN_IN_PROGRESS');
+        if (queued) {
+          if (Date.now() - queueStarted > QUEUE_MAX_MS) { stop('QUEUE_GAVE_UP'); return; }
+          setScanNotice(SCAN_MESSAGES.BUSY);
+          const retryAfterSec = Number(res.headers.get('Retry-After')) || 5;
+          // Jitter so a crowd told "5s" does not return in lockstep.
+          await sleep(retryAfterSec * 1000 + Math.random() * 2000);
+          continue;
+        }
+
+        if (!res.ok) { stop(typeof data.code === 'string' ? data.code : 'INTERNAL'); return; }
+
+        const found = data.items ?? [];
+        setExtractedItems(found);
+
+        // Tell the owner which photos did not make it, in their numbering.
+        const serverFailed: number[] = Array.isArray(data.failedPhotos)
+          ? (data.failedPhotos as number[]).map(n => sentPhotoNumbers[n - 1]).filter((n): n is number => typeof n === 'number')
+          : [];
+        const failedPhotos = [...heicSkipped, ...serverFailed].sort((a, b) => a - b);
+        const notice = failedPhotos.length > 0 ? partialScanNotice(failedPhotos) : null;
+        setScanNotice(notice);
+        setPartialNotice(notice);
+        // Keep the overlay up and reveal the real count — the count-up's
+        // onCountUpDone callback slides us to the Bestsellers step.
+        setScanItemCount(found.length);
         return;
       }
-
-      // Store extracted items in context (defaults star/profit/complexity = 2).
-      const found = data.items ?? [];
-      setExtractedItems(found);
-      // Keep the overlay up and reveal the real count — the count-up's
-      // onCountUpDone callback slides us to the Bestsellers step.
-      setScanItemCount(found.length);
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setError('Scanning timed out. Please try again — if it keeps failing, try uploading 3–5 photos at a time.');
-      } else {
-        setError('Network error. Please try again.');
-      }
-      setExtracting(false);
-    } finally {
-      clearTimeout(timeoutId);
+      stop(err instanceof DOMException && err.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK');
     }
+  };
+
+  // The way forward without a scan: an empty menu, straight to launch. The
+  // summary step already tells the owner to add dishes from the dashboard.
+  const handleSkipScan = () => {
+    if (!businessName.trim()) { showScanError('NO_SHOP_NAME'); return; }
+    setScanError(null);
+    setScanNotice(null);
+    setPartialNotice(null);
+    setExtractedItems([]);
+    transition('right', () => setStep('summary'));
   };
 
   // Called by ScanningOverlay once the "Found N items" count-up completes.
   const handleScanRevealDone = () => {
     setExtracting(false);
     setScanItemCount(null);
+    setScanNotice(null);
     transition('right', () => setStep('bestsellers'));
   };
 
@@ -398,6 +521,16 @@ function OnboardingContent() {
         </div>
       )}
 
+      {/* Photos that could not be read stay visible while the owner reviews dishes. */}
+      {step === 'bestsellers' && partialNotice && (
+        <div role="status" className="mx-auto mt-3 w-full max-w-md px-4">
+          <div className="rounded-xl bg-amber-50 px-4 py-3 text-center">
+            <p className="text-xs font-medium text-amber-800">{partialNotice.en}</p>
+            <p lang="ta" className="mt-1 text-xs text-amber-700">{partialNotice.ta}</p>
+          </div>
+        </div>
+      )}
+
       {/* Card container */}
       <main className="flex flex-1 justify-center px-4 py-6 pb-safe">
         <div className="w-full max-w-md">
@@ -419,7 +552,7 @@ function OnboardingContent() {
                       type="text"
                       placeholder="e.g. Cream Story"
                       value={businessName}
-                      onChange={e => { setBusinessName(e.target.value); setError(''); }}
+                      onChange={e => { setBusinessName(e.target.value); setError(''); setScanError(null); }}
                       className="w-full rounded-[10px] border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                       autoFocus
                       disabled={extracting}
@@ -443,30 +576,38 @@ function OnboardingContent() {
                     )}
                   </div>
 
-                  <input ref={uploadRef} type="file" accept="image/*" multiple className="hidden"
+                  <input ref={uploadRef} type="file" accept="image/*,application/pdf" multiple className="hidden"
                     onChange={e => e.target.files && addFiles(e.target.files)} />
                   {isMobile && (
                     <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
                       onChange={e => e.target.files && addFiles(e.target.files)} />
                   )}
 
-                  <div className="flex flex-col items-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/40 py-7 px-4 transition-colors hover:border-primary/30 hover:bg-primary/[0.02]">
+                  <div
+                    onDragOver={e => { e.preventDefault(); if (!extracting && !atLimit && !pdfProgress) setDragActive(true); }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setDragActive(false);
+                      if (!extracting && !pdfProgress && e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+                    }}
+                    className={`flex flex-col items-center rounded-xl border-2 border-dashed py-7 px-4 transition-colors hover:border-primary/30 hover:bg-primary/[0.02] ${dragActive ? 'border-primary bg-primary/[0.05]' : 'border-slate-200 bg-slate-50/40'}`}>
                     <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm">
                       <span className="material-symbols-outlined text-primary" style={{ fontSize: 26 }}>cloud_upload</span>
                     </div>
-                    <p className="mb-1 text-sm font-semibold text-slate-800">Upload menu photos</p>
+                    <p className="mb-1 text-sm font-semibold text-slate-800">Upload menu photos or a PDF</p>
                     <p className="mb-4 text-center text-xs text-slate-500 leading-relaxed">
-                      Snap or upload up to {MAX_PHOTOS} photos.<br />
+                      {isMobile ? 'Snap or upload' : 'Drag photos or a PDF here, or upload'} up to {MAX_PHOTOS} pages.<br />
                       We&apos;ll read the items automatically.
                     </p>
                     <div className="flex items-center gap-2">
-                      <button type="button" disabled={atLimit || extracting}
+                      <button type="button" disabled={atLimit || extracting || pdfProgress !== null}
                         onClick={() => uploadRef.current?.click()}
                         className="rounded-[10px] border border-slate-300 bg-white px-5 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
                         Choose File
                       </button>
                       {isMobile && (
-                        <button type="button" disabled={atLimit || extracting}
+                        <button type="button" disabled={atLimit || extracting || pdfProgress !== null}
                           onClick={() => cameraRef.current?.click()}
                           className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-5 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
                           <span className="material-symbols-outlined" style={{ fontSize: 14 }}>photo_camera</span>
@@ -483,12 +624,20 @@ function OnboardingContent() {
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={photo.url} alt={photo.name} className="h-full w-full object-cover" />
                           <button type="button" disabled={extracting} onClick={() => removePhoto(photo.id)}
-                            className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/65 text-white opacity-0 transition-opacity group-hover:opacity-100 active:opacity-100 disabled:cursor-not-allowed">
-                            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>close</span>
+                            aria-label={`Remove photo ${photos.indexOf(photo) + 1}`}
+                            className="absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/65 text-white transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 disabled:cursor-not-allowed">
+                            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>close</span>
                           </button>
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  {pdfProgress && (
+                    <p role="status" className="mt-2 flex items-center justify-center gap-2 text-xs text-slate-500">
+                      <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-primary" aria-hidden />
+                      {pdfProgress}
+                    </p>
                   )}
 
                   {atLimit && (
@@ -498,12 +647,18 @@ function OnboardingContent() {
                   )}
                 </div>
 
-                {error && (
+                {scanError && (
+                  <div role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-center">
+                    <p className="text-xs text-red-700">{scanError.message.en}</p>
+                    <p lang="ta" className="mt-1 text-xs text-red-600">{scanError.message.ta}</p>
+                  </div>
+                )}
+                {error && !scanError && (
                   <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{error}</p>
                 )}
 
                 <div className="mt-5">
-                  <button onClick={handleExtract} disabled={extracting || photos.length === 0}
+                  <button onClick={handleExtract} disabled={extracting || photos.length === 0 || pdfProgress !== null}
                     className="w-full rounded-[10px] bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
                     {extracting ? (
                       <span className="flex items-center justify-center gap-2 whitespace-nowrap">
@@ -517,6 +672,13 @@ function OnboardingContent() {
                       </span>
                     )}
                   </button>
+                  {scanError && SKIPPABLE_CODES.has(scanError.code) && !extracting && (
+                    <button type="button" onClick={handleSkipScan}
+                      className="mt-3 w-full rounded-[10px] border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]">
+                      Skip — add dishes by hand
+                      <span lang="ta" className="block text-xs font-normal text-slate-500">தவிர்க்கவும் — உணவுகளை நீங்களே சேர்க்கவும்</span>
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -550,6 +712,7 @@ function OnboardingContent() {
         show={extracting}
         itemCount={scanItemCount}
         onCountUpDone={handleScanRevealDone}
+        notice={scanNotice}
       />
 
       <LaunchLoadingScreen
