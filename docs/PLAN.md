@@ -1,4 +1,4 @@
-# PLAN — Resilient menu extraction
+# PLAN — Resilient menu extraction  (status: DONE 2026-09-19)
 
 Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/resilient-extraction.test.ts`.
 Load proof: `apps/web/tests/load/onboardingExtract.load.test.ts` (vitest `*.test.ts`,
@@ -54,6 +54,10 @@ the existing single instance.
    queue message; partial-scan notice; "skip, add items manually"; desktop
    drag-drop with a window-level dragover guard; touch-visible remove button;
    HEIC hint. (AC12)
+
+11. **`apps/web/src/lib/menu/pdfPages.ts`** + `scripts/copy-pdf-worker.mjs` —
+    PDF → JPEG pages in the browser (≤15, shared slots); worker copied to
+    `public/pdfjs/` at prebuild. (AC14) Acceptance: `tests/acceptance/pdf-upload.test.ts`.
 
 10. **`apps/web/tests/load/onboardingExtract.load.test.ts`** — 50 simultaneous
     onboardings; asserts completion, zero item loss, admitted bytes ≤ budget;

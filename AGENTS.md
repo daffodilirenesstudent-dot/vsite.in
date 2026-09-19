@@ -492,3 +492,31 @@ looks like the edit failed rather than like a scoping bug.
 The vars now sit on the component's outermost element. **Any new overlay must
 render inside it** — `menu-theme.test.ts` asserts SearchOverlay and
 ProductDetailSheet appear after the themed root.
+
+## Gotchas — resilient extraction + PDF upload (2026-09-19)
+
+- **Vitest hoists ESM imports above top-level statements.** Env vars a module
+  reads at load time (e.g. `OPENAI_RATE_WINDOW_MS`, read when the shared rate
+  scheduler is created) must be set inside `vi.hoisted(() => { ... })`, or the
+  module sees the defaults. This silently made a load harness 20× too slow.
+- **`menuExtractor.ts` used to be stored by git as BINARY** (`git ls-files --eol`
+  showed `-text`): its `normalizeName` regex contained a literal NUL byte as the
+  start of the range `\x00-/`. It is now the escape `\x00` (same semantics). If
+  a diff of a source file shows the whole file changed, check for control bytes.
+- **Next 14 cannot bundle the pdf.js worker** — Terser fails on it. The worker
+  is copied to `apps/web/public/pdfjs/` by `scripts/copy-pdf-worker.mjs` in the
+  `prebuild`/`predev` hooks (gitignored). Do not switch back to
+  `new URL('pdfjs-dist/...', import.meta.url)`.
+- **pdf.js v6: `destroy()` lives on the loading task**, not the document proxy.
+- **OpenAI charges `max_tokens` against the per-minute limit at admission.**
+  Size `max_tokens` to one page (2,500), never to a whole menu. The extract path
+  assumes the account is **Tier 2+**: at Tier 1 a 10-photo scan does not fit one
+  rate window and its late pages are reported as failed.
+- **Load/abuse harnesses are opt-in** (`RUN_LOAD=1`): run alongside the full
+  suite they starve unrelated tests of CPU (`aiCostAbuse` timed out at 5.2s).
+  When measuring server RAM, build every client-side byte BEFORE the RSS
+  baseline and stream request bodies lazily, or the simulated browsers' memory
+  is counted as the server's.
+- **The extraction spend guard is per-process** — a deploy resets it. The
+  OpenAI project's monthly hard limit is the only absolute ceiling until the
+  durable Postgres quota lands (needs a migration).

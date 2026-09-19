@@ -2,6 +2,74 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-19 — Feature: resilient menu extraction + PDF upload
+status: DONE — all acceptance criteria green (docs/GOAL.md AC1–AC14)
+
+**Problem (measured, not estimated).** On the single 512MB `basic-xxs` the
+extract path held ~7× the upload in RAM (27MB per 10-photo scan, 193MB for one
+30MB body). Every Pass 1 call reserved 16k tokens against the OpenAI per-minute
+limit while using ~3k, so a burst of signups hit 429s and `allSettled` turned
+them into menus with pages missing and a success message. Spend was bounded
+only by an in-memory counter that each deploy resets.
+
+**Design (no schema, infra or server-size change).**
+- `boundedBody.ts` — body cut off at the limit while it streams (chunked too).
+- `uploadAdmission.ts` — byte budget = 200MB ÷ 7; admitted before the body is
+  read; FIFO wait then 503 BUSY + Retry-After; one scan per user (409).
+- `openaiScheduler.ts` — per-model sliding-window token/request budget, learns
+  limits from `x-ratelimit-*`, honours retry-after, deadline-bounded, circuit
+  breaker, 0.9 safety margin on every limit.
+- Token-aware admission + capacity claim — a scan that would time out waiting
+  for OpenAI budget stays in the client queue (BUSY) holding no memory; a
+  claim at admission stops a crowd arriving together from all being admitted.
+- `menuExtractor.ts` — one call per photo (max_tokens 2,500); ladder: retry →
+  gpt-4o-mini → 5,000-token retry → salvage cut JSON; 45k output budget per
+  scan; explicit timeout, no hidden SDK retries; dedup keeps same-name items
+  in different sections.
+- `aiSpendGuard.ts` — daily USD budget, global ($25 default) and per account
+  ($1 default). `storeEligibility.ts` — store limit checked before spending.
+- Onboarding UI — bilingual (Tamil/English) messages for every code, BUSY
+  auto-retry up to 12 min, partial-scan disclosure, "skip, add by hand",
+  desktop drag-drop, touch-visible remove, HEIC handling.
+- PDF upload — pdf.js in the browser renders each page (≤15) to a JPEG that
+  joins the photos; the server never sees a PDF. Worker served from
+  `public/pdfjs/` (copied at prebuild) because Next 14's Terser cannot minify it.
+
+**Evidence** (`RUN_LOAD=1` harnesses in `tests/load/`; fake OpenAI with a real
+TPM limiter, SDK retry emulation, time compressed 1:20; old code measured from a
+git worktree at fdd7930 with the identical harness):
+
+| 50 simultaneous onboardings, Tier 2 (450k TPM) | before | after |
+|---|---|---|
+| complete menus | 12/50 | **50/50** |
+| menus silently missing items | 10 | **0** |
+| items lost | 64.4% | **0%** |
+| OpenAI 429s / silent SDK retries | 1,116 / 791 | **0 / 0** |
+| peak server RAM added | 549MB (> 210MB usable: crash) | **121MB** |
+| cost per complete menu | $0.121 | **$0.0645** |
+| last user done (real time) | — | 5.5 min |
+
+Capacity after (Tier 2): 100 simultaneous → 100/100, last done 10.5 min;
+200 simultaneous → 122 served within the 12-min queue limit, 78 offered skip,
+$0 spent on them, 0 partial. Tier 3 (800k): 50 → 50/50, last done 3.3 min.
+Tier 1 (30k): before 0/3 complete, 77% lost silently; after 0/3 complete, 40%
+lost and every lost photo disclosed — a 10-photo scan does not fit one Tier-1
+window. **Operational action: the OpenAI account must be Tier 2 or above.**
+
+| Abuse by one account | before | after |
+|---|---|---|
+| one chunked 200MB upload | 401MB RAM spike | 413 in 42ms, 0MB |
+| five parallel 30MB uploads | 497MB RAM, $4.77 spent, 0 dishes | 413 ×5, $0 |
+| ten dense 15-page scans | $9.54 spent, all 422 (cut JSON dropped) | $1.07, then capped (429) |
+
+**Not done (needs owner approval: schema / infra).** Direct-to-storage uploads
++ durable job table; durable per-user quota in Postgres (the spend guard is
+per-process and resets on deploy); ingress-level body limit.
+
+**Tests.** `tests/acceptance/resilient-extraction.test.ts` (35),
+`tests/acceptance/pdf-upload.test.ts` (8), opt-in load/abuse harnesses. Full
+suite: 1,118 passed, 0 failed.
+
 ### 2026-09-19 — Dependency: `pdfjs-dist` (PDF menu upload)
 status: APPROVED by owner 2026-09-19 (chose "pdf.js in browser" over OpenAI native PDF input)
 
