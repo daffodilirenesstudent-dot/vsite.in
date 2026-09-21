@@ -1,0 +1,19 @@
+# Dependency vulnerability scanning. Native, free, no third-party account.
+# Closes OWASP A06 (Vulnerable and Outdated Components), which had no coverage.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for routine patches instead of a stream of them; security
+      # advisories still arrive as their own PRs regardless of this grouping.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

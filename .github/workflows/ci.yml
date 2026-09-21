@@ -1,0 +1,58 @@
+# Verification gate for vsite.
+#
+# WHY THIS EXISTS: .do/app.yaml sets `deploy_on_push: true` on master, so a
+# commit that lands on master ships to production. Before this workflow the
+# repo's ~1100 tests — including the payment-replay and ordering-freeze
+# suites — ran only when someone remembered to run them locally.
+#
+# IMPORTANT: this file alone does not gate anything. App Platform deploys on
+# push regardless of Actions. The gate is GitHub branch protection on master:
+#   Settings → Branches → Require status checks (select `verify`)
+#                       → Require a pull request before merging
+# Without those two settings this workflow is a notification, not a gate.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# A new push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # Ordered cheapest-first so an obvious break fails in seconds.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit / API / security / load / fuzz suites
+        run: npx vitest run
+
+      # Known vulnerable dependencies. `high` and above only — moderate
+      # advisories in dev-only transitive deps would make this permanently red
+      # and train everyone to ignore it.
+      - name: Dependency audit
+        run: npm audit --audit-level=high
