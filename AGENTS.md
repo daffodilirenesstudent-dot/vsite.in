@@ -516,6 +516,26 @@ aged out of that bucket's own window, every hit in it has aged out, so it is
 empty by definition. Anything shorter changes decisions. `tests/unit/rateLimit.test.ts`
 pins 59-minutes-still-denied / 61-minutes-allowed.
 
+## PostgrestBuilder has no `.catch()`, and an unhandled rejection exits Node (2026-09-17)
+
+`supabaseServer.from(...).insert(...).then(({ error }) => ...)` handles only a
+PostgREST error, which arrives **in band on a resolved promise**. A transport
+failure — DNS, TCP reset, TLS, Supabase restarting mid-request — **rejects**.
+
+On a chain nobody awaits, that is an unhandled rejection, and Node has defaulted
+to `--unhandled-rejections=throw` since v15 (this app runs Node 22: process exits,
+code 1). `.do/app.yaml` pins `instance_count: 1`, so the blast radius is every QR
+menu on the platform, not one dropped notification. `notify()` is the one that
+matters — verify-payment calls it un-awaited straight after activating a plan.
+
+**The fix is `then`'s second argument, not `.catch()`.** `PostgrestBuilder`
+only `implements PromiseLike` — it declares `then(onfulfilled, onrejected)` and
+nothing else, so the reflexive `.catch()` fix is itself a TypeError.
+
+An **awaited** chain is fine: its rejection lands in the enclosing try/catch or
+becomes a 500. Only un-awaited chains need the handler.
+`tests/unit/fireAndForget.test.ts` scans the server paths and enforces this.
+
 ## There is one loading system — use it (2026-09-17)
 
 `src/components/loading/` is the only place a loading indicator is defined.

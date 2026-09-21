@@ -297,7 +297,13 @@ export async function POST(request: NextRequest) {
           supabaseServer
             .from('email_queue')
             .insert({ to_email: toEmail, subject, htmlbody })
-            .then(({ error }) => { if (error) console.error('[finalize-payment] email enqueue fallback failed:', error); });
+            // Second argument, not .catch(): this fallback is not awaited, so a
+            // transport rejection would be unhandled and exit the process.
+            // PostgrestBuilder implements PromiseLike only — there is no .catch.
+            .then(
+              ({ error }) => { if (error) console.error('[finalize-payment] email enqueue fallback failed:', error); },
+              (err) => console.error('[finalize-payment] email enqueue fallback rejected:', err),
+            );
         });
     } catch (emailErr) {
       console.error('[finalize-payment] email build failed:', emailErr);

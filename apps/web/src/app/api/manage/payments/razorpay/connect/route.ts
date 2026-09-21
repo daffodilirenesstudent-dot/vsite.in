@@ -70,7 +70,13 @@ export async function POST(request: NextRequest) {
     .from('oauth_states')
     .delete()
     .lt('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
-    .then(({ error }) => { if (error) console.error('[razorpay/connect] cleanup:', error); });
+    // Second argument, not .catch(): nothing awaits this chain, so a transport
+    // rejection would otherwise be unhandled and exit the process — and
+    // PostgrestBuilder only implements PromiseLike, so it has no .catch().
+    .then(
+      ({ error }) => { if (error) console.error('[razorpay/connect] cleanup:', error); },
+      (err) => console.error('[razorpay/connect] cleanup rejected:', err),
+    );
 
   const url = buildAuthorizeUrl(state, redirectUri);
 

@@ -130,7 +130,13 @@ export async function PATCH(
       supabaseServer.from('transactions')
         .update({ status: 'Success', payment_mode: 'Cash' })
         .eq('order_id', orderId)
-        .then(({ error }) => { if (error) console.error('[PATCH] txn update:', error); });
+        // Second argument, not .catch(): nothing awaits this, so a transport
+        // rejection would be unhandled and exit the process. PostgrestBuilder
+        // implements PromiseLike only — there is no .catch on it.
+        .then(
+          ({ error }) => { if (error) console.error('[PATCH] txn update:', error); },
+          (err) => console.error('[PATCH] txn update rejected:', err),
+        );
 
       // Enqueue confirmation email to reliable queue
       try {
@@ -166,7 +172,11 @@ export async function PATCH(
             .catch((sendErr) => {
               console.error('[PATCH] direct send failed, queueing for retry:', sendErr);
               supabaseServer.from('email_queue').insert({ to_email: toEmail, subject, htmlbody })
-                .then(({ error }) => { if (error) console.error('[PATCH] email enqueue fallback:', error); });
+                // Second argument, not .catch() — see the note above.
+                .then(
+                  ({ error }) => { if (error) console.error('[PATCH] email enqueue fallback:', error); },
+                  (err) => console.error('[PATCH] email enqueue fallback rejected:', err),
+                );
             });
         }
       } catch (emailErr) {

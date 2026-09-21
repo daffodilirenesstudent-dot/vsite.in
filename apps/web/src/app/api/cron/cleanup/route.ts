@@ -37,9 +37,15 @@ export async function GET(req: NextRequest) {
     .delete()
     .eq('status', 'acknowledged')
     .lt('requested_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-    .then(({ error: brErr }) => {
-      if (brErr) console.error('[cron/cleanup] bill_requests purge:', brErr);
-    });
+    .then(
+      ({ error: brErr }) => {
+        if (brErr) console.error('[cron/cleanup] bill_requests purge:', brErr);
+      },
+      // Nothing awaits this, so a transport-level rejection (as opposed to the
+      // PostgREST error above) would be unhandled and would exit the process.
+      // Must be then's second argument — PostgrestBuilder has no .catch().
+      (brErr) => console.error('[cron/cleanup] bill_requests purge rejected:', brErr),
+    );
 
   return NextResponse.json({ ok: true, cleanedAt: new Date().toISOString() });
 }
