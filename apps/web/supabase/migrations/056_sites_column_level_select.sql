@@ -1,0 +1,44 @@
+-- 056_sites_column_level_select.sql — the public key reads only the columns
+-- the app needs from `sites`.
+--
+-- ─── WHY ─────────────────────────────────────────────────────────────────────
+-- `sites_public_read` (USING is_live = true) limits ROWS. RLS never limits
+-- COLUMNS, and anon + authenticated held table-wide SELECT, so the anon key —
+-- which ships in every page's browser bundle — could read every column of
+-- every live store with one REST call:
+--
+--   qr_secret              signs table QR codes; with it anyone can forge them
+--   gst_api_response       the raw GST registry lookup
+--   gstin, gst_*_name, …   the owner's tax identity
+--   notification_emails    owners' billing addresses (feature removed 2026-09-21)
+--   kot_station_device_id  identifies the kitchen printer device
+--
+-- Realtime made it worse: the public menu subscribes to UPDATEs on its own
+-- `sites` row, so every owner edit broadcast the whole row — qr_secret included
+-- — to every customer viewing the menu. Realtime drops columns the subscriber
+-- has no SELECT privilege on, so this migration closes that path too.
+--
+-- ─── WHAT ────────────────────────────────────────────────────────────────────
+-- Revoke table-wide SELECT from anon and authenticated, then grant back exactly:
+--   • every column browser code selects or filters on (audited 2026-09-21;
+--     tests/acceptance/db-least-privilege.test.ts re-checks this on every run);
+--   • id, user_id, is_live, is_open — read by other tables' RLS policies, which
+--     subquery `sites` as the calling role;
+--   • the fields the Settings → Delete store flow copies into deleted_sites.
+--
+-- service_role (all server routes) keeps full access. UPDATE/INSERT/DELETE
+-- grants are untouched. Row visibility (RLS) is untouched.
+--
+-- Some granted columns (contact_number, email, address, owner_name) are the
+-- store's published contact details, shown on the public menu.
+--
+-- ─── ADDING A COLUMN THE BROWSER READS ───────────────────────────────────────
+-- A new column is NOT readable by the browser until it is granted here (or in a
+-- later migration). Symptom: "permission denied for table sites" on a query
+-- that names it. The acceptance test names the file and column.
+--
+-- Rollback: GRANT SELECT ON public.sites TO anon, authenticated;
+
+REVOKE SELECT ON public.sites FROM anon, authenticated;
+
+GRANT SELECT (id, slug, name, user_id, is_live, is_open, type, created_at, business_type, location, address, state, pincode, contact_number, email, whatsapp_number, established_year, tagline, social_links, timing, owner_name, qr_mode, table_count, gst_status, gst_rate_pct, whatsapp_order_taking, whatsapp_order_number, currency_code, menu_theme, menu_font, primary_color, kot_mode, kot_printer_name, bill_printer_name) ON public.sites TO anon, authenticated;

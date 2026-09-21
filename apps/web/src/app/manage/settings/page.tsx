@@ -680,10 +680,12 @@ export default function SettingsPage() {
         setDeleting(true);
 
         try {
-            // Archive to deleted_sites before deleting
+            // Archive to deleted_sites before deleting. Columns are named, not
+            // `*`: the browser may only read the columns granted in migration
+            // 056, and a wildcard fails outright once any column is revoked.
             const { data: siteData } = await supabase
                 .from('sites')
-                .select('*')
+                .select('id, created_at, user_id, name, slug, type, owner_name, contact_number, timing, established_year, location, state, pincode, address, email, whatsapp_number, tagline, social_links, is_live')
                 .eq('id', siteId)
                 .single();
 
@@ -695,7 +697,6 @@ export default function SettingsPage() {
                     name: siteData.name,
                     slug: siteData.slug,
                     type: siteData.type,
-                    description: siteData.description,
                     owner_name: siteData.owner_name,
                     contact_number: siteData.contact_number,
                     timing: siteData.timing,
@@ -704,7 +705,6 @@ export default function SettingsPage() {
                     state: siteData.state,
                     pincode: siteData.pincode,
                     address: siteData.address,
-                    image_url: siteData.image_url,
                     email: siteData.email,
                     whatsapp_number: siteData.whatsapp_number,
                     tagline: siteData.tagline,
