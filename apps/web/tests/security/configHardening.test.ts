@@ -111,3 +111,57 @@ describe('Finding 12: the rate limiter documents the platform it actually runs o
         expect(s).toMatch(/restart|redeploy/i);
     });
 });
+
+/**
+ * QA 2026-09-20 — the CSP silently broke the analytics it allowlists.
+ *
+ * Verified against a PRODUCTION build (`next build && next start`) in a real
+ * Chromium, on every page of the funnel. Three directives were narrower than
+ * the vendors they were meant to admit, so the browser refused the request and
+ * the data never arrived. Nothing failed loudly: the console violation is the
+ * only symptom, and analytics degrading is invisible from inside the app.
+ *
+ *   1. worker-src  — Clarity starts its recorder in a Worker created from a
+ *      blob: URL. There was NO worker-src directive at all, so the browser
+ *      fell back to script-src, which does not carry blob:. Every page:
+ *      "Creating a worker from 'blob:...' violates ... script-src".
+ *
+ *   2. connect-src — GA4 posts to https://www.google.com/g/collect (regional
+ *      consent routing), not only to google-analytics.com. www.google.com was
+ *      present in script-src and frame-src for reCAPTCHA, but not connect-src,
+ *      so every GA4 event on an authenticated page was dropped.
+ *
+ *   3. img-src     — Clarity's ID-sync pixel is served from c.bing.com.
+ *
+ * These are ADDITIVE allowances for vendors already trusted elsewhere in the
+ * policy. They do not widen script execution: worker-src is deliberately
+ * spelled 'self' blob: rather than inheriting script-src's 'unsafe-inline'.
+ */
+describe('QA 2026-09-20: the CSP admits the analytics it ships', () => {
+    const directive = (name: string) =>
+        nextConfig.match(new RegExp(`"${name}[^"]*"`))?.[0] ?? '';
+
+    it('declares worker-src explicitly rather than inheriting script-src', () => {
+        // Without its own directive the fallback chain lands on script-src,
+        // which has no blob: — and adding blob: THERE would widen script
+        // execution. A separate, narrow worker-src is the correct fix.
+        expect(directive('worker-src'), 'no worker-src directive').not.toBe('');
+    });
+
+    it('allows the blob: worker Clarity records with', () => {
+        expect(directive('worker-src')).toContain('blob:');
+    });
+
+    it('does not buy worker-src by widening script-src to blob:', () => {
+        const scriptSrc = nextConfig.match(/"script-src[^"]*"/)?.[0] ?? '';
+        expect(scriptSrc).not.toContain('blob:');
+    });
+
+    it('lets GA4 reach www.google.com/g/collect', () => {
+        expect(directive('connect-src')).toContain('https://www.google.com');
+    });
+
+    it("loads Clarity's c.bing.com sync pixel", () => {
+        expect(directive('img-src')).toContain('https://c.bing.com');
+    });
+});

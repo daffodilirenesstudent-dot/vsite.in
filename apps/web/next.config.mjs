@@ -45,6 +45,23 @@ import { withSentryConfig } from '@sentry/nextjs';
 //   allows https://*.googleapis.com, which is broader than anything known to be
 //   loaded. Narrowing it is worth doing, but changing two things at once makes a
 //   breakage hard to attribute — do it as its own change.
+// ── QA 2026-09-20: the policy was blocking its own analytics ────────────────
+//   Verified in a PRODUCTION build, real Chromium, every page of the funnel.
+//   Three vendors were allowlisted in one directive but refused in another, so
+//   the requests died at the browser and the data never arrived. Analytics
+//   degrading is invisible from inside the app — the console violation was the
+//   only symptom.
+//     • worker-src  ADDED. Clarity records from a Worker built on a blob: URL.
+//       There was no worker-src at all, so the fallback chain hit script-src,
+//       which has no blob:. Widening script-src would have bought it at the
+//       cost of script execution, so worker-src is spelled narrowly instead.
+//     • connect-src + https://www.google.com. GA4 posts /g/collect there for
+//       regional consent routing; the host was already trusted in script-src
+//       and frame-src for reCAPTCHA, just not for fetch.
+//     • img-src + https://c.bing.com — Clarity's ID-sync pixel.
+//   All three are additive for already-trusted vendors. Asserted by
+//   tests/security/configHardening.test.ts, including a guard that the fix was
+//   not taken by putting blob: into script-src.
 // - connect-src: every external API the browser actually calls — Supabase
 //   (REST + realtime websocket), Firebase Auth, Google's identity APIs.
 // - frame-src: Razorpay's checkout iframe + reCAPTCHA challenge iframe.
@@ -67,8 +84,13 @@ const csp = [
     scriptSrc,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.clarity.ms https://*.supabase.co https://lh3.googleusercontent.com https://www.google-analytics.com https://www.googletagmanager.com",
-    "connect-src 'self' blob: data: https://*.clarity.ms http://127.0.0.1:7878 https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.google-analytics.com https://o4511393511636992.ingest.us.sentry.io",
+    "img-src 'self' data: blob: https://*.clarity.ms https://c.bing.com https://*.supabase.co https://lh3.googleusercontent.com https://www.google-analytics.com https://www.googletagmanager.com",
+    "connect-src 'self' blob: data: https://*.clarity.ms http://127.0.0.1:7878 https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.google-analytics.com https://www.google.com https://o4511393511636992.ingest.us.sentry.io",
+    // Clarity's recorder runs in a Worker built from a blob: URL. Without
+    // its own directive the fallback chain lands on script-src, and adding
+    // blob: there would widen script execution. Kept narrow on purpose:
+    // 'self' blob: only, never 'unsafe-inline'.
+    "worker-src 'self' blob:",
     "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.google.com https://www.gstatic.com",
     "form-action 'self'",
     "upgrade-insecure-requests",
