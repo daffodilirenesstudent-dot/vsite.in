@@ -19,12 +19,6 @@ vi.mock('@/lib/platform/db/supabase-server', () => {
   return { supabaseServer: { from: mockFrom, rpc: mockRpc } };
 });
 
-vi.mock('@/lib/notifications/orderEmail', () => ({
-  buildOrderConfirmationEmail: vi.fn(() => ({
-    subject:  'Order confirmed',
-    htmlbody: '<html>Test</html>',
-  })),
-}));
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
@@ -381,37 +375,18 @@ describe('POST /api/orders — happy path', () => {
   });
 });
 
-describe('POST /api/orders — email enqueue', () => {
+describe('POST /api/orders — no email', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('enqueues email fire-and-forget on online order success', async () => {
+  // Email notifications were removed on 2026-09-21; notifications move to
+  // WhatsApp. No order path may queue an email any more.
+  it.each(['online', 'counter', 'no_payment'] as const)('does not touch email_queue for a %s order', async (paymentMethod) => {
     mockRpc(OK_BASE);
     const fromSpy = vi.mocked(supabaseServer.from);
 
-    await POST(makeRequest(validBody({ paymentMethod: 'online' })));
+    await POST(makeRequest(validBody({ paymentMethod, tableNumber: 2 })));
 
-    const emailInsert = fromSpy.mock.calls.find(([t]) => t === 'email_queue');
-    expect(emailInsert).toBeDefined();
-  });
-
-  it('does NOT enqueue email for counter order', async () => {
-    mockRpc({ ...OK_BASE, token_number: null, counter_number: 'C01' });
-    const fromSpy = vi.mocked(supabaseServer.from);
-
-    await POST(makeRequest(validBody({ paymentMethod: 'counter' })));
-
-    const emailInsert = fromSpy.mock.calls.find(([t]) => t === 'email_queue');
-    expect(emailInsert).toBeUndefined();
-  });
-
-  it('does NOT enqueue email for no_payment order', async () => {
-    mockRpc({ ...OK_BASE, token_number: null, counter_number: null });
-    const fromSpy = vi.mocked(supabaseServer.from);
-
-    await POST(makeRequest(validBody({ paymentMethod: 'no_payment', tableNumber: 2 })));
-
-    const emailInsert = fromSpy.mock.calls.find(([t]) => t === 'email_queue');
-    expect(emailInsert).toBeUndefined();
+    expect(fromSpy.mock.calls.find(([t]) => t === 'email_queue')).toBeUndefined();
   });
 });
 

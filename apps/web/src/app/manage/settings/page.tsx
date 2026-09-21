@@ -71,11 +71,6 @@ export default function SettingsPage() {
      */
     const [rawTiming, setRawTiming] = useState('');
 
-    // Billing-notification emails (up to 3). Receives plan invoices on
-    // activation/renewal and a T-3-day expiry reminder.
-    const [notificationEmails, setNotificationEmails] = useState<string[]>([]);
-    const MAX_NOTIFY_EMAILS = 3;
-    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const [appearance, setAppearance] = useState<AppearanceState>({
         menu_theme: DEFAULT_MENU_THEME,
         menu_font: DEFAULT_FONT_PAIR,
@@ -152,7 +147,7 @@ export default function SettingsPage() {
         setLoading(true);
         supabase
             .from('sites')
-            .select('id, slug, name, contact_number, timing, location, pincode, business_type, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, notification_emails, menu_theme, menu_font, primary_color')
+            .select('id, slug, name, contact_number, timing, location, pincode, business_type, kot_mode, kot_printer_name, bill_printer_name, whatsapp_order_taking, whatsapp_order_number, currency_code, menu_theme, menu_font, primary_color')
             .eq('id', activeSite.id)
             .single()
             .then(({ data, error }) => {
@@ -221,8 +216,6 @@ export default function SettingsPage() {
                     setWhatsappEnabled(d.whatsapp_order_taking === true);
                     setWhatsappNumber((d.whatsapp_order_number as string | null) ?? '');
                     setCurrencyCode((d.currency_code === 'AED' ? 'AED' : 'INR'));
-                    const ne = Array.isArray(d.notification_emails) ? (d.notification_emails as string[]) : [];
-                    setNotificationEmails(ne.slice(0, MAX_NOTIFY_EMAILS));
                     try {
                         setKotDevMode(localStorage.getItem('kot_dev_mode') === '1');
                     } catch { /* ignore */ }
@@ -237,17 +230,6 @@ export default function SettingsPage() {
         if (!siteId) return;
         if (!form.businessName.trim()) { toast.error('Business name is required'); return; }
         if (!isValidPincode(form.pincode)) { toast.error('Enter a valid 6-digit PIN code'); return; }
-
-        // Notification emails: trim, drop blanks, validate format, dedupe.
-        const cleanedEmails = Array.from(new Set(
-            notificationEmails.map(s => s.trim()).filter(Boolean)
-        ));
-        const invalid = cleanedEmails.find(e => !EMAIL_RE.test(e));
-        if (invalid) { toast.error(`Invalid email: ${invalid}`); return; }
-        if (cleanedEmails.length > MAX_NOTIFY_EMAILS) {
-            toast.error(`At most ${MAX_NOTIFY_EMAILS} notification emails`);
-            return;
-        }
 
         const pickedTiming = formatTiming(timing);
 
@@ -264,14 +246,12 @@ export default function SettingsPage() {
                 // owner whose stored value is old free text and who did not
                 // touch the picker keeps what they published.
                 timing: pickedTiming || rawTiming || null,
-                notification_emails: cleanedEmails,
             })
             .eq('id', siteId);
 
         setSaving(false);
         if (error) { toast.error('Failed to save changes'); }
         else {
-            setNotificationEmails(cleanedEmails);
             setRawTiming(pickedTiming || rawTiming);
             toast.success('Settings saved');
             refreshSites();
@@ -1079,64 +1059,6 @@ export default function SettingsPage() {
                             <p style={hintStyle}>
                                 Currently showing “{rawTiming}”. Pick times above to replace it.
                             </p>
-                        )}
-                    </div>
-                </div>
-
-                {/* ── Billing Notification Emails (up to 3) ── */}
-                <div className="mt-7 pt-6" style={{ borderTop: '1px solid #E4E4E7' }}>
-                    <div className="flex items-start justify-between mb-1 gap-3">
-                        <div>
-                            <h3 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 15, lineHeight: '22px' }}>Billing notifications</h3>
-                            <p className="text-[#71717A]" style={{ fontSize: 12, lineHeight: '18px', marginTop: 2 }}>
-                                Get plan invoices and a reminder 3 days before your plan expires. Up to {MAX_NOTIFY_EMAILS} emails.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 mt-3">
-                        {notificationEmails.length === 0 ? (
-                            <p style={{ fontSize: 12, color: '#A1A1AA' }}>No emails added yet.</p>
-                        ) : notificationEmails.map((email, i) => {
-                            const trimmed = email.trim();
-                            const showError = trimmed.length > 0 && !EMAIL_RE.test(trimmed);
-                            return (
-                                <div key={i} className="flex items-center gap-2">
-                                    <input
-                                        type="email"
-                                        inputMode="email"
-                                        autoComplete="email"
-                                        value={email}
-                                        placeholder="billing@example.com"
-                                        disabled={saving}
-                                        onChange={e => setNotificationEmails(prev => prev.map((v, idx) => idx === i ? e.target.value : v))}
-                                        style={{ ...inputStyle, flex: 1, border: showError ? '1px solid #E7000B' : '1px solid #E4E4E7' }}
-                                    />
-                                    <button
-                                        type="button"
-                                        aria-label="Remove email"
-                                        onClick={() => setNotificationEmails(prev => prev.filter((_, idx) => idx !== i))}
-                                        disabled={saving}
-                                        className="flex items-center justify-center hover:bg-red-50 transition-colors"
-                                        style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid #E4E4E7', background: '#FFFFFF', cursor: 'pointer', flexShrink: 0 }}
-                                    >
-                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }}>close</span>
-                                    </button>
-                                </div>
-                            );
-                        })}
-
-                        {notificationEmails.length < MAX_NOTIFY_EMAILS && (
-                            <button
-                                type="button"
-                                onClick={() => setNotificationEmails(prev => [...prev, ''])}
-                                disabled={saving}
-                                className="flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-colors w-full sm:w-auto"
-                                style={{ border: '1.5px dashed #C4C4C4', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 500, color: '#5137EF', background: '#FFFFFF', cursor: 'pointer', minHeight: 44 }}
-                            >
-                                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
-                                Add email ({notificationEmails.length}/{MAX_NOTIFY_EMAILS})
-                            </button>
                         )}
                     </div>
                 </div>

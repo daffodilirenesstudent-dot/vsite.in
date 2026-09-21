@@ -24,37 +24,23 @@ services:
     routes:
       - path: /
 
-# The three crons below were declared in vercel.json and netlify.toml.
-# DigitalOcean App Platform reads NEITHER file, so on DO they have never
-# fired. Each job calls the existing /api/cron/* route, which authenticates
-# with Bearer CRON_SECRET via @/lib/platform/cronAuth.
+# The cron below was declared in vercel.json and netlify.toml. DigitalOcean
+# App Platform reads NEITHER file, so on DO it has never fired. It calls the
+# existing /api/cron/* route, which authenticates with Bearer CRON_SECRET via
+# @/lib/platform/cronAuth.
 #
-# ⚠ THESE ARE NOT SCHEDULED. `kind: PRE_DEPLOY` runs a job once per deploy, not
-#   on an interval — App Platform has no cron primitive for this. So today
-#   process-emails and expiry-reminder only run when someone ships, which is not
-#   a schedule and will not send a T-3 expiry reminder on the day it is due.
+# ⚠ IT IS NOT SCHEDULED. `kind: PRE_DEPLOY` runs a job once per deploy, not on
+#   an interval — App Platform has no cron primitive for this. A real schedule
+#   needs an external trigger: a DO Function on a timer, or an external cron
+#   service POSTing with the bearer header. Tracked in AGENTS.md.
 #
-#   This matters for more than delivery: until it was fixed, the ONLY thing that
-#   invoked /api/cron/expiry-reminder on a real schedule was an attacker, because
-#   the route accepted any request carrying an `x-vercel-cron` header (2026-09
-#   assessment, Finding 2). The header bypass is gone; the missing schedule is
-#   still open and needs an external trigger — a DO Function on a timer, or an
-#   external cron service POSTing with the bearer header. Tracked in AGENTS.md.
+# 2026-09-21: the email-queue drain and plan-expiry reminder jobs were removed with the
+# email notification layer. Notifications move to WhatsApp; its reminder job
+# will need the same external trigger.
 #
-# CRON_SECRET must be set as an app-level secret. Every route now fails CLOSED
-# without it, so a missing value stops the jobs rather than opening them.
+# CRON_SECRET must be set as an app-level secret. Every route fails CLOSED
+# without it, so a missing value stops the job rather than opening it.
 jobs:
-  - name: cron-process-emails
-    kind: PRE_DEPLOY
-    source_dir: apps/web
-    github:
-      repo: daffodilirenesstudent-dot/vsite.in
-      branch: master
-    run_command: >-
-      curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
-      "$NEXT_PUBLIC_BASE_URL/api/cron/process-emails"
-    instance_size_slug: basic-xxs
-
   - name: cron-cleanup
     kind: PRE_DEPLOY
     source_dir: apps/web
@@ -64,15 +50,4 @@ jobs:
     run_command: >-
       curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
       "$NEXT_PUBLIC_BASE_URL/api/cron/cleanup"
-    instance_size_slug: basic-xxs
-
-  - name: cron-expiry-reminder
-    kind: PRE_DEPLOY
-    source_dir: apps/web
-    github:
-      repo: daffodilirenesstudent-dot/vsite.in
-      branch: master
-    run_command: >-
-      curl -fsS -X POST -H "authorization: Bearer $CRON_SECRET"
-      "$NEXT_PUBLIC_BASE_URL/api/cron/expiry-reminder"
     instance_size_slug: basic-xxs

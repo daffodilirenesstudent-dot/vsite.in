@@ -43,20 +43,9 @@ vi.mock('@/lib/platform/db/supabase-server', () => {
     };
     return { supabaseServer: { from: vi.fn(() => chain), rpc: vi.fn(async () => ({ error: null })) } };
 });
-vi.mock('@/lib/notifications/email/planEmails', () => ({
-    sendExpiryReminderEmail: vi.fn(async () => ({ ok: true })),
-    sendPlanInvoiceEmail: vi.fn(async () => ({ ok: true })),
-}));
-vi.mock('@/lib/notifications/orderEmail', () => ({
-    sendEmailDirect: vi.fn(async () => undefined),
-    signOrderToken: vi.fn(() => 'tok'),
-    verifyOrderToken: vi.fn(() => null),
-}));
 
 import { authorizeCron } from '@/lib/platform/cronAuth';
 import { GET as cleanupGet, POST as cleanupPost } from '@/app/api/cron/cleanup/route';
-import { GET as expiryGet, POST as expiryPost } from '@/app/api/cron/expiry-reminder/route';
-import { GET as emailsGet, POST as emailsPost } from '@/app/api/cron/process-emails/route';
 
 const SECRET = 'super-secret-cron-value';
 const ORIGINAL = process.env.CRON_SECRET;
@@ -123,10 +112,6 @@ describe('every cron route is behind the shared gate', () => {
     const routes: Array<[string, (r: NextRequest) => Promise<Response>]> = [
         ['cleanup GET', cleanupGet],
         ['cleanup POST', cleanupPost],
-        ['expiry-reminder GET', expiryGet],
-        ['expiry-reminder POST', expiryPost],
-        ['process-emails GET', emailsGet],
-        ['process-emails POST', emailsPost],
     ];
 
     it.each(routes)('%s returns 401 with no credentials', async (_name, handler) => {
@@ -166,8 +151,6 @@ describe('every cron route answers the verb .do/app.yaml actually sends', () => 
 
     it.each([
         ['cleanup', cleanupPost],
-        ['expiry-reminder', expiryPost],
-        ['process-emails', emailsPost],
     ] as Array<[string, (r: NextRequest) => Promise<Response>]>)(
         '%s exports a POST handler that is not a 405',
         async (_name, handler) => {
@@ -182,8 +165,6 @@ describe('every cron route answers the verb .do/app.yaml actually sends', () => 
 describe('no route hand-rolls its own cron check any more', () => {
     const files = [
         'app/api/cron/cleanup/route.ts',
-        'app/api/cron/expiry-reminder/route.ts',
-        'app/api/cron/process-emails/route.ts',
     ];
 
     it.each(files)('%s imports authorizeCron', (f) => {
@@ -205,17 +186,6 @@ describe('no route hand-rolls its own cron check any more', () => {
 
 // Finding 2 (disclosure half) and Finding 14.
 describe('cron routes do not leak internals to a caller', () => {
-    it('expiry-reminder does not return subscriber counts or site ids', async () => {
-        const res = await expiryGet(cronReq({ authorization: `Bearer ${SECRET}` }));
-        const body = await res.json();
-        // Anyone who ever obtains the secret — or any future auth slip — should
-        // not also get a live read on how many stores are about to churn.
-        expect(body).not.toHaveProperty('scanned');
-        expect(body).not.toHaveProperty('sent');
-        expect(body).not.toHaveProperty('failures');
-        expect(body.ok).toBe(true);
-    });
-
     it('cleanup does not return the raw Postgres error message', () => {
         expect(src('app/api/cron/cleanup/route.ts')).not.toMatch(/detail:\s*error\.message/);
     });

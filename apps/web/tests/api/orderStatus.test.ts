@@ -17,14 +17,14 @@ import { NextRequest } from 'next/server';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/notifications/orderEmail', () => ({
+vi.mock('@/lib/orders/orderToken', () => ({
   verifyOrderToken: vi.fn(),
 }));
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
 import { GET } from '@/app/api/orders/[id]/status/route';
-import { verifyOrderToken } from '@/lib/notifications/orderEmail';
+import { verifyOrderToken } from '@/lib/orders/orderToken';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 

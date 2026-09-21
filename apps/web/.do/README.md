@@ -13,11 +13,10 @@ never run:
 
 | Job | Intended schedule | Route |
 |---|---|---|
-| process-emails | every minute | `/api/cron/process-emails` |
 | cleanup | every 5 minutes | `/api/cron/cleanup` |
-| expiry-reminder | daily 03:30 UTC | `/api/cron/expiry-reminder` |
 
-Outbound email and plan-expiry reminders are affected.
+process-emails and expiry-reminder were removed on 2026-09-21 along with the
+email notification layer (notifications move to WhatsApp).
 
 **App Platform `jobs` run on deploy events, not on a wall-clock
 schedule** — so `app.yaml` alone does NOT fully restore this. Pick one:

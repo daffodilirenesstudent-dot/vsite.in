@@ -6,7 +6,7 @@
 // Must never be cached — the whole point is live status.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyOrderToken } from '@/lib/notifications/orderEmail';
+import { verifyOrderToken } from '@/lib/orders/orderToken';
 import { rateLimit, getClientIp } from '@/lib/platform/rateLimit';
 
 export const dynamic = 'force-dynamic';

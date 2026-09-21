@@ -40,10 +40,9 @@ vi.mock('@/lib/platform/db/supabase-server', () => ({
         rpc: vi.fn(),
     },
 }));
-vi.mock('@/lib/notifications/orderEmail', () => ({
+vi.mock('@/lib/orders/orderToken', () => ({
     verifyOrderToken: vi.fn(() => null),
     signOrderToken: vi.fn(() => 'tok'),
-    sendEmailDirect: vi.fn(),
 }));
 
 import { getClientIp } from '@/lib/platform/rateLimit';

@@ -23,9 +23,6 @@ vi.mock('@/lib/platform/db/supabase-server', () => ({
   supabaseServer: { from: vi.fn(), rpc: vi.fn() },
 }));
 
-vi.mock('@/lib/notifications/orderEmail', () => ({
-  buildOrderConfirmationEmail: vi.fn(() => ({ subject: 'OK', htmlbody: '' })),
-}));
 
 import { POST } from '@/app/api/orders/route';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';

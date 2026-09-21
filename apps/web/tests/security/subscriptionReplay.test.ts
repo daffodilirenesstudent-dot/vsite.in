@@ -10,8 +10,8 @@
  *     browser receives from Checkout, so replay needs nothing but a repeat POST.
  *   Finding 6 — `authorized` (funds reserved, never captured, auto-voided after
  *     ~5 days) was accepted as proof of payment alongside `captured`.
- *   Finding 9 — the `X-User-Email` request header was added to the invoice
- *     recipient list, letting a caller post vsite-branded mail to any address.
+ *   Finding 9 — the `X-User-Email` request header steered the invoice email's
+ *     recipients. Moot since 2026-09-21: the invoice email was removed.
  *
  * A passing test here means the attack is blocked. The webhook
  * (`webhooks/razorpay/route.ts`) already had the activation guard this route
@@ -35,12 +35,6 @@ vi.mock('@/lib/platform/rateLimit', () => ({
 }));
 
 // Invoice mail — we assert on who it is addressed to, so it must be observable.
-type InvoiceArgs = { recipients: Array<{ address: string; name: string }> };
-const sendPlanInvoiceEmail = vi.fn(async (_args: InvoiceArgs) => ({ ok: true, status: 200 }));
-vi.mock('@/lib/notifications/email/planEmails', () => ({
-    sendPlanInvoiceEmail: (args: InvoiceArgs) => sendPlanInvoiceEmail(args),
-    sendExpiryReminderEmail: vi.fn(async () => ({ ok: true })),
-}));
 vi.mock('@/lib/notifications/notify', () => ({ notify: vi.fn() }));
 
 type Script = {
@@ -155,7 +149,6 @@ const goodBody = {
 beforeEach(() => {
     dbCalls.length = 0;
     for (const k of Object.keys(scripts)) delete scripts[k];
-    sendPlanInvoiceEmail.mockClear();
     razorpayMock.payments.fetch.mockReset();
     razorpayMock.payments.fetch.mockResolvedValue({
         id: PAYMENT, status: 'captured', amount: 29900, currency: 'INR', order_id: ORDER,
@@ -207,20 +200,6 @@ describe('Finding 1: subscription payment replay', () => {
         // The critical assertion: the expiry the caller gets back is the one
         // already on the row, not that date plus another 30 days.
         expect(json.expiresAt).toBe('2026-10-12T00:00:00.000Z');
-    });
-
-    it('does not re-send the invoice email on a replay', async () => {
-        subscriptionAwaitingPayment();
-        scripts['site_subscriptions'] = {
-            singleResult: {
-                id: 'sub1', razorpay_subscription_id: ORDER,
-                store_expires_at: '2026-10-12T00:00:00.000Z', store_plan: 'qr_menu',
-                pending_plan: null, razorpay_status: 'active',
-            },
-            updateSelectResult: [],
-        };
-        await verifyPayment(req(goodBody));
-        expect(sendPlanInvoiceEmail).not.toHaveBeenCalled();
     });
 
     it('clears the consumed order id so the order cannot be presented twice', async () => {
@@ -310,21 +289,5 @@ describe('Finding 6: only a captured payment activates a plan', () => {
         const res = await verifyPayment(req(goodBody));
         expect(res.status).toBe(400);
         expect((await res.json()).error).toMatch(/amount/i);
-    });
-});
-
-// =============================================================================
-// Finding 9 — invoice recipient injection
-// =============================================================================
-describe('Finding 9: X-User-Email must not steer the invoice', () => {
-    it('ignores the X-User-Email header when choosing recipients', async () => {
-        subscriptionAwaitingPayment();
-        await verifyPayment(req(goodBody, { 'X-User-Email': 'victim@example.com' }));
-
-        expect(sendPlanInvoiceEmail).toHaveBeenCalled();
-        const addresses = sendPlanInvoiceEmail.mock.calls[0][0].recipients.map(r => r.address);
-        expect(addresses).not.toContain('victim@example.com');
-        // The server-stored addresses are still used.
-        expect(addresses).toContain('owner@example.com');
     });
 });

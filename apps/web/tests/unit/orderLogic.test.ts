@@ -1,17 +1,12 @@
 /**
  * Unit tests for pure order-system logic — zero DB calls, zero network.
  * Tests: sanitizeName, sha256Short, generateOrderNumber, cart math,
- *        signOrderToken / verifyOrderToken, buildOrderConfirmationEmail,
- *        subtotal rounding, exponential backoff formula.
+ *        signOrderToken / verifyOrderToken, subtotal rounding.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import crypto from 'crypto';
-import {
-  signOrderToken,
-  verifyOrderToken,
-  buildOrderConfirmationEmail,
-} from '@/lib/notifications/orderEmail';
+import { signOrderToken, verifyOrderToken } from '@/lib/orders/orderToken';
 
 // ── Replicated pure helpers (not exported from route, so we copy them) ────────
 
@@ -30,11 +25,6 @@ function generateOrderNumber(): string {
 
 function roundSubtotal(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-// Exponential backoff formula used in process-emails cron
-function retryDelayMs(attempt: number): number {
-  return Math.pow(2, attempt) * 60_000;
 }
 
 // Cart math (replicated from QRMenuTemplate)
@@ -336,133 +326,6 @@ describe('signOrderToken + verifyOrderToken', () => {
   it('generated token is URL-safe base64 (no +, /, =)', () => {
     const token = signOrderToken('order-url-safe-check');
     expect(token).not.toMatch(/[+/=]/);
-  });
-});
-
-// ── 7. buildOrderConfirmationEmail ────────────────────────────────────────────
-
-describe('buildOrderConfirmationEmail', () => {
-  const baseParams = {
-    customerName: 'Priya Sharma',
-    orderNumber: '1234567',
-    orderId: 'ord-uuid-001',
-    tokenNumber: '42',
-    shopSlug: 'my-cafe',
-    shopName: 'My Cafe',
-    subtotal: 280.50,
-    paymentMethod: 'online' as const,
-    items: [
-      { name: 'Masala Dosa', qty: 2, price: 80 },
-      { name: 'Filter Coffee', qty: 1, price: 120.50 },
-    ],
-  };
-
-  it('returns subject and htmlbody', () => {
-    const { subject, htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(subject).toBeTruthy();
-    expect(htmlbody).toBeTruthy();
-  });
-
-  it('subject includes shop name and token number', () => {
-    const { subject } = buildOrderConfirmationEmail(baseParams);
-    expect(subject).toContain('My Cafe');
-    expect(subject).toContain('42');
-  });
-
-  it('subject uses Order Number label when tokenNumber is null', () => {
-    const { subject } = buildOrderConfirmationEmail({ ...baseParams, tokenNumber: null });
-    expect(subject).toContain('Order Number');
-    expect(subject).toContain('1234567');
-  });
-
-  it('HTML contains customer name', () => {
-    const { htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(htmlbody).toContain('Priya Sharma');
-  });
-
-  it('HTML contains shop name', () => {
-    const { htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(htmlbody).toContain('My Cafe');
-  });
-
-  it('HTML contains item names', () => {
-    const { htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(htmlbody).toContain('Masala Dosa');
-    expect(htmlbody).toContain('Filter Coffee');
-  });
-
-  it('HTML contains formatted subtotal', () => {
-    const { htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(htmlbody).toContain('280.50');
-  });
-
-  it('HTML includes order link with signed token', () => {
-    const { htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(htmlbody).toContain('/shop/my-cafe/order/ord-uuid-001');
-    expect(htmlbody).toContain('?t=');
-  });
-
-  it('HTML includes menu link', () => {
-    const { htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(htmlbody).toContain('/shop/my-cafe');
-  });
-
-  it('HTML renders variantSize when present', () => {
-    const withVariant = {
-      ...baseParams,
-      items: [{ name: 'Chai', qty: 1, price: 25, variantSize: 'Small' }],
-    };
-    const { htmlbody } = buildOrderConfirmationEmail(withVariant);
-    expect(htmlbody).toContain('Small');
-  });
-
-  it('HTML shows "Show this token" hint for token orders', () => {
-    const { htmlbody } = buildOrderConfirmationEmail(baseParams);
-    expect(htmlbody).toContain('Show this token');
-  });
-
-  it('HTML does NOT show token hint when tokenNumber is null', () => {
-    const { htmlbody } = buildOrderConfirmationEmail({ ...baseParams, tokenNumber: null });
-    expect(htmlbody).not.toContain('Show this token');
-  });
-
-  it('is a pure function — calling twice with same args gives same result', () => {
-    const result1 = buildOrderConfirmationEmail(baseParams);
-    const result2 = buildOrderConfirmationEmail(baseParams);
-    expect(result1.subject).toBe(result2.subject);
-    // htmlbody contains a signed token whose exp depends on Date.now — allow minor difference
-    expect(result1.htmlbody.length).toBeCloseTo(result2.htmlbody.length, -2);
-  });
-});
-
-// ── 8. Exponential backoff formula ────────────────────────────────────────────
-
-describe('retryDelayMs (email cron backoff)', () => {
-  it('attempt 0 → 1 minute', () => {
-    expect(retryDelayMs(0)).toBe(60_000);
-  });
-
-  it('attempt 1 → 2 minutes', () => {
-    expect(retryDelayMs(1)).toBe(120_000);
-  });
-
-  it('attempt 2 → 4 minutes', () => {
-    expect(retryDelayMs(2)).toBe(240_000);
-  });
-
-  it('attempt 3 → 8 minutes', () => {
-    expect(retryDelayMs(3)).toBe(480_000);
-  });
-
-  it('attempt 4 → 16 minutes (max retry)', () => {
-    expect(retryDelayMs(4)).toBe(960_000);
-  });
-
-  it('delays are strictly increasing', () => {
-    const delays = [0, 1, 2, 3, 4].map(retryDelayMs);
-    for (let i = 1; i < delays.length; i++) {
-      expect(delays[i]).toBeGreaterThan(delays[i - 1]);
-    }
   });
 });
 

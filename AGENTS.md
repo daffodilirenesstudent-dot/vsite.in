@@ -661,6 +661,7 @@ Never assume an app-layer gate protects a database function — PostgREST is a
 second front door to the same logic. After any migration that adds a function,
 run the Supabase advisors (`get_advisors type=security`) and check for
 `anon_security_definer_function_executable`; that lint is what surfaced this.
+
 ## Adding a Material Symbols icon means registering it (2026-09-21)
 
 **Symptom.** After login every icon showed as its name — "home", "analytics" —
@@ -687,3 +688,23 @@ full literal names instead. Check new names exist at fonts.google.com/icons:
 the scan found `storefront_off`, which is not a real icon and had been showing
 as text on the shop-unavailable page.
 
+## Email notifications were removed — WhatsApp replaces them (2026-09-21)
+
+Owner decision. Gone: the ZeptoMail sender (`lib/notifications/email/`), the
+`email_queue` drain cron, the plan-expiry reminder email + cron, plan-invoice
+emails from verify-payment and the Razorpay webhook, order-confirmation email
+in the frozen order routes, and Settings → "Billing notifications".
+`tests/acceptance/email-notifications-removed.test.ts` guards it.
+
+**Kept on purpose.** The in-app bell (`notify()`); the order-status link token,
+moved to `lib/orders/orderToken.ts` with its env name `ORDER_EMAIL_SECRET`
+unchanged; and `/api/manage/qr-card-request`, which emails the vsite TEAM and is
+the only record of a physical QR-card order — removing it drops orders.
+
+**Left in the database, unused** (drop only by a deliberate migration):
+`email_queue`, `sites.notification_emails`, `site_subscriptions.expiry_reminder_sent_at`.
+
+**For the WhatsApp build.** Owners now get NO warning before their plan
+expires. The old sweep's lesson still applies: select paid windows by
+`store_expires_at`, never by `razorpay_status` (see the razorpay_status note
+above). And it needs a real scheduler — App Platform `PRE_DEPLOY` jobs are not one.

@@ -14,7 +14,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
-import { sendPlanInvoiceEmail } from '@/lib/notifications/email/planEmails';
 
 import { logger } from '@/lib/platform/logger';
 export const maxDuration = 15;
@@ -156,31 +155,6 @@ async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
             console.error('[razorpay-webhook] activation update failed:', actErr);
         } else if (actData && actData.length > 0) {
             logger.debug(`[razorpay-webhook] activated plan=${planToActivate} for site=${siteRow.site_id} (fallback)`);
-            // Only send invoice when we actually flipped state — avoids
-            // double-sends if verify-payment already won the race.
-            try {
-                const { data: siteMeta } = await supabaseServer
-                    .from('sites')
-                    .select('name, notification_emails')
-                    .eq('id', siteRow.site_id)
-                    .single();
-                const recipients = ((siteMeta?.notification_emails as string[] | null) ?? [])
-                    .map(s => s.trim()).filter(Boolean);
-                if (siteMeta && recipients.length > 0 && payment) {
-                    await sendPlanInvoiceEmail({
-                        recipients: recipients.map(address => ({ address, name: siteMeta.name })),
-                        shopName: siteMeta.name,
-                        plan: planToActivate,
-                        amount: Math.round(payment.amount / 100),
-                        currency: payment.currency || 'INR',
-                        razorpayPaymentId: payment.id,
-                        activatedAt,
-                        expiresAt,
-                    });
-                }
-            } catch (mailErr) {
-                console.error('[razorpay-webhook] invoice email send failed (non-fatal):', mailErr);
-            }
         }
     }
 

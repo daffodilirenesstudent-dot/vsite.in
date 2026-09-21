@@ -14,7 +14,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
-import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/notifications/orderEmail';
 import { audit } from '@/lib/platform/auditLog';
 import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 import { frozenResponse } from '@/lib/platform/frozenResponse';
@@ -137,51 +136,6 @@ export async function PATCH(
           ({ error }) => { if (error) console.error('[PATCH] txn update:', error); },
           (err) => console.error('[PATCH] txn update rejected:', err),
         );
-
-      // Enqueue confirmation email to reliable queue
-      try {
-        const itemsArr = Array.isArray(order.items)
-          ? (order.items as { name: string; qty: number; price: number; variantSize?: string }[])
-          : [];
-        const ord = order as typeof order & {
-          tax_amount?: number | null; cgst_amount?: number | null; sgst_amount?: number | null;
-          gst_rate_pct?: number | null; gstin_snapshot?: string | null; total_amount?: number | null;
-        };
-        const { subject, htmlbody } = buildOrderConfirmationEmail({
-          customerName:  order.customer_name,
-          orderNumber:   order.order_number,
-          orderId,
-          tokenNumber,
-          shopSlug:      site.slug ?? order.site_id,
-          shopName:      site.name ?? 'Your Store',
-          subtotal:      Number(order.subtotal),
-          gstRatePct:    Number(ord.gst_rate_pct ?? 0),
-          taxAmount:     Number(ord.tax_amount   ?? 0),
-          cgstAmount:    Number(ord.cgst_amount  ?? 0),
-          sgstAmount:    Number(ord.sgst_amount  ?? 0),
-          totalAmount:   Number(ord.total_amount ?? ord.subtotal),
-          gstinSnapshot: ord.gstin_snapshot ?? null,
-          paymentMethod: 'counter',
-          items:         itemsArr.map(i => ({ name: i.name, qty: i.qty, price: i.price, variantSize: i.variantSize })),
-        });
-        // Direct send for instant delivery; queue is the failure fallback so the
-        // cron can retry (dev never runs Vercel cron — queue-only would never send).
-        const toEmail = order.customer_email;
-        if (toEmail) {
-          sendEmailDirect({ to: toEmail, customerName: order.customer_name ?? '', subject, htmlbody })
-            .catch((sendErr) => {
-              console.error('[PATCH] direct send failed, queueing for retry:', sendErr);
-              supabaseServer.from('email_queue').insert({ to_email: toEmail, subject, htmlbody })
-                // Second argument, not .catch() — see the note above.
-                .then(
-                  ({ error }) => { if (error) console.error('[PATCH] email enqueue fallback:', error); },
-                  (err) => console.error('[PATCH] email enqueue fallback rejected:', err),
-                );
-            });
-        }
-      } catch (emailErr) {
-        console.error('[PATCH] email build:', emailErr);
-      }
 
       return NextResponse.json({ success: true, tokenNumber });
     }

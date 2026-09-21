@@ -31,7 +31,6 @@ import {
   getActiveIntegration,
   fetchRazorpayPayment,
 } from '@/lib/payments/server/razorpayOAuth';
-import { buildOrderConfirmationEmail, sendEmailDirect } from '@/lib/notifications/orderEmail';
 import crypto from 'crypto';
 import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 import { frozenResponse } from '@/lib/platform/frozenResponse';
@@ -221,8 +220,6 @@ export async function POST(request: NextRequest) {
   const orderId      = rpcData.order_id as string;
   const orderNumber  = rpcData.order_number as string;
   const tokenNumber  = (rpcData.token_number as string | null) ?? null;
-  const siteSlug     = (rpcData.site_slug as string | undefined) ?? '';
-  const siteName     = (rpcData.site_name as string | undefined) ?? 'Your Store';
 
   // 5. Mark the order paid + link to Razorpay ids, and flip the txn to
   //    Success with the real gateway_ref. process_order_v2 now writes the
@@ -266,49 +263,6 @@ export async function POST(request: NextRequest) {
     .from('pending_online_orders')
     .delete()
     .eq('razorpay_order_id', razorpay_order_id);
-
-  // 7. Fire-and-forget confirmation email (best-effort).
-  if (pending.customer_email) {
-    try {
-      const { subject, htmlbody } = buildOrderConfirmationEmail({
-        customerName:  pending.customer_name,
-        orderNumber,
-        orderId,
-        tokenNumber,
-        shopSlug:      siteSlug || pending.site_id,
-        shopName:      siteName,
-        subtotal:      Number(pending.subtotal),
-        gstRatePct:    Number(pending.gst_rate_pct ?? 0),
-        taxAmount:     Number(pending.tax_amount   ?? 0),
-        totalAmount:   Number(pending.total_amount ?? pending.subtotal),
-        gstinSnapshot: pending.gstin_snapshot,
-        paymentMethod: 'online',
-        items:         pending.items.map(it => ({
-          name: it.name, qty: it.qty, price: it.price, variantSize: it.variantSize ?? undefined,
-        })),
-      });
-      // Send the email directly in fire-and-forget mode so it arrives instantly
-      // (Vercel cron only fires in production — dev would never drain a queue-
-      // only email). On failure, fall back to the queue so the cron retries.
-      const toEmail = pending.customer_email;
-      sendEmailDirect({ to: toEmail, customerName: pending.customer_name, subject, htmlbody })
-        .catch((sendErr) => {
-          console.error('[finalize-payment] direct send failed, queueing for retry:', sendErr);
-          supabaseServer
-            .from('email_queue')
-            .insert({ to_email: toEmail, subject, htmlbody })
-            // Second argument, not .catch(): this fallback is not awaited, so a
-            // transport rejection would be unhandled and exit the process.
-            // PostgrestBuilder implements PromiseLike only — there is no .catch.
-            .then(
-              ({ error }) => { if (error) console.error('[finalize-payment] email enqueue fallback failed:', error); },
-              (err) => console.error('[finalize-payment] email enqueue fallback rejected:', err),
-            );
-        });
-    } catch (emailErr) {
-      console.error('[finalize-payment] email build failed:', emailErr);
-    }
-  }
 
   return NextResponse.json({
     success:      true,

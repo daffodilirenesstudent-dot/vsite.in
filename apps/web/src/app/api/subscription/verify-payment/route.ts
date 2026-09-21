@@ -35,7 +35,6 @@ import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { rateLimit } from '@/lib/platform/rateLimit';
 import { notify } from '@/lib/notifications/notify';
-import { sendPlanInvoiceEmail } from '@/lib/notifications/email/planEmails';
 import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
 
 import { logger } from '@/lib/platform/logger';
@@ -126,7 +125,7 @@ export async function POST(request: NextRequest) {
         // ── Verify site belongs to this user ────────────────────────────────
         const { data: site, error: siteError } = await supabaseServer
             .from('sites')
-            .select('id, name, notification_emails')
+            .select('id')
             .eq('id', siteId)
             .eq('user_id', userId)
             .single();
@@ -359,57 +358,6 @@ export async function POST(request: NextRequest) {
           body:  `Your store is live for 30 days. Valid till ${new Date(expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
           link:  '/manage/subscription',
         });
-
-        // ── Invoice email (best-effort, never blocks activation) ────────────
-        // Recipients = merchant-managed notification_emails ∪ profiles.contact_email.
-        // The fallback guarantees the account owner always gets the invoice even
-        // before they've configured Settings → Billing notifications. Failures
-        // are logged and swallowed: the payment is captured and the plan is live.
-        //
-        // BOTH SOURCES ARE SERVER-STORED, and that is the whole point. This list
-        // used to also include the `X-User-Email` REQUEST HEADER, which let any
-        // caller address a vsite-branded invoice — sent from our authenticated
-        // ZeptoMail domain, carrying their own shop name as body text — to an
-        // arbitrary recipient (2026-09 assessment, Finding 9). Never put a
-        // request header in this array. If the Firebase account email is wanted
-        // here, read the `email` claim off the verified token.
-        try {
-            const { data: profile } = await supabaseServer
-                .from('profiles')
-                .select('contact_email')
-                .eq('id', userId)
-                .maybeSingle();
-            const ownerEmail = (profile?.contact_email ?? '').trim();
-
-            const recipients = Array.from(new Set([
-                ...((site.notification_emails as string[] | null) ?? []),
-                ownerEmail,
-            ].map(s => s.trim()).filter(Boolean)));
-
-            // Count only. These are customer email addresses; the platform
-            // log drain is not a place to put them, in any environment.
-            logger.debug(`[verify-payment] invoice recipients: ${recipients.length}`);
-
-            if (recipients.length > 0) {
-                const mailResult = await sendPlanInvoiceEmail({
-                    recipients: recipients.map(address => ({ address, name: site.name })),
-                    shopName: site.name,
-                    plan: paidPlan,
-                    amount: amountInr,
-                    currency: payment.currency || 'INR',
-                    razorpayPaymentId: razorpay_payment_id,
-                    activatedAt,
-                    expiresAt,
-                });
-                if (!mailResult.ok) {
-                    console.error('[verify-payment] invoice email rejected:', mailResult.status, mailResult.error);
-                }
-            } else {
-                console.warn('[verify-payment] no recipients for invoice email; skipping send');
-            }
-        } catch (mailErr) {
-            console.error('[verify-payment] invoice email send failed (non-fatal):', mailErr);
-        }
 
         return NextResponse.json({ success: true, expiresAt });
     } catch (err) {

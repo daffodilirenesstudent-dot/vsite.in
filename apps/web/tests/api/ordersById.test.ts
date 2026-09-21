@@ -22,12 +22,6 @@ vi.mock('@/lib/platform/db/supabase-server', () => ({
   },
 }));
 
-vi.mock('@/lib/notifications/orderEmail', () => ({
-  buildOrderConfirmationEmail: vi.fn(() => ({
-    subject: 'Order confirmed',
-    htmlbody: '<html></html>',
-  })),
-}));
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
 

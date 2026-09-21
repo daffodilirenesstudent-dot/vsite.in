@@ -5,19 +5,14 @@
 //  • 1 DB round trip in the hot path   — process_order_v2() does rate limiting,
 //    idempotency, site/plan validation, price verification, token allocation,
 //    order creation, and transaction insert in one atomic Postgres function.
-//  • Fire-and-forget email enqueue     — email HTML is built in JS (CPU-only)
-//    after the RPC returns verified items, then inserted to email_queue
-//    asynchronously (cron retries on failure).
 //  • AbortController timeout (8 s)     — prevents Vercel function from hanging
 //    if Supabase becomes slow.
 //  • All prior security guarantees preserved: distributed rate limiting,
 //    distributed idempotency, server-side price verification, atomic order
-//    creation, reliable email delivery.
+//    creation.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { buildOrderConfirmationEmail as _unusedEmail } from '@/lib/notifications/orderEmail';
 import { verifyTableSig } from '@/lib/orders/qrSignature';
 import { getActiveIntegration, createRazorpayOrder } from '@/lib/payments/server/razorpayOAuth';
 import crypto from 'crypto';
