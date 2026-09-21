@@ -46,13 +46,31 @@ async function runReminderSweep() {
   const windowEnd = new Date(nowMs + (REMINDER_DAYS * 24 + WINDOW_SLACK_HOURS) * 60 * 60_000).toISOString();
   const nowIso = new Date(nowMs).toISOString();
 
-  // Select active subscriptions ending inside the reminder window that haven't
-  // been reminded for this billing cycle. Joining sites in the same query
-  // avoids an N+1 lookup per row.
+  // Select paid windows ending inside the reminder horizon that haven't been
+  // reminded for this billing cycle. Joining sites in the same query avoids an
+  // N+1 lookup per row.
+  //
+  // ── WHY razorpay_status IS NOT A FILTER HERE ──────────────────────────────
+  // It cannot answer "is this a live paying subscription?", because it is the
+  // replay guard on activation and nothing else. verify-payment and the webhook
+  // both activate only `.eq('razorpay_status', 'created')`, so
+  // create-subscription has to knock the column back to 'created' the moment an
+  // order is issued — including for a customer who is already paid and active
+  // and is merely renewing early. Abandon that Razorpay modal and the row sits
+  // at 'created' with a perfectly good `store_expires_at` in the future.
+  //
+  // This sweep used to filter `.eq('razorpay_status', 'active')`, so those
+  // customers — the ones furthest along the renewal path — silently stopped
+  // receiving the one email that tells them their store is about to go dark.
+  //
+  // `store_expires_at` is the honest signal: NULL by default (migration 010),
+  // written only by verify-payment and the Razorpay webhook, i.e. only once
+  // money has actually been captured. A future value therefore IS a paid
+  // window, and the two bounds below say so without consulting the activation
+  // state machine at all. See tests/api/expiryReminder.test.ts.
   const { data, error } = await supabaseServer
     .from('site_subscriptions')
     .select('site_id, user_id, store_plan, store_expires_at, sites!inner(name, notification_emails)')
-    .eq('razorpay_status', 'active')
     .is('expiry_reminder_sent_at', null)
     .gt('store_expires_at', nowIso)
     .lt('store_expires_at', windowEnd);

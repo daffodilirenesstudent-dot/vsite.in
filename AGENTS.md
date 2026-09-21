@@ -516,6 +516,26 @@ aged out of that bucket's own window, every hit in it has aged out, so it is
 empty by definition. Anything shorter changes decisions. `tests/unit/rateLimit.test.ts`
 pins 59-minutes-still-denied / 61-minutes-allowed.
 
+## `razorpay_status` is the replay guard, NOT "is this customer paid" (2026-09-17)
+
+The column exists so activation can be conditional: verify-payment and the
+Razorpay webhook both `.eq('razorpay_status', 'created')`, which is what makes a
+replayed Checkout payload match zero rows. For that to work, create-subscription
+has to knock it back to `'created'` **every time an order is issued** — including
+for a customer who is already paid, active, and merely renewing early.
+
+So an abandoned Razorpay modal leaves a perfectly good paying customer sitting at
+`'created'` with a future `store_expires_at`. The expiry-reminder cron filtered
+`.eq('razorpay_status', 'active')` and therefore stopped warning exactly the
+customers furthest along the renewal path. Silent: no error, no log, the store
+just went dark when the window lapsed.
+
+**Ask `store_expires_at` instead.** It is NULL by default (migration 010) and is
+written only by verify-payment and the webhook — i.e. only after money is
+captured — so a future value IS the paid window. Any new "is this store paid?"
+check belongs there, never on `razorpay_status`.
+Pinned by `tests/api/expiryReminder.test.ts`.
+
 ## PostgrestBuilder has no `.catch()`, and an unhandled rejection exits Node (2026-09-17)
 
 `supabaseServer.from(...).insert(...).then(({ error }) => ...)` handles only a
