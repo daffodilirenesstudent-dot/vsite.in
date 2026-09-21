@@ -190,7 +190,7 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 font-sans">
                 <div className="text-center max-w-md">
                     <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <span className="material-symbols-outlined text-4xl text-gray-400">storefront_off</span>
+                        <span className="material-symbols-outlined text-4xl text-gray-400">storefront</span>
                     </div>
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Shop Currently Unavailable</h1>
                     <p className="text-gray-600 mb-8">

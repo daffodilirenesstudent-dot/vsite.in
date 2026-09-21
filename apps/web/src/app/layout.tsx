@@ -3,6 +3,7 @@ import { Outfit, Poppins, Manrope } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import ToastProvider from "@/components/ToastProvider";
+import { ICON_FONT_URL } from "@/lib/ui/iconFont";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -180,6 +181,11 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://securetoken.googleapis.com" />
         <link rel="dns-prefetch" href="https://www.googleapis.com" />
         <link rel="dns-prefetch" href="https://api.razorpay.com" />
+        {/* Icon font, subset to the icons the app uses (≈46 KB) — see
+            lib/ui/iconFont.ts. It is requested here, during the HTML parse,
+            because it used to be injected after hydration: every icon then
+            showed as its ligature text ("home", "analytics") for seconds. */}
+        <link rel="stylesheet" href={ICON_FONT_URL} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
@@ -222,21 +228,6 @@ export default function RootLayout({
                   t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
                   y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
               })(window, document, "clarity", "script", "wx6iwpy979");
-            `,
-          }}
-        />
-        {/* Load Material Symbols after page is interactive — removes render-blocking stylesheet from critical path */}
-        <Script
-          id="material-symbols"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                var link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
-                document.head.appendChild(link);
-              })();
             `,
           }}
         />

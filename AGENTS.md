@@ -661,3 +661,29 @@ Never assume an app-layer gate protects a database function — PostgREST is a
 second front door to the same logic. After any migration that adds a function,
 run the Supabase advisors (`get_advisors type=security`) and check for
 `anon_security_definer_function_executable`; that lint is what surfaced this.
+## Adding a Material Symbols icon means registering it (2026-09-21)
+
+**Symptom.** After login every icon showed as its name — "home", "analytics" —
+for 1–3 s before the glyph appeared.
+
+**Cause.** Material Symbols is a ligature font: the icon IS the text, drawn as
+a glyph once the font loads. The root layout injected the stylesheet from an
+`afterInteractive` `<Script>` (so the request waited for hydration), with
+`display=swap` (paint the text meanwhile), for all four variable axes of all
+~4,300 icons — a 3.8 MB font.
+
+**Fix.** `src/lib/ui/iconFont.ts` owns the font: `ICON_NAMES` subsets it to
+the icons the app renders (≈46 KB), only the `wght` + `FILL` axes are
+requested, `display=block`, and the root layout links it from `<head>`.
+`.material-symbols-outlined` is clipped to `width: 1em` so a font that cannot
+load shows a blank square, never a word.
+
+**The rule.** A new icon must be added to `ICON_NAMES`, alphabetically. Left
+out, it does not fall back — it renders as its name, permanently.
+`tests/unit/iconFont.test.ts` scans `src/` (element text, ternary branches,
+`icon: '…'` maps, `icon="…"` props) and fails naming the file. An icon name
+assembled at runtime (`'arrow_' + dir`) cannot be seen by the scan — write the
+full literal names instead. Check new names exist at fonts.google.com/icons:
+the scan found `storefront_off`, which is not a real icon and had been showing
+as text on the shop-unavailable page.
+
