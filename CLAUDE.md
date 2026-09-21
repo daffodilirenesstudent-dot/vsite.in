@@ -18,7 +18,6 @@ each one on demand when it reads files in that directory.
 | `archive/` | Frozen sub-apps and design assets — never built | No |
 | `docs/` | GOAL, PLAN, PROGRESS, specs, plans | No |
 | `docs/adr/` | Architecture decision records | No |
-| `delete/` | Staged for manual deletion | No |
 
 **Doc precedence:** `CLAUDE.md` (this file) is authoritative.
 `AGENTS.md` holds cross-tool gotchas. `docs/GOAL.md`, `docs/PLAN.md`,
