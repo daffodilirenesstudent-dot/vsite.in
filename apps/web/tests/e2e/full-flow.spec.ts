@@ -2,10 +2,14 @@
  * BuildYourStore (Vsite) — Full E2E Test Suite
  *
  * IMPORTANT NOTES:
- * - Firebase Phone Auth uses country code +1 (hardcoded in login/signup pages).
+ * - Firebase Phone Auth uses country code +91 (hardcoded in login/signup pages).
  *   The test phone number must be registered in the Firebase Console as a US number.
- *   The user provided +91 9360706659 (India), but the app dials +1 9360706659 (US).
- *   Firebase test number in the Console MUST be set to: +19360706659 with OTP 123456.
+ *   Corrected 2026-09-20: this file was written against an older build that
+ *   dialled +1, and every authenticated test here failed at OTP send ever
+ *   since — the whole signed-in half of the E2E suite was dead. The app dials
+ *   +91 (src/app/login/page.tsx:93), which is correct for a Tamil Nadu
+ *   product, so the SPEC was the stale side, not the implementation.
+ *   Firebase Console test number: +91 1234567890 with OTP 123456.
  * - NEXT_PUBLIC_FIREBASE_USE_TEST_NUMBERS=true is set, so reCAPTCHA is bypassed.
  * - OTP inputs are 6 separate <input> elements — we fill them via clipboard paste.
  * - Auth state is stored in cookie `sb-access-token` (Firebase JWT).
@@ -15,20 +19,34 @@ import { test, expect, type Page } from '@playwright/test';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const BASE = 'http://localhost:3000';
-// The app prepends +1. Enter only the 10-digit number.
-const TEST_PHONE_10 = '9360706659';
+// The app prepends +91. Enter only the 10-digit number.
+const TEST_PHONE_10 = '1234567890';
 const TEST_OTP     = '123456';
 const WRONG_OTP    = '000000';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Fill the 6-box OTP widget by pasting the digits. */
+/**
+ * Fill the 6-box OTP widget by pasting the digits.
+ *
+ * Selector corrected 2026-09-20. This matched on
+ * `input[inputmode="numeric"][maxlength="1"]`, but login/page.tsx:368
+ * deliberately DROPPED maxLength so that autofill and paste can deliver all
+ * six digits to one box. The selector could therefore never match, and every
+ * test that logs in timed out here. The boxes carry stable ids otp-1..otp-6,
+ * which is what we key off now.
+ */
 async function fillOTP(page: Page, otp: string) {
-  // The OTP boxes use onPaste which populates all 6 inputs at once
-  const firstBox = page.locator('input[inputmode="numeric"][maxlength="1"]').first();
+  // The OTP boxes use onPaste which populates all 6 inputs at once.
+  // Wait for the step to actually render first: sendOTP goes through reCAPTCHA
+  // and a Firebase round trip, so the boxes appear seconds after submit. The
+  // helper used to focus() immediately and time out on a widget that did not
+  // exist yet, which read as an auth failure rather than a race.
+  const firstBox = page.locator('input[id^="otp-"]').first();
+  await firstBox.waitFor({ state: 'visible', timeout: 20_000 });
   await firstBox.focus();
   await page.evaluate((otpValue) => {
-    const input = document.querySelector('input[inputmode="numeric"][maxlength="1"]') as HTMLInputElement;
+    const input = document.querySelector('input[id^="otp-"]') as HTMLInputElement;
     if (!input) return;
     const dt = new DataTransfer();
     dt.setData('text/plain', otpValue);
@@ -36,7 +54,7 @@ async function fillOTP(page: Page, otp: string) {
   }, otp);
 
   // Fallback: type each digit individually if paste didn't work
-  const boxes = page.locator('input[inputmode="numeric"][maxlength="1"]');
+  const boxes = page.locator('input[id^="otp-"]');
   const count = await boxes.count();
   if (count >= 6) {
     const firstVal = await boxes.nth(0).inputValue();
@@ -54,7 +72,7 @@ async function loginWithTestPhone(page: Page) {
   // Wait for loading spinner to disappear (auth check)
   await page.waitForSelector('input[type="tel"]', { timeout: 10000 });
 
-  // Enter phone number (10 digits — app prepends +1)
+  // Enter phone number (10 digits — app prepends +91)
   const phoneInput = page.locator('input[type="tel"]');
   await phoneInput.fill(TEST_PHONE_10);
 
@@ -67,13 +85,20 @@ async function loginWithTestPhone(page: Page) {
   // Fill OTP
   await fillOTP(page, TEST_OTP);
 
-  // Wait for Verify button to become enabled (all 6 digits entered)
-  const verifyBtn = page.getByRole('button', { name: /verify/i });
-  await expect(verifyBtn).toBeEnabled({ timeout: 3000 });
-  await verifyBtn.click();
+  // The widget AUTO-SUBMITS on the sixth digit (useOtpInput), so by now the
+  // form is usually already in flight and the Verify button has unmounted.
+  // Clicking it unconditionally — as this helper used to — raced the
+  // navigation and failed with "element(s) not found". Click only if we are
+  // somehow still sitting on the form.
+  if (page.url().includes('/login')) {
+    const verifyBtn = page.getByRole('button', { name: /verify/i });
+    if (await verifyBtn.count()) {
+      await verifyBtn.click({ timeout: 5000 }).catch(() => { /* auto-submit won the race */ });
+    }
+  }
 
   // Wait for redirect away from /login
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 });
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 25000 });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -89,7 +114,7 @@ test.describe('Authentication Flow', () => {
     await expect(page.getByText('Welcome Back')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('input[type="tel"]')).toBeVisible();
     await expect(page.getByRole('button', { name: /login/i })).toBeVisible();
-    await expect(page.getByText('+1')).toBeVisible(); // country prefix
+    await expect(page.getByText('+91')).toBeVisible(); // country prefix
     await expect(page.getByRole('link', { name: /sign up/i })).toBeVisible();
   });
 
@@ -133,12 +158,12 @@ test.describe('Authentication Flow', () => {
 
     if (otpVisible) {
       await expect(page.getByText('Verify your number')).toBeVisible();
-      await expect(page.locator('input[inputmode="numeric"][maxlength="1"]')).toHaveCount(6);
+      await expect(page.locator('input[id^="otp-"]')).toHaveCount(6);
       // Verify button should be disabled until OTP is entered
       await expect(page.getByRole('button', { name: /verify/i })).toBeDisabled();
     } else if (errorVisible) {
       // Firebase test number +19360706659 not configured — document as config issue
-      console.warn('OTP send failed — Firebase test number may not be configured as +1 number');
+      console.warn('OTP send failed — Firebase test number may not be configured as +91 1234567890');
       test.skip();
     }
   });
@@ -158,13 +183,14 @@ test.describe('Authentication Flow', () => {
       return;
     }
 
+    // Auto-submits on the sixth digit; no Verify click needed.
     await fillOTP(page, WRONG_OTP);
-    const verifyBtn = page.getByRole('button', { name: /verify/i });
-    await expect(verifyBtn).toBeEnabled({ timeout: 3000 });
-    await verifyBtn.click();
 
     // Should show error
-    await expect(page.getByText(/invalid code/i)).toBeVisible({ timeout: 10000 });
+    // Copy lives in AuthContext.tsx:47 ('auth/invalid-verification-code' →
+    // 'Incorrect OTP. Please try again.'). The old /invalid code/i never
+    // matched it.
+    await expect(page.getByText(/incorrect otp/i)).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -622,12 +648,12 @@ test.describe('Edge Cases', () => {
     expect(page.url()).toContain('/manage/dashboard');
   });
 
-  test('EDGE-03: Login page country code prefix is visible and fixed at +1', async ({ page }) => {
+  test('EDGE-03: Login page country code prefix is visible and fixed at +91', async ({ page }) => {
     await page.goto(`${BASE}/login`);
     await page.waitForSelector('input[type="tel"]', { timeout: 10000 });
-    await expect(page.getByText('+1')).toBeVisible();
+    await expect(page.getByText('+91')).toBeVisible();
     // The flag emoji should also be present
-    const flagOrPrefix = await page.locator('text=+1').count();
+    const flagOrPrefix = await page.locator('text=+91').count();
     expect(flagOrPrefix).toBeGreaterThan(0);
   });
 
@@ -654,7 +680,7 @@ test.describe('Edge Cases', () => {
 
     if (!otpVisible) { test.skip(); return; }
 
-    const firstBox = page.locator('input[inputmode="numeric"][maxlength="1"]').first();
+    const firstBox = page.locator('input[id^="otp-"]').first();
     await firstBox.fill('a'); // non-digit
     const value = await firstBox.inputValue();
     // Should remain empty (non-digit is rejected)
@@ -675,7 +701,7 @@ test.describe('Edge Cases', () => {
 
     await fillOTP(page, '654321');
 
-    const boxes = page.locator('input[inputmode="numeric"][maxlength="1"]');
+    const boxes = page.locator('input[id^="otp-"]');
     const values: string[] = [];
     for (let i = 0; i < 6; i++) {
       values.push(await boxes.nth(i).inputValue());

@@ -9,7 +9,9 @@ export default defineConfig({
   reporter: 'list',
   timeout: 30000,
   use: {
-    baseURL: 'http://localhost:3000',
+    // Overridable so CI and staging can point at themselves; defaults to a
+    // local `next start` for day-to-day runs.
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     headless: true,
