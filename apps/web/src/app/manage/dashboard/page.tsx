@@ -586,6 +586,9 @@ interface MenuSummary {
     scans_total:      number;
     total_products:   number;
     total_categories: number;
+    /** Rows in `categories` — includes the Uncategorized bucket, unlike
+     *  total_categories. Rendered as the "N groups" label. */
+    total_groups?:    number;
     categories:       { name: string; count: number }[];
     generated_at:     string;
 }
@@ -631,7 +634,7 @@ function MenuInsights({
         { key: 'scans',      label: 'Scans Today',     value: summary?.scans_today,      icon: 'qr_code_scanner', color: '#5137EF', bg: '#EEEEFF', hint: 'Unique visitors' },
         { key: 'total',      label: 'Total Visitors',  value: summary?.scans_total,      icon: 'group',           color: '#0EA5E9', bg: '#F0F9FF', hint: 'All-time unique' },
         { key: 'products',   label: 'Total Products',  value: summary?.total_products,   icon: 'inventory_2',     color: '#16A34A', bg: '#F0FDF4', hint: 'In your menu' },
-        { key: 'categories', label: 'Total Categories',value: summary?.total_categories, icon: 'category',        color: '#F97316', bg: '#FFF7ED', hint: 'With products' },
+        { key: 'categories', label: 'Total Categories',value: summary?.total_categories, icon: 'category',        color: '#F97316', bg: '#FFF7ED', hint: 'Named categories' },
     ];
 
     return (
@@ -680,7 +683,7 @@ function MenuInsights({
                         <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A', margin: 0 }}>Items per Category</p>
                     </div>
                     {summary && summary.categories.length > 0 && (
-                        <span style={{ fontSize: 11, color: '#71717A' }}>{summary.categories.length} groups</span>
+                        <span style={{ fontSize: 11, color: '#71717A' }}>{summary.total_groups ?? summary.categories.length} groups</span>
                     )}
                 </div>
 

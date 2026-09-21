@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
+import { summariseCategories } from '@/lib/menu/categorySummary';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -105,22 +106,20 @@ export async function GET(request: NextRequest) {
     const totalVisitors = new Set<string>();
     (scansTotal.data ?? []).forEach((r: { visitor_id: string }) => totalVisitors.add(r.visitor_id));
 
-    // Per-category breakdown. Products without a category roll up to "Uncategorized".
-    const counts = new Map<string, number>();
-    (products.data ?? []).forEach((p: { category: string | null }) => {
-        const key = (p.category && p.category.trim()) || 'Uncategorized';
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-    });
-    const categories = Array.from(counts.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count);
+    // Per-category breakdown. Products without a category roll up to
+    // "Uncategorized". `total_categories` and `total_groups` are both returned
+    // because the dashboard renders both at once and they are not the same
+    // number — see lib/menu/categorySummary.ts.
+    const { categories, totalNamedCategories, totalGroups } =
+        summariseCategories((products.data ?? []) as { category: string | null }[]);
 
     return NextResponse.json(
         {
             scans_today:      todayVisitors.size,
             scans_total:      totalVisitors.size,
             total_products:   products.data?.length ?? 0,
-            total_categories: categories.filter(c => c.name !== 'Uncategorized').length,
+            total_categories: totalNamedCategories,
+            total_groups:     totalGroups,
             categories,
             generated_at:     new Date().toISOString(),
         },
