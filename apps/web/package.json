@@ -11,12 +11,12 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.53.1",
-    "@supabase/supabase-js": "^2.91.0",
+    "@sentry/nextjs": "^10.75.0",
+    "@supabase/supabase-js": "^2.116.0",
     "clsx": "^2.1.1",
-    "firebase": "^12.11.0",
+    "firebase": "^12.19.0",
     "html2canvas": "^1.4.1",
-    "jose": "^6.2.2",
+    "jose": "^6.2.12",
     "jspdf": "^4.1.0",
     "lucide-react": "^0.563.0",
     "motion": "^12.34.0",
@@ -26,16 +26,16 @@
     "pdfjs-dist": "6.3.289",
     "qr-code-styling": "^1.9.2",
     "qrcode.react": "^4.2.0",
-    "razorpay": "^2.9.6",
+    "razorpay": "^2.9.8",
     "react": "^18",
     "react-dom": "^18",
-    "react-hot-toast": "^2.6.0",
+    "react-hot-toast": "^2.6.1",
     "server-only": "^0.0.1",
-    "tailwind-merge": "^3.4.0",
-    "zod": "^4.3.6"
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
