@@ -29,7 +29,7 @@
 // choose — see getClientIp below for why that second part is not automatic.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Bucket = { hits: number[]; firstSeen: number };
+type Bucket = { hits: number[]; firstSeen: number; windowMs: number };
 const buckets = new Map<string, Bucket>();
 
 // Periodic GC so the Map never grows unbounded if many one-off keys hit.
@@ -37,12 +37,31 @@ const buckets = new Map<string, Bucket>();
 let lastSweep = 0;
 const SWEEP_INTERVAL_MS = 60_000;
 
+/**
+ * Drops buckets that can no longer affect a decision.
+ *
+ * The eviction rule is NOT a tunable constant, and must stay derived from each
+ * bucket's own `windowMs`: once a bucket's NEWEST hit has aged out of that
+ * bucket's window, every older hit has aged out too, so the bucket is
+ * empty-by-definition and deleting it changes no answer.
+ *
+ * This used to evict on a hardcoded 5-minute idle threshold instead. Because
+ * `rateLimit()` sweeps BEFORE it looks the key up, an evicted bucket was
+ * rebuilt empty on the very next call — so every caller declaring a window
+ * longer than five minutes silently got a ~5-minute one. That was all seven of
+ * the expensive call sites (both AI extract routes, create-subscription,
+ * verify-payment, onboarding/complete, qr-card-request), each passing
+ * `windowMs: 60 * 60_000`: pausing six minutes bought a fresh allowance, for
+ * as long as the caller cared to keep pausing. See tests/unit/rateLimit.test.ts.
+ */
 function sweep(now: number) {
     if (now - lastSweep < SWEEP_INTERVAL_MS) return;
     lastSweep = now;
     buckets.forEach((bucket, key) => {
-        // Drop buckets whose newest hit is older than 5 minutes.
-        if (bucket.hits.length === 0 || now - bucket.hits[bucket.hits.length - 1] > 5 * 60_000) {
+        if (
+            bucket.hits.length === 0 ||
+            now - bucket.hits[bucket.hits.length - 1] > bucket.windowMs
+        ) {
             buckets.delete(key);
         }
     });
@@ -76,8 +95,12 @@ export function rateLimit(key: string, opts: RateLimitOptions): RateLimitResult 
 
     let bucket = buckets.get(key);
     if (!bucket) {
-        bucket = { hits: [], firstSeen: now };
+        bucket = { hits: [], firstSeen: now, windowMs: opts.windowMs };
         buckets.set(key, bucket);
+    } else {
+        // Keep the GC's view current if a key is ever used with a longer
+        // window, so eviction never undercuts the window in force.
+        bucket.windowMs = Math.max(bucket.windowMs, opts.windowMs);
     }
 
     // Drop hits that have aged out of the window.

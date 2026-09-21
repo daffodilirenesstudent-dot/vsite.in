@@ -493,6 +493,29 @@ The vars now sit on the component's outermost element. **Any new overlay must
 render inside it** — `menu-theme.test.ts` asserts SearchOverlay and
 ProductDetailSheet appear after the themed root.
 
+## A rate-limit GC must evict on the caller's own window (2026-09-17)
+
+`rateLimit()` sweeps the bucket Map BEFORE it looks the key up, and `sweep()`
+was evicting on a hardcoded 5-minute idle threshold while knowing nothing about
+each bucket's `windowMs`. An evicted bucket is rebuilt empty on the very next
+call, so **every limiter declaring a window longer than five minutes silently
+enforced a ~5-minute one**.
+
+That was all seven expensive call sites — both AI extract routes,
+create-subscription, verify-payment, onboarding/complete, bulk-import/insert and
+qr-card-request, each passing `windowMs: 60 * 60_000`. Pausing six minutes
+bought a fresh allowance, indefinitely. `/api/onboarding/extract` has no DB-backed
+quota behind it, so that limiter was the only thing standing in front of a paid
+GPT-4o vision call.
+
+Nothing failed loudly: the limiter returned `allowed: true` and every route
+behaved exactly as designed. Only a clock-advancing test shows it.
+
+The eviction rule is not a tunable constant — once a bucket's NEWEST hit has
+aged out of that bucket's own window, every hit in it has aged out, so it is
+empty by definition. Anything shorter changes decisions. `tests/unit/rateLimit.test.ts`
+pins 59-minutes-still-denied / 61-minutes-allowed.
+
 ## There is one loading system — use it (2026-09-17)
 
 `src/components/loading/` is the only place a loading indicator is defined.
