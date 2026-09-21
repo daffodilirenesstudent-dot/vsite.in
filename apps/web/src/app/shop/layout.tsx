@@ -31,9 +31,12 @@ import {
  * referenced directly by components.
  */
 
+// 700 is for the shop name in the header. Without it the Warm theme asked for
+// a weight the face was never loaded at, and the browser fell back to one near
+// the dish names — the name stopped reading as a name.
 const newsreader = Newsreader({
     subsets: ['latin'],
-    weight: ['400', '500', '600'],
+    weight: ['400', '500', '600', '700'],
     variable: '--font-newsreader',
     display: 'swap',
 });

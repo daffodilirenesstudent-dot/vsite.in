@@ -14,6 +14,7 @@ import {
 } from '@/lib/menu/menuThemes';
 import { MENU_MOTION_CSS } from '@/lib/menu/menuMotion';
 import { resolveBadge } from '@/lib/menu/badges';
+import { shopNameFontSize } from '@/lib/menu/shopNameStyle';
 import { useQuickReturn } from '@/hooks/useQuickReturn';
 import { prefersReducedMotion } from '@/hooks/useInView';
 
@@ -1566,8 +1567,10 @@ export default function QRMenuTemplate({
             <div aria-hidden="true" style={{ width: 36, height: 36, flexShrink: 0 }} />
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* flex: 1 + minWidth: 0 let the name take the space between the two
+              36px buttons and wrap inside it, instead of pushing them out. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1, minWidth: 0, padding: '0 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%' }}>
               {/* The shop name stands alone. 052 already conceded that most
                   stores have no logo and that the header must read as finished
                   without one — 054 makes that the only case. */}
@@ -1575,11 +1578,18 @@ export default function QRMenuTemplate({
                   every customer-facing menu — the most-visited page in the
                   product — with no top-level heading at all: screen readers had
                   no page title to announce, and search engines no primary
-                  heading. Styling is unchanged; `margin: 0` keeps the browser's
-                  default h1 margin from shifting the header. */}
-              <h1 style={{
-                fontFamily: TV.fontDisplay, fontWeight: 700, fontSize: 16,
-                color: TV.accent, letterSpacing: '0.5px', textTransform: 'uppercase',
+                  heading. `margin: 0` keeps the browser's default h1 margin from
+                  shifting the header.
+                  Size steps down with the name's length (see shopNameStyle.ts);
+                  a long name wraps into two centred, balanced lines and is
+                  clamped there, so it never grows into a ragged block. */}
+              <h1 title={shopName} style={{
+                fontFamily: TV.fontDisplay, fontWeight: 700,
+                fontSize: shopNameFontSize(shopName), lineHeight: 1.15,
+                color: TV.accent, letterSpacing: '0.02em', textTransform: 'uppercase',
+                textAlign: 'center', textWrap: 'balance', overflowWrap: 'anywhere',
+                display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
+                overflow: 'hidden',
                 margin: 0,
               }}>{shopName}</h1>
             </div>
