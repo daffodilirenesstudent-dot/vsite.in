@@ -628,3 +628,36 @@ force and a hardcoded indigo would be wrong.
 - **The extraction spend guard is per-process** — a deploy resets it. The
   OpenAI project's monthly hard limit is the only absolute ceiling until the
   durable Postgres quota lands (needs a migration).
+
+## Postgres functions are PUBLIC by default — PostgREST exposes them (2026-09-20)
+
+**Symptom.** `/api/manage/insights/top-items` correctly returned 401 without a
+token, while `POST /rest/v1/rpc/insights_top_items` with nothing but the `anon`
+key returned the same data — real revenue, quantities, order counts — for any
+`site_id`. The `anon` key ships in the browser bundle of every page, so this was
+readable by anyone who viewed source.
+
+**Cause.** Postgres grants `EXECUTE` to `PUBLIC` on every newly created function
+unless you revoke it, and Supabase publishes every `public`-schema function over
+PostgREST at `/rest/v1/rpc/<name>`. Seven server-only RPCs were therefore
+reachable without authentication. `create_order_atomic` was among them, which
+means the ordering freeze was bypassable: `ORDERING_FROZEN` and
+`frozenResponse()` guard the Next.js routes, and nothing guarded the function
+sitting underneath them.
+
+**Fix.** Migration `revoke_public_execute_on_internal_rpcs` revokes EXECUTE from
+`PUBLIC, anon, authenticated` on all seven. `service_role` keeps its own explicit
+grant, and every caller in `src/` uses `supabaseServer` (service-role), so no
+application code changed.
+
+**The rule for new RPCs.** A `SECURITY DEFINER` function called only from a route
+handler must be revoked at creation, in the same migration:
+
+```sql
+REVOKE EXECUTE ON FUNCTION public.<name>(<arg types>) FROM PUBLIC, anon, authenticated;
+```
+
+Never assume an app-layer gate protects a database function — PostgREST is a
+second front door to the same logic. After any migration that adds a function,
+run the Supabase advisors (`get_advisors type=security`) and check for
+`anon_security_definer_function_executable`; that lint is what surfaced this.
