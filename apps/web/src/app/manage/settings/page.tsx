@@ -17,6 +17,7 @@ import {
 } from '@/lib/menu/menuThemes';
 import { BUSINESS_TYPES, isBusinessType, isValidPincode } from '@/lib/store/businessTypes';
 import { TIME_SLOTS, formatTiming, parseTiming, type StoreTiming } from '@/lib/store/storeTiming';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -311,6 +312,15 @@ export default function SettingsPage() {
     // Quiet refresh = update state without flashing the loading skeleton.
     // Used by the 20s poller + tab-visibility refresh so the UI doesn't blink.
     const loadRzpStatus = async (sid: string, quiet = false) => {
+        // Razorpay Connect is an ordering feature. While ORDERING_FROZEN the
+        // route answers 403 FEATURE_FROZEN, so asking is pure console/Sentry
+        // noise — on mount, every 20s, and on every tab focus. Report the
+        // not-connected state the UI already renders and make no request.
+        if (ORDERING_FROZEN) {
+            setRzpStatus({ connected: false, health: 'not_connected' });
+            if (!quiet) setRzpStatusLoading(false);
+            return;
+        }
         if (!quiet) setRzpStatusLoading(true);
         try {
             const token = await import('@/lib/auth/firebase').then(m => m.firebaseAuth.currentUser?.getIdToken());
@@ -337,6 +347,8 @@ export default function SettingsPage() {
     useEffect(() => {
         if (!siteId) return;
         loadRzpStatus(siteId);
+        // Nothing can change while frozen, so no interval and no focus listener.
+        if (ORDERING_FROZEN) return;
         const intervalId = setInterval(() => {
             if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
                 loadRzpStatus(siteId, true);
