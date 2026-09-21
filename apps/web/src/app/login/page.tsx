@@ -251,7 +251,7 @@ function PhoneStep({
       <h1 className="mb-1 text-center text-2xl font-bold text-slate-800">Welcome Back</h1>
       <p className="mb-8 text-center text-sm text-slate-400">Your menu, one scan away. No app to install.</p>
 
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+      <label htmlFor="login-phone" className="mb-1.5 block text-sm font-medium text-slate-700">
         Mobile number <span className="text-red-500">*</span>
       </label>
       <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
@@ -260,6 +260,7 @@ function PhoneStep({
           <span className="text-sm font-medium text-slate-600">+91</span>
         </div>
         <input
+          id="login-phone"
           type="tel"
           inputMode="numeric"
           placeholder="Eg. 9876543210"

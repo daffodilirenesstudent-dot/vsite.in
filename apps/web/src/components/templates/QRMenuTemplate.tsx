@@ -1571,10 +1571,17 @@ export default function QRMenuTemplate({
               {/* The shop name stands alone. 052 already conceded that most
                   stores have no logo and that the header must read as finished
                   without one — 054 makes that the only case. */}
-              <span style={{
+              {/* The shop name is this page's <h1>. It was a <span>, which left
+                  every customer-facing menu — the most-visited page in the
+                  product — with no top-level heading at all: screen readers had
+                  no page title to announce, and search engines no primary
+                  heading. Styling is unchanged; `margin: 0` keeps the browser's
+                  default h1 margin from shifting the header. */}
+              <h1 style={{
                 fontFamily: TV.fontDisplay, fontWeight: 700, fontSize: 16,
                 color: TV.accent, letterSpacing: '0.5px', textTransform: 'uppercase',
-              }}>{shopName}</span>
+                margin: 0,
+              }}>{shopName}</h1>
             </div>
             {shopTagline && (
               <span style={{

@@ -201,10 +201,11 @@ function DetailsStep({
       </div>
 
       {/* Name */}
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+      <label htmlFor="signup-name" className="mb-1.5 block text-sm font-medium text-slate-700">
         Your name <span className="text-red-500">*</span>
       </label>
       <input
+        id="signup-name"
         type="text"
         placeholder="Eg. John Smith"
         value={name}
@@ -215,7 +216,7 @@ function DetailsStep({
       />
 
       {/* Phone */}
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+      <label htmlFor="signup-phone" className="mb-1.5 block text-sm font-medium text-slate-700">
         Mobile number <span className="text-red-500">*</span>
       </label>
       <div className="flex overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
@@ -224,6 +225,7 @@ function DetailsStep({
           <span className="text-sm font-medium text-slate-600">+91</span>
         </div>
         <input
+          id="signup-phone"
           type="tel"
           inputMode="numeric"
           placeholder="Eg. 9876543210"

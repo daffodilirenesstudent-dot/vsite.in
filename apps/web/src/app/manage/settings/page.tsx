@@ -924,17 +924,18 @@ export default function SettingsPage() {
 
                 <div className="flex flex-col gap-5">
                     <div>
-                        <label style={labelStyle}>Business Name <span style={{ color: '#E7000B' }}>*</span></label>
-                        <input type="text" value={form.businessName} onChange={e => setForm(f => ({ ...f, businessName: e.target.value }))} style={inputStyle} placeholder="e.g. Cream Story" disabled={saving} />
+                        <label htmlFor="settings-business-name" style={labelStyle}>Business Name <span style={{ color: '#E7000B' }}>*</span></label>
+                        <input type="text" value={form.businessName} onChange={e => setForm(f => ({ ...f, businessName: e.target.value }))} style={inputStyle} id="settings-business-name" placeholder="e.g. Cream Story" disabled={saving} />
                     </div>
                     <div>
-                        <label style={labelStyle}>Mobile Number</label>
+                        <label htmlFor="settings-mobile" style={labelStyle}>Mobile Number</label>
                         <input
                             type="tel"
                             inputMode="tel"
                             value={form.phoneNumber}
                             onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))}
                             style={inputStyle}
+                            id="settings-mobile"
                             placeholder="+91 9876543210"
                             disabled={saving}
                         />
@@ -948,18 +949,19 @@ export default function SettingsPage() {
                         the PIN look like a second, unrelated question. */}
                     <div className="flex flex-col sm:flex-row gap-4">
                         <div style={{ flex: 2 }}>
-                            <label style={labelStyle}>Location</label>
+                            <label htmlFor="settings-location" style={labelStyle}>Location</label>
                             <input
                                 type="text"
                                 value={form.location}
                                 onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
                                 style={inputStyle}
+                                id="settings-location"
                                 placeholder="e.g. Anna Nagar, Madurai"
                                 disabled={saving}
                             />
                         </div>
                         <div style={{ flex: 1 }}>
-                            <label style={labelStyle}>PIN Code</label>
+                            <label htmlFor="settings-pincode" style={labelStyle}>PIN Code</label>
                             <input
                                 type="text"
                                 inputMode="numeric"
@@ -970,6 +972,7 @@ export default function SettingsPage() {
                                 // one rule for the owner to work out, not two.
                                 onChange={e => setForm(f => ({ ...f, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                                 style={{ ...inputStyle, border: pincodeInvalid ? '1px solid #E7000B' : '1px solid #E4E4E7' }}
+                                id="settings-pincode"
                                 placeholder="625001"
                                 aria-invalid={pincodeInvalid}
                                 disabled={saving}
