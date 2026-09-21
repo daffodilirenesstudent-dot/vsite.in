@@ -1,4 +1,5 @@
 'use client';
+import { Spinner, SectionLoader } from '@/components/loading';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
@@ -834,7 +835,6 @@ export default function OrdersPage() {
       {isQrOrder && (
         <>
           <style>{`
-            @keyframes spin { to { transform: rotate(360deg) } }
             @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
             @keyframes tablePulse {
               0%,100% { box-shadow: 0 0 0 0 rgba(249,115,22,0); }
@@ -912,9 +912,7 @@ export default function OrdersPage() {
           )}
           {/* ── Loading ── */}
           {loading && (
-            <div className="flex items-center justify-center py-16">
-              <div style={{ width: 28, height: 28, border: '3px solid #e6e6e6', borderTopColor: '#5137EF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            </div>
+            <SectionLoader message="Loading orders" minHeight={200} />
           )}
 
           {/* ── Table grid ── */}
@@ -1289,7 +1287,7 @@ export default function OrdersPage() {
                     style={{ flex: 2, padding: '11px 0', borderRadius: 8, background: checkoutLoading ? '#A5B4FC' : '#5137EF', border: 'none', color: '#fff', fontWeight: 600, cursor: checkoutLoading ? 'default' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                   >
                     {checkoutLoading ? (
-                      <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Processing…</>
+                      <><Spinner size="sm" tone="onBrand" />Processing…</>
                     ) : 'Confirm Checkout'}
                   </button>
                 </div>
@@ -1339,7 +1337,7 @@ export default function OrdersPage() {
                     style={{ flex: 2, padding: '11px 0', borderRadius: 8, background: checkoutLoading ? '#A5B4FC' : '#5137EF', border: 'none', color: '#fff', fontWeight: 600, cursor: checkoutLoading ? 'default' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                   >
                     {checkoutLoading
-                      ? <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Processing…</>
+                      ? <><Spinner size="sm" tone="onBrand" />Processing…</>
                       : 'Confirm Checkout'
                     }
                   </button>
@@ -1353,7 +1351,6 @@ export default function OrdersPage() {
       {isPayEat && (
         <>
           <style>{`
-            @keyframes spin { to { transform: rotate(360deg) } }
             @media print {
               body > * { display: none !important; }
               #kot-print-area { display: block !important; }
@@ -1384,9 +1381,7 @@ export default function OrdersPage() {
           )}
 
           {loading && (
-            <div className="flex items-center justify-center py-16">
-              <div style={{ width: 28, height: 28, border: '3px solid #e6e6e6', borderTopColor: '#5137EF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            </div>
+            <SectionLoader message="Loading orders" minHeight={200} />
           )}
 
           {/* ── Desktop table ── */}
@@ -1438,7 +1433,7 @@ export default function OrdersPage() {
                             title="Confirm payment received"
                             style={{ width: 24, height: 24, borderRadius: '50%', background: '#16A34A', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: confirmingId === order.id ? 0.6 : 1 }}>
                             {confirmingId === order.id
-                              ? <div style={{ width: 10, height: 10, border: '1.5px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                              ? <Spinner size="xs" tone="onBrand" />
                               : <span style={{ color: '#fff', fontSize: 14, lineHeight: 1 }}>✓</span>}
                           </button>
                         </>
@@ -1465,7 +1460,7 @@ export default function OrdersPage() {
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: s.bg, border: s.border, color: s.color, fontSize: 12, fontWeight: 500, cursor: isUpdating ? 'default' : 'pointer', opacity: isUpdating ? 0.6 : 1 }}>
                           {STATUS_LABEL[order.status]}
                           {s.chevron && !isUpdating && <span className="material-symbols-outlined" style={{ fontSize: 14 }}>keyboard_arrow_down</span>}
-                          {isUpdating && <div style={{ width: 10, height: 10, border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
+                          {isUpdating && <Spinner size="xs" tone="current" />}
                         </button>
                       )}
                       {order.status === 'completed' && (
@@ -1485,8 +1480,8 @@ export default function OrdersPage() {
                     onClick={loadMore}
                     disabled={loadingMore}
                     style={{ fontSize: 13, fontWeight: 500, color: '#5137EF', background: 'none', border: '1px solid #5137EF', borderRadius: 8, padding: '7px 20px', cursor: loadingMore ? 'default' : 'pointer', opacity: loadingMore ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {loadingMore && <div style={{ width: 12, height: 12, border: '2px solid #5137EF', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
-                    {loadingMore ? 'Loading...' : 'Load earlier orders'}
+                    {loadingMore && <Spinner size="xs" tone="current" />}
+                    {loadingMore ? 'Loading earlier orders…' : 'Load earlier orders'}
                   </button>
                 </div>
               )}
@@ -1547,7 +1542,7 @@ export default function OrdersPage() {
                 <div style={{ padding: '14px 16px', borderTop: '1px solid #E4E4E7', display: 'flex', justifyContent: 'center' }}>
                   <button onClick={loadMore} disabled={loadingMore}
                     style={{ fontSize: 13, fontWeight: 500, color: '#5137EF', background: 'none', border: '1px solid #5137EF', borderRadius: 8, padding: '7px 20px', cursor: loadingMore ? 'default' : 'pointer', opacity: loadingMore ? 0.6 : 1 }}>
-                    {loadingMore ? 'Loading...' : 'Load earlier orders'}
+                    {loadingMore ? 'Loading earlier orders…' : 'Load earlier orders'}
                   </button>
                 </div>
               )}

@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import React, { useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -228,8 +229,8 @@ const PosterGenerator: React.FC<PosterGeneratorProps> = ({ siteName, siteUrl, si
             >
                 {isDownloading ? (
                     <>
-                        <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
-                        Generating...
+                        <Spinner size="sm" tone="current" />
+                        Generating…
                     </>
                 ) : (
                     <>

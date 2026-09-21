@@ -1,4 +1,5 @@
 'use client';
+import { Spinner, SectionLoader } from '@/components/loading';
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -108,8 +109,6 @@ function OrderStatusContent() {
       padding: '24px 16px 48px',
       fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
     }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
       <div style={{
         width: '100%', maxWidth: 420,
         background: '#FFFFFF', borderRadius: 20, overflow: 'hidden',
@@ -129,14 +128,7 @@ function OrderStatusContent() {
 
           {/* ── Loading ── */}
           {loading && (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{
-                width: 32, height: 32, margin: '0 auto 14px',
-                border: '3px solid #E4E4E7', borderTopColor: '#5137EF',
-                borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-              }} />
-              <p style={{ margin: 0, fontSize: 14, color: '#71717A' }}>Loading your order…</p>
-            </div>
+            <SectionLoader message="Loading your order" minHeight={140} />
           )}
 
           {/* ── Error ── */}
@@ -228,11 +220,7 @@ function OrderStatusContent() {
                   display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
                   padding: '14px 16px', background: '#F0FDF4', borderRadius: 12,
                 }}>
-                  <div style={{
-                    width: 20, height: 20, flexShrink: 0,
-                    border: '2.5px solid #BBF7D0', borderTopColor: '#16A34A',
-                    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-                  }} />
+                  <Spinner size="md" tone="current" style={{ color: '#16A34A' }} />
                   <p style={{ margin: 0, fontSize: 13, color: '#16A34A', fontWeight: 500 }}>
                     Payment confirmed — token will appear here shortly
                   </p>
@@ -328,11 +316,7 @@ function OrderStatusContent() {
                   display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
                   padding: '10px 14px', background: '#F4F4F5', borderRadius: 10,
                 }}>
-                  <div style={{
-                    width: 16, height: 16, flexShrink: 0,
-                    border: '2px solid #E4E4E7', borderTopColor: '#5137EF',
-                    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-                  }} />
+                  <Spinner size="sm" tone="brand" />
                   <p style={{ margin: 0, fontSize: 12, color: '#71717A' }}>This page updates automatically</p>
                 </div>
               )}

@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import CartSheet from './CartSheet';
@@ -2167,7 +2168,7 @@ export default function QRMenuTemplate({
               }}
             >
               {billReqState === 'sending' ? (
-                <div style={{ width: 20, height: 20, border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                <Spinner size="md" tone="onBrand" />
               ) : 'Yes, call staff'}
             </button>
             <button

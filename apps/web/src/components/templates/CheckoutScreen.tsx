@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { CartItem } from './QRMenuTemplate';
@@ -317,8 +318,6 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
         maxWidth: 560, margin: '0 auto',
         animation: 'qrFadeIn 0.18s ease',
       }}>
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
           <h1 style={{
             fontFamily: "'Poppins',sans-serif", fontWeight: 500,
@@ -357,12 +356,7 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
             }}
           >
             {loading ? (
-              <div style={{
-                width: 20, height: 20,
-                border: '2.5px solid rgba(255,255,255,0.4)',
-                borderTopColor: '#fff', borderRadius: '50%',
-                animation: 'spin 0.7s linear infinite',
-              }} />
+              <Spinner size="md" tone="onBrand" />
             ) : (
               <span style={{
                 fontFamily: "'Poppins',sans-serif", fontWeight: 600,
@@ -537,8 +531,6 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
             color: '#FB2C36', marginBottom: 16, textAlign: 'center',
           }}>{error}</p>
         )}
-
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         <button
           onClick={handlePlaceOrder}
           disabled={loading}
@@ -554,12 +546,7 @@ export default function CheckoutScreen({ items, siteId, paymentMethod, tableNumb
         >
           {loading ? (
             <>
-              <div style={{
-                width: 18, height: 18,
-                border: '2.5px solid rgba(255,255,255,0.4)',
-                borderTopColor: '#fff', borderRadius: '50%',
-                animation: 'spin 0.7s linear infinite',
-              }} />
+              <Spinner size="sm" tone="onBrand" />
               {paymentMethod === 'counter' || paymentMethod === 'no_payment' ? 'Placing order…' : 'Processing…'}
             </>
           ) : (

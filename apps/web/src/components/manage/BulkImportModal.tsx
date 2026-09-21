@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/platform/db/supabase';
@@ -394,7 +395,7 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
           {phase === 'processing' && (
             <div className="flex flex-col items-center" style={{ padding: '28px 0' }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#F0EDFF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-                <span className="material-symbols-outlined animate-spin" style={{ fontSize: 28, color: purple }}>progress_activity</span>
+                <Spinner size="md" tone="brand" />
               </div>
               <p style={{ fontSize: 16, fontWeight: 600, color: '#0A0A0A', marginBottom: 8, textAlign: 'center' }}>{STEP_MESSAGES[stepIdx]}</p>
               <p style={{ fontSize: 12, color: '#99A1AF', textAlign: 'center', lineHeight: '18px' }}>This takes up to 30 seconds.<br />Please don&apos;t close this window.</p>
@@ -514,7 +515,7 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
           {phase === 'inserting' && (
             <div className="flex flex-col items-center" style={{ padding: '28px 0' }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#F0EDFF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-                <span className="material-symbols-outlined animate-spin" style={{ fontSize: 28, color: purple }}>progress_activity</span>
+                <Spinner size="md" tone="brand" />
               </div>
               <p style={{ fontSize: 16, fontWeight: 600, color: '#0A0A0A', marginBottom: 8, textAlign: 'center' }}>Adding to your inventory…</p>
               <p style={{ fontSize: 12, color: '#99A1AF', textAlign: 'center' }}>Please don&apos;t close this window.</p>

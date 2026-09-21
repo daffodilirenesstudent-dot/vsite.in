@@ -1,4 +1,5 @@
 'use client';
+import { Spinner, PageLoader } from '@/components/loading';
 import { LogoMark } from '@/components/Logo';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -11,8 +12,8 @@ import { OTP_LENGTH } from '@/lib/auth/otpInput';
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen w-full items-center justify-center bg-white">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-100 border-t-primary" />
+      <div className="bg-white">
+        <PageLoader />
       </div>
     }>
       <LoginContent />
@@ -281,7 +282,7 @@ function PhoneStep({
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            <Spinner size="sm" tone="onBrand" />
             Sending…
           </span>
         ) : 'Login'}
@@ -398,7 +399,7 @@ function OtpStep({
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            <Spinner size="sm" tone="onBrand" />
             Verifying…
           </span>
         ) : 'Verify'}

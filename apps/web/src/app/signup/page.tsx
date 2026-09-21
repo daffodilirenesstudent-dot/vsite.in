@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 import { LogoMark } from '@/components/Logo';
 
 import { useEffect, useRef, useState } from 'react';
@@ -266,7 +267,7 @@ function DetailsStep({
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            <Spinner size="sm" tone="onBrand" />
             Sending…
           </span>
         ) : 'Create Account'}
@@ -370,7 +371,7 @@ function OtpStep({
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            <Spinner size="sm" tone="onBrand" />
             Verifying…
           </span>
         ) : 'Verify'}

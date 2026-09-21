@@ -143,17 +143,147 @@ button, a, [role="button"] {
   }
 }
 
-/* Loading skeleton animation */
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+/* ══════════════════════════════════════════════════════════════════════
+   LOADING SYSTEM
+   The only place loading motion is defined. See components/loading/.
+
+   Everything here travels LEFT TO RIGHT on the same easing: the spinner's
+   four bars lift in sequence, the skeleton's highlight sweeps across, and
+   BrandLoader assembles the mark bar by bar. A screen showing two of the
+   three at once should read as one system, which is why these share a file
+   and a direction rather than being written per page.
+
+   This replaced 6 separate `@keyframes spin` declarations and 4 separate
+   opacity-pulse keyframes. Duplicating a keyframe is how they drifted the
+   first time — add to this block instead.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* The dashboard's established accent. Spinners had drifted across four
+     different purples (#5137EF, #5452F6, #5E17EB, blue-600); this is the one
+     the surrounding dashboard cards already use. One place to change it. */
+  --vs-loader-brand: #5137EF;
+  --vs-skeleton-base: #ECECEF;
+  --vs-skeleton-sheen: #F7F7F9;
 }
 
+/* ── Spinner: the mark's bar stagger, at any size ─────────────────────── */
+@keyframes vs-bar-wave {
+  /* The resting state carries most of the cycle, so it — not the peak — is
+     what the spinner actually looks like. An early version rested at 0.32
+     opacity, which read as pale lavender dashes at the small sizes the whole
+     bars-over-a-ring argument was made for. The floor is high enough that the
+     mark stays solid brand colour throughout; the wave adds emphasis rather
+     than supplying the visibility. */
+  0%, 70%, 100% { transform: scaleY(0.55); opacity: 0.55; }
+  28%           { transform: scaleY(1);    opacity: 1; }
+}
+
+.vs-spinner-bar {
+  transform-origin: center;
+  /* 1.05s with a 0.12s per-bar offset: the wave clears all four bars and
+     rests briefly before repeating, so it reads as a considered pulse
+     rather than a bouncing equalizer. */
+  animation: vs-bar-wave 1.05s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Progress track: the long-operation indicator ─────────────────────────
+   Same left-to-right axis as the spinner stagger and the skeleton sweep. */
+@keyframes vs-track-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.vs-track-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--vs-loader-brand, #5137EF), transparent);
+  animation: vs-track-slide 1.15s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vs-track-fill {
+    animation: none !important;
+    width: 100%;
+    background: var(--vs-loader-brand, #5137EF);
+    opacity: 0.45;
+  }
+  .vs-icon-spin { animation: none !important; }
+}
+
+/* ── Icon rotation ────────────────────────────────────────────────────────
+   For a control whose OWN glyph shows the activity — the refresh button's
+   arrows turning. Deliberately still a rotation: the icon is the affordance,
+   and swapping it for the bar spinner would remove the button's meaning. Use
+   this only on an icon that already means "again"; anything else gets
+   <Spinner>. */
+@keyframes vs-icon-spin { to { transform: rotate(360deg); } }
+
+.vs-icon-spin {
+  display: inline-block;
+  animation: vs-icon-spin 0.8s linear infinite;
+}
+
+/* ── Skeleton: a highlight travelling across the placeholder ──────────── */
+@keyframes vs-skeleton-sweep {
+  0%   { background-position: 180% 0; }
+  100% { background-position: -80% 0; }
+}
+
+.vs-skeleton {
+  background-color: var(--vs-skeleton-base);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--vs-skeleton-sheen) 45%,
+    var(--vs-skeleton-sheen) 55%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: vs-skeleton-sweep 1.6s linear infinite;
+}
+
+/* Legacy alias. `.skeleton` is still referenced by older markup; point it at
+   the same treatment so nothing renders as an un-animated grey block. */
 .skeleton {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
+  background-color: var(--vs-skeleton-base);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--vs-skeleton-sheen) 45%,
+    var(--vs-skeleton-sheen) 55%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
   border-radius: 8px;
+  animation: vs-skeleton-sweep 1.6s linear infinite;
+}
+
+/* Reduced motion: keep the indicator, drop the movement. The bars hold a
+   descending opacity so the spinner still reads as four distinct bars and
+   not as a solid block, and skeletons settle to flat placeholder grey. */
+@media (prefers-reduced-motion: reduce) {
+  .vs-spinner-bar {
+    animation: none !important;
+    transform: scaleY(0.82);
+    opacity: 0.9;
+  }
+  .vs-spinner-bar:nth-child(2) { opacity: 0.68; }
+  .vs-spinner-bar:nth-child(3) { opacity: 0.5; }
+  .vs-spinner-bar:nth-child(4) { opacity: 0.34; }
+
+  .vs-skeleton,
+  .skeleton {
+    animation: none !important;
+    background-image: none;
+  }
 }
 /* ══════════════════════════════════════════════════════════════════════
    MOTION SYSTEM — homepage ("Grounded Bento")

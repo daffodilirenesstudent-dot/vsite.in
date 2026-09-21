@@ -1,4 +1,5 @@
 'use client';
+import { PageLoader } from '@/components/loading';
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
@@ -106,11 +107,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     if (loading || (user && !profileChecked) || (profileChecked && sitesLoading)) {
         return (
-            <div className="flex h-screen w-full items-center justify-center bg-background-light">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
-                    <p className="text-sm text-gray-500">Loading...</p>
-                </div>
+            <div className="bg-background-light">
+                <PageLoader message="Loading your dashboard" />
             </div>
         );
     }

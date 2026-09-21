@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import { Suspense, useEffect, useState } from 'react';
 import { Shop, supabase } from '@/lib/platform/db/supabase';
@@ -148,14 +149,7 @@ export default function ShopPageClient({
         minHeight: '100dvh', background: '#fafafa',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <div style={{
-          width: 32, height: 32,
-          border: '3px solid #e6e6e6',
-          borderTopColor: '#ef59a1',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-        }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        <Spinner size="xl" tone="current" label="Loading menu" style={{ color: '#ef59a1' }} />
       </div>
     }>
       <Template

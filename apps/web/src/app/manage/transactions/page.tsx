@@ -181,8 +181,6 @@ function TransactionsContent() {
 
             {canView && (
                 <>
-                    <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-
                     {/* qr_order info banner */}
                     {isQrOrder && (
                         <div className="flex items-start gap-3 mb-5" style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '12px 16px' }}>
@@ -220,11 +218,10 @@ function TransactionsContent() {
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="grid items-center" style={{ gridTemplateColumns: '160px 130px 190px 1fr 90px 120px 80px 44px', padding: '14px 24px', minHeight: 50, background: '#FFFFFF', borderBottom: i < 5 ? '1px solid #E4E4E7' : 'none' }}>
                                     {[120, 90, 150, 200, 60, 80, 50, 20].map((w, j) => (
-                                        <div key={j} style={{ height: 12, width: w, borderRadius: 4, background: '#F4F4F5', animation: 'tx-pulse 1.4s ease-in-out infinite' }} />
+                                        <div key={j} className="vs-skeleton" style={{ height: 12, width: w, borderRadius: 4 }} />
                                     ))}
                                 </div>
                             ))}
-                            <style>{`@keyframes tx-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
                         </div>
                     ) : null}
                     {loading && (
@@ -233,13 +230,12 @@ function TransactionsContent() {
                             {Array.from({ length: 5 }).map((_, i) => (
                                 <div key={i} style={{ padding: '14px 16px', background: '#FFFFFF', borderBottom: i < 4 ? '1px solid #E4E4E7' : 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
                                     <div className="flex items-center justify-between">
-                                        <div style={{ height: 12, width: 110, borderRadius: 4, background: '#F4F4F5', animation: 'tx-pulse 1.4s ease-in-out infinite' }} />
-                                        <div style={{ height: 12, width: 60, borderRadius: 4, background: '#F4F4F5', animation: 'tx-pulse 1.4s ease-in-out infinite' }} />
+                                        <div className="vs-skeleton" style={{ height: 12, width: 110, borderRadius: 4 }} />
+                                        <div className="vs-skeleton" style={{ height: 12, width: 60, borderRadius: 4 }} />
                                     </div>
-                                    <div style={{ height: 10, width: '70%', borderRadius: 4, background: '#F4F4F5', animation: 'tx-pulse 1.4s ease-in-out infinite' }} />
+                                    <div className="vs-skeleton" style={{ height: 10, width: '70%', borderRadius: 4 }} />
                                 </div>
                             ))}
-                            <style>{`@keyframes tx-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
                         </div>
                     )}
                     {!loading && (transactions.length === 0 ? (

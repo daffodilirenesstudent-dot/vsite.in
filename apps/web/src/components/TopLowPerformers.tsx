@@ -279,13 +279,12 @@ function SkeletonRows() {
             {[0, 1, 2].map(i => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div className="flex items-center justify-between">
-                        <div style={{ height: 12, width: '50%', background: '#F4F4F5', borderRadius: 4, animation: 'tlp-pulse 1.4s ease-in-out infinite' }} />
-                        <div style={{ height: 12, width: 56, background: '#F4F4F5', borderRadius: 4, animation: 'tlp-pulse 1.4s ease-in-out infinite' }} />
+                        <div className="vs-skeleton" style={{ height: 12, width: '50%', borderRadius: 4, }} />
+                        <div className="vs-skeleton" style={{ height: 12, width: 56, borderRadius: 4, }} />
                     </div>
-                    <div style={{ height: 6, background: '#F4F4F5', borderRadius: 3, animation: 'tlp-pulse 1.4s ease-in-out infinite' }} />
+                    <div className="vs-skeleton" style={{ height: 6, borderRadius: 3, }} />
                 </div>
             ))}
-            <style>{`@keyframes tlp-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.5 } }`}</style>
         </>
     );
 }

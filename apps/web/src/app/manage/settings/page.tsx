@@ -1,4 +1,5 @@
 'use client';
+import { Spinner, SectionLoader } from '@/components/loading';
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -765,9 +766,7 @@ export default function SettingsPage() {
 
     if (loading) {
         return (
-            <div className="flex h-full items-center justify-center py-24">
-                <div className="h-7 w-7 animate-spin rounded-full border-4 border-gray-200 border-t-[#5137EF]" />
-            </div>
+            <SectionLoader message="Loading your store settings" minHeight={280} />
         );
     }
 
@@ -1130,7 +1129,7 @@ export default function SettingsPage() {
                 {/* Save button */}
                 <div className="mt-6 flex justify-stretch md:justify-end">
                     <button onClick={handleSave} disabled={saving} className="flex w-full md:w-auto items-center justify-center gap-2 text-white transition-opacity hover:opacity-90 disabled:opacity-60" style={{ background: '#5137EF', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 500, minHeight: 46, cursor: saving ? 'wait' : 'pointer' }}>
-                        {saving ? (<><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Saving…</>) : 'Save Changes'}
+                        {saving ? (<><Spinner size="sm" tone="onBrand" />Saving…</>) : 'Save Changes'}
                     </button>
                 </div>
             </div>
@@ -1544,7 +1543,7 @@ export default function SettingsPage() {
 
                 {gstLoading || !gstProfile ? (
                     <div className="flex items-center justify-center p-4" style={{ background: '#FAFAFA', borderRadius: 12, border: '1px solid #E4E4E7' }}>
-                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-[#5137EF]" />
+                        <Spinner size="md" tone="brand" label="Loading GST details" />
                     </div>
                 ) : gstProfile.gst_status === 'pending' ? (
                     <div className="flex items-center justify-between gap-3 p-4 rounded-xl" style={{ background: '#FAFAFA', border: '1px solid #E4E4E7' }}>
@@ -1865,7 +1864,7 @@ export default function SettingsPage() {
                                 style={{ background: '#E7000B', borderRadius: 8, padding: '11px 0', fontSize: 14, fontWeight: 500, color: '#FFFFFF', border: 'none', cursor: (!deleteConfirmMatch || deleting) ? 'not-allowed' : 'pointer' }}
                             >
                                 {deleting ? (
-                                    <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Deleting…</>
+                                    <><Spinner size="sm" tone="onBrand" />Deleting…</>
                                 ) : (
                                     <><span className="material-symbols-outlined" style={{ fontSize: 15 }}>delete_forever</span>Delete Store</>
                                 )}

@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import React, { useState, useRef } from 'react';
 import { useAuth } from '@/components/AuthContext';
@@ -501,7 +502,7 @@ export default function SubscriptionPage() {
             {isDataLoading && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[0, 1].map(i => (
-                        <div key={i} className="skeleton" style={{ height: 420, borderRadius: 14 }} />
+                        <div key={i} className="vs-skeleton" style={{ height: 420, borderRadius: 14 }} />
                     ))}
                 </div>
             )}
@@ -713,7 +714,7 @@ export default function SubscriptionPage() {
                 {invoicesState === 'loading' && (
                     <div style={{ padding: '20px' }}>
                         {[0, 1, 2].map(i => (
-                            <div key={i} className="skeleton" style={{ height: 44, borderRadius: 8, marginBottom: i < 2 ? 10 : 0 }} />
+                            <div key={i} className="vs-skeleton" style={{ height: 44, borderRadius: 8, marginBottom: i < 2 ? 10 : 0 }} />
                         ))}
                     </div>
                 )}
@@ -901,8 +902,8 @@ export default function SubscriptionPage() {
                                 >
                                     {isProcessing ? (
                                         <>
-                                            <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
-                                            <span>{paymentState === 'activating' ? 'Activating your plan...' : 'Opening checkout...'}</span>
+                                            <Spinner size="sm" tone="onBrand" />
+                                            <span>{paymentState === 'activating' ? 'Activating your plan…' : 'Opening checkout…'}</span>
                                         </>
                                     ) : (
                                         <>
@@ -1020,7 +1021,7 @@ export default function SubscriptionPage() {
                                 >
                                     {isQrOrderingProcessing ? (
                                         <>
-                                            <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
+                                            <Spinner size="sm" tone="onBrand" />
                                             <span>Activating your plan...</span>
                                         </>
                                     ) : (
@@ -1115,7 +1116,7 @@ export default function SubscriptionPage() {
                                     style={{ width: '100%', height: 52, borderRadius: 10, fontSize: 15, fontWeight: 700, border: 'none', background: qrOrderState === 'creating' ? '#6B7280' : '#F97316', color: '#FFFFFF', cursor: qrOrderState === 'creating' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
                                 >
                                     {qrOrderState === 'creating' ? (
-                                        <><span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} /><span>Activating...</span></>
+                                        <><Spinner size="sm" tone="onBrand" /><span>Activating…</span></>
                                     ) : (
                                         <><span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>lock</span>Pay ₹{QR_ORDER_MONTHLY} &amp; Activate</>
                                     )}
@@ -1133,7 +1134,6 @@ export default function SubscriptionPage() {
               </>
             )}
 
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }

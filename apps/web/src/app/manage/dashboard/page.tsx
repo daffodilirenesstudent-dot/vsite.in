@@ -337,17 +337,15 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 200, paddingTop: 24 }}>
                                 {Array.from({ length: 12 }).map((_, i) => (
                                     <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                                        <div style={{
+                                        <div className="vs-skeleton" style={{
                                             width: '70%', maxWidth: 32, minWidth: 14,
                                             height: `${30 + ((i * 17) % 60)}%`,
-                                            background: '#F4F4F5', borderRadius: '6px 6px 0 0',
-                                            animation: 'dash-pulse 1.4s ease-in-out infinite',
+                                            borderRadius: '6px 6px 0 0',
                                         }} />
                                     </div>
                                 ))}
                             </div>
                             <div style={{ display: 'flex', gap: 4, marginTop: 8, height: 14 }} />
-                            <style>{`@keyframes dash-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
                         </div>
                     )}
 
@@ -563,17 +561,15 @@ function SyncIndicator({
                 }}
             >
                 <span
-                    className="material-symbols-outlined"
+                    className={`material-symbols-outlined${loading ? ' vs-icon-spin' : ''}`}
                     style={{
                         fontSize: 14, color: '#52525C',
-                        animation: loading ? 'sync-spin 0.8s linear infinite' : 'none',
                         display: 'inline-block',
                     }}
                 >
                     refresh
                 </span>
             </button>
-            <style>{`@keyframes sync-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }
@@ -692,12 +688,11 @@ function MenuInsights({
                     <div style={{ padding: '16px' }}>
                         {Array.from({ length: 3 }).map((_, i) => (
                             <div key={i} className="flex items-center gap-3" style={{ padding: '10px 0', borderBottom: i < 2 ? '1px solid #F4F4F5' : 'none' }}>
-                                <div style={{ width: 28, height: 28, borderRadius: 6, background: '#F4F4F5', animation: 'dash-pulse 1.4s ease-in-out infinite' }} />
-                                <div style={{ flex: 1, height: 10, background: '#F4F4F5', borderRadius: 4, animation: 'dash-pulse 1.4s ease-in-out infinite' }} />
-                                <div style={{ width: 24, height: 10, background: '#F4F4F5', borderRadius: 4, animation: 'dash-pulse 1.4s ease-in-out infinite' }} />
+                                <div className="vs-skeleton" style={{ width: 28, height: 28, borderRadius: 6 }} />
+                                <div className="vs-skeleton" style={{ flex: 1, height: 10, borderRadius: 4 }} />
+                                <div className="vs-skeleton" style={{ width: 24, height: 10, borderRadius: 4 }} />
                             </div>
                         ))}
-                        <style>{`@keyframes dash-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
                     </div>
                 ) : !summary || summary.categories.length === 0 ? (
                     <div className="flex flex-col items-center text-center" style={{ padding: '32px 16px' }}>

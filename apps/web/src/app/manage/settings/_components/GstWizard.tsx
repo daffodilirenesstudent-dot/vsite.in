@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 // GST compliance onboarding wizard.
 //
@@ -252,7 +253,7 @@ export default function GstWizard({ siteId, onClose }: Props) {
                                 <p style={{ fontSize: 12, color: '#71717A', marginTop: 2 }}>Skip this — bills won&rsquo;t include GST.</p>
                             </div>
                             {busy === 'save'
-                                ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-[#5137EF]" />
+                                ? <Spinner size="sm" tone="brand" />
                                 : <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#99A1AF' }}>arrow_forward</span>}
                         </button>
                     </div>
@@ -350,7 +351,7 @@ export default function GstWizard({ siteId, onClose }: Props) {
                                     className="flex items-center gap-2 hover:opacity-90"
                                     style={{ background: '#5137EF', color: '#fff', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 500, border: 'none', cursor: busy === 'verify' ? 'wait' : 'pointer' }}
                                 >
-                                    {busy === 'verify' && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+                                    {busy === 'verify' && <Spinner size="sm" tone="onBrand" />}
                                     {busy === 'verify' ? 'Verifying…' : 'Verify GSTIN'}
                                 </button>
                             )}
@@ -408,7 +409,7 @@ export default function GstWizard({ siteId, onClose }: Props) {
                                 className="flex items-center gap-2 hover:opacity-90 disabled:opacity-50"
                                 style={{ background: '#5137EF', color: '#fff', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 500, border: 'none', cursor: busy === 'save' ? 'wait' : 'pointer' }}
                             >
-                                {busy === 'save' && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+                                {busy === 'save' && <Spinner size="sm" tone="onBrand" />}
                                 {busy === 'save' ? 'Saving…' : 'Save & finish'}
                             </button>
                         </div>

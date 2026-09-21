@@ -1,4 +1,5 @@
 'use client';
+import { Spinner, SectionLoader } from '@/components/loading';
 
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -245,9 +246,7 @@ export default function BannerManagementPage() {
 
     if (loading) {
         return (
-            <div className="flex h-full items-center justify-center py-24">
-                <div className="h-7 w-7 animate-spin rounded-full border-4 border-gray-200 border-t-[#5137EF]" />
-            </div>
+            <SectionLoader message="Loading your banners" minHeight={280} />
         );
     }
 
@@ -537,9 +536,9 @@ export default function BannerManagementPage() {
                                 style={{ background: '#5137EF', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 500, color: '#FFFFFF', border: 'none', cursor: saving ? 'wait' : 'pointer' }}
                             >
                                 {uploading ? (
-                                    <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Uploading…</>
+                                    <><Spinner size="sm" tone="onBrand" />Uploading…</>
                                 ) : saving ? (
-                                    <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Saving…</>
+                                    <><Spinner size="sm" tone="onBrand" />Saving…</>
                                 ) : editingBanner ? 'Save Changes' : 'Add Banner'}
                             </button>
                         </div>

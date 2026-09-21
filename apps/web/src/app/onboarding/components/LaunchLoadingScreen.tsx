@@ -1,4 +1,5 @@
 'use client';
+import { ProgressTrack } from '@/components/loading';
 
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -159,10 +160,12 @@ export default function LaunchLoadingScreen({
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-6">
       {!success ? (
         <div className="flex flex-col items-center gap-6 text-center">
-          {/* Spinning ring */}
-          <div className="relative flex h-20 w-20 items-center justify-center">
-            <div className="absolute inset-0 rounded-full border-4 border-primary/15" />
-            <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-primary" />
+          {/* The icon carries the story; the track carries the waiting.
+              This was a rotating ring, which is the wrong instrument for an
+              extraction that can run a full minute — held that long a spinner
+              stops reading as "working" and starts reading as "stuck", and a
+              reloaded page costs the owner their upload. */}
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
             <span
               className={`material-symbols-outlined text-primary transition-all duration-[220ms] ${fadeMsg ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}
               style={{ fontSize: 32 }}
@@ -170,6 +173,8 @@ export default function LaunchLoadingScreen({
               {msg.icon}
             </span>
           </div>
+
+          <ProgressTrack label="Setting up your store" width={148} />
 
           {/* Message */}
           <p

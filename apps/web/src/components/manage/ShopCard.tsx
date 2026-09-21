@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import React, { useState, useRef } from 'react';
 import { supabase } from '@/lib/platform/db/supabase';
@@ -697,8 +698,8 @@ export function ShopCard({ shop, subscription, siteType, isExpanded, onToggleExp
                             >
                                 {isDeleting ? (
                                     <>
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Deleting...
+                                        <Spinner size="sm" tone="onBrand" />
+                                        Deleting…
                                     </>
                                 ) : (
                                     <>

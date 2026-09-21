@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/components/loading';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -600,7 +601,6 @@ export default function ProductInventoryPage() {
     return (
         <div className="px-4 lg:px-8 py-5 lg:py-8">
             {/* Skeleton animation used by both desktop + mobile row skeletons. */}
-            <style>{`@keyframes pi-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
 
             {/* Page header */}
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-5 lg:mb-6">
@@ -684,13 +684,13 @@ export default function ProductInventoryPage() {
                     // collapse and jump on load.
                     Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="grid items-center" style={{ gridTemplateColumns: GRID_TRACKS, padding: '12px 16px', borderBottom: i < 5 ? '1px solid #F4F4F5' : 'none', minHeight: 60 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
-                            <div style={{ height: 12, width: '70%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
-                            <div style={{ height: 12, width: 80, borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
-                            <div style={{ height: 12, width: '60%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
-                            <div style={{ height: 12, width: 60, borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
-                            <div style={{ height: 22, width: 40, borderRadius: 12, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
-                            <div style={{ height: 28, width: 80, borderRadius: 6, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div className="vs-skeleton" style={{ width: 40, height: 40, borderRadius: 8, }} />
+                            <div className="vs-skeleton" style={{ height: 12, width: '70%', borderRadius: 4, }} />
+                            <div className="vs-skeleton" style={{ height: 12, width: 80, borderRadius: 4, }} />
+                            <div className="vs-skeleton" style={{ height: 12, width: '60%', borderRadius: 4, }} />
+                            <div className="vs-skeleton" style={{ height: 12, width: 60, borderRadius: 4, }} />
+                            <div className="vs-skeleton" style={{ height: 22, width: 40, borderRadius: 12, }} />
+                            <div className="vs-skeleton" style={{ height: 28, width: 80, borderRadius: 6, }} />
                         </div>
                     ))
                 ) : filteredProducts.length === 0 ? (
@@ -742,10 +742,10 @@ export default function ProductInventoryPage() {
                 {loading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                         <div key={i} style={{ padding: '14px 16px', borderBottom: i < 3 ? '1px solid #F4F4F5' : 'none', display: 'flex', gap: 12, alignItems: 'center' }}>
-                            <div style={{ width: 56, height: 56, borderRadius: 8, background: '#F4F4F5', flexShrink: 0, animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                            <div className="vs-skeleton" style={{ width: 56, height: 56, borderRadius: 8, flexShrink: 0 }} />
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <div style={{ height: 12, width: '60%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
-                                <div style={{ height: 10, width: '40%', borderRadius: 4, background: '#F4F4F5', animation: 'pi-pulse 1.4s ease-in-out infinite' }} />
+                                <div className="vs-skeleton" style={{ height: 12, width: '60%', borderRadius: 4, }} />
+                                <div className="vs-skeleton" style={{ height: 10, width: '40%', borderRadius: 4, }} />
                             </div>
                         </div>
                     ))
@@ -975,8 +975,8 @@ export default function ProductInventoryPage() {
                                 >
                                     {proImageSearching ? (
                                         <>
-                                            <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18, color: '#5137EF' }}>progress_activity</span>
-                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#5137EF' }}>Searching library...</span>
+                                            <Spinner size="md" tone="brand" />
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#5137EF' }}>Searching library…</span>
                                         </>
                                     ) : (
                                         <>
@@ -1252,7 +1252,7 @@ export default function ProductInventoryPage() {
                             <button onClick={handleSaveProduct} disabled={saving} className="hover:opacity-90 transition-opacity" style={{ background: '#5137EF', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 500, color: '#FFFFFF', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
                                 {saving ? (
                                     <span className="flex items-center gap-2">
-                                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                        <Spinner size="sm" tone="onBrand" />
                                         {editingProduct ? 'Saving…' : 'Adding…'}
                                     </span>
                                 ) : editingProduct ? 'Save Changes' : 'Add Product'}

@@ -3,33 +3,38 @@
 import React from 'react';
 
 /**
- * Skeleton loading placeholder for shop/menu cards.
- * Shows a shimmer animation while data is loading.
+ * Skeleton placeholder for a shop/menu card.
+ *
+ * The card used to carry `animate-pulse`, which fades the WHOLE block in and
+ * out — at a glance that reads as the page flickering rather than loading. The
+ * shared `.vs-skeleton` sweeps a highlight across each placeholder instead, in
+ * the same direction as the spinner's bar stagger, so a screen showing both
+ * reads as one system. See components/loading/.
  */
 export function ShopCardSkeleton() {
     return (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-pulse">
+        <div aria-hidden="true" className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {/* Header */}
             <div className="p-5 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-xl bg-gray-200 shrink-0" />
+                <div className="vs-skeleton w-14 h-14 rounded-xl shrink-0" />
                 <div className="flex-1 space-y-2">
-                    <div className="h-4 w-2/3 bg-gray-200 rounded" />
-                    <div className="h-3 w-1/3 bg-gray-100 rounded" />
+                    <div className="vs-skeleton h-4 w-2/3 rounded" />
+                    <div className="vs-skeleton h-3 w-1/3 rounded" />
                 </div>
-                <div className="w-12 h-6 bg-gray-200 rounded-full" />
+                <div className="vs-skeleton w-12 h-6 rounded-full" />
             </div>
 
             {/* Body */}
             <div className="px-5 pb-4 space-y-3">
-                <div className="h-3 w-full bg-gray-100 rounded" />
-                <div className="h-3 w-5/6 bg-gray-100 rounded" />
+                <div className="vs-skeleton h-3 w-full rounded" />
+                <div className="vs-skeleton h-3 w-5/6 rounded" />
             </div>
 
             {/* Actions */}
             <div className="px-5 pb-5 flex gap-2">
-                <div className="h-9 flex-1 bg-gray-100 rounded-lg" />
-                <div className="h-9 flex-1 bg-gray-100 rounded-lg" />
-                <div className="h-9 w-9 bg-gray-100 rounded-lg" />
+                <div className="vs-skeleton h-9 flex-1 rounded-lg" />
+                <div className="vs-skeleton h-9 flex-1 rounded-lg" />
+                <div className="vs-skeleton h-9 w-9 rounded-lg" />
             </div>
         </div>
     );

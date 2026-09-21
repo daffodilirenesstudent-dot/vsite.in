@@ -1,4 +1,5 @@
 'use client';
+import { Spinner as VsSpinner } from '@/components/loading';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type QRCodeStylingClass from 'qr-code-styling';
@@ -160,17 +161,13 @@ async function brandPosterBlob(qrData: string, imageDataUrl?: string, templatePa
 }
 
 // ── Spinner helper ────────────────────────────────────────────────────────────
+// Adapter over the shared loading system. Kept so this page's call sites can go
+// on passing a pixel size and a colour, while the thing rendered is the same
+// four-bar indicator as everywhere else. New code should use <VsSpinner> and a
+// named size directly.
 function Spinner({ size = 14, color = A.text }: { size?: number; color?: string }) {
-  return (
-    <div style={{
-      width: size, height: size,
-      border: `2px solid ${color}33`,
-      borderTopColor: color,
-      borderRadius: '50%',
-      animation: 'spin 0.7s linear infinite',
-      flexShrink: 0,
-    }} />
-  );
+  const named = size <= 12 ? 'xs' : size <= 17 ? 'sm' : size <= 28 ? 'md' : 'lg';
+  return <VsSpinner size={named} tone="current" style={{ color }} />;
 }
 
 // ── Icon button used for download actions ─────────────────────────────────────
@@ -585,7 +582,6 @@ export default function QRPage() {
   return (
     <div className="px-4 md:px-8 py-8" style={{ minHeight: '100vh' }}>
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg) } }
         /* The poster is the artefact the owner came for — it gets the wide
            column. The status/link/upsell cards explain it, so they get the
            narrow one. Previously this was reversed: 676px of explanation

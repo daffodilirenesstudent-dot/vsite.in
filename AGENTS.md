@@ -493,6 +493,51 @@ The vars now sit on the component's outermost element. **Any new overlay must
 render inside it** — `menu-theme.test.ts` asserts SearchOverlay and
 ProductDetailSheet appear after the themed root.
 
+## There is one loading system — use it (2026-09-17)
+
+`src/components/loading/` is the only place a loading indicator is defined.
+Import from `@/components/loading`, never from the files inside it.
+
+  <Spinner size tone />     inline / inside a button
+  <ProgressTrack />         an operation long enough that a spinner reads as stuck
+  <SectionLoader message /> a panel or table body with no data yet
+  <PageLoader message />    a whole route with nothing to show
+  <LoadingOverlay message/> stale content being replaced in place
+  <Skeleton/SkeletonRows>   placeholder geometry matching the real layout
+  <BrandLoader />           the full-screen splash (components/BrandLoader.tsx)
+
+**Motion is declared once, in globals.css under "LOADING SYSTEM".** Do not add a
+`<style>` tag with a keyframe to a page. That is exactly how the previous state
+happened: 47 hand-rolled indicators, `@keyframes spin` declared 6 times, and
+five separate opacity-pulse keyframes (`skeleton-pulse`, `dash-pulse`,
+`pi-pulse`, `tx-pulse`, `tlp-pulse`) that were the same animation written five
+times. They had drifted into four different purples — `#5137EF`, `#5452F6`
+(the actual tailwind `primary`), `#5E17EB` and a stray `blue-600`. One token,
+`--vs-loader-brand`, now decides.
+
+**Why bars and not a ring.** Every one of the 47 was a rotating ring, which says
+nothing about vsite and collapses into a grey smudge at 12px on the cheap
+Android screens the dashboard runs on. `BrandLoader` already assembles the vsite
+mark by raising its four bars in sequence; the spinner is that same gesture at a
+smaller scale, on the same easing and the same 0.12s per-bar offset. Everything
+in the system travels left to right for the same reason.
+
+Two deliberate exceptions, so nobody "fixes" them:
+  • `.vs-icon-spin` on the dashboard refresh button still ROTATES. The icon is
+    the affordance — arrows that mean "again" — and bars there would remove the
+    button's meaning. Use it only on an icon that already means repeat.
+  • `BrandLoader` keeps its own inlined CSS. That is load-bearing: its
+    `.bys-mark > rect` selector is rendered via dangerouslySetInnerHTML so React
+    does not escape `>` to `&gt;` on the server and break hydration.
+
+**Gotcha when applying `.vs-skeleton`:** the sweep is a `background-image`, so an
+inline `background:` shorthand on the same element silently wipes it and you get
+a flat grey block. Remove the inline colour when you add the class.
+
+**Tone:** `current` inherits `color`. That is what lets one spinner work inside a
+themed button and on the public menu, where the owner's own brand colour is in
+force and a hardcoded indigo would be wrong.
+
 ## Gotchas — resilient extraction + PDF upload (2026-09-19)
 
 - **Vitest hoists ESM imports above top-level statements.** Env vars a module

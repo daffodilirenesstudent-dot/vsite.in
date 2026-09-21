@@ -1,4 +1,5 @@
 'use client';
+import { Spinner, PageLoader } from '@/components/loading';
 import { LogoMark } from '@/components/Logo';
 
 import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
@@ -441,8 +442,8 @@ function OnboardingContent() {
 
   if (loading || checking) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-white">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-100 border-t-primary" />
+      <div className="bg-white">
+        <PageLoader />
       </div>
     );
   }
@@ -662,7 +663,7 @@ function OnboardingContent() {
                     className="w-full rounded-[10px] bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
                     {extracting ? (
                       <span className="flex items-center justify-center gap-2 whitespace-nowrap">
-                        <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        <Spinner size="sm" tone="onBrand" />
                         {loadingMsg}
                       </span>
                     ) : (
@@ -730,8 +731,8 @@ function OnboardingContent() {
 export default function OnboardingPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen w-full items-center justify-center bg-white">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-100 border-t-primary" />
+      <div className="bg-white">
+        <PageLoader />
       </div>
     }>
       <OnboardingContent />

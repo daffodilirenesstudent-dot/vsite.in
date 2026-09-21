@@ -1,4 +1,5 @@
 'use client';
+import { PageLoader } from '@/components/loading';
 
 import { Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -71,11 +72,8 @@ function RefreshInner() {
     }, [params]);
 
     return (
-        <div className="flex h-screen w-full items-center justify-center bg-white">
-            <div className="flex flex-col items-center gap-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-100 border-t-primary" />
-                <p className="text-xs text-slate-400">Restoring your session…</p>
-            </div>
+        <div className="bg-white">
+            <PageLoader message="Restoring your session…" />
         </div>
     );
 }
@@ -84,8 +82,8 @@ export default function AuthRefreshPage() {
     return (
         <Suspense
             fallback={
-                <div className="flex h-screen w-full items-center justify-center bg-white">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-100 border-t-primary" />
+                <div className="bg-white">
+                    <PageLoader />
                 </div>
             }
         >

@@ -1,4 +1,5 @@
 'use client';
+import { SectionLoader } from '@/components/loading';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -186,7 +187,7 @@ export default function NotificationBell() {
           {/* List */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && data.items.length === 0 && (
-              <p style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#71717A' }}>Loading…</p>
+              <SectionLoader message="Loading notifications" minHeight={96} />
             )}
             {!loading && data.items.length === 0 && (
               <div style={{ padding: '36px 16px', textAlign: 'center' }}>
