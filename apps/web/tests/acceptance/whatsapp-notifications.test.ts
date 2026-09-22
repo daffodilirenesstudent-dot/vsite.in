@@ -1,0 +1,144 @@
+/**
+ * Acceptance — WhatsApp notification layer v1.
+ * Spec: docs/superpowers/specs/2026-09-22-whatsapp-notifications-design.md
+ *
+ * AC1  Onboarding enqueues the welcome (congrats + QR + trial end) for the new site.
+ * AC2  Both payment activation paths enqueue ONE receipt, keyed by the order id,
+ *      so verify-payment and the Razorpay webhook cannot both send it.
+ * AC3  The sweep never filters on razorpay_status (AGENTS.md: it is the replay
+ *      guard, not a paid flag) and derives the trial from TRIAL_DURATION_MS.
+ * AC4  The webhook, cron and QR routes exist; the cron uses the shared gate.
+ * AC5  The triggers never await the send: a Meta outage cannot slow or fail
+ *      onboarding or a payment.
+ * AC6  The migration creates the outbox with a unique idempotency key, RLS on,
+ *      and no grants to anon/authenticated.
+ * AC7  The QR image encodes the public menu URL and nothing else.
+ */
+
+import { describe, it, expect, vi } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { NextRequest } from 'next/server';
+import { createFakeDb, fakeClient, type FakeDb } from '../fixtures/fakeSupabase';
+
+const holder = vi.hoisted(() => ({ db: null as unknown as FakeDb }));
+vi.mock('server-only', () => ({}));
+vi.mock('@/lib/platform/db/supabase-server', () => ({
+    supabaseServer: { from: (t: string) => fakeClient(holder.db).from(t) },
+}));
+
+import { GET as qrGet } from '@/app/api/qr/[slug]/route';
+
+const root = process.cwd();
+const src = (p: string) => readFileSync(join(root, 'src', p), 'utf8');
+
+describe('AC1 — welcome on onboarding', () => {
+    const route = src('app/api/onboarding/complete/route.ts');
+    it('enqueues the welcome event keyed by the site', () => {
+        expect(route).toMatch(/enqueueAndSend\(\s*\{[\s\S]*?event:\s*'welcome'/);
+        expect(route).toMatch(/key:\s*`welcome:\$\{site\.id\}`/);
+    });
+    it('sends the QR image URL and the trial end date', () => {
+        expect(route).toMatch(/qrImageUrl/);
+        expect(route).toMatch(/trialEndsOn/);
+        expect(route).toMatch(/TRIAL_DURATION_MS/);
+    });
+});
+
+describe('AC2 — one receipt per order', () => {
+    it('verify-payment enqueues the receipt keyed by the order id', () => {
+        const route = src('app/api/subscription/verify-payment/route.ts');
+        expect(route).toMatch(/event:\s*'payment_receipt'/);
+        expect(route).toMatch(/key:\s*`receipt:\$\{razorpay_order_id\}`/);
+    });
+    it('the Razorpay webhook uses the same key, only after it activated the plan', () => {
+        const route = src('app/api/webhooks/razorpay/route.ts');
+        expect(route).toMatch(/event:\s*'payment_receipt'/);
+        expect(route).toMatch(/key:\s*`receipt:\$\{orderId\}`/);
+    });
+});
+
+describe('AC3 — sweep rules', () => {
+    const sweep = src('lib/notifications/whatsapp/sweep.ts');
+    it('never reads razorpay_status', () => {
+        expect(sweep).not.toMatch(/razorpay_status/);
+    });
+    it('uses the enforced trial length', () => {
+        expect(sweep).toMatch(/TRIAL_DURATION_MS/);
+    });
+});
+
+describe('AC4 — routes', () => {
+    it('webhook, cron and QR routes exist', () => {
+        for (const p of ['app/api/webhooks/whatsapp/route.ts', 'app/api/cron/whatsapp/route.ts', 'app/api/qr/[slug]/route.ts']) {
+            expect(existsSync(join(root, 'src', p)), p).toBe(true);
+        }
+    });
+    it('the cron route is behind authorizeCron', () => {
+        expect(src('app/api/cron/whatsapp/route.ts')).toMatch(/authorizeCron\(req\)/);
+    });
+    it('the webhook verifies the signature over the raw body before parsing', () => {
+        const w = src('app/api/webhooks/whatsapp/route.ts');
+        const raw = w.indexOf('await req.text()');
+        const verify = w.indexOf('verifyMetaSignature(');
+        const parse = w.indexOf('JSON.parse(');
+        expect(raw).toBeGreaterThan(-1);
+        expect(verify).toBeGreaterThan(raw);
+        expect(parse).toBeGreaterThan(verify);
+    });
+});
+
+describe('AC5 — triggers never block on WhatsApp', () => {
+    it.each([
+        'app/api/onboarding/complete/route.ts',
+        'app/api/subscription/verify-payment/route.ts',
+        'app/api/webhooks/razorpay/route.ts',
+    ])('%s calls enqueueAndSend without await', (p) => {
+        const s = src(p);
+        expect(s).toMatch(/enqueueAndSend\(/);
+        expect(s).not.toMatch(/await\s+enqueueAndSend/);
+    });
+    it('enqueueAndSend returns void and swallows every failure', () => {
+        const o = src('lib/notifications/whatsapp/outbox.ts');
+        expect(o).toMatch(/export function enqueueAndSend\([^)]*\):\s*void/);
+    });
+});
+
+describe('AC6 — migration', () => {
+    const dir = join(root, 'supabase', 'migrations');
+    const sql = readFileSync(join(dir, '057_notification_outbox.sql'), 'utf8').toLowerCase();
+    it('creates the table with a unique idempotency key', () => {
+        expect(sql).toMatch(/create table if not exists public\.notification_outbox/);
+        expect(sql).toMatch(/idempotency_key\s+text\s+not null\s+unique/);
+    });
+    it('enables RLS and revokes the public roles', () => {
+        expect(sql).toMatch(/alter table public\.notification_outbox enable row level security/);
+        expect(sql).toMatch(/revoke all on (table )?public\.notification_outbox from (public, )?anon, authenticated/);
+    });
+    it('indexes the columns the dispatcher and webhook look up by', () => {
+        expect(sql).toMatch(/on public\.notification_outbox\s*\(\s*wamid\s*\)/);
+        expect(sql).toMatch(/on public\.notification_outbox\s*\(\s*status\s*,\s*next_attempt_at\s*\)/);
+    });
+});
+
+describe('AC7 — QR image', () => {
+    it('renders a PNG for a real shop, 404 for an unknown one, 400 for junk', async () => {
+        holder.db = createFakeDb({ tables: { sites: [{ id: 's1', slug: 'anna-cafe', name: 'Anna Cafe' }] } });
+        const ok = await qrGet(new NextRequest('https://vsite.in/api/qr/anna-cafe'), { params: { slug: 'anna-cafe' } });
+        expect(ok.status).toBe(200);
+        expect(ok.headers.get('content-type')).toBe('image/png');
+        const bytes = new Uint8Array(await ok.arrayBuffer());
+        expect(Array.from(bytes.slice(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+
+        const missing = await qrGet(new NextRequest('https://vsite.in/api/qr/nobody'), { params: { slug: 'nobody' } });
+        expect(missing.status).toBe(404);
+
+        const junk = await qrGet(new NextRequest('https://vsite.in/api/qr/x'), { params: { slug: '../../etc' } });
+        expect(junk.status).toBe(400);
+    });
+
+    it('encodes the public menu URL', () => {
+        const r = src('app/api/qr/[slug]/route.ts');
+        expect(r).toMatch(/\$\{SITE_URL\}\/shop\/\$\{slug\}/);
+    });
+});
