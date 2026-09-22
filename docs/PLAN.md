@@ -1,3 +1,21 @@
+# PLAN — WhatsApp notification layer v1  (status: DONE 2026-09-22, go-live pending owner)
+
+Spec: `docs/superpowers/specs/2026-09-22-whatsapp-notifications-design.md`.
+Acceptance: `apps/web/tests/acceptance/whatsapp-notifications.test.ts`;
+also `tests/unit/whatsappPrimitives.test.ts`, `tests/api/whatsappOutbox.test.ts`.
+
+1. `src/lib/notifications/whatsapp/{phone,signature,windows,state,templates,client}.ts` — pure rules + Graph API call.
+2. `src/lib/notifications/whatsapp/outbox.ts` — enqueue / claim / dispatch / statuses.
+3. `src/lib/notifications/whatsapp/sweep.ts` — trial + plan windows → enqueue + bell.
+4. `src/app/api/webhooks/whatsapp/route.ts` — handshake + signed statuses.
+5. `src/app/api/cron/whatsapp/route.ts` — sweep + dispatch behind `authorizeCron`.
+6. `src/app/api/qr/[slug]/route.ts` — QR PNG (`qrcode`).
+7. Hooks: `onboarding/complete`, `subscription/verify-payment`, `webhooks/razorpay`.
+8. `supabase/migrations/057_notification_outbox.sql`, `058_whatsapp_cron.sql`.
+9. Runbook `docs/whatsapp-setup.md`; AGENTS.md gotchas.
+
+---
+
 # PLAN — Resilient menu extraction  (status: DONE 2026-09-19)
 
 Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/resilient-extraction.test.ts`.

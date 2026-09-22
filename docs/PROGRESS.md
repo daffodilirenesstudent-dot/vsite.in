@@ -2,6 +2,40 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-22 — Feature: WhatsApp notification layer v1
+status: DONE (code) / BLOCKED on owner actions — see `docs/whatsapp-setup.md`
+
+Spec `docs/superpowers/specs/2026-09-22-whatsapp-notifications-design.md`;
+plan in `docs/PLAN.md`. Branch `feat/whatsapp-notifications`.
+
+**Shipped.** Welcome (congrats + QR image + trial end), trial ending / ended,
+payment receipt, plan T-3 / today / expired — via the Meta Cloud API, a durable
+idempotent outbox (057), a signed webhook, and a pg_cron schedule (058).
+
+**Dependency added: `qrcode` (+ `@types/qrcode`).** Reason: the WhatsApp image
+header needs a public PNG URL and the existing QR is drawn only in the browser
+(`qr-code-styling`). Pure JS, no native build, 0 new audit advisories (31 → 31).
+Owner approved 2026-09-22.
+
+**QA pass — 2026-09-22**
+| Gate | Result |
+|---|---|
+| `npx vitest run` (full) | ✅ 1199 passed / 3 skipped, 0 failed (77 new) |
+| `npx tsc --noEmit` | ✅ clean |
+| `npm run lint` | ✅ 0 errors; 0 warnings in changed files |
+| `npm run build` | ✅ (first attempt hit a transient Google Fonts fetch in `next/font`; rerun green) |
+| Live scenarios vs `npm start` | ✅ 23/23 — handshake, signatures (bad/tampered/Tamil), cron gate incl. `x-vercel-cron`, QR PNG/404/traversal, regression on razorpay/cleanup/home/shop |
+| Real Meta call via `client.ts` | ⚠ 190 Authentication Error — `whatsapp/.env` holds an expired 24h token; classified non-retryable as designed |
+| Playwright regression suites | ⏸ not run — blocked by the permission classifier (local server is wired to the production DB) |
+
+**Defects found.** One, in the QA harness not the product: Windows `curl`
+re-encodes non-ASCII argv, so a hand-signed Tamil body failed; `--data-binary
+@file` passes. Logged in AGENTS.md.
+
+**Owner actions to go live:** System User token; DO env vars; apply 057; Vault
+secret; apply 058; deploy; Meta "Verify and save"; subscribe `messages`; publish
+app; submit 7 templates. Callback URL: `https://vsite.in/api/webhooks/whatsapp`.
+
 ### 2026-09-19 — Feature: resilient menu extraction + PDF upload
 status: DONE — all acceptance criteria green (docs/GOAL.md AC1–AC14)
 
