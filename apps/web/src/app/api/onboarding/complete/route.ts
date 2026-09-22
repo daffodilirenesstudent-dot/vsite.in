@@ -25,6 +25,10 @@ import { audit } from '@/lib/platform/auditLog';
 import { checkStoreEligibility } from '@/lib/platform/storeEligibility';
 
 import { logger } from '@/lib/platform/logger';
+import { enqueueAndSend } from '@/lib/notifications/whatsapp/outbox';
+import { formatDateIST } from '@/lib/notifications/whatsapp/templates';
+import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
+import { SITE_URL } from '@/lib/platform/brand';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
@@ -467,6 +471,22 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error('[onboarding/complete] CRITICAL: failed to mark onboarding complete:', err);
     }
+
+    // WhatsApp welcome: congratulations, the QR as an image, and the trial end
+    // date. Not awaited — Meta being slow or down must never cost a signup; the
+    // outbox retries it. Keyed by site, so an idempotent replay sends nothing.
+    enqueueAndSend({
+      event: 'welcome',
+      key: `welcome:${site.id}`,
+      userId,
+      siteId: site.id,
+      params: {
+        shopName: trimmedShopName,
+        menuUrl: `${SITE_URL}/shop/${site.slug}`,
+        qrImageUrl: `${SITE_URL}/api/qr/${site.slug}`,
+        trialEndsOn: formatDateIST(Date.now() + TRIAL_DURATION_MS),
+      },
+    });
 
     const responseBody = {
       success: true,
