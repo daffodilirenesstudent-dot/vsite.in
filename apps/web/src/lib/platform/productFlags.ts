@@ -38,7 +38,7 @@ export const ORDERING_FROZEN: boolean = true;
  * OFF: onboarding and bulk upload behave exactly as before the feature.
  * Same `: boolean` reasoning and constant-not-env reasoning as ORDERING_FROZEN.
  */
-export const AI_PAGE_LIMITS: boolean = false;
+export const AI_PAGE_LIMITS: boolean = true;
 
 /** 7-day free trial, measured from `sites.created_at`. */
 export const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;

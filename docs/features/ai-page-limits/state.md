@@ -1,7 +1,7 @@
 ---
 slug: ai-page-limits
 phase: qa
-status: stopped
+status: running
 design_version: 1
 qa_round: 2
 branch: feat/ai-page-limits
@@ -38,3 +38,6 @@ Hooks read the frontmatter above. Keep it `key: value`, one per line.
 - 2026-09-23 owner impatient; E2E round 1 stopped early (code about to change). phase 4 build, qa round 2: fix M1 (onboarding re-scan), M2 (OCR leak, behind flag), minor failedPhotos index + non-UUID siteId.
 - 2026-09-23 round 2 fixes done: M1 (c95942f), M2 (03138d4). Full suite 1177 pass flag OFF and ON; tsc 0; lint 0 errors. Deferred minors: bulk failedPhotos index when a buffer read fails; non-UUID siteId answers 503 not 404. phase 5 qa round 2 started.
 - STOPPED: 7 waiting for owner to create .claude/docs/business-context.md (business QA cannot pass without it). Technical + E2E round 2 running in background.
+- 2026-09-23 owner: "stop it and give me i will test it". QA round 2 agents stopped. Flag set ON LOCALLY ONLY (uncommitted) in the worktree for owner's manual test on the dev server. STOPPED: owner manual testing; migration 057 must be applied by the owner for real flag-ON behaviour.
+- 2026-09-23 owner instructed "use the mcp and run the sql": migration 057 applied to production via apply_migration (success). Verified: table + RLS on + 4 indexes + 3 functions; anon cannot execute/read; service_role can; 0 rows.
+- 2026-09-23 owner tested manually on localhost with 057 applied: "it working perfect" (trial store 2/2 pages recorded). Release candidate: flag flipped ON in a one-line commit (architecture: QA runs on the flag-ON commit). QA round 2 restarted (technical + E2E); business QA still needs business-context.md.
