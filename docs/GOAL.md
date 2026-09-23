@@ -15,14 +15,14 @@ Token per Ralph loop: 3 iterations
 
 ## Acceptance criteria (each maps to a test in `apps/web/tests/acceptance/ai-page-limits.test.ts`)
 
-- [ ] **AC1**: onboarding scan allows at most 15 pages per store, lifetime; a scan past 15 is refused before any AI call with `PAGE_LIMIT` and pages left.
-- [ ] **AC2**: bulk upload on a trial store allows 2 pages for the whole trial; never resets.
-- [ ] **AC3**: bulk upload on an expired unpaid store allows 0 pages; the modal offers "Pay ₹299" → `/manage/subscription`; manual add keeps working.
-- [ ] **AC4**: bulk upload on a paid store allows 5 pages per billing month, resetting on the payment date (`store_expires_at`); the UI shows the reset date.
-- [ ] **AC5**: pages are reserved atomically in Postgres before any AI call; 20 concurrent requests cannot exceed the allowance.
-- [ ] **AC6**: pages the AI fails to read are refunded; only `ok` pages stay counted.
-- [ ] **AC7**: the counter is durable across restarts/redeploys.
-- [ ] **AC8**: bulk upload accepts PDF; each PDF page is one page; a PDF longer than what is left is refused in the browser.
-- [ ] **AC9**: bulk extract enforces the per-user AI spend cap (`aiSpendAllowed(userId)` + `spendKey`).
-- [ ] **AC10**: with `AI_PAGE_LIMITS` OFF, onboarding and bulk upload behave exactly as today.
-- [ ] **AC11**: the allowance is checked against the store's owner; a user cannot draw on another's store.
+- [x] **AC1**: onboarding scan allows at most 15 pages per store, lifetime; a scan past 15 is refused before any AI call with `PAGE_LIMIT` and pages left.
+- [x] **AC2**: bulk upload on a trial store allows 2 pages for the whole trial; never resets.
+- [x] **AC3**: bulk upload on an expired unpaid store allows 0 pages; the modal offers "Pay ₹299" → `/manage/subscription`; manual add keeps working.
+- [x] **AC4**: bulk upload on a paid store allows 5 pages per billing month, resetting on the payment date (`store_expires_at`); the UI shows the reset date.
+- [x] **AC5**: pages are reserved atomically in Postgres before any AI call; 20 concurrent requests cannot exceed the allowance.
+- [x] **AC6**: pages the AI fails to read are refunded; only `ok` pages stay counted.
+- [x] **AC7**: the counter is durable across restarts/redeploys.
+- [x] **AC8**: bulk upload accepts PDF; each PDF page is one page; a PDF longer than what is left is refused in the browser.
+- [x] **AC9**: bulk extract enforces the per-user AI spend cap (`aiSpendAllowed(userId)` + `spendKey`).
+- [x] **AC10**: with `AI_PAGE_LIMITS` OFF, onboarding and bulk upload behave exactly as today.
+- [x] **AC11**: the allowance is checked against the store's owner; a user cannot draw on another's store.

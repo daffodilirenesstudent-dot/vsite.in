@@ -708,3 +708,16 @@ the only record of a physical QR-card order — removing it drops orders.
 expires. The old sweep's lesson still applies: select paid windows by
 `store_expires_at`, never by `razorpay_status` (see the razorpay_status note
 above). And it needs a real scheduler — App Platform `PRE_DEPLOY` jobs are not one.
+
+## AI page limits (2026-09-23)
+
+- **Run the full suite with every new flag flipped ON before QA.** A constant flag
+  (`AI_PAGE_LIMITS`) means older suites silently test the OFF path; the day it flips, any suite
+  that does not pin it runs the new code against fakes that cannot answer it. Pin old suites to
+  the state they cover (`vi.mock('@/lib/platform/productFlags', … AI_PAGE_LIMITS: false)`).
+- **Best-effort DB calls must not be able to throw.** `aiPageLedger.settle()` takes a thunk:
+  supabase fakes (and, rarely, the client) can throw synchronously or resolve to `undefined`.
+- **Onboarding extract runs before the store exists.** Its pages live in one unbound per-user
+  bucket that `/complete` binds to the new store; do not key onboarding pages by site id.
+- **Worktrees have no node_modules.** Link the main checkout's with a PowerShell junction
+  (`New-Item -ItemType Junction`); `cmd mklink /J` from Git Bash mangles the target path.

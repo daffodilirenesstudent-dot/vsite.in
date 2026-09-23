@@ -104,3 +104,4 @@ Approved 2026-09-23 (design-v1).
 - Cost: no money tracking / no rupee meter. Owner target: **≤ ₹35 AI spend per trial store for the whole trial**, met by pages alone: 15 onboarding + 2 bulk = 17 pages per trial store (₹16–31 at ₹0.95–1.81/page). Paid: 15 onboarding pages per store + 5 bulk pages per billing month; the worst case (~₹40/month) is accepted as page-bounded.
 - Limits stay per store (owner: "Each store"); onboarding stays 15 (owner: "not 50 its 15").
 - Architect defaults D1–D4 accepted as designed (owner approved the plan).
+- Owner amendment 2026-09-23 (during build, verbatim): "only english in the onboarding no tamil". Remove ALL Tamil from the onboarding flow (scan messages, PDF/partial notices, any Tamil UI text), not just the new codes. Done as a separate task on this branch; the resilient-extraction AC12 guard changes to require an English message for every code (owner-approved behaviour change).

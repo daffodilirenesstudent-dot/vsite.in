@@ -1,6 +1,6 @@
 ---
 slug: ai-page-limits
-phase: build
+phase: qa
 status: running
 design_version: 1
 qa_round: 1
@@ -28,3 +28,6 @@ Hooks read the frontmatter above. Keep it `key: value`, one per line.
 - 2026-09-23 phase 3 approval: design-v1 presented, awaiting owner.
 - 2026-09-23 owner: "plan approved"; 1 yes, 2 yes, 3 English only (narrow edit to the AC12 guard test instructed), 4 no money tracking, ₹35/trial store met by 17 pages per store. design-v1 approved. phase 3 done.
 - 2026-09-23 phase 4 build started
+- 2026-09-23 owner amendment during build: onboarding English only, remove all existing Tamil there (recorded in contract). Scheduled as Task 13 after the modal.
+- 2026-09-23 phase 4 build done: 22+ commits; exit check vitest 1174 pass (flag OFF and ON), tsc 0, lint 0 errors. Owner amendment (onboarding English only) done as Task 13. phase 4 done.
+- 2026-09-23 phase 5 qa started

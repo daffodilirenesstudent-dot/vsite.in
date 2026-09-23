@@ -1669,3 +1669,30 @@ require a head disagreement too, recovering 32 items.
 **Verified.** `npx vitest run` 1047 passing / 1 skipped (44 files, includes 94
 new acceptance assertions across 10 acceptance criteria), `npx tsc --noEmit`
 exit 0, `npm run lint` clean for all new files.
+
+## 2026-09-23 — AI menu page limits per store (`ai-page-limits`) — status: BUILT, in QA
+
+Contract / design / architecture: `docs/features/ai-page-limits/`. Flag `AI_PAGE_LIMITS` (default OFF).
+
+**Rules (owner):** onboarding 15 pages per store; bulk upload 2 pages for the whole trial,
+5 per billing month once paid (resets on the payment date), 0 after an unpaid trial.
+Unread pages refunded. No rupee meter (owner: pages alone keep a trial store ≤ ₹35).
+Onboarding is now English only (owner amendment during build).
+
+**Built:** migration `057_ai_page_usage.sql` (expand-only; NOT applied yet — release step),
+`lib/menu/aiPageLimits.ts` (pure rules + modal view), `lib/menu/aiPageLedger.ts` (RPC wrapper,
+never throws), `GET /api/bulk-import/allowance`, page gates in onboarding extract / bulk extract,
+bind in `/complete`, per-user $ cap on bulk extract + insert (AC9), bulk modal with PDF.
+
+**Found while building:** the ledger could throw out of best-effort paths (bind in `/complete`,
+refund in `finally`) when the DB client threw or resolved empty — both would have turned a
+successful launch into a 500. Fixed test-first. Found only by running the whole suite with the
+flag ON, which is now part of the exit check.
+
+**Verified:** `npx vitest run` 1174 passed / 3 skipped with the flag OFF **and** with it
+temporarily ON; `npx tsc --noEmit` exit 0; `npm run lint` no errors (pre-existing warnings only;
+touched files clean).
+
+**Open for QA / release:** apply 057 via `apply_migration` (owner approves) before the flag-ON
+deploy; E2E `tests/e2e/ai-page-limits.spec.ts` on the flag-ON commit; business-context.md must
+exist for business QA.

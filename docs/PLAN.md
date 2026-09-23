@@ -1,4 +1,4 @@
-# PLAN — AI menu page limits per store  (status: IN PROGRESS)
+# PLAN — AI menu page limits per store  (status: BUILT — in QA)
 
 Goal: `docs/GOAL.md`. Contract / design: `docs/features/ai-page-limits/`.
 Acceptance: `apps/web/tests/acceptance/ai-page-limits.test.ts` (flag mocked ON).
