@@ -19,13 +19,22 @@ export type Reservation =
 
 export type Usage = { ok: true; used: number; left: number; limit: number } | { ok: false };
 
+/** A query that throws (network, client bug; sync or async) reads the same as one that returned an error. */
+async function settle<T>(query: () => PromiseLike<{ data: T; error: unknown }>): Promise<{ data: T | null; error: unknown }> {
+  try {
+    return await query();
+  } catch (err) {
+    return { data: null, error: err ?? 'threw' };
+  }
+}
+
 interface ReserveRow { ok: boolean; reason: string; bucket_id: string | null; pages_used: number | null; page_limit: number | null }
 
 async function reserve(args: {
   userId: string; kind: 'onboarding' | 'bulk_trial' | 'bulk_paid'; siteId: string | null;
   periodKey: string; periodEndsAt: string | null; limit: number; pages: number;
 }): Promise<Reservation> {
-  const { data, error } = await supabaseServer.rpc('reserve_ai_pages', {
+  const { data, error } = await settle(() => supabaseServer.rpc('reserve_ai_pages', {
     p_user_id: args.userId,
     p_kind: args.kind,
     p_site_id: args.siteId,
@@ -33,7 +42,7 @@ async function reserve(args: {
     p_period_ends_at: args.periodEndsAt,
     p_limit: args.limit,
     p_pages: args.pages,
-  });
+  }));
   const row = (Array.isArray(data) ? data[0] : data) as ReserveRow | null | undefined;
   if (error || !row) {
     logger.error('[aiPageLedger] reserve failed:', error ?? 'no row');
@@ -61,18 +70,18 @@ export async function reserveBulkPages(userId: string, siteId: string, allowance
 /** Give back pages the AI could not read. Best effort: a failure leaves them counted (the safe direction). */
 export async function refundPages(bucketId: string, pages: number): Promise<void> {
   if (pages <= 0) return;
-  const { error } = await supabaseServer.rpc('refund_ai_pages', { p_bucket_id: bucketId, p_pages: pages });
+  const { error } = await settle(() => supabaseServer.rpc('refund_ai_pages', { p_bucket_id: bucketId, p_pages: pages }));
   if (error) logger.error('[aiPageLedger] refund failed:', error);
 }
 
 /** Tie the user's open onboarding bucket to the store just created. Best effort. */
 export async function bindOnboardingPages(userId: string, siteId: string): Promise<void> {
-  const { error } = await supabaseServer.rpc('bind_onboarding_pages', { p_user_id: userId, p_site_id: siteId });
+  const { error } = await settle(() => supabaseServer.rpc('bind_onboarding_pages', { p_user_id: userId, p_site_id: siteId }));
   if (error) logger.error('[aiPageLedger] bind failed:', error);
 }
 
 async function readUsed(filter: (q: ReturnType<typeof usageQuery>) => ReturnType<typeof usageQuery>): Promise<number | null> {
-  const { data, error } = await filter(usageQuery()).maybeSingle();
+  const { data, error } = await settle(() => filter(usageQuery()).maybeSingle());
   if (error) {
     logger.error('[aiPageLedger] read failed:', error);
     return null;
@@ -98,12 +107,12 @@ export async function readOnboardingUsage(userId: string): Promise<Usage> {
 export async function loadStoreAllowance(userId: string, siteId: string): Promise<
   { ok: true; allowance: BulkAllowance } | { ok: false; reason: 'not_found' | 'unavailable' }
 > {
-  const { data, error } = await supabaseServer
+  const { data, error } = await settle(() => supabaseServer
     .from('sites')
     .select('id, created_at, site_subscriptions(store_expires_at)')
     .eq('id', siteId)
     .eq('user_id', userId)
-    .maybeSingle();
+    .maybeSingle());
   if (error) {
     logger.error('[aiPageLedger] store read failed:', error);
     return { ok: false, reason: 'unavailable' };
