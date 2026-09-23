@@ -1,7 +1,7 @@
 ---
 slug: ai-page-limits
 version: 1
-approved:
+approved: 2026-09-23
 ---
 
 # Design v1: AI menu page limits per store
@@ -46,3 +46,5 @@ All rows below are with `AI_PAGE_LIMITS` ON. With it OFF, every row is unchanged
 - [ ] Architect's defaults D1–D4 (the per-user cap is behind the flag; `/insert` uses the $ cap; no foreign key to `sites`; bulk uses the per-page extractor when ON). Accept?
 
 ## Feedback
+Owner, 2026-09-23 (verbatim): "hey there is not tamil language in the dashbord and plan approved 1 yes 2 yes  3 no tmail only engish , 4 ) my goal is to 35 rs only need to spend for the trial users in the tral users full 35 rs"
+Follow-ups: "dont track the money for trail 17 page in total and paid users 5 page per month after onboarding"; "Initial 15 pages in onboarding and 2 pages in bulk upload, that's it"; trial scope = "Each store"; onboarding = "not 50 its 15".

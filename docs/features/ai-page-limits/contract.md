@@ -97,4 +97,10 @@ Flag `AI_PAGE_LIMITS`, default OFF. At go-live: ON for everyone.
 - No fixed date (default; owner may correct).
 
 ## Decisions at design gate
-<Filled in phase 3.>
+Approved 2026-09-23 (design-v1).
+- Expired unpaid stores lose AI bulk upload (53 stores): **yes**.
+- Paid stores move from 15 units/day to 5 pages per billing month (4 stores): **yes**.
+- Q1: **English only**, no Tamil for the new onboarding codes. Owner explicitly instructs a NARROW change to tests/acceptance/resilient-extraction.test.ts AC12 ("every error code has Tamil"): exempt exactly PAGE_LIMIT and PAGE_LIMIT_UNAVAILABLE; every existing code keeps its Tamil requirement.
+- Cost: no money tracking / no rupee meter. Owner target: **≤ ₹35 AI spend per trial store for the whole trial**, met by pages alone: 15 onboarding + 2 bulk = 17 pages per trial store (₹16–31 at ₹0.95–1.81/page). Paid: 15 onboarding pages per store + 5 bulk pages per billing month; the worst case (~₹40/month) is accepted as page-bounded.
+- Limits stay per store (owner: "Each store"); onboarding stays 15 (owner: "not 50 its 15").
+- Architect defaults D1–D4 accepted as designed (owner approved the plan).
