@@ -1,6 +1,6 @@
 ---
 slug: ai-page-limits
-signed:
+signed: 2026-09-23
 risk: med
 flag: AI_PAGE_LIMITS
 cost_ceiling_inr_per_shop_month: 15
