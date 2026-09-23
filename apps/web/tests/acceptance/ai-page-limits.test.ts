@@ -46,6 +46,7 @@ function reply(call: FakeCall): { content: string } | Error {
     return { content: JSON.stringify({ descriptions: Array.from({ length: n }, (_, i) => `desc ${i}`) }) };
   }
   if (call.images.some(m => m.includes('bad'))) return httpError(400);
+  if (call.images.some(m => m.includes('empty'))) return { content: '{"items":[]}' };
   const tuples = call.images.flatMap(m => [
     [`${m} dish A`, 100, 'Mains', 's', 'v', []],
     [`${m} dish B`, 120, 'Mains', 's', 'n', []],
@@ -632,6 +633,17 @@ describe('AC9: bulk extract enforces the per-user AI spend cap', () => {
     expect((await bulkExtract(bulkReq(t, siteId, ['c1']))).status).toBe(200);
     const res = await bulkExtract(bulkReq(t, siteId, ['c2']));
     expect(res.status).toBe(429);
+  });
+
+  it('AC9: the backup OCR read (when a scan finds nothing) is charged to the account too', async () => {
+    // Pass 1 alone costs ~$0.0035; with the OCR fallback charged too the account passes $0.005.
+    process.env.EXTRACTION_USER_DAILY_BUDGET_USD = '0.005';
+    const t = freshToken();
+    const siteId = addSite(t, { ageDays: 40, paidUntilMs: 12 * DAY });
+    const first = await bulkExtract(bulkReq(t, siteId, ['empty0']));
+    expect(first.status).toBe(422);
+    const second = await bulkExtract(bulkReq(t, siteId, ['empty1']));
+    expect(second.status).toBe(429);
   });
 
   it('AC9: bulk insert is capped per account too', async () => {

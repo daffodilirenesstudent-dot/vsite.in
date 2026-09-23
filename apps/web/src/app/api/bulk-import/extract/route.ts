@@ -205,14 +205,15 @@ export async function POST(incoming: NextRequest) {
     if (items.length === 0) {
       console.warn('[bulk-import/extract] fast-path returned 0 items — running OCR fallback');
       const ocrResults = await Promise.allSettled(
-        imageBuffers.map(({ buffer, mime }) => imageToMenuText(buffer, mime))
+        imageBuffers.map(({ buffer, mime }) => (pages ? imageToMenuText(buffer, mime, userId) : imageToMenuText(buffer, mime)))
       );
       const aggregatedOcr = ocrResults
         .map(r => (r.status === 'fulfilled' ? r.value : ''))
         .filter(t => t.trim())
         .join('\n\n---\n\n');
       if (aggregatedOcr) {
-        items = await extractMenuItems(aggregatedOcr);
+        // Flag ON: the backup read is charged to the account too (per-user daily cap).
+        items = pages ? await extractMenuItems(aggregatedOcr, { spendKey: userId, signal: incoming.signal }) : await extractMenuItems(aggregatedOcr);
         logger.debug(`[bulk-import/extract] fallback: ${items.length} items in ${Date.now() - t0}ms total`);
       }
     }
