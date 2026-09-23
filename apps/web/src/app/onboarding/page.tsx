@@ -17,7 +17,7 @@ import ScanningOverlay from './components/ScanningOverlay';
 import type { WizardStep } from '@/components/OnboardingContext';
 import { compressImage } from '@/lib/menu/imageCompress';
 import {
-  scanMessage, partialScanNotice, pdfMessage, SKIPPABLE_CODES, SCAN_MESSAGES,
+  scanMessage, partialScanNotice, pdfMessage, pageLimitMessage, SKIPPABLE_CODES, SCAN_MESSAGES,
   type ScanMessage,
 } from './scanMessages';
 import { pdfToPageImages, PdfPagesError } from '@/lib/menu/pdfPages';
@@ -314,6 +314,14 @@ function OnboardingContent() {
           continue;
         }
 
+        // Out of AI pages for this store: say how many are left, and offer the way on without a scan.
+        if (res.status === 403 && data.code === 'PAGE_LIMIT') {
+          const pagesLeft = Math.max(0, Number(data.pagesLeft) || 0);
+          setScanError({ code: 'PAGE_LIMIT', message: pageLimitMessage(pagesLeft) });
+          setScanNotice(null);
+          setExtracting(false);
+          return;
+        }
         if (!res.ok) { stop(typeof data.code === 'string' ? data.code : 'INTERNAL'); return; }
 
         const found = data.items ?? [];
@@ -651,7 +659,7 @@ function OnboardingContent() {
                 {scanError && (
                   <div role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-center">
                     <p className="text-xs text-red-700">{scanError.message.en}</p>
-                    <p lang="ta" className="mt-1 text-xs text-red-600">{scanError.message.ta}</p>
+                    {scanError.message.ta && <p lang="ta" className="mt-1 text-xs text-red-600">{scanError.message.ta}</p>}
                   </div>
                 )}
                 {error && !scanError && (

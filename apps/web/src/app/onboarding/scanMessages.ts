@@ -13,7 +13,8 @@ import type { PdfProblem } from '@/lib/menu/pdfPages';
 
 export interface ScanMessage {
   en: string;
-  ta: string;
+  /** Absent only for the AI page-limit codes, which the owner chose to word in English only (2026-09-23). */
+  ta?: string;
 }
 
 export const SCAN_MESSAGES = {
@@ -40,6 +41,9 @@ export const SCAN_MESSAGES = {
   TIMEOUT: { en: 'Scanning took too long. Try again with fewer photos (3–5 at a time).', ta: 'ஸ்கேன் செய்ய அதிக நேரம் ஆனது. குறைவான புகைப்படங்களுடன் (ஒரே நேரத்தில் 3–5) மீண்டும் முயற்சிக்கவும்.' },
   QUEUE_GAVE_UP: { en: "It's very busy right now. Try again in a few minutes, or skip and add dishes by hand.", ta: 'இப்போது மிகவும் கூட்டமாக உள்ளது. சில நிமிடங்களில் மீண்டும் முயற்சிக்கவும், அல்லது தவிர்த்து உணவுகளை நீங்களே சேர்க்கவும்.' },
   HEIC_UNSUPPORTED: { en: "Some photos are in HEIC format, which we can't read. Take a screenshot of each photo and upload that instead.", ta: 'சில புகைப்படங்கள் HEIC வடிவத்தில் உள்ளன, அவற்றைப் படிக்க முடியாது. ஒவ்வொரு புகைப்படத்தையும் ஸ்கிரீன்ஷாட் எடுத்து அதைப் பதிவேற்றவும்.' },
+  // AI page limits: English only, by owner decision (docs/features/ai-page-limits/contract.md).
+  PAGE_LIMIT: { en: "This store's 15 AI pages are used. Your items so far are saved. Continue, and add any missing dishes by hand." },
+  PAGE_LIMIT_UNAVAILABLE: { en: "We couldn't check your pages. No pages were used. Check your internet and try again." },
 } satisfies Record<string, ScanMessage>;
 
 export type ScanCode = keyof typeof SCAN_MESSAGES;
@@ -54,7 +58,16 @@ export function scanMessage(code: string | undefined | null): ScanMessage {
 export const SKIPPABLE_CODES: ReadonlySet<string> = new Set([
   'AI_PAUSED', 'DAILY_SCAN_LIMIT', 'RATE_LIMITED', 'NO_ITEMS_FOUND', 'UNREADABLE_PHOTOS', 'INTERNAL',
   'TIMEOUT', 'QUEUE_GAVE_UP', 'NETWORK', 'HEIC_UNSUPPORTED', 'PAYLOAD_TOO_LARGE',
+  'PAGE_LIMIT', 'PAGE_LIMIT_UNAVAILABLE',
 ]);
+
+/** PAGE_LIMIT with the pages this store still has: all used, or fewer than the owner picked. */
+export function pageLimitMessage(pagesLeft: number): ScanMessage {
+  if (pagesLeft <= 0) return SCAN_MESSAGES.PAGE_LIMIT;
+  return {
+    en: `This store has ${pagesLeft} AI page${pagesLeft === 1 ? '' : 's'} left. Remove some photos and try again, or continue and add dishes by hand.`,
+  };
+}
 
 /** Told once the scan finishes but some photos could not be read. */
 export function partialScanNotice(photoNumbers: number[]): ScanMessage {
