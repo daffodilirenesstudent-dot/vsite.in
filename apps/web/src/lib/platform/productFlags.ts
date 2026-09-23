@@ -31,6 +31,15 @@
  */
 export const ORDERING_FROZEN: boolean = true;
 
+/**
+ * Per-store AI page allowance (onboarding 15 per store; bulk upload 2 for the
+ * whole trial, 5 per billing month once paid). See `@/lib/menu/aiPageLimits`.
+ *
+ * OFF: onboarding and bulk upload behave exactly as before the feature.
+ * Same `: boolean` reasoning and constant-not-env reasoning as ORDERING_FROZEN.
+ */
+export const AI_PAGE_LIMITS: boolean = false;
+
 /** 7-day free trial, measured from `sites.created_at`. */
 export const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
