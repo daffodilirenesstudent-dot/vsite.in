@@ -127,8 +127,8 @@ function OnboardingContent() {
   const [photos, setPhotos] = useState<PreviewPhoto[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [error, setError] = useState('');
-  // Setup-step problems carry a code so they can be worded in Tamil and English
-  // and so we know whether to offer the way forward without a scan.
+  // Setup-step problems carry a code so they can be worded for the owner and so
+  // we know whether to offer the way forward without a scan.
   const [scanError, setScanError] = useState<{ code: string; message: ScanMessage } | null>(null);
   // "You're in the queue" while waiting, then "photo 4 couldn't be read".
   const [scanNotice, setScanNotice] = useState<ScanMessage | null>(null);
@@ -535,7 +535,6 @@ function OnboardingContent() {
         <div role="status" className="mx-auto mt-3 w-full max-w-md px-4">
           <div className="rounded-xl bg-amber-50 px-4 py-3 text-center">
             <p className="text-xs font-medium text-amber-800">{partialNotice.en}</p>
-            <p lang="ta" className="mt-1 text-xs text-amber-700">{partialNotice.ta}</p>
           </div>
         </div>
       )}
@@ -659,7 +658,6 @@ function OnboardingContent() {
                 {scanError && (
                   <div role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-center">
                     <p className="text-xs text-red-700">{scanError.message.en}</p>
-                    {scanError.message.ta && <p lang="ta" className="mt-1 text-xs text-red-600">{scanError.message.ta}</p>}
                   </div>
                 )}
                 {error && !scanError && (
@@ -685,7 +683,6 @@ function OnboardingContent() {
                     <button type="button" onClick={handleSkipScan}
                       className="mt-3 w-full rounded-[10px] border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]">
                       Skip — add dishes by hand
-                      <span lang="ta" className="block text-xs font-normal text-slate-500">தவிர்க்கவும் — உணவுகளை நீங்களே சேர்க்கவும்</span>
                     </button>
                   )}
                 </div>

@@ -30,7 +30,7 @@ Run that before committing anything under `app/onboarding/` or
 - Owners here have low digital literacy and are often on slow mobile networks.
   Every phase needs a loading state and a recoverable error state; a dead-end
   error screen means a lost signup.
-- Tamil + English for all user-facing copy.
+- English only for all user-facing copy (owner decision 2026-09-23; `tests/acceptance/onboarding-english-only.test.ts` enforces it). Tamil stays on the customer QR menu, not here.
 
 ## Gotchas
 

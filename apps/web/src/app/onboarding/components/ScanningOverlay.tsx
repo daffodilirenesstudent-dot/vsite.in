@@ -44,7 +44,6 @@ function Notice({ message }: { message: ScanMessage }) {
   return (
     <div role="status" className="mt-6 max-w-[320px] rounded-xl bg-amber-50 px-4 py-3 text-center">
       <p className="text-[13px] font-medium leading-relaxed text-amber-800">{message.en}</p>
-      <p lang="ta" className="mt-1 text-[13px] leading-relaxed text-amber-700">{message.ta}</p>
     </div>
   );
 }
