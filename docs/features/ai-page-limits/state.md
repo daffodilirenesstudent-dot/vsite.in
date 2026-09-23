@@ -1,9 +1,9 @@
 ---
 slug: ai-page-limits
 phase: qa
-status: stopped
+status: running
 design_version: 1
-qa_round: 1
+qa_round: 2
 branch: feat/ai-page-limits
 previous_tag: release/baseline-20260923
 release_tag:
@@ -34,3 +34,6 @@ Hooks read the frontmatter above. Keep it `key: value`, one per line.
 - 2026-09-23 qa round 1: qa-business VERDICT STOP-FOR-OWNER (business-context.md missing; unflagged Tamil removal; per-owner exposure via 2 trial stores / store re-creation; pre-existing OCR fallback spend leak). technical + e2e still running.
 - STOPPED: 7 business QA STOP-FOR-OWNER - needs business-context.md and owner answers on unflagged Tamil removal, per-owner page exposure, OCR leak follow-up.
 - 2026-09-23 owner answered STOP #7 decisions (Tamil unswitched OK; per-owner exposure accepted; fix OCR leak now). Still waiting: owner to create .claude/docs/business-context.md. Technical + E2E QA still running.
+- 2026-09-23 qa round 1: qa-technical VERDICT FAIL (M1 onboarding Back+Continue re-scan refused by PAGE_LIMIT and Skip discards read items; M2 OCR fallback spend leak not yet fixed - owner decision (c)). Fixes wait for E2E to finish (shared dev server). OCR fix goes behind AI_PAGE_LIMITS, consistent with D1/AC10.
+- 2026-09-23 owner impatient; E2E round 1 stopped early (code about to change). phase 4 build, qa round 2: fix M1 (onboarding re-scan), M2 (OCR leak, behind flag), minor failedPhotos index + non-UUID siteId.
+- 2026-09-23 round 2 fixes done: M1 (c95942f), M2 (03138d4). Full suite 1177 pass flag OFF and ON; tsc 0; lint 0 errors. Deferred minors: bulk failedPhotos index when a buffer read fails; non-UUID siteId answers 503 not 404. phase 5 qa round 2 started.
