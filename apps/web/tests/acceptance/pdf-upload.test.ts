@@ -63,22 +63,21 @@ describe('AC14: PDF menus up to 15 pages', () => {
     await expect(countPdfPages(new TextEncoder().encode('not a pdf at all'))).rejects.toMatchObject({ code: 'PDF_UNREADABLE' });
   }, 30_000);
 
-  it('every PDF problem is explained in English and Tamil, with the numbers', () => {
+  // Onboarding is English only (owner decision 2026-09-23); this used to require Tamil too.
+  it('every PDF problem is explained in English, with the numbers', () => {
     const tamil = /[஀-௿]/;
     const tooMany = pdfMessage('PDF_TOO_MANY_PAGES', { pages: 22 });
     expect(tooMany.en).toMatch(/22/);
     expect(tooMany.en).toMatch(/15/);
-    expect(tooMany.ta).toMatch(tamil);
-    expect(tooMany.ta).toMatch(/22/);
     const noRoom = pdfMessage('PDF_NO_ROOM', { pages: 6, room: 4 });
     expect(noRoom.en).toMatch(/6/);
     expect(noRoom.en).toMatch(/4/);
-    expect(noRoom.ta).toMatch(tamil);
     for (const code of ['PDF_UNREADABLE', 'PDF_PASSWORD', 'PDF_TOO_LARGE'] as const) {
       const m = pdfMessage(code, {});
       expect(m.en.length).toBeGreaterThan(10);
-      expect(m.ta).toMatch(tamil);
+      expect(JSON.stringify(m)).not.toMatch(tamil);
     }
+    expect(JSON.stringify([tooMany, noRoom])).not.toMatch(tamil);
   });
 
   it('pdf.js is pinned to an exact version', () => {
