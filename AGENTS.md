@@ -708,3 +708,18 @@ the only record of a physical QR-card order — removing it drops orders.
 expires. The old sweep's lesson still applies: select paid windows by
 `store_expires_at`, never by `razorpay_status` (see the razorpay_status note
 above). And it needs a real scheduler — App Platform `PRE_DEPLOY` jobs are not one.
+
+## /add-feature workflow (2026-09-23)
+
+**`.claude/` is gitignored.** The workflow (skill, agents, hooks, rules,
+`.claude/docs/`) lives only in the main checkout. Hooks run from
+`$CLAUDE_PROJECT_DIR`, so they still guard feature worktrees; the hook tests
+in `tests/unit/claude-hooks/` find `.claude/hooks` through git's common dir.
+
+**Guards switch on only while a `docs/features/*/state.md` is not `done`.**
+Outside a run, `git push vsite` and Supabase writes follow the normal
+permission prompts. The two owner-owned files are always write-blocked.
+
+**`/api/version` reports `unknown` until `COMMIT_SHA=${_self.COMMIT_HASH}`
+(RUN_TIME) is set in the DO console.** `.do/app.yaml` is documentation, not
+applied. Live-verify cannot confirm a deploy without it.
