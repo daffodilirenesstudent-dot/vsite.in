@@ -29,6 +29,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 vi.mock('server-only', () => ({}));
+// These cases cover the flag-OFF path (pre-ai-page-limits behaviour), pinned
+// explicitly so they stay meaningful after AI_PAGE_LIMITS goes live. The ON
+// path is covered by tests/acceptance/ai-page-limits.test.ts.
+vi.mock('@/lib/platform/productFlags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/platform/productFlags')>()),
+  AI_PAGE_LIMITS: false,
+}));
 vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
     verifyFirebaseToken: vi.fn(async (t: string) => (t === 'good' ? 'user-1' : null)),
 }));
