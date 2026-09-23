@@ -34,6 +34,8 @@ import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { matchByKeyword } from '@/lib/menu/defaultImages';
 import { weightedScore, previewQuadrant } from '@/lib/menu/menuEngineering';
 import { rateLimit } from '@/lib/platform/rateLimit';
+import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
+import { aiSpendAllowed, recordAiUsage } from '@/lib/menu/aiSpendGuard';
 import OpenAI from 'openai';
 
 import { logger } from '@/lib/platform/logger';
@@ -377,7 +379,7 @@ Every item MUST get a non-empty description. Never return an empty string.`;
 
 // Batched parallel description generation — same approach as menuExtractor Pass 2.
 // Chunks into 50-item batches, all batches run in parallel → wall time ≈ 1 batch.
-async function generateDescriptions(items: Record<string, unknown>[]): Promise<string[]> {
+async function generateDescriptions(items: Record<string, unknown>[], spendKey?: string): Promise<string[]> {
   const descriptions = new Array<string>(items.length).fill('');
   const indexed = items.map((item, idx) => ({ item, idx }));
   const batches = chunk(indexed, DESCRIBE_BATCH_SIZE);
@@ -400,6 +402,7 @@ async function generateDescriptions(items: Record<string, unknown>[]): Promise<s
         response_format: { type: 'json_object' },
         max_tokens: 8000,
       });
+      if (spendKey) recordAiUsage('gpt-4o-mini', res.usage, spendKey);
       const raw = res.choices[0]?.message?.content ?? '{}';
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const descs = Array.isArray(parsed.descriptions) ? parsed.descriptions as string[] : [];
@@ -489,34 +492,46 @@ export async function POST(request: NextRequest) {
     // `photosCount` is still accepted for client back-compat but no longer
     // meters anything: it is a request-body number, and the cost is set by how
     // many items need a description. See workUnitsFor().
+    //
+    // AI_PAGE_LIMITS ON: the AI-read pages were already counted per store at
+    // /bulk-import/extract, so the daily quota is no longer the gate. The
+    // per-account daily $ cap stops this endpoint becoming an unmetered
+    // description generator.
     const day = currentDay();
     const units = workUnitsFor(items);
-    const reservation = await reserveQuota(userId, day, units);
+    if (!AI_PAGE_LIMITS) {
+      const reservation = await reserveQuota(userId, day, units);
 
-    if (!reservation.ok) {
-      if (reservation.reason === 'contention') {
-        return NextResponse.json(
-          { error: 'Could not reserve your import allowance. Please retry.', code: 'QUOTA_CONTENTION' },
-          { status: 503 },
-        );
+      if (!reservation.ok) {
+        if (reservation.reason === 'contention') {
+          return NextResponse.json(
+            { error: 'Could not reserve your import allowance. Please retry.', code: 'QUOTA_CONTENTION' },
+            { status: 503 },
+          );
+        }
+        return NextResponse.json({
+          error: `Daily limit reached. You've used ${reservation.used} of ${DAILY_PHOTO_LIMIT} today.`,
+          code: 'QUOTA_EXCEEDED',
+          photosUsed: reservation.used,
+          limit: DAILY_PHOTO_LIMIT,
+        }, { status: 429 });
       }
-      return NextResponse.json({
-        error: `Daily limit reached. You've used ${reservation.used} of ${DAILY_PHOTO_LIMIT} today.`,
-        code: 'QUOTA_EXCEEDED',
-        photosUsed: reservation.used,
-        limit: DAILY_PHOTO_LIMIT,
-      }, { status: 429 });
-    }
 
-    // From here on the allowance is spent. Every exit path that does NOT deliver
-    // products must call releaseQuota, or an owner is charged for nothing.
-    logger.debug(`[bulk-import/insert] reserved ${units} unit(s); ${reservation.used}/${DAILY_PHOTO_LIMIT} used today`);
+      // From here on the allowance is spent. Every exit path that does NOT deliver
+      // products must call releaseQuota, or an owner is charged for nothing.
+      logger.debug(`[bulk-import/insert] reserved ${units} unit(s); ${reservation.used}/${DAILY_PHOTO_LIMIT} used today`);
+    } else if (!aiSpendAllowed(userId)) {
+      return NextResponse.json(
+        { error: "You've reached today's scanning limit. Add your items by hand, or try again tomorrow.", code: 'DAILY_SCAN_LIMIT' },
+        { status: 429 },
+      );
+    }
 
     // Generate descriptions for items that have none — batched 50/call in parallel
     const needsDesc = items.some(i => !String(i.description ?? '').trim());
     if (needsDesc) {
       logger.debug(`[bulk-import/insert] generating descriptions for ${items.length} items in batches of ${DESCRIBE_BATCH_SIZE}`);
-      const descs = await generateDescriptions(items);
+      const descs = await generateDescriptions(items, AI_PAGE_LIMITS ? userId : undefined);
       items = items.map((item, idx) => ({
         ...item,
         description: String(item.description ?? '').trim() || descs[idx],
@@ -602,7 +617,7 @@ export async function POST(request: NextRequest) {
       console.error('[bulk-import/insert] insert failed:', err);
       // The AI spend already happened, but the owner got no products for it.
       // Hand the allowance back rather than charging for a failed import.
-      await releaseQuota(userId, day, units);
+      if (!AI_PAGE_LIMITS) await releaseQuota(userId, day, units);
       return NextResponse.json({ error: 'Failed to save products. Please try again.' }, { status: 500 });
     }
 
