@@ -14,6 +14,10 @@
 //   7. Rate limit (per user, per hour)           → 429 RATE_LIMITED
 //   8. Bounded body parse                        → 413 PAYLOAD_TOO_LARGE
 //   9. Magic-byte validation per photo
+//   AI_PAGE_LIMITS ON only:
+//   4b. Read-only page pre-check                 → 403 PAGE_LIMIT / 503 PAGE_LIMIT_UNAVAILABLE
+//   9b. Atomic page reservation (the gate); every page not read `ok` is
+//       refunded in `finally`
 //  10. One extraction call per photo, through the token scheduler, with the
 //      per-page fallback ladder (menuExtractor.ts). Pages that still fail are
 //      returned as `failedPhotos`; the rest of the menu is kept.
@@ -37,6 +41,9 @@ import { boundBody } from '@/lib/platform/boundedBody';
 import { admitUpload } from '@/lib/platform/uploadAdmission';
 import { checkStoreEligibility } from '@/lib/platform/storeEligibility';
 import { aiSpendAllowed } from '@/lib/menu/aiSpendGuard';
+import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
+import { ONBOARDING_PAGE_LIMIT } from '@/lib/menu/aiPageLimits';
+import { readOnboardingUsage, reserveOnboardingPages, refundPages } from '@/lib/menu/aiPageLedger';
 
 import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
@@ -78,10 +85,26 @@ function fail(status: number, body: Failure, headers?: Record<string, string>) {
   return NextResponse.json(body, { status, headers });
 }
 
+function pageLimit(pagesLeft: number) {
+  return fail(403, {
+    code: 'PAGE_LIMIT',
+    error: `This store's ${ONBOARDING_PAGE_LIMIT} AI pages are used. Your items so far are saved. Continue, and add any missing dishes by hand.`,
+    pagesLeft,
+    pageLimit: ONBOARDING_PAGE_LIMIT,
+  });
+}
+
+function pageLimitUnavailable() {
+  return fail(503, { code: 'PAGE_LIMIT_UNAVAILABLE', error: "We couldn't check your pages. No pages were used. Check your internet and try again." });
+}
+
 export async function POST(incoming: NextRequest) {
   const t0 = Date.now();
   let releaseAdmission: (() => void) | null = null;
   let releaseClaim: (() => void) | null = null;
+  // Pages reserved for this scan; every one not read `ok` is refunded in `finally`.
+  let pageBucket: { id: string; reserved: number; usedAfterReserve: number } | null = null;
+  let okPages = 0;
   try {
     // ── 1. Auth ──────────────────────────────────────────────────────────────
     const authHeader = incoming.headers.get('Authorization');
@@ -115,6 +138,14 @@ export async function POST(incoming: NextRequest) {
     const eligibility = await checkStoreEligibility(userId);
     if (!eligibility.ok) {
       return fail(eligibility.status, { code: eligibility.code, error: eligibility.error });
+    }
+
+    // ── 4b. Page pre-check: a cheap early refusal; the reserve in 9b is the gate
+    if (AI_PAGE_LIMITS) {
+      const usage = await readOnboardingUsage(userId);
+      if (!usage.ok) return pageLimitUnavailable();
+      const hinted = Number(incoming.headers.get('x-photo-count'));
+      if (usage.left === 0 || hinted > usage.left) return pageLimit(usage.left);
     }
 
     // ── 5. Token-aware admission ─────────────────────────────────────────────
@@ -202,6 +233,17 @@ export async function POST(incoming: NextRequest) {
       return fail(400, { code: 'UNREADABLE_PHOTOS', error: 'None of your photos could be read. Please upload clear JPG, PNG, or WebP photos.', rejected });
     }
 
+    // ── 9b. Reserve the pages atomically, before any AI spend ────────────────
+    if (AI_PAGE_LIMITS) {
+      const reservation = await reserveOnboardingPages(userId, validated.length);
+      if (!reservation.ok) {
+        return reservation.reason === 'unavailable'
+          ? pageLimitUnavailable()
+          : pageLimit(Math.max(0, reservation.limit - reservation.used));
+      }
+      pageBucket = { id: reservation.bucketId, reserved: validated.length, usedAfterReserve: reservation.used };
+    }
+
     const images = await Promise.all(validated.map(async ({ file, mime }) => ({
       buffer: Buffer.from(await file.arrayBuffer()),
       mime,
@@ -214,6 +256,7 @@ export async function POST(incoming: NextRequest) {
       spendKey: userId,
       claim,
     });
+    okPages = report.pages.filter(p => p.status === 'ok').length;
     const failedPhotos = [...rejectedPhotos, ...report.failedPages.map(i => validated[i].photo)].sort((a, b) => a - b);
     logger.debug(`[onboarding/extract] ${report.items.length} items, ${failedPhotos.length} photos failed, ${Date.now() - t0}ms`);
 
@@ -228,6 +271,7 @@ export async function POST(incoming: NextRequest) {
       partial: failedPhotos.length > 0,
       failedPhotos,
       rejected,
+      ...(pageBucket ? { pages: pagesAfterScan(pageBucket, okPages) } : {}),
       stats: {
         photosUploaded: photoEntries.length,
         photosValid: validated.length,
@@ -239,7 +283,14 @@ export async function POST(incoming: NextRequest) {
     console.error('[onboarding/extract] unexpected error:', err);
     return fail(500, { code: 'INTERNAL', error: 'Something went wrong on our side. Please try again.' });
   } finally {
+    if (pageBucket) await refundPages(pageBucket.id, pageBucket.reserved - okPages);
     releaseClaim?.();
     releaseAdmission?.();
   }
+}
+
+/** The owner's page count once the refund for unread pages has landed. */
+function pagesAfterScan(bucket: { reserved: number; usedAfterReserve: number }, ok: number) {
+  const used = bucket.usedAfterReserve - (bucket.reserved - ok);
+  return { used, limit: ONBOARDING_PAGE_LIMIT, left: ONBOARDING_PAGE_LIMIT - used };
 }
