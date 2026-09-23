@@ -1,7 +1,7 @@
 ---
 slug: ai-page-limits
 phase: qa
-status: running
+status: stopped
 design_version: 1
 qa_round: 2
 branch: feat/ai-page-limits
@@ -37,3 +37,4 @@ Hooks read the frontmatter above. Keep it `key: value`, one per line.
 - 2026-09-23 qa round 1: qa-technical VERDICT FAIL (M1 onboarding Back+Continue re-scan refused by PAGE_LIMIT and Skip discards read items; M2 OCR fallback spend leak not yet fixed - owner decision (c)). Fixes wait for E2E to finish (shared dev server). OCR fix goes behind AI_PAGE_LIMITS, consistent with D1/AC10.
 - 2026-09-23 owner impatient; E2E round 1 stopped early (code about to change). phase 4 build, qa round 2: fix M1 (onboarding re-scan), M2 (OCR leak, behind flag), minor failedPhotos index + non-UUID siteId.
 - 2026-09-23 round 2 fixes done: M1 (c95942f), M2 (03138d4). Full suite 1177 pass flag OFF and ON; tsc 0; lint 0 errors. Deferred minors: bulk failedPhotos index when a buffer read fails; non-UUID siteId answers 503 not 404. phase 5 qa round 2 started.
+- STOPPED: 7 waiting for owner to create .claude/docs/business-context.md (business QA cannot pass without it). Technical + E2E round 2 running in background.
