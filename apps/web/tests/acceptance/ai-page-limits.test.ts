@@ -352,6 +352,23 @@ describe('AC1: onboarding allows at most 15 pages per store', () => {
     expect(src).toMatch(/if \(AI_PAGE_LIMITS\)[\s\S]{0,400}bindOnboardingPages\(userId, site\.id\)/);
   });
 
+  it('AC1: Back then Continue with the same photos does not scan (or charge) again', async () => {
+    const { needsRescan } = await import('@/app/onboarding/rescan');
+    expect(needsRescan({ photoKey: 'a|b', lastScannedKey: 'a|b', itemCount: 12 })).toBe(false);
+    expect(needsRescan({ photoKey: 'a|b|c', lastScannedKey: 'a|b', itemCount: 12 })).toBe(true);
+    expect(needsRescan({ photoKey: 'a|b', lastScannedKey: 'a|b', itemCount: 0 })).toBe(true);
+    expect(needsRescan({ photoKey: 'a|b', lastScannedKey: null, itemCount: 0 })).toBe(true);
+    const src = read('app', 'onboarding', 'page.tsx');
+    expect(src).toMatch(/AI_PAGE_LIMITS && !needsRescan\(/);
+  });
+
+  it('AC1: out of pages with dishes already read, the owner keeps them instead of losing them', () => {
+    const src = read('app', 'onboarding', 'page.tsx');
+    expect(src).toMatch(/Continue with my \{items\.length\} dishes/);
+    // Skip (which empties the menu) is not offered when read dishes can be kept.
+    expect(src).toMatch(/canKeepItems \? \(/);
+  });
+
   it('AC1: the onboarding screen explains PAGE_LIMIT with the pages left', () => {
     expect(read('app', 'onboarding', 'scanMessages.ts')).toMatch(/PAGE_LIMIT:\s*\{/);
     expect(read('app', 'onboarding', 'page.tsx')).toMatch(/pagesLeft/);

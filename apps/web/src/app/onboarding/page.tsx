@@ -21,6 +21,8 @@ import {
   type ScanMessage,
 } from './scanMessages';
 import { pdfToPageImages, PdfPagesError } from '@/lib/menu/pdfPages';
+import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
+import { needsRescan, photoKey } from './rescan';
 
 const MAX_PHOTOS = 15;
 
@@ -138,6 +140,8 @@ function OnboardingContent() {
   const [pdfProgress, setPdfProgress] = useState<string | null>(null);
   // Photos already added, read synchronously while PDF pages are still arriving.
   const photosRef = useRef<PreviewPhoto[]>([]);
+  // The photos behind the dishes we already have, so Back → Continue does not pay to read them again.
+  const lastScannedKeyRef = useRef<string | null>(null);
   useEffect(() => { photosRef.current = photos; }, [photos]);
 
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -245,6 +249,13 @@ function OnboardingContent() {
     if (!businessName.trim()) { showScanError('NO_SHOP_NAME'); return; }
     if (photos.length === 0) { showScanError('NO_PHOTOS'); return; }
 
+    // Same photos as the scan we already have: go on with those dishes, no new scan.
+    if (AI_PAGE_LIMITS && !needsRescan({ photoKey: photoKey(photos), lastScannedKey: lastScannedKeyRef.current, itemCount: items.length })) {
+      setScanError(null);
+      transition('right', () => setStep('bestsellers'));
+      return;
+    }
+
     setError('');
     setScanError(null);
     setScanNotice(null);
@@ -326,6 +337,7 @@ function OnboardingContent() {
 
         const found = data.items ?? [];
         setExtractedItems(found);
+        lastScannedKeyRef.current = found.length > 0 ? photoKey(photos) : null;
 
         // Tell the owner which photos did not make it, in their numbering.
         const serverFailed: number[] = Array.isArray(data.failedPhotos)
@@ -457,6 +469,8 @@ function OnboardingContent() {
   }
 
   const atLimit = photos.length >= MAX_PHOTOS;
+  // Out of AI pages but dishes are already read: carry on with them rather than empty the menu.
+  const canKeepItems = AI_PAGE_LIMITS && scanError?.code === 'PAGE_LIMIT' && items.length > 0;
   const isSetup = step === 'setup';
 
   return (
@@ -680,10 +694,17 @@ function OnboardingContent() {
                     )}
                   </button>
                   {scanError && SKIPPABLE_CODES.has(scanError.code) && !extracting && (
+                    canKeepItems ? (
+                      <button type="button" onClick={() => { setScanError(null); transition('right', () => setStep('bestsellers')); }}
+                        className="mt-3 w-full rounded-[10px] border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]">
+                        Continue with my {items.length} dishes
+                      </button>
+                    ) : (
                     <button type="button" onClick={handleSkipScan}
                       className="mt-3 w-full rounded-[10px] border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]">
                       Skip — add dishes by hand
                     </button>
+                    )
                   )}
                 </div>
               </>
