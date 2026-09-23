@@ -1,11 +1,11 @@
 ---
 slug: ai-page-limits
 phase: qa
-status: running
+status: stopped
 design_version: 1
 qa_round: 1
 branch: feat/ai-page-limits
-previous_tag:
+previous_tag: release/baseline-20260923
 release_tag:
 pushed_sha:
 critical_failure:
@@ -31,3 +31,5 @@ Hooks read the frontmatter above. Keep it `key: value`, one per line.
 - 2026-09-23 owner amendment during build: onboarding English only, remove all existing Tamil there (recorded in contract). Scheduled as Task 13 after the modal.
 - 2026-09-23 phase 4 build done: 22+ commits; exit check vitest 1174 pass (flag OFF and ON), tsc 0, lint 0 errors. Owner amendment (onboarding English only) done as Task 13. phase 4 done.
 - 2026-09-23 phase 5 qa started
+- 2026-09-23 qa round 1: qa-business VERDICT STOP-FOR-OWNER (business-context.md missing; unflagged Tamil removal; per-owner exposure via 2 trial stores / store re-creation; pre-existing OCR fallback spend leak). technical + e2e still running.
+- STOPPED: 7 business QA STOP-FOR-OWNER - needs business-context.md and owner answers on unflagged Tamil removal, per-owner page exposure, OCR leak follow-up.
