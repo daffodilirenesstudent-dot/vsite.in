@@ -22,7 +22,7 @@ export type Usage = { ok: true; used: number; left: number; limit: number } | { 
 /** A query that throws (network, client bug; sync or async) reads the same as one that returned an error. */
 async function settle<T>(query: () => PromiseLike<{ data: T; error: unknown }>): Promise<{ data: T | null; error: unknown }> {
   try {
-    return await query();
+    return (await query()) ?? { data: null, error: 'empty response' };
   } catch (err) {
     return { data: null, error: err ?? 'threw' };
   }

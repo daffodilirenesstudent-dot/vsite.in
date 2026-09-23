@@ -91,7 +91,7 @@ interface UsageRow {
   period_ends_at: string | null; pages_used: number; pages_refunded: number; page_limit: number;
 }
 
-const db = { sites: [] as SiteRow[], usage: [] as UsageRow[], down: false, sitesDown: false, throws: false };
+const db = { sites: [] as SiteRow[], usage: [] as UsageRow[], down: false, sitesDown: false, throws: false, empty: false };
 const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
 const tableReads: string[] = [];
 let seq = 0;
@@ -125,6 +125,7 @@ function reserve(a: Record<string, unknown>) {
 function rpc(fn: string, args: Record<string, unknown>) {
   rpcCalls.push({ fn, args });
   if (db.throws) throw new Error('fetch failed');
+  if (db.empty) return Promise.resolve(undefined);
   if (db.down) return Promise.resolve({ data: null, error: { message: 'down' } });
   if (fn === 'reserve_ai_pages') return Promise.resolve({ data: reserve(args), error: null });
   if (fn === 'refund_ai_pages') {
@@ -242,7 +243,7 @@ beforeEach(() => {
   calls.length = 0;
   rpcCalls.length = 0;
   tableReads.length = 0;
-  db.sites = []; db.usage = []; db.down = false; db.sitesDown = false; db.throws = false;
+  db.sites = []; db.usage = []; db.down = false; db.sitesDown = false; db.throws = false; db.empty = false;
   delete process.env.EXTRACTION_USER_DAILY_BUDGET_USD;
   __resetUploadAdmission();
   __resetRateScheduler();
@@ -339,6 +340,10 @@ describe('AC1: onboarding allows at most 15 pages per store', () => {
     db.throws = true;
     await expect(bindOnboardingPages(uidOf(t), siteId)).resolves.toBeUndefined();
     const { refundPages } = await import('@/lib/menu/aiPageLedger');
+    await expect(refundPages('b-missing', 2)).resolves.toBeUndefined();
+    db.throws = false;
+    db.empty = true;
+    await expect(bindOnboardingPages(uidOf(t), siteId)).resolves.toBeUndefined();
     await expect(refundPages('b-missing', 2)).resolves.toBeUndefined();
   });
 
