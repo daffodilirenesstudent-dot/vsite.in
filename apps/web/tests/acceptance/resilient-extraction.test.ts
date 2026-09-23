@@ -498,7 +498,15 @@ describe('AC12: the onboarding screen explains what happened and what to do', ()
     const codes = Array.from(new Set(Array.from(route().matchAll(/code: '([A-Z_]+)'/g), m => m[1])));
     expect(codes.length).toBeGreaterThan(5);
     const src = messages();
+    // The AI page-limit codes are English only, by the owner's explicit
+    // decision on 2026-09-23 (docs/features/ai-page-limits/contract.md,
+    // "Decisions at design gate"). They must still have an English message.
+    const ENGLISH_ONLY = new Set(['PAGE_LIMIT', 'PAGE_LIMIT_UNAVAILABLE']);
     for (const code of codes) {
+      if (ENGLISH_ONLY.has(code)) {
+        expect(src, `missing English message for ${code}`).toMatch(new RegExp(`${code}:\\s*\\{\\s*en:\\s*["']`));
+        continue;
+      }
       const entry = new RegExp(`${code}:\\s*\\{[^}]*en:[^}]*ta:\\s*'[^']*[\\u0B80-\\u0BFF]`);
       expect(src, `missing bilingual message for ${code}`).toMatch(entry);
     }
