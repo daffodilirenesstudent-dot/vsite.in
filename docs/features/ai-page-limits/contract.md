@@ -105,3 +105,4 @@ Approved 2026-09-23 (design-v1).
 - Limits stay per store (owner: "Each store"); onboarding stays 15 (owner: "not 50 its 15").
 - Architect defaults D1–D4 accepted as designed (owner approved the plan).
 - Owner amendment 2026-09-23 (during build, verbatim): "only english in the onboarding no tamil". Remove ALL Tamil from the onboarding flow (scan messages, PDF/partial notices, any Tamil UI text), not just the new codes. Done as a separate task on this branch; the resilient-extraction AC12 guard changes to require an English message for every code (owner-approved behaviour change).
+- Owner decisions at QA STOP #7, 2026-09-23: (a) Tamil removal from onboarding ships UNSWITCHED (not behind AI_PAGE_LIMITS) - yes. (b) Per-store limits accepted incl. per-owner exposure (2 trial stores, store re-creation); revisit only on observed abuse. (c) Fix the pre-existing bulk OCR-fallback spend leak IN THIS RELEASE (fallback calls count against the per-account daily cap).

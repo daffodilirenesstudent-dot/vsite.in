@@ -33,3 +33,4 @@ Hooks read the frontmatter above. Keep it `key: value`, one per line.
 - 2026-09-23 phase 5 qa started
 - 2026-09-23 qa round 1: qa-business VERDICT STOP-FOR-OWNER (business-context.md missing; unflagged Tamil removal; per-owner exposure via 2 trial stores / store re-creation; pre-existing OCR fallback spend leak). technical + e2e still running.
 - STOPPED: 7 business QA STOP-FOR-OWNER - needs business-context.md and owner answers on unflagged Tamil removal, per-owner page exposure, OCR leak follow-up.
+- 2026-09-23 owner answered STOP #7 decisions (Tamil unswitched OK; per-owner exposure accepted; fix OCR leak now). Still waiting: owner to create .claude/docs/business-context.md. Technical + E2E QA still running.
