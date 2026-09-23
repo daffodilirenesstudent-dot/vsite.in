@@ -91,7 +91,7 @@ interface UsageRow {
   period_ends_at: string | null; pages_used: number; pages_refunded: number; page_limit: number;
 }
 
-const db = { sites: [] as SiteRow[], usage: [] as UsageRow[], down: false, sitesDown: false };
+const db = { sites: [] as SiteRow[], usage: [] as UsageRow[], down: false, sitesDown: false, throws: false };
 const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
 const tableReads: string[] = [];
 let seq = 0;
@@ -124,6 +124,7 @@ function reserve(a: Record<string, unknown>) {
 
 function rpc(fn: string, args: Record<string, unknown>) {
   rpcCalls.push({ fn, args });
+  if (db.throws) throw new Error('fetch failed');
   if (db.down) return Promise.resolve({ data: null, error: { message: 'down' } });
   if (fn === 'reserve_ai_pages') return Promise.resolve({ data: reserve(args), error: null });
   if (fn === 'refund_ai_pages') {
@@ -241,7 +242,7 @@ beforeEach(() => {
   calls.length = 0;
   rpcCalls.length = 0;
   tableReads.length = 0;
-  db.sites = []; db.usage = []; db.down = false; db.sitesDown = false;
+  db.sites = []; db.usage = []; db.down = false; db.sitesDown = false; db.throws = false;
   delete process.env.EXTRACTION_USER_DAILY_BUDGET_USD;
   __resetUploadAdmission();
   __resetRateScheduler();
@@ -319,6 +320,26 @@ describe('AC1: onboarding allows at most 15 pages per store', () => {
     expect(res.status).toBe(503);
     expect((await res.json()).code).toBe('PAGE_LIMIT_UNAVAILABLE');
     expect(calls).toHaveLength(0);
+  });
+
+  it('AC1: a database client that throws still fails closed, with no AI spend', async () => {
+    const t = freshToken();
+    expect((await onboardingExtract(onboardingReq(t, markers(1)))).status).toBe(200);
+    db.throws = true;
+    calls.length = 0;
+    const res = await onboardingExtract(onboardingReq(t, markers(1, 'k')));
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe('PAGE_LIMIT_UNAVAILABLE');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('AC1: binding and refunding are best effort: a throwing client never breaks the request', async () => {
+    const t = freshToken();
+    const siteId = addSite(t, { ageDays: 0 });
+    db.throws = true;
+    await expect(bindOnboardingPages(uidOf(t), siteId)).resolves.toBeUndefined();
+    const { refundPages } = await import('@/lib/menu/aiPageLedger');
+    await expect(refundPages('b-missing', 2)).resolves.toBeUndefined();
   });
 
   it('AC1: /complete binds the onboarding pages to the store it creates, behind the flag', () => {
