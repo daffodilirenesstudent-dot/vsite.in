@@ -1,27 +1,28 @@
 # Current Goal
 
-Feature: **Smart Add Product** (`smart-add-product`). The inventory drawer asks
-for things in the order an owner thinks of them, and a dish photo from our
-library appears by itself once the dish is named, so owners who never press
-"Use Professional Image" still end up with a photo they have seen.
+Feature: **QR print kit** (`qr-print-kit`) — first pass of the QR page UX work.
+For a menu-only store the QR page becomes: see the poster, pick where it goes,
+download a real print-ready PDF, share the menu link. The poster and its main
+action are above the fold on a laptop and never hidden behind the phone nav.
 
-Approved by the owner in chat, 2026-09-24 (order + suggest-in-form, not silent
-attach at save). Flag: `NEXT_PUBLIC_SMART_ADD_PRODUCT`, default OFF.
+Approved by the owner in chat, 2026-09-24 ("first pass and fixes": ideas 6, 1,
+3 + the PDF fix). Flag: `NEXT_PUBLIC_QR_PRINT_KIT`, default OFF. Ordering plans
+keep the current page.
 
-Previous goal (AI menu page limits) is built; see `docs/PLAN.md` history and git log.
+Previous goal (Smart Add Product) is built on `feat/smart-add-product`.
 
 Token per Ralph loop: 3 iterations
 
-## Acceptance criteria (each maps to a test in `apps/web/tests/acceptance/smart-add-product.test.ts`)
+## Acceptance criteria (each maps to a test in `apps/web/tests/acceptance/qr-print-kit.test.ts`)
 
-- [x] **AC1**: the flag is OFF unless `NEXT_PUBLIC_SMART_ADD_PRODUCT` is exactly `"true"`.
-- [x] **AC2**: flag ON, the drawer order is name → photo → veg/non-veg → category → pricing → description → show on menu.
-- [x] **AC3**: flag ON, product type (one price / sizes / combo) lives inside pricing, not as its own step.
-- [x] **AC4**: flag ON, a new product has no veg/non-veg preselected, and saving without one is refused with a clear message.
-- [x] **AC5**: a library photo is looked up from the dish name (≥ 3 letters, debounced) and shown in the photo slot before save.
-- [x] **AC6**: never replaces a photo the owner uploaded or a product's saved photo; stops suggesting once the owner removes a suggestion.
-- [x] **AC7**: a late answer for an old name never overwrites the photo for the current name.
-- [x] **AC8**: the photo is revealed only after it has decoded, holds the searching state long enough not to flash, animates within the NN/g range, and respects reduced motion.
-- [x] **AC9**: if save is pressed before the lookup for the current name has run, save runs it and keeps the photo it finds.
-- [x] **AC10**: a failed or empty lookup never blocks saving and never shows an error; the slot stays an upload box.
-- [x] **AC11**: with the flag OFF, the drawer is exactly as today (legacy order, Non-Vegetarian default, manual button).
+- [ ] **AC1**: the flag is OFF unless `NEXT_PUBLIC_QR_PRINT_KIT` is exactly `"true"`.
+- [ ] **AC2**: three placements in plain words — table stand (A6), counter (A5), wall or door (A4).
+- [ ] **AC3**: "print shop" PDF is the exact paper size plus 3 mm bleed on every side, one poster.
+- [ ] **AC4**: "home printer" PDF is A4: 4 table stands, 2 counter cards or 1 wall poster per sheet, inside a 6 mm printer margin, with cut lines.
+- [ ] **AC5**: "Download PDF" produces a real PDF whose page size matches the layout, one poster image per card.
+- [ ] **AC6**: each placement says how far away it scans from (10:1 rule with a 20 % margin).
+- [ ] **AC7**: the menu link can be copied, sent on WhatsApp and opened; there is a Google Maps how-to and a WhatsApp Status image.
+- [ ] **AC8**: flag ON + menu-only store renders the print kit; otherwise the current page renders.
+- [ ] **AC9**: no button says PDF unless it makes one (fixes today's "Download PDF" that saves a PNG, flag or not).
+- [ ] **AC10**: a failed download says so and never leaves every button stuck disabled (flag or not).
+- [ ] **AC11**: on a phone the download action stays visible above the bottom navigation.
