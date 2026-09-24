@@ -8,6 +8,10 @@
 // scanning.
 
 import { THUMB_EDGE_PX, THUMB_QUALITY } from '@/lib/menu/menuImages';
+import {
+    PHOTO_JPEG_QUALITY, PHOTO_MAX_EDGE_PX, PHOTO_MAX_INPUT_BYTES, PHOTO_WEBP_QUALITY,
+    MenuPhotoError, downscalePlan, fitWithin, isHeic, isPhotoFile, keepAsIs, photoFileName,
+} from '@/lib/menu/menuPhoto';
 
 const MAX_DIMENSION = 1600;     // px on the long edge
 const JPEG_QUALITY = 0.82;
@@ -75,6 +79,125 @@ function scaleToFit(w: number, h: number, max: number): { width: number; height:
     return { width: Math.round(w * ratio), height: Math.round(h * ratio) };
 }
 
+// ── Owner photos: shared canvas pipeline ────────────────────────────────────
+
+/** Decode with the browser's own decoder; EXIF orientation is applied for us. */
+async function decodePhoto(file: Blob): Promise<{ img: HTMLImageElement; url: string }> {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    try {
+        await img.decode();
+    } catch {
+        URL.revokeObjectURL(url);
+        throw new MenuPhotoError(isHeic({ type: file.type, name: file instanceof File ? file.name : '' }) ? 'HEIC_UNSUPPORTED' : 'UNREADABLE');
+    }
+    if (!img.naturalWidth || !img.naturalHeight) {
+        URL.revokeObjectURL(url);
+        throw new MenuPhotoError('UNREADABLE');
+    }
+    return { img, url };
+}
+
+/**
+ * Draw a source rectangle to `dw` × `dh` through downscalePlan's steps, on
+ * white (so transparent PNG areas never turn black in a JPEG). Intermediate
+ * canvases are released as soon as the next step has read them — iOS keeps
+ * canvas memory until the size is zeroed.
+ */
+function drawDownscaled(
+    source: CanvasImageSource,
+    sx: number, sy: number, sw: number, sh: number,
+    dw: number, dh: number,
+): HTMLCanvasElement {
+    let src: CanvasImageSource = source;
+    let rect = { x: sx, y: sy, w: sw, h: sh };
+    let out: HTMLCanvasElement | null = null;
+    for (const step of downscalePlan(sw, sh, dw, dh)) {
+        const canvas = document.createElement('canvas');
+        canvas.width = step.width;
+        canvas.height = step.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new MenuPhotoError('UNREADABLE');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, step.width, step.height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(src, rect.x, rect.y, rect.w, rect.h, 0, 0, step.width, step.height);
+        if (out) { out.width = 0; out.height = 0; }
+        out = canvas;
+        src = canvas;
+        rect = { x: 0, y: 0, w: step.width, h: step.height };
+    }
+    if (!out) throw new MenuPhotoError('UNREADABLE');
+    return out;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+    return new Promise(resolve => canvas.toBlob(resolve, type, quality));
+}
+
+let webpEncoding: Promise<boolean> | null = null;
+
+/**
+ * Safari cannot encode WebP and silently hands back a PNG instead, so ask once
+ * with a 1×1 canvas and remember the answer rather than paying for a
+ * full-size PNG encode on every photo.
+ */
+function canEncodeWebp(): Promise<boolean> {
+    if (!webpEncoding) {
+        const probe = document.createElement('canvas');
+        probe.width = 1;
+        probe.height = 1;
+        webpEncoding = canvasToBlob(probe, 'image/webp', PHOTO_WEBP_QUALITY).then(b => b?.type === 'image/webp');
+    }
+    return webpEncoding;
+}
+
+async function encodePhoto(canvas: HTMLCanvasElement): Promise<Blob | null> {
+    if (await canEncodeWebp()) {
+        const webp = await canvasToBlob(canvas, 'image/webp', PHOTO_WEBP_QUALITY);
+        if (webp?.type === 'image/webp') return webp;
+    }
+    const jpeg = await canvasToBlob(canvas, 'image/jpeg', PHOTO_JPEG_QUALITY);
+    return jpeg?.type === 'image/jpeg' ? jpeg : null;
+}
+
+/**
+ * The master copy of an owner's dish photo or banner, made on their phone
+ * before upload: long edge PHOTO_MAX_EDGE_PX, WebP (JPEG on Safari), upright,
+ * no EXIF (the phone's GPS location goes with it). A compact JPEG/WebP that
+ * already fits is returned untouched. Throws MenuPhotoError with a code the
+ * page turns into a message (photoErrorMessage).
+ */
+export async function prepareMenuPhoto(file: File): Promise<File> {
+    if (!isPhotoFile(file)) throw new MenuPhotoError('NOT_IMAGE');
+    if (file.size > PHOTO_MAX_INPUT_BYTES) throw new MenuPhotoError('TOO_LARGE');
+
+    const { img, url } = await decodePhoto(file);
+    try {
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+        if (keepAsIs({ type: file.type, size: file.size, width, height })) return file;
+
+        const target = fitWithin(width, height, PHOTO_MAX_EDGE_PX);
+        const canvas = drawDownscaled(img, 0, 0, width, height, target.width, target.height);
+        const blob = await encodePhoto(canvas);
+        canvas.width = 0;
+        canvas.height = 0;
+        if (!blob) throw new MenuPhotoError('UNREADABLE');
+
+        // Never make it worse: a web-ready file that already fits and would
+        // only grow stays as the owner chose it.
+        const fits = Math.max(width, height) <= PHOTO_MAX_EDGE_PX;
+        if (fits && blob.size >= file.size && /^image\/(jpeg|webp|png)$/.test(file.type)) return file;
+
+        return new File([blob], photoFileName(file.name, blob.type), { type: blob.type, lastModified: Date.now() });
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
 /**
  * The small copy a menu shows at 120 px. Every spot that uses it is a square
  * `object-fit: cover`, so the thumbnail is that same centre square — the diner
@@ -84,25 +207,22 @@ function scaleToFit(w: number, h: number, max: number): { width: number; height:
  */
 export async function makeMenuThumbnail(file: Blob): Promise<Blob | null> {
     if (typeof window === 'undefined') return null;
-    const url = URL.createObjectURL(file);
     try {
-        const img = await loadImage(url);
-        const side = Math.min(img.width, img.height);
-        if (!side) return null;
-        const edge = Math.min(THUMB_EDGE_PX, side);
-        const canvas = document.createElement('canvas');
-        canvas.width = edge;
-        canvas.height = edge;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return null;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, edge, edge);
-        return await new Promise<Blob | null>(resolve => {
-            canvas.toBlob(resolve, 'image/jpeg', THUMB_QUALITY);
-        });
+        const { img, url } = await decodePhoto(file);
+        try {
+            const side = Math.min(img.naturalWidth, img.naturalHeight);
+            const edge = Math.min(THUMB_EDGE_PX, side);
+            const canvas = drawDownscaled(
+                img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, edge, edge,
+            );
+            const thumb = await canvasToBlob(canvas, 'image/jpeg', THUMB_QUALITY);
+            canvas.width = 0;
+            canvas.height = 0;
+            return thumb;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
     } catch {
         return null;
-    } finally {
-        URL.revokeObjectURL(url);
     }
 }

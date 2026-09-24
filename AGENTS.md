@@ -723,3 +723,19 @@ permission prompts. The two owner-owned files are always write-blocked.
 **`/api/version` reports `unknown` until `COMMIT_SHA=${_self.COMMIT_HASH}`
 (RUN_TIME) is set in the DO console.** `.do/app.yaml` is documentation, not
 applied. Live-verify cannot confirm a deploy without it.
+
+## Owner photos in the browser (2026-09-24)
+
+**Safari cannot encode WebP from a canvas and does not fail**: `toBlob(cb,
+'image/webp')` hands back a PNG. Always check `blob.type`. `prepareMenuPhoto`
+probes once with a 1×1 canvas and falls back to JPEG.
+
+**Never downscale a phone photo onto a canvas in one draw.** Measured on 1 px
+stripes, 4000 → 1600 px: banding std-dev 87.5 in WebKit, 64 in Firefox, 11 in
+Chromium; halving in steps gives 0 everywhere. Use `drawDownscaled`
+(`imageCompress.ts`), which also keeps each canvas under iOS Safari's 16.7 MP cap.
+
+**Canvas behaviour must be tested in real engines.** `tests/acceptance/
+menu-photo-compression.browser.test.ts` drives Chromium/WebKit/Firefox from
+vitest via `@playwright/test`: modules are transpiled with `typescript` and
+served by `page.route` — no dev server. Uninstalled engines are skipped.

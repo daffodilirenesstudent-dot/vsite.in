@@ -41,3 +41,38 @@ defaults OFF, and OFF means exactly today's behaviour.
 2. Run `node scripts/backfill-menu-thumbs.mjs` (dry run), then `--apply`.
 3. Set `NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` in DigitalOcean (build-time var;
    needs a redeploy). Rollback = unset it and redeploy.
+
+---
+
+# PLAN — Owner photo compression  (status: DONE 2026-09-24 — rollout pending)
+
+Goal: owners upload their own dish photos and banners (2–9 MB from a phone)
+and the menu stays fast and inside Supabase's free storage/egress.
+Acceptance: `apps/web/tests/acceptance/menu-photo-compression.test.ts` (pure +
+wiring) and `menu-photo-compression.browser.test.ts` — vitest driving real
+Chromium, WebKit and Firefox through `@playwright/test` (already a devDep);
+modules are transpiled with `typescript` and served by request interception,
+so no dev server is needed. Uninstalled engines are skipped.
+
+Pattern: shrink on the device before upload (Facebook Spectrum), one master
+plus fixed sizes (Instagram/YouTube). Server and DB never touch image bytes.
+
+## Tasks
+
+1. **`apps/web/src/lib/menu/menuPhoto.ts`** (pure) — flag
+   `NEXT_PUBLIC_MENU_PHOTO_COMPRESS` (OFF unless "true"), 1600 px / WebP 0.80 /
+   JPEG 0.85 / 25 MB input cap, `CANVAS_MAX_PIXELS` (< iOS 16.7 MP),
+   `fitWithin`, `downscalePlan` (halve until within 2×; first step capped by
+   area), `keepAsIs`, `photoFileName`, `isPhotoFile`, `MenuPhotoError`,
+   `photoErrorMessage`.
+2. **`apps/web/src/lib/menu/imageCompress.ts`** — `prepareMenuPhoto(file)`:
+   decode via `<img>.decode()` (EXIF orientation applied by the browser; HEIC
+   works in Safari only), white background, step-down draw, WebP if the
+   browser really encodes it (detected once), else JPEG; keeps the input when
+   re-encoding would not help. `makeMenuThumbnail` reuses the step-down draw.
+3. **`app/manage/product-inventory/page.tsx`** — flag on: 25 MB input cap,
+   HEIC accepted, `prepareMenuPhoto` at save (inside the existing "saving"
+   state), owner-readable errors; list icons use `menuThumbSrc`.
+4. **`app/manage/banner-management/page.tsx`** — same, replacing
+   `compressImage(1200, 0.85)` only when the flag is on.
+5. `components/manage/ShopCard.tsx` is not rendered anywhere — not touched.

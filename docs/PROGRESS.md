@@ -2,6 +2,44 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-24 — Feature: owner photo compression (dish photos + banners)
+status: DONE — acceptance green: menu-photo-compression.test.ts (18/18) and
+menu-photo-compression.browser.test.ts (27/27: Chromium, WebKit, Firefox). Rollout pending the owner.
+
+**Problem (measured on production).** Owners must use their own dish photos. The
+inventory page uploaded the phone file untouched and rejected anything over 5 MB
+(many phone photos). Of 219 owner uploads: 77 PNG, 19 over 1 MB, three 9 MB
+PNGs. The dish sheet and inventory icons load that full file.
+
+**Design (browser-side, the Spectrum/Instagram pattern; no dependency, no schema).**
+- `menuPhoto.ts` (pure) — 1600 px long edge, WebP 0.80 / JPEG 0.85, 25 MB
+  input cap, step-down plan, keep-as-is rule, file naming, error codes/messages.
+  Flag `NEXT_PUBLIC_MENU_PHOTO_COMPRESS` (OFF unless "true").
+- `imageCompress.ts` — `prepareMenuPhoto`: `<img>.decode()` (EXIF orientation
+  applied; HEIC only in Safari → HEIC_UNSUPPORTED elsewhere), white background,
+  step-down draw with intermediate canvases released, WebP detected once
+  (Safari returns PNG), JPEG fallback, never larger than a web-ready input.
+  `makeMenuThumbnail` now uses the same step-down draw.
+- Inventory + banner pages: flag on → 25 MB cap, HEIC accepted, prepare at
+  save inside the existing "saving" state, owner-readable toasts; inventory
+  icons use the thumbnail. Flag off → byte-identical to before.
+
+**Evidence.**
+- Real owner photos through the shipped code (Chromium): 9,178 KB PNG → 229 KB
+  WebP; 5,056 KB JPG → 175 KB WebP. Safari mode (JPEG): 334 KB / 322 KB. 0.2–0.5 s on desktop.
+- Moiré (1 px stripes, 4000 → 1600 px, luma std-dev): step-down 0.0 in all three
+  engines; one-step draw 11.0 Chromium, 64.0 Firefox, 87.5 WebKit.
+- Side-by-side crop of a 9 MB dish: no visible difference.
+
+**Not done / known.** Existing oversized uploads are not re-compressed (19 files;
+changing live photos needs the owner's OK). Wide-gamut (Display-P3) photos are
+converted to sRGB by the canvas. Animated images keep only the first frame.
+`components/manage/ShopCard.tsx` is not rendered anywhere and was not changed.
+Full suite: only `tests/unit/claude-hooks/*` fail (hook files missing, pre-existing).
+
+**Rollout.** Set `NEXT_PUBLIC_MENU_PHOTO_COMPRESS=true` in DigitalOcean (build-time;
+redeploy). Independent of the thumbnails flag. Rollback: unset and redeploy.
+
 ### 2026-09-24 — Feature: menu image thumbnails + long cache (Supabase egress)
 status: DONE — acceptance green (tests/acceptance/menu-image-thumbnails.test.ts, 24/24). Rollout pending the owner.
 
