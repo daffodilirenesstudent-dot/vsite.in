@@ -33,8 +33,12 @@ import { join } from 'node:path';
 const WEB = join(__dirname, '..', '..');
 const SRC = join(WEB, 'src');
 const read = (p: string) => (existsSync(join(SRC, p)) ? readFileSync(join(SRC, p), 'utf8') : '');
-/** Match on shipped code, not on comments that name the old behaviour. */
-const shipped = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+/**
+ * Match on shipped code, not on comments that name the old behaviour. A block
+ * comment must start after whitespace or `{` (JSX), so `accept="image/*"` is
+ * not mistaken for one and made to swallow the code after it.
+ */
+const shipped = (p: string) => read(p).replace(/(^|[\s{])\/\*[\s\S]*?\*\//g, '$1').replace(/\/\/[^\n]*/g, '');
 
 const PAGE = 'app/manage/product-inventory/page.tsx';
 const SLOT = 'components/manage/ProductPhotoSlot.tsx';
@@ -205,6 +209,26 @@ async function makeSuggester(opts: {
 
 const last = (states: State[]) => states[states.length - 1];
 
+const revealRule = () => read(CSS).match(/\.vs-photo-reveal\s*\{[^}]*\}/)?.[0] ?? '';
+
+function revealCurve(): [number, number, number, number] {
+    const m = revealRule().match(/cubic-bezier\(([^)]+)\)/);
+    if (!m) throw new Error('.vs-photo-reveal has no cubic-bezier easing');
+    const [x1, y1, x2, y2] = m[1].split(',').map(Number);
+    return [x1, y1, x2, y2];
+}
+
+/** CSS cubic-bezier: animation progress at time fraction `t` (bisection on x). */
+function bezierProgress([x1, y1, x2, y2]: [number, number, number, number], t: number): number {
+    const at = (a: number, b: number, s: number) => 3 * (1 - s) ** 2 * s * a + 3 * (1 - s) * s ** 2 * b + s ** 3;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 60; i++) {
+        const mid = (lo + hi) / 2;
+        if (at(x1, x2, mid) < t) lo = mid; else hi = mid;
+    }
+    return at(y1, y2, (lo + hi) / 2);
+}
+
 describe('AC5: the lookup follows the name', () => {
     it('waits for the owner to pause, then looks up the name once', async () => {
         const { suggester, lookups, DEBOUNCE } = await makeSuggester();
@@ -301,13 +325,24 @@ describe('AC8: the photo appears softly, never as a flash', () => {
         expect(SUGGEST_MIN_SEARCH_MS).toBeLessThanOrEqual(800);
     });
 
-    it('the reveal is 200–500 ms (NN/g) on Material\'s emphasized-decelerate curve', () => {
-        const css = read(CSS);
-        const rule = css.match(/\.vs-photo-reveal\s*\{[^}]*\}/)?.[0] ?? '';
-        const ms = Number(rule.match(/(\d+)ms/)?.[1] ?? NaN);
+    it('the reveal is 200–500 ms (NN/g)', () => {
+        const ms = Number(revealRule().match(/(\d+)ms/)?.[1] ?? NaN);
         expect(ms).toBeGreaterThanOrEqual(200);
         expect(ms).toBeLessThanOrEqual(500);
-        expect(rule).toMatch(/cubic-bezier\(0\.05,\s*0\.7,\s*0\.1,\s*1\)/);
+    });
+
+    /**
+     * Measured in the browser, 2026-09-24: on Material's emphasized-DECELERATE
+     * curve the photo was 63% opaque 50 ms in — three frames — which reads as
+     * the pop the owner asked us to avoid. That curve is built for things that
+     * must land fast. The photo should start softly and still settle firmly.
+     */
+    it('starts softly: under a third of the way in the first tenth of the time', () => {
+        expect(bezierProgress(revealCurve(), 0.1)).toBeLessThan(0.3);
+    });
+
+    it('still settles decisively: most of the way by the halfway point', () => {
+        expect(bezierProgress(revealCurve(), 0.5)).toBeGreaterThan(0.6);
     });
 
     it('drops the movement under reduced motion', () => {

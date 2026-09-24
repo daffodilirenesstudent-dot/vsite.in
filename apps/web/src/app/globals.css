@@ -291,6 +291,85 @@ button, a, [role="button"] {
     background-image: none;
   }
 }
+
+/* ── Photo suggestion: a library photo developing in the upload slot ─────
+   Add Product drawer. The photo arrives without the owner asking, so it has
+   to arrive gently: the slot shimmers in brand lavender while we look (the
+   skeleton sweep above, same axis), then the photo develops out of a soft
+   blur on Material's emphasized curve, inside NN/g's 200–500 ms, one
+   highlight crosses it left to right like the spinner and skeleton, and the
+   "Suggested photo" badge settles last. One moment per photo.
+
+   Not emphasized-DECELERATE: measured in the browser, that curve had the
+   photo 63% opaque 50 ms in, which reads as a pop. Emphasized starts softly
+   (~16% at 50 ms) and still settles firmly.
+
+   `filter` is the one non-compositor property in this file's motion. It is
+   allowed here because it runs once, on a single ~450×180 image, never on
+   scroll. */
+.vs-skeleton-brand {
+  --vs-skeleton-base: #F0EDFF;
+  --vs-skeleton-sheen: #FAF9FF;
+}
+
+@keyframes vs-photo-develop {
+  from { opacity: 0; transform: scale(1.04); filter: blur(10px) saturate(0.7); }
+  to   { opacity: 1; transform: scale(1); filter: blur(0) saturate(1); }
+}
+
+@keyframes vs-photo-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Held invisible until the image has decoded, so the reveal never plays on a blank. */
+.vs-photo-pending { opacity: 0; }
+
+.vs-photo-reveal {
+  animation: vs-photo-develop 480ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes vs-photo-sheen {
+  from { transform: translateX(-100%) skewX(-16deg); }
+  to   { transform: translateX(260%) skewX(-16deg); }
+}
+
+.vs-photo-sheen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.vs-photo-sheen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  transform: translateX(-100%) skewX(-16deg);
+  animation: vs-photo-sheen 750ms cubic-bezier(0.4, 0, 0.2, 1) 220ms both;
+}
+
+@keyframes vs-photo-settle {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.vs-photo-settle {
+  animation: vs-photo-settle 240ms cubic-bezier(0.2, 0, 0, 1) 320ms both;
+}
+
+/* Reduced motion: the photo still fades in — it is new content — but
+   nothing moves, blurs or sweeps. */
+@media (prefers-reduced-motion: reduce) {
+  .vs-photo-reveal { animation: vs-photo-fade 160ms linear both; }
+  .vs-photo-sheen::after { display: none; }
+  .vs-photo-settle { animation: none; }
+}
 /* ══════════════════════════════════════════════════════════════════════
    MOTION SYSTEM — homepage ("Grounded Bento")
 

@@ -1,3 +1,33 @@
+# PLAN — Smart Add Product  (status: DONE 2026-09-24 — rollout pending the owner)
+
+Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/smart-add-product.test.ts`.
+Everything new sits behind `NEXT_PUBLIC_SMART_ADD_PRODUCT` (build-time, OFF unless `"true"`).
+No schema, migration, route or dependency change: the lookup reuses `POST /api/images/match`.
+
+## Tasks (paths under `apps/web/`)
+
+1. **Form rules** — `src/lib/menu/productForm.ts`: flag, `SMART_FORM_ORDER`, `PRICING_MODES`,
+   `initialDishType`, `validateProductForm`. (AC1–AC4, AC11)
+2. **Suggestion pipeline** — `src/lib/menu/photoSuggest.ts`: timings, `normalizeDishQuery`,
+   `photoSourceOf`, `shouldAutoSuggest`, `fetchLibraryPhoto`, `preloadPhoto`,
+   `createPhotoSuggester` (debounce, stale-answer guard, minimum searching time,
+   preload-before-found, `resolveForSave`). Framework-free so it is testable in node. (AC5–AC10)
+3. **Hook** — `src/hooks/usePhotoSuggestion.ts`: thin React wrapper; never applies over
+   the owner's own photo. (AC6)
+4. **Motion** — `src/app/globals.css`: `.vs-photo-reveal` (develop from blur, 480 ms,
+   emphasized-decelerate), one left-to-right sheen, badge fade; reduced-motion block. (AC8)
+5. **Photo slot** — `src/components/manage/ProductPhotoSlot.tsx`: fixed-height slot with
+   empty / searching / suggested / own states, reveal gated on its own `decode()`,
+   `aria-live` announcements. (AC5, AC8, AC10)
+6. **Drawer** — `src/app/manage/product-inventory/page.tsx`: shared section blocks; flag ON
+   renders `SMART_FORM_ORDER` with `ProductTypeSwitch` inside pricing and a required
+   veg/non-veg choice; save validates and calls `resolveForSave`; flag OFF renders the
+   legacy order untouched. (AC2–AC4, AC9, AC11)
+7. **Exit check** — `npx vitest run`, `npx tsc --noEmit`, `npm run lint`; production build
+   with the flag on and a look in the browser.
+
+---
+
 # PLAN — AI menu page limits per store  (status: BUILT — in QA)
 
 Goal: `docs/GOAL.md`. Contract / design: `docs/features/ai-page-limits/`.

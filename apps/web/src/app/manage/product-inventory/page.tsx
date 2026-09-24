@@ -10,6 +10,15 @@ import { MENU_PHOTO_COMPRESS, PHOTO_MAX_INPUT_BYTES, isPhotoFile, photoErrorMess
 import { useSite } from '@/components/SiteContext';
 import { useNotifications } from '@/components/NotificationContext';
 import BulkImportModal from '@/components/manage/BulkImportModal';
+import ProductPhotoSlot from '@/components/manage/ProductPhotoSlot';
+import { T as MENU_TOKENS } from '@/components/templates/menuTokens';
+import { usePhotoSuggestion } from '@/hooks/usePhotoSuggestion';
+import { photoSourceOf, shouldAutoSuggest } from '@/lib/menu/photoSuggest';
+import {
+    SMART_ADD_PRODUCT, SMART_FORM_ORDER, PRICING_MODES,
+    initialDishType, validateProductForm,
+    type DishTypeChoice, type SmartFormField,
+} from '@/lib/menu/productForm';
 import toast from 'react-hot-toast';
 
 interface Product {
@@ -66,7 +75,7 @@ const DISH_TYPES = ['Vegetarian', 'Non-Vegetarian'] as const;
 const emptyForm = {
     productType: 'Single Item',
     name: '',
-    dishType: 'Non-Vegetarian' as typeof DISH_TYPES[number],
+    dishType: initialDishType(SMART_ADD_PRODUCT) as DishTypeChoice,
     category: '',
     description: '',
     sellingPrice: '',
@@ -176,6 +185,78 @@ function PriceFields({ form, setForm, lbl }: { form: any; setForm: any; inp?: Re
     );
 }
 
+/** Smart layout: single price / sizes / combo, asked inside pricing because that is all it changes. */
+function ProductTypeSwitch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    return (
+        <div role="radiogroup" aria-label="How is it priced?" className="grid grid-cols-3" style={{ padding: 3, gap: 3, borderRadius: 10, background: '#F4F4F5', marginBottom: 14 }}>
+            {PRICING_MODES.map(mode => {
+                const active = value === mode.value;
+                return (
+                    <button
+                        key={mode.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => onChange(mode.value)}
+                        style={{
+                            border: 'none', borderRadius: 8, padding: '8px 6px', cursor: 'pointer',
+                            fontSize: 13, fontWeight: 600,
+                            color: active ? '#0A0A0A' : '#71717A',
+                            background: active ? '#FFFFFF' : 'transparent',
+                            boxShadow: active ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
+                            transition: 'background 0.15s, color 0.15s',
+                        }}
+                    >
+                        {mode.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+/** The same square-and-dot mark diners see on the menu, in the menu's colours. */
+const DISH_CHOICES = [
+    { value: 'Vegetarian' as const,     label: 'Veg',     color: MENU_TOKENS.vegGreen,  tint: '#EEF8EF' },
+    { value: 'Non-Vegetarian' as const, label: 'Non-veg', color: MENU_TOKENS.nonvegRed, tint: '#FFF1F1' },
+];
+
+function DishTypeChoiceButtons({ value, missing, onChange }: { value: DishTypeChoice; missing: boolean; onChange: (v: DishTypeChoice) => void }) {
+    return (
+        <>
+            <div role="radiogroup" aria-label="Veg or non-veg" aria-invalid={missing || undefined} className="grid grid-cols-2 gap-3">
+                {DISH_CHOICES.map(choice => {
+                    const active = value === choice.value;
+                    return (
+                        <button
+                            key={choice.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => onChange(choice.value)}
+                            className="flex items-center gap-2"
+                            style={{
+                                borderRadius: 10, padding: '10px 12px', cursor: 'pointer',
+                                fontSize: 14, fontWeight: 600, color: '#0A0A0A', textAlign: 'left',
+                                border: active ? `2px solid ${choice.color}` : missing ? '1.5px solid #FCA5A5' : '1.5px solid #E4E4E7',
+                                margin: active ? 0 : 0.5,
+                                background: active ? choice.tint : '#FFFFFF',
+                                transition: 'background 0.15s, border-color 0.15s',
+                            }}
+                        >
+                            <span aria-hidden style={{ width: 16, height: 16, flex: 'none', borderRadius: 3, border: `1.6px solid ${choice.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: choice.color, display: 'block' }} />
+                            </span>
+                            {choice.label}
+                        </button>
+                    );
+                })}
+            </div>
+            {missing && <p role="alert" style={{ fontSize: 12, color: '#E7000B', marginTop: 6 }}>Choose Veg or Non-veg</p>}
+        </>
+    );
+}
+
 /**
  * The dish photo, in the management list.
  *
@@ -243,6 +324,31 @@ export default function ProductInventoryPage() {
     const [proImageSearching, setProImageSearching] = useState(false);
     const [proImageUsed, setProImageUsed]           = useState(false);
     const [bulkModalOpen, setBulkModalOpen]         = useState(false);
+    // Smart layout: the library photo that just arrived (animated in once), and
+    // whether a save was refused for want of veg / non-veg.
+    const [revealUrl, setRevealUrl]                 = useState<string | null>(null);
+    const [dishTypeMissing, setDishTypeMissing]     = useState(false);
+
+    const photoSource = photoSourceOf(form.imagePreview, proImageUsed);
+    const applyLibraryPhoto = (url: string) => {
+        setForm(f => ({ ...f, imagePreview: url, imageFile: null }));
+        setProImageUsed(true);
+        setRevealUrl(url);
+    };
+    const suggestion = usePhotoSuggestion({
+        enabled: SMART_ADD_PRODUCT && drawerOpen,
+        name: form.name,
+        source: photoSource,
+        onFound: applyLibraryPhoto,
+        // The dish was renamed to something the library has no photo for: the
+        // photo on screen belongs to the old name, so it goes.
+        onNone: () => {
+            if (photoSource !== 'library') return;
+            setProImageUsed(false);
+            setRevealUrl(null);
+            setForm(f => ({ ...f, imagePreview: null }));
+        },
+    });
 
     const fetchProducts = useCallback(async (id: string) => {
         setLoading(true);
@@ -370,6 +476,9 @@ export default function ProductInventoryPage() {
         revokeFormBlob();
         setEditingProduct(null);
         setProImageUsed(false);
+        setRevealUrl(null);
+        setDishTypeMissing(false);
+        suggestion.reset();
         setForm({ ...emptyForm, imagePreview: null, imageFile: null });
         setShowAddCategory(false);
         setNewCategoryName('');
@@ -400,6 +509,9 @@ export default function ProductInventoryPage() {
             imageFile:       null,
         });
         setProImageUsed(false);
+        setRevealUrl(null);
+        setDishTypeMissing(false);
+        suggestion.reset();
         setShowAddCategory(false);
         setNewCategoryName('');
 
@@ -444,6 +556,7 @@ export default function ProductInventoryPage() {
             if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
         }
         setProImageUsed(false);
+        setRevealUrl(null);
         setForm(f => {
             // Revoke previous blob URL to avoid memory leak
             if (f.imagePreview?.startsWith('blob:')) URL.revokeObjectURL(f.imagePreview);
@@ -477,6 +590,20 @@ export default function ProductInventoryPage() {
         }
     };
 
+    // Smart layout: the owner removed the suggested photo — respect it for this drawer.
+    const removeSuggestedPhoto = () => {
+        suggestion.dismiss();
+        setProImageUsed(false);
+        setRevealUrl(null);
+        setForm(f => ({ ...f, imagePreview: null, imageFile: null }));
+    };
+
+    // Smart layout: after a removal, the owner can still ask for the library photo.
+    const findLibraryPhoto = async () => {
+        const url = await suggestion.find(form.name);
+        if (url) applyLibraryPhoto(url);
+    };
+
     // Variant helpers
     const addVariant = () => setVariants(v => [...v, { id: uid(), size: '', price: '' }]);
     const removeVariant = (id: string) => setVariants(v => v.filter(r => r.id !== id));
@@ -496,8 +623,12 @@ export default function ProductInventoryPage() {
         setComboItems(c => c.map(r => r.id === id ? { ...r, [field]: val } : r));
 
     const handleSaveProduct = async () => {
-        if (!form.name.trim()) { toast.error('Product name is required'); return; }
-        if (form.sellingPrice !== '' && Number(form.sellingPrice) < 0) { toast.error('Price cannot be negative'); return; }
+        const problem = validateProductForm(form, { requireDishType: SMART_ADD_PRODUCT });
+        if (problem) {
+            toast.error(problem);
+            if (SMART_ADD_PRODUCT && !form.dishType) setDishTypeMissing(true);
+            return;
+        }
 
         setSaving(true);
 
@@ -556,6 +687,17 @@ export default function ProductInventoryPage() {
             }
         }
 
+        // Smart layout: Save was pressed before the lookup for this name ran
+        // (the owner typed the name last). Finish it now rather than save a
+        // product with no photo the library could have supplied.
+        let photoAddedAtSave = false;
+        if (SMART_ADD_PRODUCT && !imageUrl && shouldAutoSuggest({
+            name: form.name, source: photoSource, dismissed: suggestion.dismissed, lastQuery: suggestion.lastQuery(),
+        })) {
+            const found = await suggestion.resolveForSave(form.name);
+            if (found) { imageUrl = found; photoAddedAtSave = true; }
+        }
+
         const row = {
             name:          toTitleCase(form.name),
             description:   form.description.trim() || undefined,
@@ -579,7 +721,7 @@ export default function ProductInventoryPage() {
             setProducts(prev => prev.map(p =>
                 p.id === editingProduct.id ? { ...p, ...row } : p
             ) as Product[]);
-            toast.success('Product updated!');
+            toast.success(photoAddedAtSave ? 'Product updated with a photo from our library' : 'Product updated!');
         } else {
             if (!siteId) { toast.error('No store found. Please complete onboarding first.'); setSaving(false); return; }
             const { data, error } = await supabase
@@ -589,7 +731,7 @@ export default function ProductInventoryPage() {
                 .single();
             if (error || !data) { toast.error('Failed to add product'); setSaving(false); return; }
             setProducts(prev => [{ ...data, site_id: siteId }, ...prev]);
-            toast.success('Product added!');
+            toast.success(photoAddedAtSave ? 'Product added with a photo from our library' : 'Product added!');
         }
 
         // Keep local category list in sync so next product can reuse it
@@ -609,6 +751,281 @@ export default function ProductInventoryPage() {
     const lbl: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: '#0A0A0A', lineHeight: '20px', marginBottom: 8, display: 'block' };
     const isVariants = form.productType === 'Variants';
     const isCombo    = form.productType === 'Combo';
+
+    // ── Drawer sections ──
+    // Shared by both layouts so the flag switches ORDER, never markup: with
+    // NEXT_PUBLIC_SMART_ADD_PRODUCT off the drawer renders exactly as before.
+    const categorySection = (
+        <div style={{ marginBottom: 20 }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                <label style={{ ...lbl, marginBottom: 0 }}>Category</label>
+                <div className="flex items-center gap-3">
+                    {/* Delete Category — only visible when a category is selected */}
+                    {form.category && !showAddCategory && !deleteCategoryTarget && (
+                        <button
+                            type="button"
+                            onClick={() => setDeleteCategoryTarget(form.category)}
+                            style={{ fontSize: 13, fontWeight: 600, color: '#E7000B', background: 'none', border: 'none', cursor: 'pointer' }}
+                        >
+                            Delete Category
+                        </button>
+                    )}
+                    {!showAddCategory && !deleteCategoryTarget && (
+                        <button type="button" onClick={() => setShowAddCategory(true)} style={{ fontSize: 13, fontWeight: 600, color: '#5137EF', background: 'none', border: 'none', cursor: 'pointer' }}>+ Add New</button>
+                    )}
+                </div>
+            </div>
+
+            {/* Existing category chips — select only, no delete on the chip itself */}
+            {categories.length > 0 && !deleteCategoryTarget && (
+                <div className="flex flex-wrap gap-2" style={{ marginBottom: showAddCategory ? 12 : 0 }}>
+                    {categories.map(cat => {
+                        const active = form.category === cat;
+                        return (
+                            <button
+                                key={cat}
+                                type="button"
+                                onClick={() => { if (!active) setForm(f => ({ ...f, category: cat })); }}
+                                style={{
+                                    border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7',
+                                    borderRadius: 20,
+                                    padding: '5px 14px',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    background: active ? '#F0EDFF' : '#FFFFFF',
+                                    color: active ? '#5137EF' : '#52525C',
+                                    cursor: active ? 'default' : 'pointer',
+                                    transition: 'all 0.15s',
+                                }}
+                            >
+                                {active && <span style={{ marginRight: 4 }}>✓</span>}
+                                {cat}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── Delete Category confirmation panel ── */}
+            {deleteCategoryTarget && (
+                <div style={{ border: '1.5px solid #FCA5A5', borderRadius: 10, padding: '14px 16px', background: '#FFF5F5' }}>
+                    <div className="flex items-start gap-3">
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#E7000B' }}>warning</span>
+                        </div>
+                        <div className="flex-1">
+                            <p style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A', marginBottom: 4 }}>
+                                Delete &ldquo;{deleteCategoryTarget}&rdquo;?
+                            </p>
+                            <p style={{ fontSize: 12, color: '#52525C', marginBottom: 12, lineHeight: '18px' }}>
+                                The category will be removed. All products in this category will be kept but their category will be cleared.
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteCategoryTarget(null)}
+                                    style={{ border: '1px solid #E4E4E7', borderRadius: 7, padding: '6px 16px', fontSize: 12, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { deleteCategory(deleteCategoryTarget); setDeleteCategoryTarget(null); }}
+                                    style={{ background: '#E7000B', borderRadius: 7, padding: '6px 16px', fontSize: 12, fontWeight: 600, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
+                                >
+                                    Yes, Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Inline add-new form */}
+            {showAddCategory && (
+                <div style={{ border: '1px solid #E4E4E7', borderRadius: 10, padding: '14px 16px', background: '#FAFAFA' }}>
+                    <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>New Category</p>
+                        <button type="button" onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }} className="flex items-center justify-center hover:bg-neutral-100" style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#71717A' }}>close</span>
+                        </button>
+                    </div>
+                    <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={e => setNewCategoryName(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                confirmNewCategory(newCategoryName);
+                            }
+                        }}
+                        placeholder="e.g., South Indian"
+                        style={{ ...inp, marginBottom: 12 }}
+                        autoFocus
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                        <button type="button" onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }} className="hover:bg-neutral-50" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}>Cancel</button>
+                        <button
+                            type="button"
+                            onClick={() => confirmNewCategory(newCategoryName)}
+                            className="hover:opacity-90"
+                            style={{ background: '#5137EF', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 500, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
+                        >
+                            Add
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Show selected category name when no chips visible yet */}
+            {categories.length === 0 && !showAddCategory && (
+                <p style={{ fontSize: 12, color: '#6B6A7B', marginTop: 2 }}>No categories yet — click &ldquo;+ Add New&rdquo; to create one.</p>
+            )}
+        </div>
+    );
+
+    const descriptionSection = (
+        <div style={{ marginBottom: 20 }}>
+            <label style={lbl}>
+                {isCombo ? 'Combo Description' : 'Description'}
+            </label>
+            {isCombo && (
+                <p style={{ fontSize: 12, color: '#71717A', marginBottom: 8 }}>
+                    This text shows on the menu card. List what's included, e.g. "250 ml Coca-Cola, 1 big fried rice, 250 g French fries"
+                </p>
+            )}
+            <textarea
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder={isCombo ? 'e.g., 250 ml Coca-Cola, 1 big fried rice, 250 g French fries' : 'Brief description of your product...'}
+                rows={isCombo ? 2 : 3}
+                style={{ ...inp, resize: 'none' }}
+            />
+        </div>
+    );
+
+    // Size rows and combo rows: the part of pricing that depends on product type.
+    const typeRowsSection = (
+        <>
+            {/* ── VARIANTS: size variants + toppings ── */}
+            {isVariants && (
+                <>
+                    <SectionRows
+                        label="Size Variants"
+                        rows={variants}
+                        onAdd={addVariant}
+                        addLabel="Add Variant"
+                        renderRow={(v) => (
+                            <div key={v.id} className="flex items-center gap-2">
+                                <input type="text" value={v.size} onChange={e => updateVariant(v.id, 'size', e.target.value)} placeholder="Size (e.g., Small)" style={{ ...inp, flex: 1 }} />
+                                <PriceInput value={v.price} onChange={val => updateVariant(v.id, 'price', val)} placeholder="0" />
+                                <DeleteBtn onClick={() => removeVariant(v.id)} disabled={variants.length === 1} />
+                            </div>
+                        )}
+                    />
+                    <SectionRows
+                        label="Add on or Toppings"
+                        rows={toppings}
+                        onAdd={addTopping}
+                        addLabel="Add Item"
+                        renderRow={(t) => (
+                            <div key={t.id} className="flex items-center gap-2">
+                                <input type="text" value={t.name} onChange={e => updateTopping(t.id, 'name', e.target.value)} placeholder="Toppings (e.g., Chocolate, jelly)" style={{ ...inp, flex: 1 }} />
+                                <PriceInput value={t.price} onChange={val => updateTopping(t.id, 'price', val)} placeholder="Price" />
+                                <DeleteBtn onClick={() => removeTopping(t.id)} disabled={toppings.length === 1} />
+                            </div>
+                        )}
+                    />
+                </>
+            )}
+
+            {/* ── COMBO: combo items (shown in detail popup) ── */}
+            {isCombo && (
+                <>
+                    <p style={{ fontSize: 12, color: '#71717A', marginBottom: 8, marginTop: -8 }}>
+                        Items below appear in the "What's included" detail popup when customer taps the card.
+                    </p>
+                    <SectionRows
+                        label="Combo Items"
+                        rows={comboItems}
+                        onAdd={addComboItem}
+                        addLabel="Add Item"
+                        renderRow={(c) => (
+                            <div key={c.id} className="flex items-center gap-2">
+                                <input type="text" value={c.name} onChange={e => updateComboItem(c.id, 'name', e.target.value)} placeholder="Item name (e.g., Coca-Cola 250ml)" style={{ ...inp, flex: 1 }} />
+                                <input type="number" value={c.qty} onChange={e => updateComboItem(c.id, 'qty', e.target.value)} placeholder="Qty" min="1"
+                                    style={{ ...inp, width: 60, flexShrink: 0, textAlign: 'center' }} />
+                                <DeleteBtn onClick={() => removeComboItem(c.id)} disabled={comboItems.length === 1} />
+                            </div>
+                        )}
+                    />
+                </>
+            )}
+        </>
+    );
+
+    const visibilitySection = (
+        <div className="flex items-center justify-between" style={{ padding: '14px 16px', border: '1px solid #E4E4E7', borderRadius: 10, background: '#FAFAFA' }}>
+            <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Show on menu</p>
+                <p style={{ fontSize: 12, color: '#71717A', marginTop: 2 }}>Customers can see this item on your menu</p>
+            </div>
+            <button type="button" onClick={() => setForm(f => ({ ...f, available: !f.available }))}
+                style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 43, height: 24, borderRadius: 9999, background: form.available ? '#00A63E' : '#D4D4D8', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0, flexShrink: 0 }}
+            >
+                <span style={{ position: 'absolute', top: 3, left: form.available ? 22 : 3, width: 18, height: 18, borderRadius: '50%', background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+            </button>
+        </div>
+    );
+
+    const smartSections: Record<SmartFormField, React.ReactNode> = {
+        name: (
+            <div style={{ marginBottom: 20 }}>
+                <label htmlFor="product-name" style={lbl}>Product Name <span style={{ color: '#E7000B' }}>*</span></label>
+                <input id="product-name" type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Masala Chai" style={inp} autoFocus={!editingProduct} autoComplete="off" />
+            </div>
+        ),
+        photo: (
+            <div style={{ marginBottom: 12 }}>
+                <label style={lbl}>Photo</label>
+                <ProductPhotoSlot
+                    imageUrl={form.imagePreview}
+                    source={photoSource}
+                    dishName={form.name}
+                    suggest={suggestion.state}
+                    dismissed={suggestion.dismissed}
+                    reveal={revealUrl !== null && form.imagePreview === revealUrl}
+                    uploadHint={MENU_PHOTO_COMPRESS ? 'JPG, PNG or WebP (Max 25 MB)' : 'PNG, JPG or WebP (Max 5 MB)'}
+                    onPick={() => imageInputRef.current?.click()}
+                    onRemove={removeSuggestedPhoto}
+                    onFind={findLibraryPhoto}
+                />
+                <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            </div>
+        ),
+        dishType: (
+            <div style={{ marginBottom: 20 }}>
+                <label style={lbl}>Veg or non-veg <span style={{ color: '#E7000B' }}>*</span></label>
+                <DishTypeChoiceButtons
+                    value={form.dishType}
+                    missing={dishTypeMissing}
+                    onChange={dt => { setForm(f => ({ ...f, dishType: dt })); setDishTypeMissing(false); }}
+                />
+            </div>
+        ),
+        category: categorySection,
+        pricing: (
+            <div>
+                <label style={lbl}>Pricing <span style={{ color: '#E7000B' }}>*</span></label>
+                <ProductTypeSwitch value={form.productType} onChange={pt => setForm(f => ({ ...f, productType: pt }))} />
+                {typeRowsSection}
+                <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} />
+            </div>
+        ),
+        description: descriptionSection,
+        visibility: visibilitySection,
+    };
 
     const COLS = ['PRODUCT', 'DESCRIPTION', 'TYPE', 'CATEGORY', 'PRICE', 'AVAILABILITY', 'ACTIONS'];
 
@@ -952,323 +1369,119 @@ export default function ProductInventoryPage() {
                         {/* Body */}
                         <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
 
-                            {/* Product Image */}
-                            <div style={{ marginBottom: 20 }}>
-                                <label style={lbl}>Product Image</label>
+                            {SMART_ADD_PRODUCT ? (
+                                SMART_FORM_ORDER.map(field => <React.Fragment key={field}>{smartSections[field]}</React.Fragment>)
+                            ) : (
+                                <>
+                                {/* Product Image */}
+                                <div style={{ marginBottom: 20 }}>
+                                    <label style={lbl}>Product Image</label>
 
-                                {/* Professional image banner */}
-                                {proImageUsed && form.imagePreview && (
-                                    <div className="flex items-center gap-2" style={{ marginBottom: 8, background: '#F0EDFF', border: '1px solid #C4BAF7', borderRadius: 8, padding: '7px 12px' }}>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#5137EF' }}>verified</span>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#5137EF', flex: 1 }}>Professional image applied</span>
-                                        <button type="button" onClick={() => { setProImageUsed(false); setForm(f => ({ ...f, imagePreview: null, imageFile: null })); }} style={{ fontSize: 11, color: '#71717A', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
-                                    </div>
-                                )}
-
-                                <div
-                                    className="flex flex-col items-center justify-center"
-                                    style={{ border: proImageUsed ? '1.5px solid #C4BAF7' : '1.5px dashed #C4C4C4', borderRadius: 12, padding: '28px 16px', background: proImageUsed ? '#FAFAFE' : '#FAFAFA', cursor: proImageUsed ? 'default' : 'pointer' }}
-                                    onClick={() => { if (!proImageUsed) imageInputRef.current?.click(); }}
-                                >
-                                    {form.imagePreview ? (
-                                        <>
-                                            <img src={form.imagePreview} alt="preview" style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', borderRadius: 8, marginBottom: 10 }} />
-                                            {!proImageUsed && (
-                                                <button type="button" onClick={e => { e.stopPropagation(); imageInputRef.current?.click(); }} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '6px 18px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF' }}>Change Image</button>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="flex items-center justify-center" style={{ width: 52, height: 52, borderRadius: '50%', background: '#F0F0F0', marginBottom: 10 }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#71717A' }}>upload</span>
-                                            </div>
-                                            <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 14, marginBottom: 4 }}>Upload product image</p>
-                                            <p className="text-[#6B6A7B] text-center" style={{ fontSize: 12, marginBottom: 12 }}>{MENU_PHOTO_COMPRESS ? 'JPG, PNG or WebP (Max 25 MB)' : 'PNG, JPG or WebP (Max 2MB)'}</p>
-                                            <button type="button" onClick={e => { e.stopPropagation(); imageInputRef.current?.click(); }} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF' }}>Choose File</button>
-                                        </>
+                                    {/* Professional image banner */}
+                                    {proImageUsed && form.imagePreview && (
+                                        <div className="flex items-center gap-2" style={{ marginBottom: 8, background: '#F0EDFF', border: '1px solid #C4BAF7', borderRadius: 8, padding: '7px 12px' }}>
+                                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#5137EF' }}>verified</span>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#5137EF', flex: 1 }}>Professional image applied</span>
+                                            <button type="button" onClick={() => { setProImageUsed(false); setForm(f => ({ ...f, imagePreview: null, imageFile: null })); }} style={{ fontSize: 11, color: '#71717A', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+                                        </div>
                                     )}
-                                    <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                                </div>
 
-                                {/* Use Professional Image button */}
-                                <button
-                                    type="button"
-                                    onClick={handleFindProfessionalImage}
-                                    disabled={proImageSearching}
-                                    className="flex items-center justify-center gap-2 w-full transition-colors"
-                                    style={{ marginTop: 10, border: '1.5px solid #5137EF', borderRadius: 10, padding: '10px 16px', background: proImageSearching ? '#F0EDFF' : '#FFFFFF', cursor: proImageSearching ? 'not-allowed' : 'pointer', opacity: proImageSearching ? 0.7 : 1 }}
-                                >
-                                    {proImageSearching ? (
-                                        <>
-                                            <Spinner size="md" tone="brand" />
-                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#5137EF' }}>Searching library…</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#5137EF' }}>auto_awesome</span>
-                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#5137EF' }}>Use Professional Image</span>
-                                        </>
-                                    )}
-                                </button>
-                                <p style={{ fontSize: 11, color: '#6B6A7B', textAlign: 'center', marginTop: 5 }}>Searches our curated food image library based on the product name</p>
-                            </div>
-
-                            {/* Product Type */}
-                            <div style={{ marginBottom: 20 }}>
-                                <label style={lbl}>Product Type <span style={{ color: '#E7000B' }}>*</span></label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {PRODUCT_TYPES.map(pt => {
-                                        const active = form.productType === pt.label;
-                                        return (
-                                            <button key={pt.label} type="button"
-                                                onClick={() => setForm(f => ({ ...f, productType: pt.label }))}
-                                                style={{ border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7', borderRadius: 10, padding: '12px 10px', background: active ? '#F0EDFF' : '#FFFFFF', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
-                                            >
-                                                <p style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A', marginBottom: 2 }}>{pt.label}</p>
-                                                <p style={{ fontSize: 11, color: '#71717A' }}>{pt.sub}</p>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Product Name */}
-                            <div style={{ marginBottom: 20 }}>
-                                <label style={lbl}>Product Name <span style={{ color: '#E7000B' }}>*</span></label>
-                                <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Masala Chai" style={inp} />
-                            </div>
-
-                            {/* Dish Type */}
-                            <div style={{ marginBottom: 20 }}>
-                                <label style={lbl}>Dish Type <span style={{ color: '#E7000B' }}>*</span></label>
-                                <div className="flex items-center gap-5">
-                                    {DISH_TYPES.map(dt => (
-                                        <label key={dt} className="flex items-center gap-2 cursor-pointer" style={{ fontSize: 14, color: '#0A0A0A' }}>
-                                            <input type="radio" name="dishType" value={dt} checked={form.dishType === dt} onChange={() => setForm(f => ({ ...f, dishType: dt }))} style={{ accentColor: '#5137EF', width: 16, height: 16 }} />
-                                            {dt}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Category */}
-                            <div style={{ marginBottom: 20 }}>
-                                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                                    <label style={{ ...lbl, marginBottom: 0 }}>Category</label>
-                                    <div className="flex items-center gap-3">
-                                        {/* Delete Category — only visible when a category is selected */}
-                                        {form.category && !showAddCategory && !deleteCategoryTarget && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeleteCategoryTarget(form.category)}
-                                                style={{ fontSize: 13, fontWeight: 600, color: '#E7000B', background: 'none', border: 'none', cursor: 'pointer' }}
-                                            >
-                                                Delete Category
-                                            </button>
+                                    <div
+                                        className="flex flex-col items-center justify-center"
+                                        style={{ border: proImageUsed ? '1.5px solid #C4BAF7' : '1.5px dashed #C4C4C4', borderRadius: 12, padding: '28px 16px', background: proImageUsed ? '#FAFAFE' : '#FAFAFA', cursor: proImageUsed ? 'default' : 'pointer' }}
+                                        onClick={() => { if (!proImageUsed) imageInputRef.current?.click(); }}
+                                    >
+                                        {form.imagePreview ? (
+                                            <>
+                                                <img src={form.imagePreview} alt="preview" style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', borderRadius: 8, marginBottom: 10 }} />
+                                                {!proImageUsed && (
+                                                    <button type="button" onClick={e => { e.stopPropagation(); imageInputRef.current?.click(); }} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '6px 18px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF' }}>Change Image</button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center justify-center" style={{ width: 52, height: 52, borderRadius: '50%', background: '#F0F0F0', marginBottom: 10 }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#71717A' }}>upload</span>
+                                                </div>
+                                                <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 14, marginBottom: 4 }}>Upload product image</p>
+                                                <p className="text-[#6B6A7B] text-center" style={{ fontSize: 12, marginBottom: 12 }}>{MENU_PHOTO_COMPRESS ? 'JPG, PNG or WebP (Max 25 MB)' : 'PNG, JPG or WebP (Max 2MB)'}</p>
+                                                <button type="button" onClick={e => { e.stopPropagation(); imageInputRef.current?.click(); }} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF' }}>Choose File</button>
+                                            </>
                                         )}
-                                        {!showAddCategory && !deleteCategoryTarget && (
-                                            <button type="button" onClick={() => setShowAddCategory(true)} style={{ fontSize: 13, fontWeight: 600, color: '#5137EF', background: 'none', border: 'none', cursor: 'pointer' }}>+ Add New</button>
-                                        )}
+                                        <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
                                     </div>
+
+                                    {/* Use Professional Image button */}
+                                    <button
+                                        type="button"
+                                        onClick={handleFindProfessionalImage}
+                                        disabled={proImageSearching}
+                                        className="flex items-center justify-center gap-2 w-full transition-colors"
+                                        style={{ marginTop: 10, border: '1.5px solid #5137EF', borderRadius: 10, padding: '10px 16px', background: proImageSearching ? '#F0EDFF' : '#FFFFFF', cursor: proImageSearching ? 'not-allowed' : 'pointer', opacity: proImageSearching ? 0.7 : 1 }}
+                                    >
+                                        {proImageSearching ? (
+                                            <>
+                                                <Spinner size="md" tone="brand" />
+                                                <span style={{ fontSize: 13, fontWeight: 600, color: '#5137EF' }}>Searching library…</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#5137EF' }}>auto_awesome</span>
+                                                <span style={{ fontSize: 13, fontWeight: 600, color: '#5137EF' }}>Use Professional Image</span>
+                                            </>
+                                        )}
+                                    </button>
+                                    <p style={{ fontSize: 11, color: '#6B6A7B', textAlign: 'center', marginTop: 5 }}>Searches our curated food image library based on the product name</p>
                                 </div>
 
-                                {/* Existing category chips — select only, no delete on the chip itself */}
-                                {categories.length > 0 && !deleteCategoryTarget && (
-                                    <div className="flex flex-wrap gap-2" style={{ marginBottom: showAddCategory ? 12 : 0 }}>
-                                        {categories.map(cat => {
-                                            const active = form.category === cat;
+                                {/* Product Type */}
+                                <div style={{ marginBottom: 20 }}>
+                                    <label style={lbl}>Product Type <span style={{ color: '#E7000B' }}>*</span></label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {PRODUCT_TYPES.map(pt => {
+                                            const active = form.productType === pt.label;
                                             return (
-                                                <button
-                                                    key={cat}
-                                                    type="button"
-                                                    onClick={() => { if (!active) setForm(f => ({ ...f, category: cat })); }}
-                                                    style={{
-                                                        border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7',
-                                                        borderRadius: 20,
-                                                        padding: '5px 14px',
-                                                        fontSize: 12,
-                                                        fontWeight: 500,
-                                                        background: active ? '#F0EDFF' : '#FFFFFF',
-                                                        color: active ? '#5137EF' : '#52525C',
-                                                        cursor: active ? 'default' : 'pointer',
-                                                        transition: 'all 0.15s',
-                                                    }}
+                                                <button key={pt.label} type="button"
+                                                    onClick={() => setForm(f => ({ ...f, productType: pt.label }))}
+                                                    style={{ border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7', borderRadius: 10, padding: '12px 10px', background: active ? '#F0EDFF' : '#FFFFFF', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
                                                 >
-                                                    {active && <span style={{ marginRight: 4 }}>✓</span>}
-                                                    {cat}
+                                                    <p style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A', marginBottom: 2 }}>{pt.label}</p>
+                                                    <p style={{ fontSize: 11, color: '#71717A' }}>{pt.sub}</p>
                                                 </button>
                                             );
                                         })}
                                     </div>
-                                )}
-
-                                {/* ── Delete Category confirmation panel ── */}
-                                {deleteCategoryTarget && (
-                                    <div style={{ border: '1.5px solid #FCA5A5', borderRadius: 10, padding: '14px 16px', background: '#FFF5F5' }}>
-                                        <div className="flex items-start gap-3">
-                                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#E7000B' }}>warning</span>
-                                            </div>
-                                            <div className="flex-1">
-                                                <p style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A', marginBottom: 4 }}>
-                                                    Delete &ldquo;{deleteCategoryTarget}&rdquo;?
-                                                </p>
-                                                <p style={{ fontSize: 12, color: '#52525C', marginBottom: 12, lineHeight: '18px' }}>
-                                                    The category will be removed. All products in this category will be kept but their category will be cleared.
-                                                </p>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDeleteCategoryTarget(null)}
-                                                        style={{ border: '1px solid #E4E4E7', borderRadius: 7, padding: '6px 16px', fontSize: 12, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { deleteCategory(deleteCategoryTarget); setDeleteCategoryTarget(null); }}
-                                                        style={{ background: '#E7000B', borderRadius: 7, padding: '6px 16px', fontSize: 12, fontWeight: 600, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
-                                                    >
-                                                        Yes, Delete
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Inline add-new form */}
-                                {showAddCategory && (
-                                    <div style={{ border: '1px solid #E4E4E7', borderRadius: 10, padding: '14px 16px', background: '#FAFAFA' }}>
-                                        <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-                                            <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>New Category</p>
-                                            <button type="button" onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }} className="flex items-center justify-center hover:bg-neutral-100" style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer' }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#71717A' }}>close</span>
-                                            </button>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            value={newCategoryName}
-                                            onChange={e => setNewCategoryName(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    confirmNewCategory(newCategoryName);
-                                                }
-                                            }}
-                                            placeholder="e.g., South Indian"
-                                            style={{ ...inp, marginBottom: 12 }}
-                                            autoFocus
-                                        />
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button type="button" onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }} className="hover:bg-neutral-50" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 500, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer' }}>Cancel</button>
-                                            <button
-                                                type="button"
-                                                onClick={() => confirmNewCategory(newCategoryName)}
-                                                className="hover:opacity-90"
-                                                style={{ background: '#5137EF', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 500, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
-                                            >
-                                                Add
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Show selected category name when no chips visible yet */}
-                                {categories.length === 0 && !showAddCategory && (
-                                    <p style={{ fontSize: 12, color: '#6B6A7B', marginTop: 2 }}>No categories yet — click &ldquo;+ Add New&rdquo; to create one.</p>
-                                )}
-                            </div>
-
-                            {/* Description */}
-                            <div style={{ marginBottom: 20 }}>
-                                <label style={lbl}>
-                                    {isCombo ? 'Combo Description' : 'Description'}
-                                </label>
-                                {isCombo && (
-                                    <p style={{ fontSize: 12, color: '#71717A', marginBottom: 8 }}>
-                                        This text shows on the menu card. List what's included, e.g. "250 ml Coca-Cola, 1 big fried rice, 250 g French fries"
-                                    </p>
-                                )}
-                                <textarea
-                                    value={form.description}
-                                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                                    placeholder={isCombo ? 'e.g., 250 ml Coca-Cola, 1 big fried rice, 250 g French fries' : 'Brief description of your product...'}
-                                    rows={isCombo ? 2 : 3}
-                                    style={{ ...inp, resize: 'none' }}
-                                />
-                            </div>
-
-                            {/* ── VARIANTS: size variants + toppings ── */}
-                            {isVariants && (
-                                <>
-                                    <SectionRows
-                                        label="Size Variants"
-                                        rows={variants}
-                                        onAdd={addVariant}
-                                        addLabel="Add Variant"
-                                        renderRow={(v) => (
-                                            <div key={v.id} className="flex items-center gap-2">
-                                                <input type="text" value={v.size} onChange={e => updateVariant(v.id, 'size', e.target.value)} placeholder="Size (e.g., Small)" style={{ ...inp, flex: 1 }} />
-                                                <PriceInput value={v.price} onChange={val => updateVariant(v.id, 'price', val)} placeholder="0" />
-                                                <DeleteBtn onClick={() => removeVariant(v.id)} disabled={variants.length === 1} />
-                                            </div>
-                                        )}
-                                    />
-                                    <SectionRows
-                                        label="Add on or Toppings"
-                                        rows={toppings}
-                                        onAdd={addTopping}
-                                        addLabel="Add Item"
-                                        renderRow={(t) => (
-                                            <div key={t.id} className="flex items-center gap-2">
-                                                <input type="text" value={t.name} onChange={e => updateTopping(t.id, 'name', e.target.value)} placeholder="Toppings (e.g., Chocolate, jelly)" style={{ ...inp, flex: 1 }} />
-                                                <PriceInput value={t.price} onChange={val => updateTopping(t.id, 'price', val)} placeholder="Price" />
-                                                <DeleteBtn onClick={() => removeTopping(t.id)} disabled={toppings.length === 1} />
-                                            </div>
-                                        )}
-                                    />
-                                </>
-                            )}
-
-                            {/* ── COMBO: combo items (shown in detail popup) ── */}
-                            {isCombo && (
-                                <>
-                                    <p style={{ fontSize: 12, color: '#71717A', marginBottom: 8, marginTop: -8 }}>
-                                        Items below appear in the "What's included" detail popup when customer taps the card.
-                                    </p>
-                                    <SectionRows
-                                        label="Combo Items"
-                                        rows={comboItems}
-                                        onAdd={addComboItem}
-                                        addLabel="Add Item"
-                                        renderRow={(c) => (
-                                            <div key={c.id} className="flex items-center gap-2">
-                                                <input type="text" value={c.name} onChange={e => updateComboItem(c.id, 'name', e.target.value)} placeholder="Item name (e.g., Coca-Cola 250ml)" style={{ ...inp, flex: 1 }} />
-                                                <input type="number" value={c.qty} onChange={e => updateComboItem(c.id, 'qty', e.target.value)} placeholder="Qty" min="1"
-                                                    style={{ ...inp, width: 60, flexShrink: 0, textAlign: 'center' }} />
-                                                <DeleteBtn onClick={() => removeComboItem(c.id)} disabled={comboItems.length === 1} />
-                                            </div>
-                                        )}
-                                    />
-                                </>
-                            )}
-
-                            {/* ── PRICE FIELDS: common for all types ── */}
-                            <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} />
-
-                            {/* Show on menu */}
-                            <div className="flex items-center justify-between" style={{ padding: '14px 16px', border: '1px solid #E4E4E7', borderRadius: 10, background: '#FAFAFA' }}>
-                                <div>
-                                    <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>Show on menu</p>
-                                    <p style={{ fontSize: 12, color: '#71717A', marginTop: 2 }}>Customers can see this item on your menu</p>
                                 </div>
-                                <button type="button" onClick={() => setForm(f => ({ ...f, available: !f.available }))}
-                                    style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 43, height: 24, borderRadius: 9999, background: form.available ? '#00A63E' : '#D4D4D8', border: 'none', cursor: 'pointer', transition: 'background 0.2s', padding: 0, flexShrink: 0 }}
-                                >
-                                    <span style={{ position: 'absolute', top: 3, left: form.available ? 22 : 3, width: 18, height: 18, borderRadius: '50%', background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                                </button>
-                            </div>
+
+                                {/* Product Name */}
+                                <div style={{ marginBottom: 20 }}>
+                                    <label style={lbl}>Product Name <span style={{ color: '#E7000B' }}>*</span></label>
+                                    <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Masala Chai" style={inp} />
+                                </div>
+
+                                {/* Dish Type */}
+                                <div style={{ marginBottom: 20 }}>
+                                    <label style={lbl}>Dish Type <span style={{ color: '#E7000B' }}>*</span></label>
+                                    <div className="flex items-center gap-5">
+                                        {DISH_TYPES.map(dt => (
+                                            <label key={dt} className="flex items-center gap-2 cursor-pointer" style={{ fontSize: 14, color: '#0A0A0A' }}>
+                                                <input type="radio" name="dishType" value={dt} checked={form.dishType === dt} onChange={() => setForm(f => ({ ...f, dishType: dt }))} style={{ accentColor: '#5137EF', width: 16, height: 16 }} />
+                                                {dt}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {categorySection}
+                                {descriptionSection}
+                                {typeRowsSection}
+
+                                {/* ── PRICE FIELDS: common for all types ── */}
+                                <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} />
+
+                                {visibilitySection}
+                                </>
+                            )}
                         </div>
 
                         {/* Footer */}

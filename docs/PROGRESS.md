@@ -2,6 +2,54 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-24 — Feature: Smart Add Product (drawer order + library photo suggestion)
+status: DONE — acceptance green: smart-add-product.test.ts (47/47). Rollout pending the owner.
+
+**Problem.** The inventory drawer asked Image → Product Type → Name. The "Use
+Professional Image" button sat above the name it needs, so pressing it first
+always failed ("Enter a product name first"), and owners who skipped it saved
+dishes with no photo. Dish type defaulted to Non-Vegetarian, and owners keep
+defaults, so veg dishes went on the menu as non-veg.
+
+**Design (owner-approved in chat; no schema, route, migration or dependency).**
+- Order: name → photo → veg/non-veg → category → pricing (with one price /
+  sizes / combo inside it) → description → show on menu. `productForm.ts`.
+- Veg/non-veg has no default when the flag is on; save refuses with
+  "Choose Veg or Non-veg" (toast + inline). Same mark and colours as the menu.
+- The library photo is looked up from the name (≥ 3 letters, 700 ms pause) via
+  the existing `/api/images/match` and shown in the slot BEFORE save, with
+  Keep / Upload your own / Remove. Never over the owner's own or saved photo;
+  a removal stops suggestions for that drawer; a rename to an unmatched dish
+  clears the old suggestion. If Save beats the lookup, save finishes it.
+  `photoSuggest.ts` (framework-free, fake-timer tested) + `usePhotoSuggestion`.
+- Motion (`globals.css`, "Photo suggestion"): lavender skeleton sweep while
+  searching (held ≥ 450 ms), reveal gated on the slot's own `decode()`, photo
+  develops from blur over 480 ms on Material's emphasized curve, one
+  left-to-right sheen, badge settles last. Reduced motion: 160 ms fade only.
+- Flag OFF: the nine legacy drawer blocks are verbatim (checked by script) and
+  in the original order.
+
+**Evidence (production build, flag on, Chromium).**
+- Timeline from last keystroke: shimmer 753 ms → photo decoded 1434 ms →
+  reveal 1457 ms. No layout shift: the slot is one fixed height.
+- Reveal opacity at 50/100/150/250/480 ms: 0.17 / 0.52 / 0.71 / 0.89 / 1.00.
+  The first curve tried (emphasized-decelerate) was 0.63 at 50 ms — a pop —
+  so the test now asserts softness (≤ 0.3 at 10 % time) rather than a curve.
+- Remove → no re-suggestion on rename → "Find a photo in our library" works;
+  "Filter Coffee" (no library photo) clears the old one and says so; edit of a
+  product with a saved photo: no lookup, no badge, "Change photo" only.
+- 390 px: no horizontal scroll.
+
+**Not done / known.** The save-time lookup was verified in unit tests only —
+saving in the browser would write to the live test store. Editing an item
+whose `food_type` is `unknown` still preselects Non-Vegetarian (unchanged
+legacy mapping). Full suite: `tests/unit/claude-hooks/*` fail (pre-existing,
+hook files missing); `tests/security/aiCostAbuse.test.ts` failed once under
+full-suite load and passed 3/3 alone (flaky, untouched).
+
+**Rollout.** Set `NEXT_PUBLIC_SMART_ADD_PRODUCT=true` in DigitalOcean
+(build-time; redeploy). Rollback: unset and redeploy.
+
 ### 2026-09-24 — Feature: owner photo compression (dish photos + banners)
 status: DONE — acceptance green: menu-photo-compression.test.ts (18/18) and
 menu-photo-compression.browser.test.ts (27/27: Chromium, WebKit, Firefox). Rollout pending the owner.

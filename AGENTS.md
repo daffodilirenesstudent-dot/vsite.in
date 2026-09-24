@@ -762,3 +762,19 @@ image from a lazy one not yet requested.
 `upgrade-insecure-requests` makes WebKit (unlike Chrome/Firefox) rewrite every
 localhost request to https, so no JS loads and nothing hydrates. Harmless on
 https production. In Playwright, route `https://localhost:3000/**` back to http.
+
+## Smart Add Product (2026-09-24)
+
+- **Source-scanning tests: `image/*` is not a comment.** The usual `shipped()`
+  helper strips `/\/\*[\s\S]*?\*\//g`; `accept="image/*"` opens a fake block
+  comment that swallows code up to the next `*/`, so an assertion on code
+  after a file input fails for no reason. Anchor it:
+  `/(^|[\s{])\/\*[\s\S]*?\*\//g` → `'$1'` (see smart-add-product.test.ts).
+- **Measure easing in the browser, don't trust the name.** Material's
+  emphasized-DECELERATE is for things that must land fast: a photo was 63 %
+  opaque 50 ms in. Seek with `document.getAnimations().forEach(a => { a.pause();
+  a.currentTime = t; })` and read `getComputedStyle` to see real frames.
+- **Windows: stopping a background `npm run start` leaves `next start`
+  running** and holding :3000 (next start fails with EADDRINUSE). Find it with
+  `netstat -ano | grep :3000`, confirm the command line, `taskkill //PID <pid> //T //F`.
+

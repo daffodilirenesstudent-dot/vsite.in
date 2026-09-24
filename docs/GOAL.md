@@ -14,14 +14,14 @@ Token per Ralph loop: 3 iterations
 
 ## Acceptance criteria (each maps to a test in `apps/web/tests/acceptance/smart-add-product.test.ts`)
 
-- [ ] **AC1**: the flag is OFF unless `NEXT_PUBLIC_SMART_ADD_PRODUCT` is exactly `"true"`.
-- [ ] **AC2**: flag ON, the drawer order is name → photo → veg/non-veg → category → pricing → description → show on menu.
-- [ ] **AC3**: flag ON, product type (one price / sizes / combo) lives inside pricing, not as its own step.
-- [ ] **AC4**: flag ON, a new product has no veg/non-veg preselected, and saving without one is refused with a clear message.
-- [ ] **AC5**: a library photo is looked up from the dish name (≥ 3 letters, debounced) and shown in the photo slot before save.
-- [ ] **AC6**: never replaces a photo the owner uploaded or a product's saved photo; stops suggesting once the owner removes a suggestion.
-- [ ] **AC7**: a late answer for an old name never overwrites the photo for the current name.
-- [ ] **AC8**: the photo is revealed only after it has decoded, holds the searching state long enough not to flash, animates within the NN/g range, and respects reduced motion.
-- [ ] **AC9**: if save is pressed before the lookup for the current name has run, save runs it and keeps the photo it finds.
-- [ ] **AC10**: a failed or empty lookup never blocks saving and never shows an error; the slot stays an upload box.
-- [ ] **AC11**: with the flag OFF, the drawer is exactly as today (legacy order, Non-Vegetarian default, manual button).
+- [x] **AC1**: the flag is OFF unless `NEXT_PUBLIC_SMART_ADD_PRODUCT` is exactly `"true"`.
+- [x] **AC2**: flag ON, the drawer order is name → photo → veg/non-veg → category → pricing → description → show on menu.
+- [x] **AC3**: flag ON, product type (one price / sizes / combo) lives inside pricing, not as its own step.
+- [x] **AC4**: flag ON, a new product has no veg/non-veg preselected, and saving without one is refused with a clear message.
+- [x] **AC5**: a library photo is looked up from the dish name (≥ 3 letters, debounced) and shown in the photo slot before save.
+- [x] **AC6**: never replaces a photo the owner uploaded or a product's saved photo; stops suggesting once the owner removes a suggestion.
+- [x] **AC7**: a late answer for an old name never overwrites the photo for the current name.
+- [x] **AC8**: the photo is revealed only after it has decoded, holds the searching state long enough not to flash, animates within the NN/g range, and respects reduced motion.
+- [x] **AC9**: if save is pressed before the lookup for the current name has run, save runs it and keeps the photo it finds.
+- [x] **AC10**: a failed or empty lookup never blocks saving and never shows an error; the slot stays an upload box.
+- [x] **AC11**: with the flag OFF, the drawer is exactly as today (legacy order, Non-Vegetarian default, manual button).
