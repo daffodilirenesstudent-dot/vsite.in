@@ -22,6 +22,13 @@ process.env.OPENAI_API_KEY = 'sk-test';
 process.env.EXTRACT_ADMISSION_WAIT_MS = '50';
 
 vi.mock('server-only', () => ({}));
+// These cases cover the flag-OFF path (pre-ai-page-limits behaviour), pinned
+// explicitly so they stay meaningful after AI_PAGE_LIMITS goes live. The ON
+// path is covered by tests/acceptance/ai-page-limits.test.ts.
+vi.mock('@/lib/platform/productFlags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/platform/productFlags')>()),
+  AI_PAGE_LIMITS: false,
+}));
 
 // ── Fake OpenAI ──────────────────────────────────────────────────────────────
 
@@ -494,13 +501,15 @@ describe('AC12: the onboarding screen explains what happened and what to do', ()
   const messages = () => readFileSync(join(SRC, 'app', 'onboarding', 'scanMessages.ts'), 'utf8');
   const route = () => readFileSync(join(SRC, 'app', 'api', 'onboarding', 'extract', 'route.ts'), 'utf8');
 
-  it('every error code the extract route emits has an English and a Tamil message', () => {
+  // Onboarding is English only, by the owner's explicit decision on
+  // 2026-09-23 (docs/features/ai-page-limits/contract.md). This used to
+  // require a Tamil message too.
+  it('every error code the extract route emits has an English message', () => {
     const codes = Array.from(new Set(Array.from(route().matchAll(/code: '([A-Z_]+)'/g), m => m[1])));
     expect(codes.length).toBeGreaterThan(5);
     const src = messages();
     for (const code of codes) {
-      const entry = new RegExp(`${code}:\\s*\\{[^}]*en:[^}]*ta:\\s*'[^']*[\\u0B80-\\u0BFF]`);
-      expect(src, `missing bilingual message for ${code}`).toMatch(entry);
+      expect(src, `missing English message for ${code}`).toMatch(new RegExp(`${code}:\\s*\\{\\s*en:\\s*["'\`].{10,}`));
     }
   });
 

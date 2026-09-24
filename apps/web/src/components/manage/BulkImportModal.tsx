@@ -5,6 +5,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/platform/db/supabase';
 import { firebaseAuth } from '@/lib/auth/firebase';
 import { compressImage } from '@/lib/menu/imageCompress';
+import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
+import { bulkAllowanceView, planBulkPdf, type BulkState } from '@/lib/menu/aiPageLimits';
+import { countPdfPages, pdfToPageImages } from '@/lib/menu/pdfPages';
+
+/** AI_PAGE_LIMITS ON: the store's page allowance, from /api/bulk-import/allowance. */
+type Allowance =
+  | { status: 'ready'; state: BulkState; limit: number; left: number; resetsAt: string | null }
+  | { status: 'error' };
+
+const isPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
 
 interface BulkImportModalProps {
   siteId: string;
@@ -72,13 +82,39 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
   const [reviewStep, setReviewStep] = useState<0 | 1>(0); // 0=bestsellers 1=profitable
   const [addedCount, setAddedCount] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
+  const [allowance, setAllowance] = useState<Allowance | null>(null);
+  const [allowanceTick, setAllowanceTick] = useState(0);
+  const [pickError, setPickError] = useState('');
+  const [refundNotice, setRefundNotice] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const purple = '#5137EF';
 
+  // AI_PAGE_LIMITS ON: fetch this store's page allowance on mount (and on retry)
+  useEffect(() => {
+    if (!AI_PAGE_LIMITS) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await firebaseAuth.currentUser?.getIdToken();
+        if (!token) throw new Error('not signed in');
+        const res = await fetch(`/api/bulk-import/allowance?siteId=${encodeURIComponent(siteId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await res.json();
+        if (!res.ok || !body.enforced) throw new Error(body.error ?? 'allowance unavailable');
+        if (!cancelled) setAllowance({ status: 'ready', state: body.state, limit: body.limit, left: body.left, resetsAt: body.resetsAt ?? null });
+      } catch {
+        if (!cancelled) setAllowance({ status: 'error' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [siteId, allowanceTick]);
+
   // Fetch this month's usage on mount
   useEffect(() => {
+    if (AI_PAGE_LIMITS) return;
     let cancelled = false;
     (async () => {
       const userId = firebaseAuth.currentUser?.uid;
@@ -94,13 +130,53 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
     return () => { cancelled = true; };
   }, []);
 
-  const quotaExhausted = quotaUsed !== null && quotaUsed >= DAILY_LIMIT;
-  const sessionMax = Math.min(SESSION_MAX, quotaUsed !== null ? DAILY_LIMIT - quotaUsed : SESSION_MAX);
+  const pageView = allowance?.status === 'ready' ? bulkAllowanceView(allowance) : null;
+  const pagesLeft = allowance?.status === 'ready' ? allowance.left : 0;
+  const quotaExhausted = AI_PAGE_LIMITS
+    ? pageView !== null && !pageView.canUpload
+    : quotaUsed !== null && quotaUsed >= DAILY_LIMIT;
+  const sessionMax = AI_PAGE_LIMITS
+    ? Math.min(SESSION_MAX, pagesLeft)
+    : Math.min(SESSION_MAX, quotaUsed !== null ? DAILY_LIMIT - quotaUsed : SESSION_MAX);
   const canClose = phase !== 'processing' && phase !== 'inserting';
 
   // ── File handling ─────────────────────────────────────────────────────────
+  // AI_PAGE_LIMITS ON: photos and PDFs. Each PDF page becomes one JPEG in the
+  // browser and uses one page; a PDF longer than the room left is refused
+  // before anything is rendered or sent.
+  const addPagedFiles = async (raw: File[]) => {
+    setPickError('');
+    let room = sessionMax - files.length;
+    const picked: File[] = [];
+    for (const f of raw.filter(f => !isPdf(f))) {
+      if (room <= 0) break;
+      picked.push(f);
+      room -= 1;
+    }
+    for (const pdf of raw.filter(isPdf)) {
+      let count: number;
+      try {
+        count = await countPdfPages(await pdf.arrayBuffer());
+      } catch {
+        setPickError("We couldn't open this PDF. Upload photos of the menu pages instead.");
+        continue;
+      }
+      const plan = planBulkPdf(count, Math.max(0, room));
+      if (!plan.ok) { setPickError(plan.message); continue; }
+      try {
+        const pages = await pdfToPageImages(pdf, room);
+        picked.push(...pages);
+        room -= pages.length;
+      } catch {
+        setPickError("We couldn't open this PDF. Upload photos of the menu pages instead.");
+      }
+    }
+    setFiles(prev => [...prev, ...picked].slice(0, sessionMax));
+  };
+
   const addFiles = (raw: FileList | null) => {
     if (!raw || raw.length === 0) return;
+    if (AI_PAGE_LIMITS) { void addPagedFiles(Array.from(raw)); return; }
     const snapshot = Array.from(raw);
     setFiles(prev => {
       const slots = sessionMax - prev.length;
@@ -136,11 +212,29 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
 
       const extractRes = await fetch('/api/bulk-import/extract', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: AI_PAGE_LIMITS
+          ? { Authorization: `Bearer ${token}`, 'X-Site-Id': siteId, 'X-Photo-Count': String(compressed.length) }
+          : { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const extractData = await extractRes.json();
+      if (AI_PAGE_LIMITS && extractRes.status === 403 && extractData.code === 'PAGE_LIMIT') {
+        // Out of pages: show the allowance as it really is, back on the upload screen.
+        clearInterval(stepTimerRef.current!);
+        setAllowance({ status: 'ready', state: extractData.state, limit: extractData.pageLimit, left: extractData.pagesLeft, resetsAt: extractData.resetsAt ?? null });
+        setFiles([]);
+        setPhase('upload');
+        return;
+      }
       if (!extractRes.ok) throw new Error(extractData.error ?? 'Could not read items from photos.');
+      if (AI_PAGE_LIMITS && extractData.pages) {
+        const p = extractData.pages as { state: BulkState; limit: number; left: number; resetsAt: string | null };
+        setAllowance({ status: 'ready', state: p.state, limit: p.limit, left: p.left, resetsAt: p.resetsAt });
+        const failed = Array.isArray(extractData.failedPhotos) ? (extractData.failedPhotos as number[]).length : 0;
+        setRefundNotice(failed > 0
+          ? `${failed} page${failed === 1 ? '' : 's'} couldn't be read. ${failed === 1 ? 'It was' : 'They were'} given back, so you have ${p.left} page${p.left === 1 ? '' : 's'} left.`
+          : '');
+      }
 
       clearInterval(stepTimerRef.current!);
 
@@ -298,6 +392,44 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
           {/* ── UPLOAD ── */}
           {phase === 'upload' && (
             <>
+              {AI_PAGE_LIMITS && (
+                <div style={{ marginBottom: 16 }}>
+                  {allowance === null && <div style={{ height: 88, background: '#F4F4F5', borderRadius: 12 }} />}
+                  {allowance?.status === 'error' && (
+                    <div role="alert" style={{ border: '1px solid #FECACA', borderRadius: 12, padding: 14, background: '#FEF2F2' }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#991B1B', marginBottom: 4 }}>Couldn&apos;t check your pages</p>
+                      <p style={{ fontSize: 13, color: '#B91C1C', marginBottom: 10 }}>No pages were used. Check your internet and try again.</p>
+                      <button type="button" onClick={() => { setAllowance(null); setAllowanceTick(t => t + 1); }}
+                        style={{ minHeight: 44, border: '1px solid #E4E4E7', borderRadius: 8, padding: '0 20px', fontSize: 14, fontWeight: 600, background: '#FFFFFF', cursor: 'pointer' }}>
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                  {pageView && allowance?.status === 'ready' && allowance.state !== 'expired' && (
+                    <div style={{ border: '1px solid #E4E4E7', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div className="flex items-center justify-between" style={{ gap: 8 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A' }}>{pageView.label}</span>
+                        <span style={{
+                          background: pageView.canUpload ? '#F0EDFF' : '#FEE2E2',
+                          color: pageView.canUpload ? purple : '#B91C1C',
+                          borderRadius: 20, padding: '4px 12px', fontSize: 13, fontWeight: 700,
+                        }}>{pageView.chip}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {Array.from({ length: allowance.limit }, (_, i) => (
+                          <div key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: i < allowance.left ? purple : '#E4E4E7' }} />
+                        ))}
+                      </div>
+                      {pageView.sub && <span style={{ fontSize: 12, color: '#52525C' }}>{pageView.sub}</span>}
+                    </div>
+                  )}
+                  {refundNotice && (
+                    <p style={{ fontSize: 13, color: '#C2410C', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 12px', marginTop: 10 }}>{refundNotice}</p>
+                  )}
+                </div>
+              )}
+
+              {!AI_PAGE_LIMITS && (
               <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
                 {quotaUsed === null ? (
                   <div style={{ height: 26, width: 180, background: '#F4F4F5', borderRadius: 6 }} />
@@ -317,8 +449,26 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                   <span style={{ fontSize: 11, color: '#99A1AF' }}>Resets {tomorrowLabel()}</span>
                 )}
               </div>
+              )}
 
-              {quotaExhausted ? (
+              {AI_PAGE_LIMITS && pageView?.exhausted ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                  <div role="status" style={{ border: '1px solid #DDD6FE', borderRadius: 12, padding: 14, background: '#F0EDFF' }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#3B2A9E', marginBottom: 4 }}>{pageView.exhausted.title}</p>
+                    <p style={{ fontSize: 13, color: '#4C3BC4', lineHeight: '19px' }}>{pageView.exhausted.body}</p>
+                  </div>
+                  {pageView.exhausted.cta && (
+                    <a href={pageView.exhausted.cta.href}
+                      style={{ minHeight: 48, borderRadius: 10, background: purple, color: '#FFFFFF', fontSize: 15, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {pageView.exhausted.cta.label}
+                    </a>
+                  )}
+                  <button type="button" onClick={onClose}
+                    style={{ minHeight: 44, border: 'none', background: 'none', color: purple, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                    {pageView.handAddLabel}
+                  </button>
+                </div>
+              ) : AI_PAGE_LIMITS && allowance?.status !== 'ready' ? null : quotaExhausted ? (
                 <div style={{ border: '1px solid #FED7AA', borderRadius: 10, padding: '24px 16px', background: '#FFF7ED', textAlign: 'center', marginBottom: 20 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 32, color: '#EA580C', display: 'block', marginBottom: 8 }}>event_busy</span>
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#9A3412', marginBottom: 4 }}>Daily limit reached</p>
@@ -326,6 +476,17 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                 </div>
               ) : (
                 <>
+                  {AI_PAGE_LIMITS ? (
+                    <input
+                      ref={fileInputRef}
+                      id="bulk-photo-input"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      multiple
+                      className="hidden"
+                      onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
+                    />
+                  ) : (
                   <input
                     ref={fileInputRef}
                     id="bulk-photo-input"
@@ -335,6 +496,7 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                     className="hidden"
                     onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
                   />
+                  )}
                   <div
                     onDrop={handleDrop}
                     onDragOver={e => e.preventDefault()}
@@ -345,10 +507,22 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                     <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#F0EDFF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
                       <span className="material-symbols-outlined" style={{ fontSize: 24, color: purple }}>photo_camera</span>
                     </div>
+                    {AI_PAGE_LIMITS ? (
+                      <>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A', marginBottom: 4 }}>Add menu photos or a PDF</p>
+                        <p style={{ fontSize: 12, color: '#71717A', marginBottom: 12, textAlign: 'center' }}>
+                          Up to {sessionMax} page{sessionMax !== 1 ? 's' : ''} · JPG, PNG, WebP or PDF<br />
+                          Each photo or PDF page uses 1 page
+                        </p>
+                      </>
+                    ) : (
+                      <>
                     <p style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A', marginBottom: 4 }}>Drop menu photos here</p>
                     <p style={{ fontSize: 12, color: '#99A1AF', marginBottom: 12, textAlign: 'center' }}>
                       Up to {sessionMax} photo{sessionMax !== 1 ? 's' : ''} per scan · JPG, PNG or WebP
                     </p>
+                      </>
+                    )}
                     <label
                       htmlFor="bulk-photo-input"
                       onClick={e => e.stopPropagation()}
@@ -357,6 +531,10 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                       Choose Files
                     </label>
                   </div>
+
+                  {AI_PAGE_LIMITS && pickError && (
+                    <p role="alert" style={{ fontSize: 13, color: '#9A3412', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>{pickError}</p>
+                  )}
 
                   {files.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>

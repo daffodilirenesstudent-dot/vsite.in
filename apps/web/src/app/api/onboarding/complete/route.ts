@@ -23,6 +23,8 @@ import {
 } from '@/lib/menu/menuThemes';
 import { audit } from '@/lib/platform/auditLog';
 import { checkStoreEligibility } from '@/lib/platform/storeEligibility';
+import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
+import { bindOnboardingPages } from '@/lib/menu/aiPageLedger';
 
 import { logger } from '@/lib/platform/logger';
 export const maxDuration = 60;
@@ -440,6 +442,14 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+    }
+
+    // Tie this owner's onboarding AI pages (15 per store) to the store just
+    // created, so their next store opens a fresh allowance. Best effort: if it
+    // fails the pages stay unbound and the next store shares what is left, so
+    // the owner gets fewer pages, never more. Launch never fails on it.
+    if (AI_PAGE_LIMITS) {
+      await bindOnboardingPages(userId, site.id);
     }
 
     // Mark onboarding complete.

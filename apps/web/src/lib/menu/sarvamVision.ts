@@ -5,6 +5,7 @@
 import OpenAI from 'openai';
 
 import { logger } from '@/lib/platform/logger';
+import { recordAiUsage } from '@/lib/menu/aiSpendGuard';
 const OCR_PROMPT =
     'Extract all text from this menu image. Preserve item names, prices, and section headings. Include every item visible in the image. Return plain text, no markdown formatting.';
 
@@ -13,7 +14,9 @@ const OCR_PROMPT =
  */
 export async function imageToMenuText(
     buffer: Buffer,
-    mimeType: string
+    mimeType: string,
+    /** Account to charge the spend to, for the per-user daily cap. */
+    spendKey?: string,
 ): Promise<string> {
     const base64 = buffer.toString('base64');
     const dataUrl = `data:${mimeType};base64,${base64}`;
@@ -34,6 +37,7 @@ export async function imageToMenuText(
             max_tokens: 2000,
         });
 
+        if (spendKey) recordAiUsage('gpt-4o-mini', response.usage, spendKey);
         const text = response.choices[0]?.message?.content ?? '';
         logger.debug(`[imageToMenuText] extracted ${text.length} chars from photo`);
         return text;

@@ -17,10 +17,12 @@ import ScanningOverlay from './components/ScanningOverlay';
 import type { WizardStep } from '@/components/OnboardingContext';
 import { compressImage } from '@/lib/menu/imageCompress';
 import {
-  scanMessage, partialScanNotice, pdfMessage, SKIPPABLE_CODES, SCAN_MESSAGES,
+  scanMessage, partialScanNotice, pdfMessage, pageLimitMessage, SKIPPABLE_CODES, SCAN_MESSAGES,
   type ScanMessage,
 } from './scanMessages';
 import { pdfToPageImages, PdfPagesError } from '@/lib/menu/pdfPages';
+import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
+import { needsRescan, photoKey } from './rescan';
 
 const MAX_PHOTOS = 15;
 
@@ -127,8 +129,8 @@ function OnboardingContent() {
   const [photos, setPhotos] = useState<PreviewPhoto[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [error, setError] = useState('');
-  // Setup-step problems carry a code so they can be worded in Tamil and English
-  // and so we know whether to offer the way forward without a scan.
+  // Setup-step problems carry a code so they can be worded for the owner and so
+  // we know whether to offer the way forward without a scan.
   const [scanError, setScanError] = useState<{ code: string; message: ScanMessage } | null>(null);
   // "You're in the queue" while waiting, then "photo 4 couldn't be read".
   const [scanNotice, setScanNotice] = useState<ScanMessage | null>(null);
@@ -138,6 +140,8 @@ function OnboardingContent() {
   const [pdfProgress, setPdfProgress] = useState<string | null>(null);
   // Photos already added, read synchronously while PDF pages are still arriving.
   const photosRef = useRef<PreviewPhoto[]>([]);
+  // The photos behind the dishes we already have, so Back → Continue does not pay to read them again.
+  const lastScannedKeyRef = useRef<string | null>(null);
   useEffect(() => { photosRef.current = photos; }, [photos]);
 
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -245,6 +249,13 @@ function OnboardingContent() {
     if (!businessName.trim()) { showScanError('NO_SHOP_NAME'); return; }
     if (photos.length === 0) { showScanError('NO_PHOTOS'); return; }
 
+    // Same photos as the scan we already have: go on with those dishes, no new scan.
+    if (AI_PAGE_LIMITS && !needsRescan({ photoKey: photoKey(photos), lastScannedKey: lastScannedKeyRef.current, itemCount: items.length })) {
+      setScanError(null);
+      transition('right', () => setStep('bestsellers'));
+      return;
+    }
+
     setError('');
     setScanError(null);
     setScanNotice(null);
@@ -314,10 +325,19 @@ function OnboardingContent() {
           continue;
         }
 
+        // Out of AI pages for this store: say how many are left, and offer the way on without a scan.
+        if (res.status === 403 && data.code === 'PAGE_LIMIT') {
+          const pagesLeft = Math.max(0, Number(data.pagesLeft) || 0);
+          setScanError({ code: 'PAGE_LIMIT', message: pageLimitMessage(pagesLeft) });
+          setScanNotice(null);
+          setExtracting(false);
+          return;
+        }
         if (!res.ok) { stop(typeof data.code === 'string' ? data.code : 'INTERNAL'); return; }
 
         const found = data.items ?? [];
         setExtractedItems(found);
+        lastScannedKeyRef.current = found.length > 0 ? photoKey(photos) : null;
 
         // Tell the owner which photos did not make it, in their numbering.
         const serverFailed: number[] = Array.isArray(data.failedPhotos)
@@ -449,6 +469,8 @@ function OnboardingContent() {
   }
 
   const atLimit = photos.length >= MAX_PHOTOS;
+  // Out of AI pages but dishes are already read: carry on with them rather than empty the menu.
+  const canKeepItems = AI_PAGE_LIMITS && scanError?.code === 'PAGE_LIMIT' && items.length > 0;
   const isSetup = step === 'setup';
 
   return (
@@ -527,7 +549,6 @@ function OnboardingContent() {
         <div role="status" className="mx-auto mt-3 w-full max-w-md px-4">
           <div className="rounded-xl bg-amber-50 px-4 py-3 text-center">
             <p className="text-xs font-medium text-amber-800">{partialNotice.en}</p>
-            <p lang="ta" className="mt-1 text-xs text-amber-700">{partialNotice.ta}</p>
           </div>
         </div>
       )}
@@ -651,7 +672,6 @@ function OnboardingContent() {
                 {scanError && (
                   <div role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-center">
                     <p className="text-xs text-red-700">{scanError.message.en}</p>
-                    <p lang="ta" className="mt-1 text-xs text-red-600">{scanError.message.ta}</p>
                   </div>
                 )}
                 {error && !scanError && (
@@ -674,11 +694,17 @@ function OnboardingContent() {
                     )}
                   </button>
                   {scanError && SKIPPABLE_CODES.has(scanError.code) && !extracting && (
+                    canKeepItems ? (
+                      <button type="button" onClick={() => { setScanError(null); transition('right', () => setStep('bestsellers')); }}
+                        className="mt-3 w-full rounded-[10px] border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]">
+                        Continue with my {items.length} dishes
+                      </button>
+                    ) : (
                     <button type="button" onClick={handleSkipScan}
                       className="mt-3 w-full rounded-[10px] border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]">
                       Skip — add dishes by hand
-                      <span lang="ta" className="block text-xs font-normal text-slate-500">தவிர்க்கவும் — உணவுகளை நீங்களே சேர்க்கவும்</span>
                     </button>
+                    )
                   )}
                 </div>
               </>
