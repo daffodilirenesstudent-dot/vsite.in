@@ -2,6 +2,42 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-25 — Feature: Food posters (QR page, pass 2)
+status: DONE — acceptance green: food-posters.test.ts (18/18); print kit (29/29) and sticker (8/8) unchanged.
+Rollout pending the owner.
+
+**Why.** A QR looks the same whatever it opens; the design around it says what it is for,
+and the QR an Indian diner sees most is a UPI payment standee. Food around the code says
+"menu" at a glance. Owner approved four designs on the design canvas
+(https://claude.ai/artifact/DXtymTvPcXZHveidT7aspQ): restaurant Feast ring and Table edge,
+café Floating and Counter. Headline "Scan and see menu". English only (owner: no Tamil).
+
+**Design.** `lib/qr/posterDesigns.ts` (flag `NEXT_PUBLIC_FOOD_POSTERS`, families, headline,
+geometry helpers) over `posterDesignData.ts` (the boards in 559×794 design space);
+`designRender.ts` draws a design cover-fit onto any print card, QR generated at print size
+and drawn in device pixels; `app/manage/qr/layout.tsx` loads Poppins 800 + Newsreader via
+next/font as CSS variables the canvas reads. Print kit gains a "Poster design" card
+(Restaurant / Café, two designs + the current poster, four colours each); preview, PDF and
+Status image follow it; choice remembered per store in localStorage (no schema change).
+Family preselected from `sites.business_type` (58 of 60 stores unset → restaurant).
+Food art in `public/poster-art/` (28 WebP cut-outs, ~1 MB): restaurant dishes cut from the
+owner's own mockup, café items cut from the vsite library.
+
+**Evidence (production build, all flags, Chromium).** All four designs render with the
+right fonts; colour changes and the choice survive a reload; Table edge A5 print-shop PDF
+154×216 mm, 1.9 MB, ~1 s, opened in the viewer; 390 px phone: tiles fit, no overflow,
+Download bar 28 px above the nav. The QR-protection test caught a bowl grazing a corner
+bracket and a 3-module quiet zone on Table edge — both fixed (every card now 4 modules).
+
+**Not done / known.** Restaurant art comes from a 1024 px mockup: sharp at A6/A5, soft at
+A4 (≈2.6× upscale) — a higher-resolution art pack fixes it. Feast ring's QR is the smallest
+(table stand at home "scans from 20 cm"); Table edge is the big-QR choice. The choice is
+per device until a column is approved. Owner's own dishes on the poster: not yet.
+Full suite: only `tests/unit/claude-hooks/*` fail (pre-existing).
+
+**Rollout.** Needs `NEXT_PUBLIC_QR_PRINT_KIT=true` and `NEXT_PUBLIC_FOOD_POSTERS=true`
+(build-time; redeploy). Rollback: unset `NEXT_PUBLIC_FOOD_POSTERS`.
+
 ### 2026-09-25 — Feature: QR print kit (QR page, first pass)
 status: DONE — acceptance green: qr-print-kit.test.ts (29/29), qr-sticker.test.ts unchanged (8/8).
 Rollout pending the owner.

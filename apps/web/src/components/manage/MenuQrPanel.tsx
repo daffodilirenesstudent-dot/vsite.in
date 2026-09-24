@@ -12,6 +12,13 @@ import {
 import { buildPrintPdf } from '@/lib/qr/printPdf';
 import { getStyledQRBlob, getStyledQRSvgBlob, downloadBlob } from '@/lib/qr/styledQr';
 import { loadImage, qrFractionOf, renderPosterCard, renderStoryImage, canvasToBlob } from '@/lib/qr/posterRender';
+import {
+    FOOD_POSTERS, POSTER_DESIGNS, CLASSIC_DESIGN_ID, DESIGN_W, DESIGN_H,
+    designById, posterFamily, designQrFraction, designStorageKey,
+    type PosterFamily,
+} from '@/lib/qr/posterDesigns';
+import { renderDesignPoster, posterFontsFrom } from '@/lib/qr/designRender';
+import { supabase } from '@/lib/platform/db/supabase';
 
 /**
  * The QR page for a menu-only store (NEXT_PUBLIC_QR_PRINT_KIT).
@@ -49,8 +56,11 @@ const cm = (mm: number) => `${Number((mm / 10).toFixed(1))}`;
 
 type Busy = 'pdf' | 'png' | 'svg' | 'story' | null;
 
-export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, stickerCard }: {
+interface StoredDesign { family: PosterFamily; designId: string; accent: string | null }
+
+export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTemplate, stickerCard }: {
     menuUrl: string;
+    siteId: string;
     slug: string;
     storeName: string;
     posterTemplate: string;
@@ -64,12 +74,72 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewFailed, setPreviewFailed] = useState(false);
     const templateRef = useRef<HTMLImageElement | null>(null);
+    const rootRef = useRef<HTMLDivElement | null>(null);
+
+    // ── Poster design (NEXT_PUBLIC_FOOD_POSTERS) ──
+    // The family starts from the store's business type; the choice itself is
+    // remembered per store on this device (no schema change).
+    const [family, setFamily] = useState<PosterFamily>('restaurant');
+    const [designId, setDesignId] = useState<string>(FOOD_POSTERS ? POSTER_DESIGNS[0].id : CLASSIC_DESIGN_ID);
+    const [accent, setAccent] = useState<string | null>(null);
+    const [thumbs, setThumbs] = useState<Record<string, string>>({});
+    const design = FOOD_POSTERS ? designById(designId) : null;
+    const accentNow = design ? (accent ?? design.accent) : null;
+
+    useEffect(() => {
+        if (!FOOD_POSTERS || !siteId) return;
+        let stored: StoredDesign | null = null;
+        try {
+            const raw = localStorage.getItem(designStorageKey(siteId));
+            if (raw) stored = JSON.parse(raw) as StoredDesign;
+        } catch { /* private window or cleared storage: start fresh */ }
+        if (stored && (stored.designId === CLASSIC_DESIGN_ID || designById(stored.designId))) {
+            setFamily(stored.family === 'cafe' ? 'cafe' : 'restaurant');
+            setDesignId(stored.designId);
+            setAccent(stored.accent);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            const { data } = await supabase.from('sites').select('business_type').eq('id', siteId).maybeSingle();
+            if (cancelled) return;
+            const fam = posterFamily((data as { business_type?: string | null } | null)?.business_type);
+            setFamily(fam);
+            setDesignId(POSTER_DESIGNS.find(d => d.family === fam)?.id ?? POSTER_DESIGNS[0].id);
+        })();
+        return () => { cancelled = true; };
+    }, [siteId]);
+
+    function choose(next: Partial<StoredDesign>) {
+        const value: StoredDesign = { family, designId, accent, ...next };
+        setFamily(value.family); setDesignId(value.designId); setAccent(value.accent);
+        try { localStorage.setItem(designStorageKey(siteId), JSON.stringify(value)); } catch { /* not remembered; still applied */ }
+    }
 
     const qrFor = (px: number) => getStyledQRBlob(menuUrl, undefined, px);
 
     async function template(): Promise<HTMLImageElement> {
         if (!templateRef.current) templateRef.current = await loadImage(posterTemplate);
         return templateRef.current;
+    }
+
+    /** The poster's height for a given width, in the chosen design's own shape. */
+    async function posterHeight(w: number, id: string = designId): Promise<number> {
+        if (FOOD_POSTERS && designById(id)) return Math.round(w * DESIGN_H / DESIGN_W);
+        const t = await template();
+        return Math.round(w * t.naturalHeight / t.naturalWidth);
+    }
+
+    /** Every poster the page makes (preview, tiles, PDF, Status image) comes through here. */
+    async function renderCard(widthPx: number, heightPx: number, pick?: { id: string; accent: string | null }): Promise<HTMLCanvasElement> {
+        const d = pick ? designById(pick.id) : design;
+        if (FOOD_POSTERS && d) {
+            return renderDesignPoster({
+                design: d, accent: (pick ? pick.accent : accentNow) ?? d.accent, storeName,
+                qrBlobFor: qrFor, widthPx, heightPx, fonts: posterFontsFrom(rootRef.current ?? document.body),
+            });
+        }
+        return renderPosterCard({ template: await template(), qrBlobFor: qrFor, widthPx, heightPx });
     }
 
     useEffect(() => {
@@ -80,11 +150,10 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
         setPreviewFailed(false);
         (async () => {
             try {
-                const t = await template();
-                if (cancelled) return;
-                setQrFraction(qrFractionOf(t));
+                if (design) setQrFraction(designQrFraction(design));
+                else setQrFraction(qrFractionOf(await template()));
                 const w = 720;
-                const canvas = await renderPosterCard({ template: t, qrBlobFor: qrFor, widthPx: w, heightPx: Math.round(w * t.naturalHeight / t.naturalWidth) });
+                const canvas = await renderCard(w, await posterHeight(w));
                 const blob = await canvasToBlob(canvas);
                 if (cancelled) return;
                 url = URL.createObjectURL(blob);
@@ -95,7 +164,29 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
         })();
         return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [menuUrl, posterTemplate]);
+    }, [menuUrl, posterTemplate, designId, accentNow, storeName]);
+
+    // Small pictures for the design choices of the current family.
+    useEffect(() => {
+        if (!FOOD_POSTERS) return;
+        let cancelled = false;
+        const made: string[] = [];
+        const ids = [...POSTER_DESIGNS.filter(d => d.family === family).map(d => d.id), CLASSIC_DESIGN_ID];
+        (async () => {
+            for (const id of ids) {
+                try {
+                    const w = 300;
+                    const canvas = await renderCard(w, await posterHeight(w, id), { id, accent: null });
+                    const u = URL.createObjectURL(await canvasToBlob(canvas));
+                    made.push(u);
+                    if (cancelled) return;
+                    setThumbs(t => ({ ...t, [id]: u }));
+                } catch { /* the tile shows its name without a picture */ }
+            }
+        })();
+        return () => { cancelled = true; made.forEach(u => URL.revokeObjectURL(u)); setThumbs({}); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [family, menuUrl, storeName]);
 
     const layout = printLayout(placement, method);
     const perSheet = PER_SHEET[placement];
@@ -106,9 +197,8 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
     async function downloadPdf() {
         setBusy('pdf');
         try {
-            const t = await template();
             const c = layout.cards[0];
-            const canvas = await renderPosterCard({ template: t, qrBlobFor: qrFor, widthPx: mmToPx(c.w), heightPx: mmToPx(c.h) });
+            const canvas = await renderCard(mmToPx(c.w), mmToPx(c.h));
             const pdf = await buildPrintPdf(layout, canvas.toDataURL('image/png'));
             downloadBlob(new Blob([pdf], { type: 'application/pdf' }), pdfFileName(slug, placement, method));
             toast.success('PDF downloaded');
@@ -131,9 +221,8 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
     async function statusImage() {
         setBusy('story');
         try {
-            const t = await template();
             const w = 880;
-            const poster = await renderPosterCard({ template: t, qrBlobFor: qrFor, widthPx: w, heightPx: Math.round(w * t.naturalHeight / t.naturalWidth) });
+            const poster = await renderCard(w, await posterHeight(w));
             const blob = await renderStoryImage(poster);
             const file = new File([blob], `${slug}-whatsapp-status.png`, { type: 'image/png' });
             // On a phone, hand it straight to the share sheet (WhatsApp Status is
@@ -180,7 +269,7 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
     );
 
     return (
-        <div className="qrk-root">
+        <div className="qrk-root" ref={rootRef}>
             <style>{`
                 .qrk-grid { display: grid; grid-template-columns: minmax(260px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
                 .qrk-poster { position: sticky; top: 24px; }
@@ -190,6 +279,7 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
                 /* Icons are clipped to 1em app-wide; in a squeezed flex row they
                    would shrink to a sliver (the WhatsApp one did) — so they don't. */
                 .qrk-root .material-symbols-outlined { flex-shrink: 0; }
+                .qrk-designs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
                 .qrk-share { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
                 @media (max-width: 480px) { .qrk-share { grid-template-columns: minmax(0, 1fr); } }
                 .qrk-bar { display: none; }
@@ -247,6 +337,101 @@ export default function MenuQrPanel({ menuUrl, slug, storeName, posterTemplate, 
                 </div>
 
                 <div className="qrk-side">
+                    {/* ── Poster design (food posters) ── */}
+                    {FOOD_POSTERS && (
+                        <div style={card}>
+                            <div style={cardHead}>
+                                <p style={h2}>Poster design</p>
+                                <p style={sub}>Food around the code tells diners it opens your menu</p>
+                            </div>
+                            <div style={{ padding: '16px 20px 20px' }}>
+                                <div role="radiogroup" aria-label="Kind of place" className="grid grid-cols-2" style={{ padding: 3, gap: 3, borderRadius: 10, background: '#F4F4F5', marginBottom: 14 }}>
+                                    {([['restaurant', 'Restaurant', 'restaurant'], ['cafe', 'Café', 'local_cafe']] as const).map(([f, text, icon]) => {
+                                        const active = family === f;
+                                        return (
+                                            <button
+                                                key={f}
+                                                type="button"
+                                                role="radio"
+                                                aria-checked={active}
+                                                className="qrk-seg"
+                                                onClick={() => choose({ family: f, designId: POSTER_DESIGNS.find(d => d.family === f)?.id ?? CLASSIC_DESIGN_ID, accent: null })}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                    border: 'none', borderRadius: 8, padding: '9px 6px', cursor: 'pointer',
+                                                    fontSize: 13, fontWeight: 600,
+                                                    color: active ? A.dark : A.muted,
+                                                    background: active ? A.white : 'transparent',
+                                                    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
+                                                }}
+                                            >
+                                                <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 17 }}>{icon}</span>
+                                                {text}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div role="radiogroup" aria-label="Poster design" className="qrk-designs">
+                                    {[...POSTER_DESIGNS.filter(d => d.family === family), null].map(d => {
+                                        const id = d ? d.id : CLASSIC_DESIGN_ID;
+                                        const active = designId === id;
+                                        return (
+                                            <button
+                                                key={id}
+                                                type="button"
+                                                role="radio"
+                                                aria-checked={active}
+                                                className="qrk-choice"
+                                                onClick={() => choose({ designId: id, accent: null })}
+                                                style={{
+                                                    display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6,
+                                                    padding: active ? 5 : 6, borderRadius: 12, cursor: 'pointer',
+                                                    border: active ? `2px solid ${A.primary}` : `1px solid ${A.border}`,
+                                                    background: active ? A.primaryBg : A.white,
+                                                }}
+                                            >
+                                                <span style={{ display: 'block', aspectRatio: '559 / 794', borderRadius: 8, overflow: 'hidden', background: A.bg }}>
+                                                    {thumbs[id] && (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img src={thumbs[id]} alt="" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                    )}
+                                                </span>
+                                                <span style={{ fontSize: 12, fontWeight: 600, color: A.dark, textAlign: 'center' }}>{d ? d.label : 'Current poster'}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {design && (
+                                    <div className="flex items-center" style={{ gap: 12, marginTop: 14 }}>
+                                        <span id="qrk-colour" style={{ fontSize: 13, fontWeight: 600, color: A.dark }}>Colour</span>
+                                        <div role="radiogroup" aria-labelledby="qrk-colour" className="flex" style={{ gap: 10 }}>
+                                            {design.accentOptions.map(c => {
+                                                const active = accentNow === c;
+                                                return (
+                                                    <button
+                                                        key={c}
+                                                        type="button"
+                                                        role="radio"
+                                                        aria-checked={active}
+                                                        aria-label={`Colour ${c}`}
+                                                        className="qrk-choice"
+                                                        onClick={() => choose({ accent: c })}
+                                                        style={{
+                                                            width: 30, height: 30, borderRadius: '50%', border: 'none', cursor: 'pointer', background: c,
+                                                            boxShadow: active ? `0 0 0 2px #FFFFFF, 0 0 0 4px ${c}` : 'inset 0 0 0 1px rgba(0,0,0,0.12)',
+                                                        }}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* ── Print ── */}
                     <div style={card}>
                         <div style={cardHead}>

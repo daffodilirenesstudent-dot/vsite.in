@@ -1,3 +1,29 @@
+# PLAN — Food posters  (status: DONE 2026-09-25 — rollout pending the owner)
+
+Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/food-posters.test.ts`.
+Behind `NEXT_PUBLIC_FOOD_POSTERS` (default OFF) inside the print kit. No schema change, no new
+dependency. Designs are the owner-approved boards on the design canvas, reproduced to the pixel.
+
+## Tasks (paths under `apps/web/`)
+
+1. **Food art** — `public/poster-art/restaurant/dish-01..17.webp` (cut from the owner's reference
+   image) and `public/poster-art/cafe/*.webp` (cut from the vsite library), WebP with alpha. (AC6)
+2. **Design data** — `src/lib/qr/posterDesignData.ts`: the four boards' elements in 559×794 design
+   space, generated from the same script that drew the approved boards. (AC2, AC5)
+3. **Rules** — `src/lib/qr/posterDesigns.ts`: flag, designs, `posterFamily`, headline text,
+   `qrCardOf`, `designCover`, `fitFontSize`, `designStorageKey`. (AC1–AC5, AC7)
+4. **Renderer** — `src/lib/qr/designRender.ts`: draws a design on a canvas at any card size
+   (cover-fit), real styled QR generated at print size, fonts awaited before drawing. (AC7)
+5. **Fonts** — `src/app/manage/qr/layout.tsx`: Poppins 700/800 and Newsreader 700 (+ italic) via
+   next/font as CSS variables the renderer reads. (AC4)
+6. **Panel** — `src/components/manage/MenuQrPanel.tsx`: "Poster design" card (Restaurant / Café,
+   two designs + the current poster, colour swatches); preview, PDF and Status image follow the
+   choice; remembered per store in localStorage; scan distance uses the design's QR size. (AC8, AC9)
+7. **Exit check** — vitest, tsc, lint; build with all flags; look at every design in the browser,
+   open a PDF.
+
+---
+
 # PLAN — QR print kit  (status: DONE 2026-09-25 — rollout pending the owner)
 
 Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/qr-print-kit.test.ts`.

@@ -637,6 +637,7 @@ export default function QRPage() {
       {kitOn ? (
         <MenuQrPanel
           menuUrl={baseUrl}
+          siteId={siteId}
           slug={slug}
           storeName={storeName}
           posterTemplate={posterTemplate}

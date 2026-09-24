@@ -17,12 +17,12 @@ Token per Ralph loop: 3 iterations
 
 ## Acceptance criteria (each maps to a test in `apps/web/tests/acceptance/food-posters.test.ts`)
 
-- [ ] **AC1**: the flag is OFF unless `NEXT_PUBLIC_FOOD_POSTERS` is exactly `"true"`.
-- [ ] **AC2**: four designs — restaurant: Feast ring, Table edge; café: Floating, Counter — plus the store's current poster.
-- [ ] **AC3**: business type picks the family: restaurant and mess → restaurant; café, takeaway, tea/juice → café; unset → restaurant.
-- [ ] **AC4**: every design says "Scan and see menu", shows the store's name and "Menu by vsite", and contains no Tamil.
-- [ ] **AC5**: food never touches the QR card, and the card keeps a clear border (≥ 8 % padding) on every design.
-- [ ] **AC6**: every food image a design names exists in `public/poster-art/`.
-- [ ] **AC7**: a design fills any print card (cover-fit), so bleed and home sheets both work; a long store name shrinks to fit.
-- [ ] **AC8**: the chosen design drives the preview, the PDF and the Status image; the choice is remembered per store on the device.
-- [ ] **AC9**: with the flag off, the print kit shows today's poster only.
+- [x] **AC1**: the flag is OFF unless `NEXT_PUBLIC_FOOD_POSTERS` is exactly `"true"`.
+- [x] **AC2**: four designs — restaurant: Feast ring, Table edge; café: Floating, Counter — plus the store's current poster.
+- [x] **AC3**: business type picks the family: restaurant and mess → restaurant; café, takeaway, tea/juice → café; unset → restaurant.
+- [x] **AC4**: every design says "Scan and see menu", shows the store's name and "Menu by vsite", and contains no Tamil.
+- [x] **AC5**: food never touches the QR card, and the card keeps a clear border (≥ 8 % padding) on every design.
+- [x] **AC6**: every food image a design names exists in `public/poster-art/`.
+- [x] **AC7**: a design fills any print card (cover-fit), so bleed and home sheets both work; a long store name shrinks to fit.
+- [x] **AC8**: the chosen design drives the preview, the PDF and the Status image; the choice is remembered per store on the device.
+- [x] **AC9**: with the flag off, the print kit shows today's poster only.

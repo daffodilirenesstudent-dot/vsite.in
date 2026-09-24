@@ -795,3 +795,17 @@ https production. In Playwright, route `https://localhost:3000/**` back to http.
 - **Don't `navigator.clipboard.readText()` from a devtools script** — it waits
   on a permission prompt and times out. Wrap `writeText` to see what was copied.
 
+## Food posters (2026-09-25)
+
+- **Canvas text needs the real next/font family.** next/font hashes family names
+  (`__Poppins_75265a`); `ctx.font = '800 48px Poppins'` silently falls back. Load the
+  face with `variable:` in a route layout, read the CSS variable from a DOM node
+  (`posterFontsFrom`), and `document.fonts.load()` it before drawing. The root layout's
+  Poppins stops at 700 — weight 800 needed its own load.
+- **Canvas shadows ignore the transform.** `shadowBlur`/`shadowOffsetY` are device
+  pixels even under `ctx.scale()`; multiply by the scale yourself.
+- **Draw the QR outside the scale transform**, on whole-pixel positions with smoothing
+  off, generated at exactly its printed size — otherwise it is resampled and blurs.
+- **Quiet zone is 4 modules, not a fixed padding.** A bigger QR card needs a bigger
+  pad: pad ≥ (4·size − 8·border) / 41 for a 33-module code.
+
