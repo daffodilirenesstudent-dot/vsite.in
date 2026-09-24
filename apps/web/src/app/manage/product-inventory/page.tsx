@@ -4,6 +4,8 @@ import { Spinner } from '@/components/loading';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/platform/db/supabase';
+import { uploadMenuImage } from '@/lib/menu/menuImages';
+import { makeMenuThumbnail } from '@/lib/menu/imageCompress';
 import { useSite } from '@/components/SiteContext';
 import { useNotifications } from '@/components/NotificationContext';
 import BulkImportModal from '@/components/manage/BulkImportModal';
@@ -516,9 +518,13 @@ export default function ProductInventoryPage() {
         } else if (form.imageFile) {
             const ext  = form.imageFile.name.split('.').pop() ?? 'jpg';
             const path = `${siteId ?? 'unknown'}/${Date.now()}.${ext}`;
-            const { error: uploadError } = await supabase.storage
-                .from('product-images')
-                .upload(path, form.imageFile, { upsert: true, contentType: form.imageFile.type });
+            const { error: uploadError } = await uploadMenuImage({
+                bucket: supabase.storage.from('product-images'),
+                path,
+                file: form.imageFile,
+                options: { upsert: true, contentType: form.imageFile.type },
+                makeThumb: makeMenuThumbnail,
+            });
             if (uploadError) {
                 toast.error('Image upload failed — product saved without image');
                 setSaving(false);

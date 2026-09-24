@@ -5,6 +5,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/platform/db/supabase';
 import { compressImage } from '@/utils/compressImage';
+import { uploadMenuImage } from '@/lib/menu/menuImages';
+import { makeMenuThumbnail } from '@/lib/menu/imageCompress';
 import { useSite } from '@/components/SiteContext';
 
 interface Banner {
@@ -145,7 +147,12 @@ export default function BannerManagementPage() {
             const compressed = await compressImage(file, { maxWidth: 1200, quality: 0.85 });
             const ext = compressed.name.split('.').pop() ?? 'jpg';
             const filePath = `${siteSlug}/banners/banner-${Date.now()}.${ext}`;
-            const { error } = await supabase.storage.from('product-images').upload(filePath, compressed);
+            const { error } = await uploadMenuImage({
+                bucket: supabase.storage.from('product-images'),
+                path: filePath,
+                file: compressed,
+                makeThumb: makeMenuThumbnail,
+            });
             if (error) throw error;
             const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
             return publicUrl;

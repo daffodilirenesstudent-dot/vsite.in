@@ -5,6 +5,7 @@ import { T, TV } from './menuTokens';
 import { staggerDelayMs } from '@/lib/menu/menuMotion';
 import { resolveBadge } from '@/lib/menu/badges';
 import { resolveOffer } from '@/lib/menu/offer';
+import { menuThumbSrc, fallBackToOriginal } from '@/lib/menu/menuImages';
 
 /**
  * One dish, in a list.
@@ -208,8 +209,9 @@ function Thumb({ src, alt, soldOut, priority }: {
             {!loaded && <span className="qr-skel" style={{ position: 'absolute', inset: 0 }} />}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+                key={src}
                 ref={imgRef}
-                src={src}
+                src={menuThumbSrc(src)}
                 alt={alt}
                 width={THUMB}
                 height={THUMB}
@@ -217,7 +219,7 @@ function Thumb({ src, alt, soldOut, priority }: {
                 fetchPriority={priority ? 'high' : 'auto'}
                 decoding="async"
                 onLoad={() => setLoaded(true)}
-                onError={() => setLoaded(true)}
+                onError={e => { if (!fallBackToOriginal(e.currentTarget, src)) setLoaded(true); }}
                 className="qr-thumb-img"
                 data-loaded={loaded ? 'true' : 'false'}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...mediaStyle }}

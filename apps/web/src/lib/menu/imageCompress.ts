@@ -7,6 +7,8 @@
 // quality typically yields 200–500KB per photo with no visible loss for menu
 // scanning.
 
+import { THUMB_EDGE_PX, THUMB_QUALITY } from '@/lib/menu/menuImages';
+
 const MAX_DIMENSION = 1600;     // px on the long edge
 const JPEG_QUALITY = 0.82;
 const SIZE_THRESHOLD = 800_000; // 800KB — files smaller than this skip compression
@@ -71,4 +73,36 @@ function scaleToFit(w: number, h: number, max: number): { width: number; height:
     if (w <= max && h <= max) return { width: w, height: h };
     const ratio = w > h ? max / w : max / h;
     return { width: Math.round(w * ratio), height: Math.round(h * ratio) };
+}
+
+/**
+ * The small copy a menu shows at 120 px. Every spot that uses it is a square
+ * `object-fit: cover`, so the thumbnail is that same centre square — the diner
+ * sees an identical picture — at up to THUMB_EDGE_PX; never upscales. Returns
+ * null when the browser cannot decode or encode it; the menu then uses the
+ * original.
+ */
+export async function makeMenuThumbnail(file: Blob): Promise<Blob | null> {
+    if (typeof window === 'undefined') return null;
+    const url = URL.createObjectURL(file);
+    try {
+        const img = await loadImage(url);
+        const side = Math.min(img.width, img.height);
+        if (!side) return null;
+        const edge = Math.min(THUMB_EDGE_PX, side);
+        const canvas = document.createElement('canvas');
+        canvas.width = edge;
+        canvas.height = edge;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, edge, edge);
+        return await new Promise<Blob | null>(resolve => {
+            canvas.toBlob(resolve, 'image/jpeg', THUMB_QUALITY);
+        });
+    } catch {
+        return null;
+    } finally {
+        URL.revokeObjectURL(url);
+    }
 }

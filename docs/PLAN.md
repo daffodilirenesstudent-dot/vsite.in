@@ -1,64 +1,43 @@
-# PLAN — Resilient menu extraction  (status: DONE 2026-09-19)
+# PLAN — Menu image thumbnails + long cache  (status: DONE 2026-09-24 — rollout pending)
 
-Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/resilient-extraction.test.ts`.
-Load proof: `apps/web/tests/load/onboardingExtract.load.test.ts` (vitest `*.test.ts`,
-fake OpenAI with a real token-per-minute limiter, time-scaled 1/20).
+Goal: cut Supabase egress per menu open without lowering image quality, so the
+free tier can carry 20–50 seven-day trials a month.
+Acceptance: `apps/web/tests/acceptance/menu-image-thumbnails.test.ts`.
 
-No schema, storage or dependency change: everything below runs in-process on
-the existing single instance.
+Measured on production (2026-09-24): 60 shops, ~36 photos per menu at 186 KB
+average, owner uploads average 466 KB. The list card is 120 px but downloads
+the full file. Lazy loading already exists (MenuItemCard `Thumb`), so fix 1 is
+done; this plan covers fix 2 (thumbnails) and fix 4 (long cache).
+
+Rules: the original is never re-encoded, overwritten or deleted. No schema
+change, no migration, no new dependency. Flag `NEXT_PUBLIC_MENU_IMAGE_THUMBS`
+defaults OFF, and OFF means exactly today's behaviour.
 
 ## Tasks
 
-1. **`apps/web/src/lib/platform/boundedBody.ts`** — `boundBody(request, max)`
-   wraps the body in a counting stream that errors past `max`, so
-   `request.formData()` aborts early instead of buffering everything. (AC1)
+1. **`apps/web/src/lib/menu/menuImages.ts`** (client-safe, pure) — flag,
+   `IMAGE_CACHE_SECONDS`, `THUMB_EDGE_PX` (360 = 120 px × 3 DPR),
+   `THUMB_QUALITY`, `thumbUrlFor(url)` (`<name>.thumb.jpg` beside the original,
+   only for `product-images` / `default-images` public URLs),
+   `menuThumbSrc(url)`, `fallBackToOriginal(img, url)`,
+   `uploadMenuImage({ bucket, path, file, options, enabled, makeThumb })`.
+2. **`apps/web/src/lib/menu/imageCompress.ts`** — `makeMenuThumbnail(blob)`:
+   browser canvas, short edge → 360 px, JPEG 0.85. Never upscales.
+3. **Upload sites** → `uploadMenuImage`: `app/manage/product-inventory/page.tsx`,
+   `app/manage/banner-management/page.tsx`, `components/manage/ShopCard.tsx`
+   (banner + product photo). Filenames stay as today (already unique, so a
+   one-year cache cannot show a stale photo).
+4. **Rendering** — `components/templates/MenuItemCard.tsx` `Thumb` and the
+   54 px detail-sheet header in `components/templates/QRMenuTemplate.tsx` use
+   `menuThumbSrc` with `fallBackToOriginal` on error. Dish hero and banners
+   keep the original.
+5. **`apps/web/scripts/backfill-menu-thumbs.mjs`** — lists `product-images`
+   and `default-images`, creates the missing `.thumb.jpg` with
+   `@napi-rs/canvas` (already installed via `pdfjs-dist`; no new dependency).
+   Dry run by default; `--apply` writes. Never deletes, never upserts.
 
-2. **`apps/web/src/lib/platform/uploadAdmission.ts`** — process-wide byte budget
-   (`EXTRACT_MEMORY_BUDGET_MB`, default 200MB ÷ measured 7× amplification),
-   FIFO wait with a short deadline, one active scan per user. Admission happens
-   before the body is read. (AC2, AC3)
-
-3. **`apps/web/src/lib/menu/openaiScheduler.ts`** — per-model sliding-window
-   token and request budget; learns limits from `x-ratelimit-*` headers,
-   honours `retry-after(-ms)`, deadline-bounded waits, circuit breaker on
-   consecutive 5xx/timeouts. Env overrides `OPENAI_TPM_<MODEL>`,
-   `OPENAI_RPM_<MODEL>`, `OPENAI_RATE_WINDOW_MS`. (AC8)
-
-4. **`apps/web/src/lib/menu/aiSpendGuard.ts`** — daily USD spend from
-   `completion.usage` against `EXTRACTION_DAILY_BUDGET_USD`. In-process (resets
-   on restart); the durable version needs a migration. (AC10)
-
-5. **`apps/web/src/lib/platform/storeEligibility.ts`** — the store-limit check
-   moved verbatim out of `onboarding/complete`, so extract can refuse before
-   spending. `/complete` calls the same function; behaviour unchanged. (AC11)
-
-6. **`apps/web/src/lib/menu/menuExtractor.ts`** — `extractMenuPages()`: one call
-   per photo, `max_tokens` 2,500; ladder: 429/5xx → retry same model → gpt-4o-mini;
-   `finish_reason: length` → 8,000-token retry → salvage complete tuples.
-   Client `timeout` 45s, `maxRetries: 0`. Every call goes through the scheduler
-   and records spend. Dedup keeps same-name items in different non-empty
-   sections. `extractMenuItemsFromImages` remains as a wrapper, so bulk-import
-   is unchanged in shape. (AC4–AC7, AC9)
-
-7. **`apps/web/src/app/api/onboarding/extract/route.ts`** — order: auth → spend
-   guard → declared-length gate → eligibility → admission → rate limit →
-   bounded `formData()` → per-page extraction under a 50s deadline. Every error
-   carries a `code`. OCR fallback removed (replaced by the per-page ladder).
-   `MAX_BODY_BYTES` 30MB → 12MB. (AC1–AC4, AC10, AC11)
-
-8. **`apps/web/src/app/api/bulk-import/extract/route.ts`** — shares the same
-   admission budget and bounded body (same process, same RAM).
-
-9. **`apps/web/src/app/onboarding/scanMessages.ts` + `page.tsx`** — bilingual
-   messages per code; BUSY/SCAN_IN_PROGRESS auto-retry with Retry-After and a
-   queue message; partial-scan notice; "skip, add items manually"; desktop
-   drag-drop with a window-level dragover guard; touch-visible remove button;
-   HEIC hint. (AC12)
-
-11. **`apps/web/src/lib/menu/pdfPages.ts`** + `scripts/copy-pdf-worker.mjs` —
-    PDF → JPEG pages in the browser (≤15, shared slots); worker copied to
-    `public/pdfjs/` at prebuild. (AC14) Acceptance: `tests/acceptance/pdf-upload.test.ts`.
-
-10. **`apps/web/tests/load/onboardingExtract.load.test.ts`** — 50 simultaneous
-    onboardings; asserts completion, zero item loss, admitted bytes ≤ budget;
-    prints metrics used for the before/after comparison. (AC13)
+## Rollout (owner)
+1. Merge with the flag OFF: nothing changes.
+2. Run `node scripts/backfill-menu-thumbs.mjs` (dry run), then `--apply`.
+3. Set `NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` in DigitalOcean (build-time var;
+   needs a redeploy). Rollback = unset it and redeploy.

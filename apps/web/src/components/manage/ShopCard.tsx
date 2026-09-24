@@ -8,6 +8,8 @@ import Image from 'next/image';
 import EditModal from '@/components/EditModal';
 import toast from 'react-hot-toast';
 import { compressImage } from '@/utils/compressImage';
+import { uploadMenuImage } from '@/lib/menu/menuImages';
+import { makeMenuThumbnail } from '@/lib/menu/imageCompress';
 import { ProductsList } from './ProductsList';
 import { SiteInfo } from './SiteInfo';
 import { usePlan } from '@/components/PlanContext';
@@ -153,9 +155,12 @@ export function ShopCard({ shop, subscription, siteType, isExpanded, onToggleExp
             const fileName = `banner-${shop.id}-${Date.now()}.${fileExt}`;
             const filePath = `${shop.slug}/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('product-images')
-                .upload(filePath, compressed);
+            const { error: uploadError } = await uploadMenuImage({
+                bucket: supabase.storage.from('product-images'),
+                path: filePath,
+                file: compressed,
+                makeThumb: makeMenuThumbnail,
+            });
 
             if (uploadError) throw uploadError;
 
@@ -275,9 +280,12 @@ export function ShopCard({ shop, subscription, siteType, isExpanded, onToggleExp
             const fileName = `prod-${Math.random()}.${fileExt}`;
             const filePath = `${shop.slug}/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('product-images')
-                .upload(filePath, file);
+            const { error: uploadError } = await uploadMenuImage({
+                bucket: supabase.storage.from('product-images'),
+                path: filePath,
+                file,
+                makeThumb: makeMenuThumbnail,
+            });
 
             if (uploadError) throw uploadError;
 

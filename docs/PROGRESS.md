@@ -2,6 +2,39 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-24 — Feature: menu image thumbnails + long cache (Supabase egress)
+status: DONE — acceptance green (tests/acceptance/menu-image-thumbnails.test.ts, 24/24). Rollout pending the owner.
+
+**Problem (measured on production).** 60 shops; a menu has ~36 photos at 186 KB
+average (owner uploads 466 KB — the inventory page uploads the camera file
+uncompressed). The list card is 120 px but downloaded the full file: 6.5 MB for
+a fully scrolled menu against 5 GB/month free egress. Uploads used Supabase's
+default `max-age=3600`, so a diner returning next day re-downloaded all of it.
+Lazy loading already existed in `MenuItemCard`.
+
+**Design (no schema, migration or dependency change).**
+- `menuImages.ts` — `<name>.thumb.jpg` beside the original; `menuThumbSrc`,
+  `fallBackToOriginal`, `uploadMenuImage`. Flag `NEXT_PUBLIC_MENU_IMAGE_THUMBS`
+  (OFF unless "true"); OFF = the exact single upload call of today.
+- Thumbnail = the centre square that `object-fit: cover` shows, 360 px (120 px
+  × 3 DPR), JPEG 0.85. Real library image: 145 KB → 35 KB, identical on screen.
+- Originals never re-encoded: the same File object is uploaded.
+- Every upload filename is already unique, so a one-year cache is safe.
+- List card + 54 px detail header use the thumbnail; hero and banners keep the original.
+- `scripts/backfill-menu-thumbs.mjs` — dry run by default, `--apply` adds
+  missing thumbnails only (upsert false, no deletes). Uses `@napi-rs/canvas`,
+  already installed via `pdfjs-dist` — no package.json change.
+
+**Not done / known.** Existing originals keep their 1-hour cache (changing it
+means re-uploading the original, which this feature never does). Full suite:
+the four `tests/unit/claude-hooks/*` files fail because `.claude/hooks/*.mjs`
+are missing from this checkout (pre-existing); `aiCostAbuse` flaked once under
+full-suite load and passes alone.
+
+**Rollout.** Merge (flag OFF) → backfill dry run → `--apply` → set
+`NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` in DigitalOcean (build-time; redeploy).
+Rollback: unset and redeploy.
+
 ### 2026-09-19 — Feature: resilient menu extraction + PDF upload
 status: DONE — all acceptance criteria green (docs/GOAL.md AC1–AC14)
 
