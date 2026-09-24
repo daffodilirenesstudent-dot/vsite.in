@@ -1,28 +1,28 @@
 # Current Goal
 
-Feature: **QR print kit** (`qr-print-kit`) — first pass of the QR page UX work.
-For a menu-only store the QR page becomes: see the poster, pick where it goes,
-download a real print-ready PDF, share the menu link. The poster and its main
-action are above the fold on a laptop and never hidden behind the phone nav.
+Feature: **Food posters** (`food-posters`) — pass 2 of the QR page work. The QR
+poster shows food, so a diner knows at a glance it opens the menu, not a UPI
+payment. Two designs for restaurants (Feast ring, Table edge) and two for cafés
+(Floating, Counter), approved by the owner on 2026-09-25 from the design canvas
+https://claude.ai/artifact/DXtymTvPcXZHveidT7aspQ ("I love it").
 
-Approved by the owner in chat, 2026-09-24 ("first pass and fixes": ideas 6, 1,
-3 + the PDF fix). Flag: `NEXT_PUBLIC_QR_PRINT_KIT`, default OFF. Ordering plans
-keep the current page.
+Headline: "Scan and see menu". English only — no Tamil on posters (owner, 2026-09-25).
+Flag: `NEXT_PUBLIC_FOOD_POSTERS`, default OFF; lives inside the print kit
+(`NEXT_PUBLIC_QR_PRINT_KIT`). No schema change: the design choice is remembered per
+device; the family is preselected from the existing `sites.business_type`.
 
-Previous goal (Smart Add Product) is built on `feat/smart-add-product`.
+Previous goals: QR print kit (`feat/qr-print-kit`), Smart Add Product (`feat/smart-add-product`).
 
 Token per Ralph loop: 3 iterations
 
-## Acceptance criteria (each maps to a test in `apps/web/tests/acceptance/qr-print-kit.test.ts`)
+## Acceptance criteria (each maps to a test in `apps/web/tests/acceptance/food-posters.test.ts`)
 
-- [x] **AC1**: the flag is OFF unless `NEXT_PUBLIC_QR_PRINT_KIT` is exactly `"true"`.
-- [x] **AC2**: three placements in plain words — table stand (A6), counter (A5), wall or door (A4).
-- [x] **AC3**: "print shop" PDF is the exact paper size plus 3 mm bleed on every side, one poster.
-- [x] **AC4**: "home printer" PDF is A4: 4 table stands, 2 counter cards or 1 wall poster per sheet, inside a 6 mm printer margin, with cut lines.
-- [x] **AC5**: "Download PDF" produces a real PDF whose page size matches the layout, one poster image per card.
-- [x] **AC6**: each placement says how far away it scans from (10:1 rule with a 20 % margin).
-- [x] **AC7**: the menu link can be copied, sent on WhatsApp and opened; there is a Google Maps how-to and a WhatsApp Status image.
-- [x] **AC8**: flag ON + menu-only store renders the print kit; otherwise the current page renders.
-- [x] **AC9**: no button says PDF unless it makes one (fixes today's "Download PDF" that saves a PNG, flag or not).
-- [x] **AC10**: a failed download says so and never leaves every button stuck disabled (flag or not).
-- [x] **AC11**: on a phone the download action stays visible above the bottom navigation.
+- [ ] **AC1**: the flag is OFF unless `NEXT_PUBLIC_FOOD_POSTERS` is exactly `"true"`.
+- [ ] **AC2**: four designs — restaurant: Feast ring, Table edge; café: Floating, Counter — plus the store's current poster.
+- [ ] **AC3**: business type picks the family: restaurant and mess → restaurant; café, takeaway, tea/juice → café; unset → restaurant.
+- [ ] **AC4**: every design says "Scan and see menu", shows the store's name and "Menu by vsite", and contains no Tamil.
+- [ ] **AC5**: food never touches the QR card, and the card keeps a clear border (≥ 8 % padding) on every design.
+- [ ] **AC6**: every food image a design names exists in `public/poster-art/`.
+- [ ] **AC7**: a design fills any print card (cover-fit), so bleed and home sheets both work; a long store name shrinks to fit.
+- [ ] **AC8**: the chosen design drives the preview, the PDF and the Status image; the choice is remembered per store on the device.
+- [ ] **AC9**: with the flag off, the print kit shows today's poster only.
