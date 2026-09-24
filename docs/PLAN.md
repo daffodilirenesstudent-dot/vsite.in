@@ -1,3 +1,33 @@
+# PLAN — QR print kit  (status: DONE 2026-09-25 — rollout pending the owner)
+
+Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/qr-print-kit.test.ts`.
+New layout behind `NEXT_PUBLIC_QR_PRINT_KIT` (build-time, OFF unless `"true"`), menu-only stores
+only. Two honesty fixes ship unflagged: the PNG button stops calling itself a PDF, and failed
+downloads say so instead of leaving every button disabled. No schema, route or dependency change
+(`jspdf` is already a dependency, used by `PosterGenerator.tsx`).
+
+## Tasks (paths under `apps/web/`)
+
+1. **Rules** — `src/lib/qr/printKit.ts`: flag, placements (A6/A5/A4), `printLayout` (shop: +3 mm
+   bleed; home: A4 sheets inside a 6 mm margin with cut lines), `scanDistanceCm` (10:1, −20 %),
+   `formatDistance`, `qrWidthMm`, `mmToPx`, `pdfFileName`, `menuLinkDisplay`, `whatsappShareUrl`.
+   (AC1–AC4, AC6, AC7)
+2. **PDF** — `src/lib/qr/printPdf.ts`: `buildPrintPdf(layout, cardPng)` with jsPDF. (AC5)
+3. **Shared QR + poster rendering** — `src/lib/qr/styledQr.ts` (moved from the page:
+   `qrOptions`, `loadQRLib`, `getStyledQRBlob`, plus SVG) and `src/lib/qr/posterRender.ts`
+   (moved `detectWhiteBox`; `renderPosterCard` at print resolution; `renderStoryImage` 1080×1920).
+4. **Panel** — `src/components/manage/MenuQrPanel.tsx`: preview (test-scan hint), print kit
+   (placement radios, home/shop switch, distance, Download PDF, QR PNG/SVG), share (copy,
+   WhatsApp, open, Google Maps how-to, Status image), sticker card slot; sticky action on
+   phones above the 60 px nav. (AC7, AC8, AC9–AC11)
+5. **Page** — `src/app/manage/qr/page.tsx`: import the moved helpers; `QR_PRINT_KIT && qrMenuOnly`
+   renders the panel; legacy downloads get try/finally + toast; the PNG button is labelled as a
+   poster image. (AC8–AC10)
+6. **Exit check** — `npx vitest run`, `npx tsc --noEmit`, `npm run lint`; production build with the
+   flag on; laptop + phone screenshots; open the PDFs.
+
+---
+
 # PLAN — Smart Add Product  (status: DONE 2026-09-24 — rollout pending the owner)
 
 Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/smart-add-product.test.ts`.

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
 
 /**
  * QR print kit — first pass of the QR page UX work (owner-approved 2026-09-24).
@@ -33,6 +34,32 @@ const PANEL = 'components/manage/MenuQrPanel.tsx';
 const MM_TO_PT = 72 / 25.4;
 /** 1×1 PNG: enough for jsPDF to embed and count. */
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
+
+/** A real w×h RGB PNG of one colour, as a data URL (no image library needed). */
+function solidPng(w: number, h: number): string {
+    const crcTable = Array.from({ length: 256 }, (_, n) => {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        return c >>> 0;
+    });
+    const crc = (b: Buffer) => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+    const chunk = (type: string, data: Buffer) => {
+        const t = Buffer.from(type, 'ascii');
+        const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+        const sum = Buffer.alloc(4); sum.writeUInt32BE(crc(Buffer.concat([t, data])));
+        return Buffer.concat([len, t, data, sum]);
+    };
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
+    ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB
+    const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(w * 3, 0x51)]);
+    const idat = deflateSync(Buffer.concat(Array.from({ length: h }, () => row)));
+    const png = Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', Buffer.alloc(0)),
+    ]);
+    return `data:image/png;base64,${png.toString('base64')}`;
+}
 
 afterEach(() => {
     vi.unstubAllEnvs();
@@ -188,6 +215,20 @@ describe('AC5: "Download PDF" makes a PDF', () => {
         expect(pdf.draws).toBe(4);
     });
 
+    /**
+     * Measured in the browser, 2026-09-25: storing the poster uncompressed made
+     * the A4 print-shop file 26.7 MB — too big to WhatsApp to a print shop.
+     * Lossless compression brings the real artwork to ~1.7 MB with every QR
+     * edge intact.
+     */
+    it('stores the poster compressed, so the file can be sent on WhatsApp', async () => {
+        const { printLayout } = await kit();
+        const { buildPrintPdf } = await import('@/lib/qr/printPdf');
+        const w = 600, h = 800;
+        const pdf = await buildPrintPdf(printLayout('table', 'shop'), solidPng(w, h));
+        expect(pdf.byteLength).toBeLessThan((w * h * 3) / 10);
+    });
+
     it('names the file after the store, the paper and the method', async () => {
         const { pdfFileName } = await kit();
         expect(pdfFileName('cream-story', 'table', 'home')).toBe('cream-story-qr-a6-home-printer.pdf');
@@ -216,7 +257,9 @@ describe('AC6: says how far away it scans from', () => {
 
     it('measures the QR on the printed card, not on the screen', async () => {
         const { printLayout, qrWidthMm } = await kit();
-        expect(qrWidthMm(printLayout('table', 'shop'), 0.6)).toBeCloseTo(63, 5);
+        // The artwork covers the bleed too, so the QR grows with it: 0.6 × 111.
+        expect(qrWidthMm(printLayout('table', 'shop'), 0.6)).toBeCloseTo(66.6, 5);
+        // Home sheets are shrunk to fit the printer margin.
         expect(qrWidthMm(printLayout('table', 'home'), 0.6)).toBeLessThan(63);
     });
 });
@@ -308,9 +351,40 @@ describe('AC10: a failed download says so and frees the buttons', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('AC11: the download action is never under the phone nav', () => {
-    it('sticks above the 60 px bottom nav and the safe area on narrow screens', () => {
+    /**
+     * Measured on a 390×844 phone, 2026-09-25: a sticky element stops at its
+     * scroller's PADDING edge, and <main> already pads 80 px (pb-20) for the
+     * 60 px nav. An offset of 60 px + safe area on top of that floated the bar
+     * 89 px above the nav. The rule is the sum: layout padding + bar offset
+     * must clear the nav plus an 8 px gap — with and without an iPhone safe area.
+     */
+    it('clears the 60 px bottom nav by the layout padding plus the bar offset', () => {
         const panel = read(PANEL);
         expect(panel).toMatch(/position:\s*sticky/);
-        expect(panel).toMatch(/bottom:\s*calc\(60px \+ env\(safe-area-inset-bottom\)/);
+        const layoutPad = Number(read('components/ManageLayoutClient.tsx').match(/overflow-y-auto pb-(\d+)/)?.[1]) * 4;
+        const m = panel.match(/\.qrk-bar \{ bottom: max\((\d+)px, calc\(env\(safe-area-inset-bottom\) - (\d+)px\)\); \}/);
+        expect(m, 'bar offset rule').not.toBeNull();
+        const [offset, lessThanSafe] = [Number(m?.[1]), Number(m?.[2])];
+        const NAV = 60, GAP = 8;
+        expect(layoutPad + offset).toBeGreaterThanOrEqual(NAV + GAP);
+        // With a safe area s: bar bottom = layoutPad + s - lessThanSafe, nav top = NAV + s.
+        expect(layoutPad - lessThanSafe).toBeGreaterThanOrEqual(NAV + GAP);
+        // …and not floating far above it either.
+        expect(layoutPad + offset).toBeLessThanOrEqual(NAV + GAP + 24);
+    });
+
+    /**
+     * Measured on a 390×844 phone, 2026-09-25: a sticky button inside the
+     * Print card cannot rise above that card, and the card starts below the
+     * poster — so on arrival the button sat at 801 px, under the nav at 785 px.
+     * The sticky bar must hang off the whole panel, not a card.
+     */
+    it('the phone bar is a child of the panel root, not of a card', () => {
+        const panel = shipped(PANEL);
+        const root = panel.indexOf('className="qrk-root"');
+        const bar = panel.indexOf('className="qrk-bar"');
+        const gridEnd = panel.lastIndexOf('{stickerCard}');
+        expect(root).toBeGreaterThan(-1);
+        expect(bar).toBeGreaterThan(gridEnd);
     });
 });

@@ -778,3 +778,20 @@ https production. In Playwright, route `https://localhost:3000/**` back to http.
   running** and holding :3000 (next start fails with EADDRINUSE). Find it with
   `netstat -ano | grep :3000`, confirm the command line, `taskkill //PID <pid> //T //F`.
 
+## QR print kit (2026-09-25)
+
+- **A sticky element cannot rise above its own parent.** A `position: sticky;
+  bottom` button inside a card that starts below the fold stays below the fold.
+  Hang the sticky bar off a container that spans the page (`.qrk-root`).
+- **Sticky stops at the scroller's padding edge.** `<main>` (ManageLayoutClient)
+  pads 80 px (`pb-20`) for the 60 px MobileNav, so a sticky bar needs only a small
+  offset below 768 px; adding the nav height again floats it ~90 px too high.
+- **App icons are clipped to 1em, so in a squeezed flex row they shrink to a
+  sliver.** Give icons `flex-shrink: 0` wherever a label cannot wrap.
+- **jsPDF `addImage(..., 'NONE')` stores raw pixels.** A 300 dpi A4 poster was
+  26.7 MB. Use `'FAST'` (lossless Flate): ~1.7 MB.
+- **Stream compression hides what a test can read.** jsPDF `compress: true`
+  deflates page content, so `/I0 Do` draws are invisible to a text scan.
+- **Don't `navigator.clipboard.readText()` from a devtools script** — it waits
+  on a permission prompt and times out. Wrap `writeText` to see what was copied.
+

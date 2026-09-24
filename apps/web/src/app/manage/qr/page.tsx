@@ -3,12 +3,11 @@ import { Spinner as VsSpinner } from '@/components/loading';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type QRCodeStylingClass from 'qr-code-styling';
-import type { Options as QROptions } from 'qr-code-styling';
-
-async function loadQRLib(): Promise<typeof QRCodeStylingClass> {
-  const mod = await import('qr-code-styling');
-  return mod.default;
-}
+import toast from 'react-hot-toast';
+import { loadQRLib, qrOptions, getStyledQRBlob, downloadBlob } from '@/lib/qr/styledQr';
+import { blobToImage, loadImage, detectWhiteBox } from '@/lib/qr/posterRender';
+import { QR_PRINT_KIT } from '@/lib/qr/printKit';
+import MenuQrPanel from '@/components/manage/MenuQrPanel';
 import { useSite } from '@/components/SiteContext';
 import { usePlan } from '@/components/PlanContext';
 import { firebaseAuth } from '@/lib/auth/firebase';
@@ -26,21 +25,6 @@ const A = {
   muted:     '#71717A',
   faint:     '#99A1AF',
 };
-
-function qrOptions(data: string, size: number, imageUrl?: string): QROptions {
-  return {
-    width: size, height: size, type: 'canvas', data,
-    qrOptions: { errorCorrectionLevel: 'H' },
-    dotsOptions: { color: '#000000', type: 'extra-rounded' },
-    cornersSquareOptions: { color: '#000000', type: 'extra-rounded' },
-    cornersDotOptions: { color: '#000000', type: 'dot' },
-    backgroundOptions: { color: '#ffffff' },
-    ...(imageUrl ? {
-      image: imageUrl,
-      imageOptions: { margin: 6, imageSize: 0.28, crossOrigin: 'anonymous', saveAsBlob: true },
-    } : {}),
-  };
-}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function StyledQR({ data, size, imageDataUrl }: { data: string; size: number; imageDataUrl?: string }) {
@@ -60,15 +44,6 @@ function StyledQR({ data, size, imageDataUrl }: { data: string; size: number; im
     return () => { cancelled = true; };
   }, [data, size, imageDataUrl]);
   return <div ref={containerRef} style={{ lineHeight: 0 }} />;
-}
-
-async function getStyledQRBlob(data: string, imageDataUrl?: string, size = 1000): Promise<Blob | null> {
-  const QRCodeStyling = await loadQRLib();
-  const qr = new QRCodeStyling(qrOptions(data, size, imageDataUrl));
-  const raw = await qr.getRawData('png');
-  if (!raw) return null;
-  if (typeof Blob !== 'undefined' && raw instanceof Blob) return raw;
-  return null;
 }
 
 // Returns a blob: URL (not data:) so qr-code-styling can fetch() it without
@@ -94,50 +69,6 @@ function makeTableBadgeBlobUrl(n: number, size: number): Promise<string> {
       resolve(blob ? URL.createObjectURL(blob) : '');
     }, 'image/png');
   });
-}
-
-function downloadBlob(blob: Blob, name: string) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
-}
-
-function blobToImage(blob: Blob): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(blob);
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
-async function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-function detectWhiteBox(template: HTMLImageElement): { x: number; y: number; w: number; h: number } {
-  const W = template.naturalWidth, H = template.naturalHeight;
-  const sc = Math.min(1, 400 / W);
-  const sw = Math.round(W * sc), sh = Math.round(H * sc);
-  const tmp = document.createElement('canvas'); tmp.width = sw; tmp.height = sh;
-  const ctx = tmp.getContext('2d')!;
-  ctx.drawImage(template, 0, 0, sw, sh);
-  const d = ctx.getImageData(0, 0, sw, sh).data;
-  const isWhite = (x: number, y: number) => { const i = (y * sw + x) * 4; return d[i] > 220 && d[i + 1] > 220 && d[i + 2] > 220 && d[i + 3] > 200; };
-  const sy = Math.round(sh * 0.55);
-  let L = -1, R = -1;
-  for (let x = 0; x < sw; x++) if (isWhite(x, sy)) { if (L < 0) L = x; R = x; }
-  const sx = L > 0 ? Math.round((L + R) / 2) : Math.round(sw / 2);
-  const minY = Math.round(sh * 0.30);
-  let T = -1, B = -1;
-  for (let y = minY; y < sh; y++) if (isWhite(sx, y)) { if (T < 0) T = y; B = y; }
-  if (L < 0 || T < 0) return { x: W * 0.127, y: H * 0.385, w: W * 0.746, h: H * 0.494 };
-  return { x: Math.round(L / sc), y: Math.round(T / sc), w: Math.round((R - L) / sc), h: Math.round((B - T) / sc) };
 }
 
 async function brandPosterBlob(qrData: string, imageDataUrl?: string, templatePath = '/brand poster template.png'): Promise<Blob | null> {
@@ -513,54 +444,82 @@ export default function QRPage() {
   // ── Download handlers ─────────────────────────────────────────────────────
   const dlCommonPoster = useCallback(async () => {
     setDownloading('poster');
-    const blob = await makePoster(baseUrl);
-    if (blob) downloadBlob(blob, `${slug}-qr-poster.png`);
-    setDownloading(null);
+    try {
+      const blob = await makePoster(baseUrl);
+      if (!blob) throw new Error('empty');
+      downloadBlob(blob, `${slug}-qr-poster.png`);
+    } catch {
+      toast.error('Could not make the poster. Please try again.');
+    } finally { setDownloading(null); }
   }, [baseUrl, slug, makePoster]);
 
   const dlCommonQR = useCallback(async () => {
     setDownloading('qr');
-    const blob = await getStyledQRBlob(baseUrl, undefined, 1000);
-    if (blob) downloadBlob(blob, `${slug}-qr.png`);
-    setDownloading(null);
+    try {
+      const blob = await getStyledQRBlob(baseUrl, undefined, 1000);
+      if (!blob) throw new Error('empty');
+      downloadBlob(blob, `${slug}-qr.png`);
+    } catch {
+      toast.error('Could not make the QR code. Please try again.');
+    } finally { setDownloading(null); }
   }, [baseUrl, slug]);
 
   const dlTablePoster = useCallback(async (n: number) => {
     setDownloading(`poster-${n}`);
-    const url = tableUrl(n);
-    const blob = await makePoster(url, tableBadges[n]);
-    if (blob) downloadBlob(blob, `${slug}-table-${n}-poster.png`);
-    setDownloading(null);
+    try {
+      const url = tableUrl(n);
+      const blob = await makePoster(url, tableBadges[n]);
+      if (!blob) throw new Error('empty');
+      downloadBlob(blob, `${slug}-table-${n}-poster.png`);
+    } catch {
+      toast.error('Could not make the poster. Please try again.');
+    } finally { setDownloading(null); }
   }, [baseUrl, slug, tableBadges, makePoster]);
 
   const dlTableQR = useCallback(async (n: number) => {
     setDownloading(`qr-${n}`);
-    const url = tableUrl(n);
-    const blob = await getStyledQRBlob(url, tableBadges[n], 1000);
-    if (blob) downloadBlob(blob, `${slug}-table-${n}-qr.png`);
-    setDownloading(null);
+    try {
+      const url = tableUrl(n);
+      const blob = await getStyledQRBlob(url, tableBadges[n], 1000);
+      if (!blob) throw new Error('empty');
+      downloadBlob(blob, `${slug}-table-${n}-qr.png`);
+    } catch {
+      toast.error('Could not make the QR code. Please try again.');
+    } finally { setDownloading(null); }
   }, [baseUrl, slug, tableBadges]);
 
   const dlTakeawayPoster = useCallback(async () => {
     setDownloading('takeaway-poster');
-    const blob = await makePoster(baseUrl);
-    if (blob) downloadBlob(blob, `${slug}-takeaway-poster.png`);
-    setDownloading(null);
+    try {
+      const blob = await makePoster(baseUrl);
+      if (!blob) throw new Error('empty');
+      downloadBlob(blob, `${slug}-takeaway-poster.png`);
+    } catch {
+      toast.error('Could not make the poster. Please try again.');
+    } finally { setDownloading(null); }
   }, [baseUrl, slug, makePoster]);
 
   const dlTakeawayQR = useCallback(async () => {
     setDownloading('takeaway-qr');
-    const blob = await getStyledQRBlob(baseUrl, undefined, 1000);
-    if (blob) downloadBlob(blob, `${slug}-takeaway-qr.png`);
-    setDownloading(null);
+    try {
+      const blob = await getStyledQRBlob(baseUrl, undefined, 1000);
+      if (!blob) throw new Error('empty');
+      downloadBlob(blob, `${slug}-takeaway-qr.png`);
+    } catch {
+      toast.error('Could not make the QR code. Please try again.');
+    } finally { setDownloading(null); }
   }, [baseUrl, slug]);
 
   const dlPreviewPoster = useCallback(async () => {
     if (!previewData) return;
     setDownloading('preview-poster');
-    const blob = await makePoster(previewData.data, previewData.imageDataUrl);
-    if (blob) downloadBlob(blob, `${slug}-${previewData.label.toLowerCase().replace(/\s+/g, '-')}-poster.png`);
-    setDownloading(null);
+    try {
+      const blob = await makePoster(previewData.data, previewData.imageDataUrl);
+      if (!blob) throw new Error('empty');
+      downloadBlob(blob, `${slug}-${previewData.label.toLowerCase().replace(/\s+/g, '-')}-poster.png`);
+    } catch {
+      toast.error('Could not make the poster. Please try again.');
+    } finally { setDownloading(null); }
   }, [previewData, slug, makePoster]);
 
   // ── Empty / loading state ─────────────────────────────────────────────────
@@ -577,6 +536,62 @@ export default function QRPage() {
       </div>
     );
   }
+
+  // The sticker offer, shared by the current layout and the print kit.
+  const stickerCard = (
+      <div style={{
+        border: `1px solid ${A.border}`, borderRadius: 14,
+        background: A.white, padding: '20px 24px',
+        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+      }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12, background: A.primaryBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 24, color: A.primary }}>nfc</span>
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: A.dark }}>Get NFC + QR stickers</p>
+          <p style={{ margin: 0, fontSize: 13, color: A.muted, lineHeight: 1.5 }}>
+            A peel-and-stick label with a printed QR and an NFC tag inside — tap or scan. Order directly from us at {formatPrice(QR_STICKER_PRICE_INR)} per sticker.
+          </p>
+        </div>
+        <button
+          onClick={openCardModal}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0,
+            background: A.primary, color: '#fff', border: 'none',
+            borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>shopping_cart</span>
+          {lastOrder ? 'Order more' : 'Order stickers'}
+        </button>
+        {lastOrder && (
+          <div style={{
+            // flexBasis 100% makes this wrap onto its own line inside the
+            // card rather than squeezing in beside the button.
+            flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 12px',
+            background: '#E8F5EE', border: '1px solid #B7E2C8', borderRadius: 8,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 17, color: '#16794C', flexShrink: 0 }} aria-hidden>
+              local_shipping
+            </span>
+            <p style={{ margin: 0, fontSize: 12.5, color: '#16794C', lineHeight: 1.45 }}>
+              <strong>{lastOrder.qty} sticker{lastOrder.qty > 1 ? 's' : ''} ordered</strong>
+              {' on '}
+              {new Date(lastOrder.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {' — we\u2019ll call you to confirm and arrange payment.'}
+            </p>
+          </div>
+        )}
+      </div>
+  );
+
+  // Menu-only stores get the print kit when NEXT_PUBLIC_QR_PRINT_KIT is on;
+  // ordering plans keep this layout, which is built around their table modes.
+  const kitOn = QR_PRINT_KIT && qrMenuOnly;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -613,518 +628,482 @@ export default function QRPage() {
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 26, fontWeight: 600, color: A.dark, margin: 0 }}>QR Codes</h1>
         <p style={{ fontSize: 14, color: A.muted, margin: '4px 0 0' }}>
-          {storeName} · <span style={{ color: A.muted }}>{slugLabel}</span>
+          {kitOn
+            ? 'Print it for your tables, or share the link.'
+            : <>{storeName} · <span style={{ color: A.muted }}>{slugLabel}</span></>}
         </p>
       </div>
 
-      <div className="qr-grid">
+      {kitOn ? (
+        <MenuQrPanel
+          menuUrl={baseUrl}
+          slug={slug}
+          storeName={storeName}
+          posterTemplate={posterTemplate}
+          stickerCard={stickerCard}
+        />
+      ) : (
+        <div className="qr-grid">
 
-        {/* ══════════════ SECONDARY COLUMN: status, link, cards ══════════════ */}
-        <div className="qr-aside" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* ══════════════ SECONDARY COLUMN: status, link, cards ══════════════ */}
+          <div className="qr-aside" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* Pending switch banner */}
-          {hasPending && (
-            <div style={{
-              background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10,
-              padding: '12px 16px', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', gap: 12,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#D97706' }}>schedule</span>
-                <div>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#92400E' }}>
-                    Switching to {pendingMode === 'table' ? 'Table QR' : 'Common QR'} in {timeLeft || 'soon'}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 12, color: '#B45309' }}>
-                    Current orders continue with existing mode until switch completes
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => saveMode(pendingMode as 'common' | 'table', true)}
-                disabled={savingMode}
-                style={{
-                  background: A.primary, color: '#fff', border: 'none', borderRadius: 8,
-                  padding: '8px 18px', fontSize: 13, fontWeight: 500,
-                  cursor: savingMode ? 'not-allowed' : 'pointer', opacity: savingMode ? 0.7 : 1,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {savingMode ? 'Applying…' : 'Apply Now'}
-              </button>
-            </div>
-          )}
-
-          {/* ── Mode Status Bar ── */}
-          {loaded && (
-            <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 10,
-                    background: A.primaryBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 19, color: A.primary }}>
-                      {qrMode === 'table' ? 'table_restaurant' : 'qr_code'}
-                    </span>
-                  </div>
+            {/* Pending switch banner */}
+            {hasPending && (
+              <div style={{
+                background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10,
+                padding: '12px 16px', display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', gap: 12,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#D97706' }}>schedule</span>
                   <div>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: A.dark }}>
-                      {qrMode === 'table' ? 'Table QR Active' : 'Common QR Active'}
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#92400E' }}>
+                      Switching to {pendingMode === 'table' ? 'Table QR' : 'Common QR'} in {timeLeft || 'soon'}
                     </p>
-                    <p style={{ margin: '1px 0 0', fontSize: 12, color: A.muted }}>
-                      {qrMode === 'table'
-                        ? 'Individual QR per table + one Takeaway QR. Orders are grouped by table.'
-                        : 'One QR code for every table. Customers scan it to open your menu.'}
+                    <p style={{ margin: 0, fontSize: 12, color: '#B45309' }}>
+                      Current orders continue with existing mode until switch completes
                     </p>
-                    {isQrOrder && (
-                      <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: '#92400E' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#F97316' }}>info</span>
-                        QR Ordering (No Payment) uses table QR codes only
-                      </div>
-                    )}
-                    {isPayEat && (
-                      <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: '#3730A3' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#5137EF' }}>info</span>
-                        QR Ordering + Payment uses a single Common QR code
-                      </div>
-                    )}
                   </div>
                 </div>
-                {!hasPending && !isQrOrder && !isPayEat && !qrMenuOnly && (
-                  <button
-                    onClick={() => setShowSwitchPanel(p => !p)}
-                    style={{
-                      flexShrink: 0,
-                      border: `1.5px solid ${showSwitchPanel ? A.primary : A.border}`,
-                      background: showSwitchPanel ? A.primaryBg : A.white,
-                      color: showSwitchPanel ? A.primary : A.text,
-                      borderRadius: 8, padding: '7px 16px',
-                      fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                    }}
-                  >
-                    Switch Mode
-                  </button>
-                )}
+                <button
+                  onClick={() => saveMode(pendingMode as 'common' | 'table', true)}
+                  disabled={savingMode}
+                  style={{
+                    background: A.primary, color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '8px 18px', fontSize: 13, fontWeight: 500,
+                    cursor: savingMode ? 'not-allowed' : 'pointer', opacity: savingMode ? 0.7 : 1,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {savingMode ? 'Applying…' : 'Apply Now'}
+                </button>
               </div>
+            )}
 
-              {/* Inline switch confirmation */}
-              {showSwitchPanel && !hasPending && (
-                <div style={{ padding: '14px 20px', borderTop: `1px solid ${A.border}`, background: A.bg }}>
-                  <p style={{ margin: '0 0 12px', fontSize: 13, color: A.text }}>
-                    Switch to <strong style={{ color: A.dark }}>{targetMode === 'table' ? 'Table QR' : 'Common QR'}</strong> mode?
-                  </p>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button
-                      onClick={() => saveMode(targetMode, false)}
-                      disabled={savingMode}
-                      style={{
-                        flex: 1, padding: '9px', border: `1px solid ${A.border}`,
-                        borderRadius: 8, background: A.white,
-                        fontSize: 13, fontWeight: 500, color: A.text,
-                        cursor: savingMode ? 'not-allowed' : 'pointer', opacity: savingMode ? 0.6 : 1,
-                      }}
-                    >
-                      Schedule (active in 24h)
-                    </button>
-                    <button
-                      onClick={() => saveMode(targetMode, true)}
-                      disabled={savingMode}
-                      style={{
-                        flex: 1, padding: '9px', border: 'none',
-                        borderRadius: 8, background: A.primary,
-                        fontSize: 13, fontWeight: 500, color: '#fff',
-                        cursor: savingMode ? 'not-allowed' : 'pointer', opacity: savingMode ? 0.6 : 1,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      }}
-                    >
-                      {savingMode ? <><Spinner size={14} color="#fff" />Saving…</> : 'Apply Now'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ══ TABLE QR MODE ══ */}
-          {loaded && qrMode === 'table' && (
-            <>
-              {/* Table QR Codes section */}
+            {/* ── Mode Status Bar ── */}
+            {loaded && (
               <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
-                <div style={{
-                  padding: '14px 20px', borderBottom: `1px solid ${A.border}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Table QR Codes</p>
-                    <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>Manage codes assigned to specific dining tables.</p>
-                  </div>
-                  <button
-                    onClick={addTable}
-                    style={{
-                      flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
-                      background: A.primary, color: '#fff', border: 'none',
-                      borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
-                    Add Table
-                  </button>
-                </div>
-
-                <div>
-                  {Array.from({ length: tableCount }, (_, i) => {
-                    const n        = i + 1;
-                    const url      = tableUrl(n);
-                    const isActive = previewData?.data === url;
-                    const isLast   = n === tableCount;
-
-                    return (
-                      <div
-                        key={n}
-                        className="qr-row"
-                        onClick={() => setPreviewData({ data: url, imageDataUrl: tableBadges[n], label: `Table ${n}` })}
-                        style={{
-                          padding: '10px 20px',
-                          borderLeft: `3px solid ${isActive ? A.primary : 'transparent'}`,
-                          background: isActive ? A.primaryBg : 'transparent',
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          borderBottom: n < tableCount ? `1px solid ${A.border}` : 'none',
-                        }}
-                      >
-                        {/* Number badge */}
-                        <div style={{
-                          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                          background: isActive ? A.primary : A.bg,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#fff' : A.dark }}>{n}</span>
+                <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 38, height: 38, borderRadius: 10,
+                      background: A.primaryBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 19, color: A.primary }}>
+                        {qrMode === 'table' ? 'table_restaurant' : 'qr_code'}
+                      </span>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: A.dark }}>
+                        {qrMode === 'table' ? 'Table QR Active' : 'Common QR Active'}
+                      </p>
+                      <p style={{ margin: '1px 0 0', fontSize: 12, color: A.muted }}>
+                        {qrMode === 'table'
+                          ? 'Individual QR per table + one Takeaway QR. Orders are grouped by table.'
+                          : 'One QR code for every table. Customers scan it to open your menu.'}
+                      </p>
+                      {isQrOrder && (
+                        <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: '#92400E' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#F97316' }}>info</span>
+                          QR Ordering (No Payment) uses table QR codes only
                         </div>
-
-                        <span style={{ fontSize: 14, fontWeight: 500, color: isActive ? A.primary : A.dark, flex: 1 }}>
-                          Table {n}
-                        </span>
-
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <ActionBtn
-                            label="Poster"
-                            icon="download"
-                            loading={downloading === `poster-${n}`}
-                            disabled={!!downloading}
-                            onClick={e => { e.stopPropagation(); dlTablePoster(n); }}
-                          />
-                          <ActionBtn
-                            label="QR"
-                            icon="qr_code"
-                            loading={downloading === `qr-${n}`}
-                            disabled={!!downloading}
-                            onClick={e => { e.stopPropagation(); dlTableQR(n); }}
-                          />
-                          {isLast && tableCount > 1 && (
-                            <button
-                              type="button"
-                              aria-label="Remove last table"
-                              onClick={e => { e.stopPropagation(); removeLastTable(); }}
-                              title="Remove last table"
-                              style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'transparent', border: `1px solid ${A.border}`,
-                                borderRadius: 7, padding: 0, cursor: 'pointer', color: A.muted,
-                                width: 36, height: 36, flexShrink: 0,
-                              }}
-                            >
-                              <span className="material-symbols-outlined" style={{ fontSize: 16 }} aria-hidden>delete</span>
-                            </button>
-                          )}
+                      )}
+                      {isPayEat && (
+                        <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: '#3730A3' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#5137EF' }}>info</span>
+                          QR Ordering + Payment uses a single Common QR code
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Takeaway QR Codes section */}
-              <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
-                <div style={{
-                  padding: '14px 20px', borderBottom: `1px solid ${A.border}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Takeaway QR Codes</p>
-                    <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>General codes for pickup and delivery orders.</p>
+                      )}
+                    </div>
                   </div>
-                  {!showTakeawayQR && (
+                  {!hasPending && !isQrOrder && !isPayEat && !qrMenuOnly && (
                     <button
-                      onClick={() => {
-                        setHasTakeawayQR(true);
-                        setPreviewData({ data: baseUrl, label: 'Takeaway QR' });
-                      }}
+                      onClick={() => setShowSwitchPanel(p => !p)}
                       style={{
-                        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
-                        background: A.white, color: A.primary,
-                        border: `1.5px solid ${A.primary}`,
-                        borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                        flexShrink: 0,
+                        border: `1.5px solid ${showSwitchPanel ? A.primary : A.border}`,
+                        background: showSwitchPanel ? A.primaryBg : A.white,
+                        color: showSwitchPanel ? A.primary : A.text,
+                        borderRadius: 8, padding: '7px 16px',
+                        fontSize: 13, fontWeight: 500, cursor: 'pointer',
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
-                      Add Code
+                      Switch Mode
                     </button>
                   )}
                 </div>
 
-                {!showTakeawayQR ? (
-                  <div style={{ padding: '36px 24px', textAlign: 'center' }}>
-                    <div style={{
-                      width: 48, height: 48, borderRadius: 12, background: A.bg,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
-                    }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 24, color: A.muted }}>shopping_bag</span>
+                {/* Inline switch confirmation */}
+                {showSwitchPanel && !hasPending && (
+                  <div style={{ padding: '14px 20px', borderTop: `1px solid ${A.border}`, background: A.bg }}>
+                    <p style={{ margin: '0 0 12px', fontSize: 13, color: A.text }}>
+                      Switch to <strong style={{ color: A.dark }}>{targetMode === 'table' ? 'Table QR' : 'Common QR'}</strong> mode?
+                    </p>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button
+                        onClick={() => saveMode(targetMode, false)}
+                        disabled={savingMode}
+                        style={{
+                          flex: 1, padding: '9px', border: `1px solid ${A.border}`,
+                          borderRadius: 8, background: A.white,
+                          fontSize: 13, fontWeight: 500, color: A.text,
+                          cursor: savingMode ? 'not-allowed' : 'pointer', opacity: savingMode ? 0.6 : 1,
+                        }}
+                      >
+                        Schedule (active in 24h)
+                      </button>
+                      <button
+                        onClick={() => saveMode(targetMode, true)}
+                        disabled={savingMode}
+                        style={{
+                          flex: 1, padding: '9px', border: 'none',
+                          borderRadius: 8, background: A.primary,
+                          fontSize: 13, fontWeight: 500, color: '#fff',
+                          cursor: savingMode ? 'not-allowed' : 'pointer', opacity: savingMode ? 0.6 : 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        }}
+                      >
+                        {savingMode ? <><Spinner size={14} color="#fff" />Saving…</> : 'Apply Now'}
+                      </button>
                     </div>
-                    <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 500, color: A.dark }}>No takeaway codes created yet.</p>
-                    <p style={{ margin: 0, fontSize: 13, color: A.muted }}>Create one to start accepting pickup orders.</p>
                   </div>
-                ) : (
-                  <div
-                    className="qr-row"
-                    onClick={() => setPreviewData({ data: baseUrl, label: 'Takeaway QR' })}
-                    style={{
-                      padding: '10px 20px',
-                      borderLeft: `3px solid ${previewData?.data === baseUrl && previewData?.label === 'Takeaway QR' ? A.primary : 'transparent'}`,
-                      background: previewData?.data === baseUrl && previewData?.label === 'Takeaway QR' ? A.primaryBg : 'transparent',
-                      display: 'flex', alignItems: 'center', gap: 12,
-                    }}
-                  >
-                    {(() => {
-                      const isTakeawayActive = previewData?.data === baseUrl && previewData?.label === 'Takeaway QR';
+                )}
+              </div>
+            )}
+
+            {/* ══ TABLE QR MODE ══ */}
+            {loaded && qrMode === 'table' && (
+              <>
+                {/* Table QR Codes section */}
+                <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
+                  <div style={{
+                    padding: '14px 20px', borderBottom: `1px solid ${A.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Table QR Codes</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>Manage codes assigned to specific dining tables.</p>
+                    </div>
+                    <button
+                      onClick={addTable}
+                      style={{
+                        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+                        background: A.primary, color: '#fff', border: 'none',
+                        borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                      Add Table
+                    </button>
+                  </div>
+
+                  <div>
+                    {Array.from({ length: tableCount }, (_, i) => {
+                      const n        = i + 1;
+                      const url      = tableUrl(n);
+                      const isActive = previewData?.data === url;
+                      const isLast   = n === tableCount;
+
                       return (
-                        <>
+                        <div
+                          key={n}
+                          className="qr-row"
+                          onClick={() => setPreviewData({ data: url, imageDataUrl: tableBadges[n], label: `Table ${n}` })}
+                          style={{
+                            padding: '10px 20px',
+                            borderLeft: `3px solid ${isActive ? A.primary : 'transparent'}`,
+                            background: isActive ? A.primaryBg : 'transparent',
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            borderBottom: n < tableCount ? `1px solid ${A.border}` : 'none',
+                          }}
+                        >
+                          {/* Number badge */}
                           <div style={{
                             width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                            background: isTakeawayActive ? A.primary : A.bg,
+                            background: isActive ? A.primary : A.bg,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: isTakeawayActive ? '#fff' : A.muted }}>
-                              shopping_bag
-                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#fff' : A.dark }}>{n}</span>
                           </div>
-                          <span style={{ fontSize: 14, fontWeight: 500, color: isTakeawayActive ? A.primary : A.dark, flex: 1 }}>
-                            Takeaway
+
+                          <span style={{ fontSize: 14, fontWeight: 500, color: isActive ? A.primary : A.dark, flex: 1 }}>
+                            Table {n}
                           </span>
+
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <ActionBtn
                               label="Poster"
                               icon="download"
-                              loading={downloading === 'takeaway-poster'}
+                              loading={downloading === `poster-${n}`}
                               disabled={!!downloading}
-                              onClick={e => { e.stopPropagation(); dlTakeawayPoster(); }}
+                              onClick={e => { e.stopPropagation(); dlTablePoster(n); }}
                             />
                             <ActionBtn
                               label="QR"
                               icon="qr_code"
-                              loading={downloading === 'takeaway-qr'}
+                              loading={downloading === `qr-${n}`}
                               disabled={!!downloading}
-                              onClick={e => { e.stopPropagation(); dlTakeawayQR(); }}
+                              onClick={e => { e.stopPropagation(); dlTableQR(n); }}
                             />
-                            {!isQrOrder && (
+                            {isLast && tableCount > 1 && (
                               <button
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  setHasTakeawayQR(false);
-                                  if (previewData?.label === 'Takeaway QR') {
-                                    setPreviewData(tableCount > 0
-                                      ? { data: tableUrl(1), imageDataUrl: tableBadges[1], label: 'Table 1' }
-                                      : null);
-                                  }
-                                }}
-                                title="Remove takeaway QR"
+                                type="button"
+                                aria-label="Remove last table"
+                                onClick={e => { e.stopPropagation(); removeLastTable(); }}
+                                title="Remove last table"
                                 style={{
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   background: 'transparent', border: `1px solid ${A.border}`,
-                                  borderRadius: 7, padding: '6px', cursor: 'pointer', color: A.muted,
+                                  borderRadius: 7, padding: 0, cursor: 'pointer', color: A.muted,
+                                  width: 36, height: 36, flexShrink: 0,
                                 }}
                               >
-                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                                <span className="material-symbols-outlined" style={{ fontSize: 16 }} aria-hidden>delete</span>
                               </button>
                             )}
                           </div>
-                        </>
+                        </div>
                       );
-                    })()}
+                    })}
                   </div>
-                )}
-              </div>
-            </>
-          )}
+                </div>
 
-          {/* ══ COMMON QR MODE ══ */}
-          {loaded && qrMode === 'common' && (
-            <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', borderBottom: `1px solid ${A.border}` }}>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Your QR Code</p>
-                <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>Share this or print the poster for your store</p>
-              </div>
-              {(() => {
-                const isActive = previewData?.data === baseUrl;
-                return (
-                  <div
-                    className="qr-row"
-                    onClick={() => setPreviewData({ data: baseUrl, label: 'Common QR' })}
-                    style={{
-                      padding: '12px 20px',
-                      borderLeft: `3px solid ${isActive ? A.primary : 'transparent'}`,
-                      background: isActive ? A.primaryBg : 'transparent',
-                      display: 'flex', alignItems: 'center', gap: 12,
-                    }}
-                  >
-                    <div style={{
-                      width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                      background: isActive ? A.primary : A.bg,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: isActive ? '#fff' : A.muted }}>qr_code</span>
+                {/* Takeaway QR Codes section */}
+                <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
+                  <div style={{
+                    padding: '14px 20px', borderBottom: `1px solid ${A.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Takeaway QR Codes</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>General codes for pickup and delivery orders.</p>
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 500, color: isActive ? A.primary : A.dark, flex: 1 }}>
-                      Common QR
-                    </span>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <ActionBtn
-                        label="Poster"
-                        icon="download"
-                        loading={downloading === 'poster'}
-                        disabled={!!downloading}
-                        onClick={e => { e.stopPropagation(); dlCommonPoster(); }}
-                      />
-                      <ActionBtn
-                        label="QR Code"
-                        icon="qr_code"
-                        loading={downloading === 'qr'}
-                        disabled={!!downloading}
-                        onClick={e => { e.stopPropagation(); dlCommonQR(); }}
-                      />
-                    </div>
+                    {!showTakeawayQR && (
+                      <button
+                        onClick={() => {
+                          setHasTakeawayQR(true);
+                          setPreviewData({ data: baseUrl, label: 'Takeaway QR' });
+                        }}
+                        style={{
+                          flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+                          background: A.white, color: A.primary,
+                          border: `1.5px solid ${A.primary}`,
+                          borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                        Add Code
+                      </button>
+                    )}
                   </div>
-                );
-              })()}
-            </div>
-          )}
 
-          {/* NFC Card promo */}
-          <div style={{
-            border: `1px solid ${A.border}`, borderRadius: 14,
-            background: A.white, padding: '20px 24px',
-            display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
-          }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 12, background: A.primaryBg,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24, color: A.primary }}>nfc</span>
-            </div>
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: A.dark }}>Get NFC + QR stickers</p>
-              <p style={{ margin: 0, fontSize: 13, color: A.muted, lineHeight: 1.5 }}>
-                A peel-and-stick label with a printed QR and an NFC tag inside — tap or scan. Order directly from us at {formatPrice(QR_STICKER_PRICE_INR)} per sticker.
-              </p>
-            </div>
-            <button
-              onClick={openCardModal}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0,
-                background: A.primary, color: '#fff', border: 'none',
-                borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>shopping_cart</span>
-              {lastOrder ? 'Order more' : 'Order stickers'}
-            </button>
-            {lastOrder && (
-              <div style={{
-                // flexBasis 100% makes this wrap onto its own line inside the
-                // card rather than squeezing in beside the button.
-                flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 12px',
-                background: '#E8F5EE', border: '1px solid #B7E2C8', borderRadius: 8,
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 17, color: '#16794C', flexShrink: 0 }} aria-hidden>
-                  local_shipping
-                </span>
-                <p style={{ margin: 0, fontSize: 12.5, color: '#16794C', lineHeight: 1.45 }}>
-                  <strong>{lastOrder.qty} sticker{lastOrder.qty > 1 ? 's' : ''} ordered</strong>
-                  {' on '}
-                  {new Date(lastOrder.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  {' — we\u2019ll call you to confirm and arrange payment.'}
-                </p>
+                  {!showTakeawayQR ? (
+                    <div style={{ padding: '36px 24px', textAlign: 'center' }}>
+                      <div style={{
+                        width: 48, height: 48, borderRadius: 12, background: A.bg,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
+                      }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 24, color: A.muted }}>shopping_bag</span>
+                      </div>
+                      <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 500, color: A.dark }}>No takeaway codes created yet.</p>
+                      <p style={{ margin: 0, fontSize: 13, color: A.muted }}>Create one to start accepting pickup orders.</p>
+                    </div>
+                  ) : (
+                    <div
+                      className="qr-row"
+                      onClick={() => setPreviewData({ data: baseUrl, label: 'Takeaway QR' })}
+                      style={{
+                        padding: '10px 20px',
+                        borderLeft: `3px solid ${previewData?.data === baseUrl && previewData?.label === 'Takeaway QR' ? A.primary : 'transparent'}`,
+                        background: previewData?.data === baseUrl && previewData?.label === 'Takeaway QR' ? A.primaryBg : 'transparent',
+                        display: 'flex', alignItems: 'center', gap: 12,
+                      }}
+                    >
+                      {(() => {
+                        const isTakeawayActive = previewData?.data === baseUrl && previewData?.label === 'Takeaway QR';
+                        return (
+                          <>
+                            <div style={{
+                              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                              background: isTakeawayActive ? A.primary : A.bg,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: isTakeawayActive ? '#fff' : A.muted }}>
+                                shopping_bag
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 14, fontWeight: 500, color: isTakeawayActive ? A.primary : A.dark, flex: 1 }}>
+                              Takeaway
+                            </span>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <ActionBtn
+                                label="Poster"
+                                icon="download"
+                                loading={downloading === 'takeaway-poster'}
+                                disabled={!!downloading}
+                                onClick={e => { e.stopPropagation(); dlTakeawayPoster(); }}
+                              />
+                              <ActionBtn
+                                label="QR"
+                                icon="qr_code"
+                                loading={downloading === 'takeaway-qr'}
+                                disabled={!!downloading}
+                                onClick={e => { e.stopPropagation(); dlTakeawayQR(); }}
+                              />
+                              {!isQrOrder && (
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setHasTakeawayQR(false);
+                                    if (previewData?.label === 'Takeaway QR') {
+                                      setPreviewData(tableCount > 0
+                                        ? { data: tableUrl(1), imageDataUrl: tableBadges[1], label: 'Table 1' }
+                                        : null);
+                                    }
+                                  }}
+                                  title="Remove takeaway QR"
+                                  style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: 'transparent', border: `1px solid ${A.border}`,
+                                    borderRadius: 7, padding: '6px', cursor: 'pointer', color: A.muted,
+                                  }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ══ COMMON QR MODE ══ */}
+            {loaded && qrMode === 'common' && (
+              <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 20px', borderBottom: `1px solid ${A.border}` }}>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Your QR Code</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>Share this or print the poster for your store</p>
+                </div>
+                {(() => {
+                  const isActive = previewData?.data === baseUrl;
+                  return (
+                    <div
+                      className="qr-row"
+                      onClick={() => setPreviewData({ data: baseUrl, label: 'Common QR' })}
+                      style={{
+                        padding: '12px 20px',
+                        borderLeft: `3px solid ${isActive ? A.primary : 'transparent'}`,
+                        background: isActive ? A.primaryBg : 'transparent',
+                        display: 'flex', alignItems: 'center', gap: 12,
+                      }}
+                    >
+                      <div style={{
+                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                        background: isActive ? A.primary : A.bg,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: isActive ? '#fff' : A.muted }}>qr_code</span>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: isActive ? A.primary : A.dark, flex: 1 }}>
+                        Common QR
+                      </span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <ActionBtn
+                          label="Poster"
+                          icon="download"
+                          loading={downloading === 'poster'}
+                          disabled={!!downloading}
+                          onClick={e => { e.stopPropagation(); dlCommonPoster(); }}
+                        />
+                        <ActionBtn
+                          label="QR Code"
+                          icon="qr_code"
+                          loading={downloading === 'qr'}
+                          disabled={!!downloading}
+                          onClick={e => { e.stopPropagation(); dlCommonQR(); }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
+
+            {stickerCard}
+
           </div>
 
-        </div>
+          {/* ══════════════ PRIMARY COLUMN: Poster Preview ══════════════ */}
+          <div className="qr-poster">
+            <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 20px', borderBottom: `1px solid ${A.border}` }}>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Poster Preview</p>
+                <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>Real-time view of your customer-facing material</p>
+              </div>
 
-        {/* ══════════════ PRIMARY COLUMN: Poster Preview ══════════════ */}
-        <div className="qr-poster">
-          <div style={{ border: `1px solid ${A.border}`, borderRadius: 14, background: A.white, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 20px', borderBottom: `1px solid ${A.border}` }}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: A.dark }}>Poster Preview</p>
-              <p style={{ margin: '2px 0 0', fontSize: 13, color: A.muted }}>Real-time view of your customer-facing material</p>
-            </div>
-
-            {/* Preview image */}
-            <div style={{ padding: '16px 20px' }}>
-              <div style={{
-                borderRadius: 10, border: `1px solid ${A.border}`,
-                overflow: 'hidden', background: A.bg,
-                minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {posterPreviewLoading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' }}>
-                    <Spinner size={24} color={A.primary} />
-                    <p style={{ margin: 0, fontSize: 13, color: A.muted }}>Generating preview…</p>
-                  </div>
-                ) : posterPreviewUrl ? (
-                  <img
-                    src={posterPreviewUrl}
-                    alt="QR Poster preview"
-                    style={{ width: '100%', display: 'block' }}
-                  />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '32px 0' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 40, color: A.muted }}>image</span>
-                    <p style={{ margin: 0, fontSize: 13, color: A.muted }}>Select a QR code to preview</p>
-                  </div>
+              {/* Preview image */}
+              <div style={{ padding: '16px 20px' }}>
+                <div style={{
+                  borderRadius: 10, border: `1px solid ${A.border}`,
+                  overflow: 'hidden', background: A.bg,
+                  minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {posterPreviewLoading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' }}>
+                      <Spinner size={24} color={A.primary} />
+                      <p style={{ margin: 0, fontSize: 13, color: A.muted }}>Generating preview…</p>
+                    </div>
+                  ) : posterPreviewUrl ? (
+                    <img
+                      src={posterPreviewUrl}
+                      alt="QR Poster preview"
+                      style={{ width: '100%', display: 'block' }}
+                    />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '32px 0' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 40, color: A.muted }}>image</span>
+                      <p style={{ margin: 0, fontSize: 13, color: A.muted }}>Select a QR code to preview</p>
+                    </div>
+                  )}
+                </div>
+                {previewData && !posterPreviewLoading && (
+                  <p style={{ margin: '8px 0 0', fontSize: 12, color: A.muted, textAlign: 'center' }}>
+                    Previewing: <strong style={{ color: A.dark }}>{previewData.label}</strong>
+                  </p>
                 )}
               </div>
-              {previewData && !posterPreviewLoading && (
-                <p style={{ margin: '8px 0 0', fontSize: 12, color: A.muted, textAlign: 'center' }}>
-                  Previewing: <strong style={{ color: A.dark }}>{previewData.label}</strong>
-                </p>
-              )}
-            </div>
 
-            {/* Actions */}
-            <div style={{ padding: '0 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button
-                onClick={dlPreviewPoster}
-                disabled={!!downloading || !previewData || posterPreviewLoading}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                  background: A.primary, color: '#fff', border: 'none',
-                  borderRadius: 8, padding: '10px', fontSize: 13, fontWeight: 500,
-                  cursor: (!previewData || posterPreviewLoading || !!downloading) ? 'not-allowed' : 'pointer',
-                  opacity: (!previewData || posterPreviewLoading || downloading === 'preview-poster') ? 0.7 : 1,
-                }}
-              >
-                {downloading === 'preview-poster'
-                  ? <><Spinner size={14} color="#fff" />Generating…</>
-                  : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>picture_as_pdf</span>Download PDF</>
-                }
-              </button>
+              {/* Actions */}
+              <div style={{ padding: '0 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  onClick={dlPreviewPoster}
+                  disabled={!!downloading || !previewData || posterPreviewLoading}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    background: A.primary, color: '#fff', border: 'none',
+                    borderRadius: 8, padding: '10px', fontSize: 13, fontWeight: 500,
+                    cursor: (!previewData || posterPreviewLoading || !!downloading) ? 'not-allowed' : 'pointer',
+                    opacity: (!previewData || posterPreviewLoading || downloading === 'preview-poster') ? 0.7 : 1,
+                  }}
+                >
+                  {downloading === 'preview-poster'
+                    ? <><Spinner size={14} color="#fff" />Generating…</>
+                    : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>Download poster (PNG)</>
+                  }
+                </button>
+
+              </div>
+
 
             </div>
-
-
           </div>
         </div>
-      </div>
+      )}
 
       {/* ══ NFC Card Request Modal ══ */}
       {showCardModal && (

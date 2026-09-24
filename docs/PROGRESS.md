@@ -2,6 +2,45 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-25 — Feature: QR print kit (QR page, first pass)
+status: DONE — acceptance green: qr-print-kit.test.ts (29/29), qr-sticker.test.ts unchanged (8/8).
+Rollout pending the owner.
+
+**Problem (measured on the live page).** "Download PDF" sat 370 px below the fold on a
+laptop and under the bottom nav on a phone — and saved a PNG. The only artwork is
+1181×1654 px at 300 dpi (≈ A6); printed on A4 it became a 140 dpi upscale. No way to copy
+or share the menu link. A failed download left every button disabled (no `finally`).
+
+**Design (no schema, route or dependency; jsPDF was already a dependency).**
+- Menu-only stores + `NEXT_PUBLIC_QR_PRINT_KIT` → `MenuQrPanel`: poster with a test-scan
+  hint; "Where will it go?" (table stand A6 / counter A5 / wall or door A4, each with its
+  scan distance by the 10:1 rule −20 %); "How will you print it?" (home: A4 sheet with
+  4 / 2 / 1 cards inside a 6 mm margin and dashed cut lines; print shop: exact size +
+  3 mm bleed); real PDF at 300 dpi; QR-only PNG / SVG; share card (copy, WhatsApp, open,
+  1080×1920 Status image, Google Maps how-to); sticker card unchanged.
+- Phones: the download rides in a bar hung off the panel root, 28 px above the nav.
+- Unflagged fixes on the old page: the PNG button is labelled "Download poster (PNG)";
+  all seven downloads reset in `finally` and toast on failure.
+- `lib/qr/styledQr.ts` and `lib/qr/posterRender.ts` hold helpers moved verbatim from
+  the page (checked by script), so both layouts render the same QR.
+
+**Evidence (production build, flags on, Chromium).**
+- Download PDF: laptop 660–708 px (was 1229); phone: bar on screen at every scroll.
+- PDFs: A4 ×4 / A6+bleed / A5 ×2 landscape / A5+bleed / A4 / A4+bleed — right page
+  sizes, 380 KB–1.4 MB, 0.7–2.3 s. The first cut stored pixels raw (A4 print shop
+  26.7 MB); now Flate-compressed and locked by a test.
+- The home A4 sheet opened in Chrome's PDF viewer: 2×2 posters, cut lines, margin.
+- Copy writes the full link; Status image 1080×1920, 739 KB.
+
+**Not done / known.** Scan distances use the real artwork (QR ≈ half the poster width), so
+they are honest but modest: table 40 cm at home, 50 cm at a print shop. The poster art
+and "Scan & Order" wording are unchanged (pass 2). The Status image share sheet is used
+only on touch devices; desktop downloads. Full suite: only `tests/unit/claude-hooks/*`
+fail (pre-existing).
+
+**Rollout.** Set `NEXT_PUBLIC_QR_PRINT_KIT=true` in DigitalOcean (build-time; redeploy).
+Rollback: unset and redeploy. The two unflagged fixes stay either way.
+
 ### 2026-09-24 — Feature: Smart Add Product (drawer order + library photo suggestion)
 status: DONE — acceptance green: smart-add-product.test.ts (47/47). Rollout pending the owner.
 
