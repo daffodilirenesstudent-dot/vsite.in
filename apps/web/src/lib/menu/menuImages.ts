@@ -64,6 +64,20 @@ export function fallBackToOriginal(
     return true;
 }
 
+/**
+ * Call once the image is mounted. A server-rendered <img> can fail before
+ * React hydrates and attaches onError, and React 18 does not replay that
+ * event — so check the element itself: requested (currentSrc set), finished
+ * (complete), no pixels. A lazy image not yet requested has no currentSrc.
+ */
+export function fallBackIfBroken(
+    img: { complete: boolean; naturalWidth: number; currentSrc: string; src: string; dataset: Record<string, string | undefined> },
+    original: string,
+): boolean {
+    if (!img.currentSrc || !img.complete || img.naturalWidth > 0) return false;
+    return fallBackToOriginal(img, original);
+}
+
 export type UploadOptions = {
     upsert?: boolean;
     contentType?: string;

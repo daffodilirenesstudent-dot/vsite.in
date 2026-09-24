@@ -5,7 +5,7 @@ import { T, TV } from './menuTokens';
 import { staggerDelayMs } from '@/lib/menu/menuMotion';
 import { resolveBadge } from '@/lib/menu/badges';
 import { resolveOffer } from '@/lib/menu/offer';
-import { menuThumbSrc, fallBackToOriginal } from '@/lib/menu/menuImages';
+import { menuThumbSrc, fallBackToOriginal, fallBackIfBroken } from '@/lib/menu/menuImages';
 
 /**
  * One dish, in a list.
@@ -187,8 +187,12 @@ function Thumb({ src, alt, soldOut, priority }: {
     const imgRef = React.useRef<HTMLImageElement | null>(null);
 
     React.useEffect(() => {
+        const img = imgRef.current;
+        if (!img) return;
+        // A thumbnail that failed before hydration never reached onError.
+        if (fallBackIfBroken(img, src)) return;
         // A cached image can already be complete by first paint.
-        if (imgRef.current?.complete) setLoaded(true);
+        if (img.complete) setLoaded(true);
     }, [src]);
 
     // Desaturating rather than hiding is what keeps a sold-out dish

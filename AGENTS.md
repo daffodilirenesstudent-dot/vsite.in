@@ -739,3 +739,13 @@ Chromium; halving in steps gives 0 everywhere. Use `drawDownscaled`
 menu-photo-compression.browser.test.ts` drives Chromium/WebKit/Firefox from
 vitest via `@playwright/test`: modules are transpiled with `typescript` and
 served by `page.route` — no dev server. Uninstalled engines are skipped.
+
+**React 18 loses `onError`/`onLoad` that fire before hydration.** A server-rendered
+`<img>` that fails early keeps its broken src. Check the element on mount as
+well (`fallBackIfBroken` in `menuImages.ts`); `currentSrc` tells a failed
+image from a lazy one not yet requested.
+
+**WebKit cannot run the dev site on http://localhost.** The CSP's
+`upgrade-insecure-requests` makes WebKit (unlike Chrome/Firefox) rewrite every
+localhost request to https, so no JS loads and nothing hydrates. Harmless on
+https production. In Playwright, route `https://localhost:3000/**` back to http.

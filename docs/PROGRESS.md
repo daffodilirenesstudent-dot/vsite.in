@@ -69,6 +69,13 @@ the four `tests/unit/claude-hooks/*` files fail because `.claude/hooks/*.mjs`
 are missing from this checkout (pre-existing); `aiCostAbuse` flaked once under
 full-suite load and passes alone.
 
+**Fix (2026-09-24, found on the dev server).** A server-rendered thumbnail that
+404s before React hydrates never reaches onError (React 18 does not replay it):
+3–17 of 17 list photos stayed broken while thumbnails were missing. The card
+now also checks its image on mount (`fallBackIfBroken`: requested, complete,
+no pixels). Verified on the dev server: 0 broken in Chromium, Firefox and
+WebKit, cold and warm cache.
+
 **Rollout.** Merge (flag OFF) → backfill dry run → `--apply` → set
 `NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` in DigitalOcean (build-time; redeploy).
 Rollback: unset and redeploy.
