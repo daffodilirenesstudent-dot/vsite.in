@@ -133,6 +133,41 @@ describe('fallBackToOriginal', () => {
     });
 });
 
+/**
+ * Regression, measured on the dev server (2026-09-24): a server-rendered
+ * thumbnail that 404s BEFORE React hydrates never reaches onError — React 18
+ * does not replay it. With a warm cache all 17 missing thumbnails failed at
+ * ~0.8 s, hydration came at ~1.05 s, and all 17 list photos stayed broken.
+ */
+describe('fallback survives an error before hydration', () => {
+    const thumb = `${BASE}/default-images/cafe-foods/dosa.thumb.jpg`;
+    const original = `${BASE}/default-images/cafe-foods/dosa.jpeg`;
+
+    it('recovers an image that has already failed', async () => {
+        const { fallBackIfBroken } = await import('@/lib/menu/menuImages');
+        const img = { complete: true, naturalWidth: 0, currentSrc: thumb, src: thumb, dataset: {} as Record<string, string> };
+        expect(fallBackIfBroken(img, original)).toBe(true);
+        expect(img.src).toBe(original);
+    });
+
+    it('leaves loaded, still-loading and not-yet-requested lazy images alone', async () => {
+        const { fallBackIfBroken } = await import('@/lib/menu/menuImages');
+        const loaded = { complete: true, naturalWidth: 360, currentSrc: thumb, src: thumb, dataset: {} as Record<string, string> };
+        const loading = { complete: false, naturalWidth: 0, currentSrc: thumb, src: thumb, dataset: {} as Record<string, string> };
+        // Some engines report a lazy image that has not been requested as
+        // complete with no pixels; it has no currentSrc yet.
+        const deferred = { complete: true, naturalWidth: 0, currentSrc: '', src: thumb, dataset: {} as Record<string, string> };
+        for (const img of [loaded, loading, deferred]) {
+            expect(fallBackIfBroken(img, original)).toBe(false);
+            expect(img.src).toBe(thumb);
+        }
+    });
+
+    it('the list card checks its image once mounted', () => {
+        expect(shipped(CARD)).toMatch(/fallBackIfBroken\(/);
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Upload
 // ─────────────────────────────────────────────────────────────────────────────
