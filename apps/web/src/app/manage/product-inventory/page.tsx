@@ -4,6 +4,9 @@ import { Spinner } from '@/components/loading';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/platform/db/supabase';
+import { uploadMenuImage, menuThumbSrc, fallBackToOriginal } from '@/lib/menu/menuImages';
+import { makeMenuThumbnail, prepareMenuPhoto } from '@/lib/menu/imageCompress';
+import { MENU_PHOTO_COMPRESS, PHOTO_MAX_INPUT_BYTES, isPhotoFile, photoErrorMessage } from '@/lib/menu/menuPhoto';
 import { useSite } from '@/components/SiteContext';
 import { useNotifications } from '@/components/NotificationContext';
 import BulkImportModal from '@/components/manage/BulkImportModal';
@@ -205,11 +208,13 @@ function ProductThumb({ src, size = 40 }: { src: string | null; size?: number })
     return (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-            src={src}
+            key={src}
+            src={menuThumbSrc(src)}
             alt=""
             width={size}
             height={size}
             loading="lazy"
+            onError={e => { fallBackToOriginal(e.currentTarget, src); }}
             style={{ width: size, height: size, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#F4F4F5' }}
         />
     );
@@ -430,8 +435,14 @@ export default function ProductInventoryPage() {
         // Hard guards: phone galleries are full of 20+ MB shots and exotic formats
         // that will silently choke the upload. Catch them client-side with a clear
         // toast so the user knows what went wrong.
-        if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
-        if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
+        if (MENU_PHOTO_COMPRESS) {
+            // Big phone photos are welcome: prepareMenuPhoto shrinks them at save.
+            if (!isPhotoFile(file))                { toast.error('Please choose an image file.'); return; }
+            if (file.size > PHOTO_MAX_INPUT_BYTES) { toast.error('Image too large. Max 25 MB.');  return; }
+        } else {
+            if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
+            if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
+        }
         setProImageUsed(false);
         setForm(f => {
             // Revoke previous blob URL to avoid memory leak
@@ -514,11 +525,25 @@ export default function ProductInventoryPage() {
         if (proImageUsed && form.imagePreview && !form.imageFile) {
             imageUrl = form.imagePreview;
         } else if (form.imageFile) {
-            const ext  = form.imageFile.name.split('.').pop() ?? 'jpg';
+            let photo: File = form.imageFile;
+            if (MENU_PHOTO_COMPRESS) {
+                try {
+                    photo = await prepareMenuPhoto(form.imageFile);
+                } catch (err) {
+                    toast.error(photoErrorMessage(err));
+                    setSaving(false);
+                    return;
+                }
+            }
+            const ext  = photo.name.split('.').pop() ?? 'jpg';
             const path = `${siteId ?? 'unknown'}/${Date.now()}.${ext}`;
-            const { error: uploadError } = await supabase.storage
-                .from('product-images')
-                .upload(path, form.imageFile, { upsert: true, contentType: form.imageFile.type });
+            const { error: uploadError } = await uploadMenuImage({
+                bucket: supabase.storage.from('product-images'),
+                path,
+                file: photo,
+                options: { upsert: true, contentType: photo.type },
+                makeThumb: makeMenuThumbnail,
+            });
             if (uploadError) {
                 toast.error('Image upload failed — product saved without image');
                 setSaving(false);
@@ -958,7 +983,7 @@ export default function ProductInventoryPage() {
                                                 <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#71717A' }}>upload</span>
                                             </div>
                                             <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 14, marginBottom: 4 }}>Upload product image</p>
-                                            <p className="text-[#6B6A7B] text-center" style={{ fontSize: 12, marginBottom: 12 }}>PNG, JPG or WebP (Max 2MB)</p>
+                                            <p className="text-[#6B6A7B] text-center" style={{ fontSize: 12, marginBottom: 12 }}>{MENU_PHOTO_COMPRESS ? 'JPG, PNG or WebP (Max 25 MB)' : 'PNG, JPG or WebP (Max 2MB)'}</p>
                                             <button type="button" onClick={e => { e.stopPropagation(); imageInputRef.current?.click(); }} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF' }}>Choose File</button>
                                         </>
                                     )}

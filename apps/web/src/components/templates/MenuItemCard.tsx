@@ -5,6 +5,7 @@ import { T, TV } from './menuTokens';
 import { staggerDelayMs } from '@/lib/menu/menuMotion';
 import { resolveBadge } from '@/lib/menu/badges';
 import { resolveOffer } from '@/lib/menu/offer';
+import { menuThumbSrc, fallBackToOriginal, fallBackIfBroken } from '@/lib/menu/menuImages';
 
 /**
  * One dish, in a list.
@@ -186,8 +187,12 @@ function Thumb({ src, alt, soldOut, priority }: {
     const imgRef = React.useRef<HTMLImageElement | null>(null);
 
     React.useEffect(() => {
+        const img = imgRef.current;
+        if (!img) return;
+        // A thumbnail that failed before hydration never reached onError.
+        if (fallBackIfBroken(img, src)) return;
         // A cached image can already be complete by first paint.
-        if (imgRef.current?.complete) setLoaded(true);
+        if (img.complete) setLoaded(true);
     }, [src]);
 
     // Desaturating rather than hiding is what keeps a sold-out dish
@@ -208,8 +213,9 @@ function Thumb({ src, alt, soldOut, priority }: {
             {!loaded && <span className="qr-skel" style={{ position: 'absolute', inset: 0 }} />}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+                key={src}
                 ref={imgRef}
-                src={src}
+                src={menuThumbSrc(src)}
                 alt={alt}
                 width={THUMB}
                 height={THUMB}
@@ -217,7 +223,7 @@ function Thumb({ src, alt, soldOut, priority }: {
                 fetchPriority={priority ? 'high' : 'auto'}
                 decoding="async"
                 onLoad={() => setLoaded(true)}
-                onError={() => setLoaded(true)}
+                onError={e => { if (!fallBackToOriginal(e.currentTarget, src)) setLoaded(true); }}
                 className="qr-thumb-img"
                 data-loaded={loaded ? 'true' : 'false'}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...mediaStyle }}

@@ -5,6 +5,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/lib/platform/db/supabase';
 import { compressImage } from '@/utils/compressImage';
+import { uploadMenuImage } from '@/lib/menu/menuImages';
+import { makeMenuThumbnail, prepareMenuPhoto } from '@/lib/menu/imageCompress';
+import { MENU_PHOTO_COMPRESS, PHOTO_MAX_INPUT_BYTES, isPhotoFile, photoErrorMessage } from '@/lib/menu/menuPhoto';
 import { useSite } from '@/components/SiteContext';
 
 interface Banner {
@@ -130,8 +133,14 @@ export default function BannerManagementPage() {
         const file = e.target.files?.[0];
         e.target.value = '';
         if (!file) return;
-        if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
-        if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
+        if (MENU_PHOTO_COMPRESS) {
+            // Big phone photos are welcome: prepareMenuPhoto shrinks them at save.
+            if (!isPhotoFile(file))                { toast.error('Please choose an image file.'); return; }
+            if (file.size > PHOTO_MAX_INPUT_BYTES) { toast.error('Image too large. Max 25 MB.');  return; }
+        } else {
+            if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
+            if (file.size > 5 * 1024 * 1024)     { toast.error('Image too large. Max 5 MB.');   return; }
+        }
         setForm(f => {
             // Revoke previous local blob URL to avoid memory leak
             if (f.imagePreview?.startsWith('blob:')) URL.revokeObjectURL(f.imagePreview);
@@ -142,16 +151,23 @@ export default function BannerManagementPage() {
     // ── Upload image to Supabase Storage ─────────────────────────────────────
     const uploadImage = async (file: File): Promise<string | null> => {
         try {
-            const compressed = await compressImage(file, { maxWidth: 1200, quality: 0.85 });
+            const compressed = MENU_PHOTO_COMPRESS
+                ? await prepareMenuPhoto(file)
+                : await compressImage(file, { maxWidth: 1200, quality: 0.85 });
             const ext = compressed.name.split('.').pop() ?? 'jpg';
             const filePath = `${siteSlug}/banners/banner-${Date.now()}.${ext}`;
-            const { error } = await supabase.storage.from('product-images').upload(filePath, compressed);
+            const { error } = await uploadMenuImage({
+                bucket: supabase.storage.from('product-images'),
+                path: filePath,
+                file: compressed,
+                makeThumb: makeMenuThumbnail,
+            });
             if (error) throw error;
             const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
             return publicUrl;
         } catch (err) {
             console.error('Banner image upload error:', err);
-            toast.error('Failed to upload image');
+            toast.error(MENU_PHOTO_COMPRESS ? photoErrorMessage(err) : 'Failed to upload image');
             return null;
         }
     };
@@ -505,7 +521,7 @@ export default function BannerManagementPage() {
                                                 <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#71717A' }}>upload</span>
                                             </div>
                                             <p className="font-semibold text-[#0A0A0A]" style={{ fontSize: 14, marginBottom: 4 }}>Upload Banner Image</p>
-                                            <p className="text-[#99A1AF] text-center" style={{ fontSize: 12, marginBottom: 14 }}>PNG, JPG or WebP · Max 5 MB · Recommended 1050 × 405 px</p>
+                                            <p className="text-[#99A1AF] text-center" style={{ fontSize: 12, marginBottom: 14 }}>{MENU_PHOTO_COMPRESS ? 'JPG, PNG or WebP · Max 25 MB · Recommended 1050 × 405 px' : 'PNG, JPG or WebP · Max 5 MB · Recommended 1050 × 405 px'}</p>
                                             <button type="button" onClick={e => { e.stopPropagation(); imageInputRef.current?.click(); }} className="hover:bg-neutral-50 transition-colors" style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF' }}>Choose File</button>
                                         </>
                                     )}

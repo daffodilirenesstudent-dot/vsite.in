@@ -2,6 +2,84 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-24 — Feature: owner photo compression (dish photos + banners)
+status: DONE — acceptance green: menu-photo-compression.test.ts (18/18) and
+menu-photo-compression.browser.test.ts (27/27: Chromium, WebKit, Firefox). Rollout pending the owner.
+
+**Problem (measured on production).** Owners must use their own dish photos. The
+inventory page uploaded the phone file untouched and rejected anything over 5 MB
+(many phone photos). Of 219 owner uploads: 77 PNG, 19 over 1 MB, three 9 MB
+PNGs. The dish sheet and inventory icons load that full file.
+
+**Design (browser-side, the Spectrum/Instagram pattern; no dependency, no schema).**
+- `menuPhoto.ts` (pure) — 1600 px long edge, WebP 0.80 / JPEG 0.85, 25 MB
+  input cap, step-down plan, keep-as-is rule, file naming, error codes/messages.
+  Flag `NEXT_PUBLIC_MENU_PHOTO_COMPRESS` (OFF unless "true").
+- `imageCompress.ts` — `prepareMenuPhoto`: `<img>.decode()` (EXIF orientation
+  applied; HEIC only in Safari → HEIC_UNSUPPORTED elsewhere), white background,
+  step-down draw with intermediate canvases released, WebP detected once
+  (Safari returns PNG), JPEG fallback, never larger than a web-ready input.
+  `makeMenuThumbnail` now uses the same step-down draw.
+- Inventory + banner pages: flag on → 25 MB cap, HEIC accepted, prepare at
+  save inside the existing "saving" state, owner-readable toasts; inventory
+  icons use the thumbnail. Flag off → byte-identical to before.
+
+**Evidence.**
+- Real owner photos through the shipped code (Chromium): 9,178 KB PNG → 229 KB
+  WebP; 5,056 KB JPG → 175 KB WebP. Safari mode (JPEG): 334 KB / 322 KB. 0.2–0.5 s on desktop.
+- Moiré (1 px stripes, 4000 → 1600 px, luma std-dev): step-down 0.0 in all three
+  engines; one-step draw 11.0 Chromium, 64.0 Firefox, 87.5 WebKit.
+- Side-by-side crop of a 9 MB dish: no visible difference.
+
+**Not done / known.** Existing oversized uploads are not re-compressed (19 files;
+changing live photos needs the owner's OK). Wide-gamut (Display-P3) photos are
+converted to sRGB by the canvas. Animated images keep only the first frame.
+`components/manage/ShopCard.tsx` is not rendered anywhere and was not changed.
+Full suite: only `tests/unit/claude-hooks/*` fail (hook files missing, pre-existing).
+
+**Rollout.** Set `NEXT_PUBLIC_MENU_PHOTO_COMPRESS=true` in DigitalOcean (build-time;
+redeploy). Independent of the thumbnails flag. Rollback: unset and redeploy.
+
+### 2026-09-24 — Feature: menu image thumbnails + long cache (Supabase egress)
+status: DONE — acceptance green (tests/acceptance/menu-image-thumbnails.test.ts, 24/24). Rollout pending the owner.
+
+**Problem (measured on production).** 60 shops; a menu has ~36 photos at 186 KB
+average (owner uploads 466 KB — the inventory page uploads the camera file
+uncompressed). The list card is 120 px but downloaded the full file: 6.5 MB for
+a fully scrolled menu against 5 GB/month free egress. Uploads used Supabase's
+default `max-age=3600`, so a diner returning next day re-downloaded all of it.
+Lazy loading already existed in `MenuItemCard`.
+
+**Design (no schema, migration or dependency change).**
+- `menuImages.ts` — `<name>.thumb.jpg` beside the original; `menuThumbSrc`,
+  `fallBackToOriginal`, `uploadMenuImage`. Flag `NEXT_PUBLIC_MENU_IMAGE_THUMBS`
+  (OFF unless "true"); OFF = the exact single upload call of today.
+- Thumbnail = the centre square that `object-fit: cover` shows, 360 px (120 px
+  × 3 DPR), JPEG 0.85. Real library image: 145 KB → 35 KB, identical on screen.
+- Originals never re-encoded: the same File object is uploaded.
+- Every upload filename is already unique, so a one-year cache is safe.
+- List card + 54 px detail header use the thumbnail; hero and banners keep the original.
+- `scripts/backfill-menu-thumbs.mjs` — dry run by default, `--apply` adds
+  missing thumbnails only (upsert false, no deletes). Uses `@napi-rs/canvas`,
+  already installed via `pdfjs-dist` — no package.json change.
+
+**Not done / known.** Existing originals keep their 1-hour cache (changing it
+means re-uploading the original, which this feature never does). Full suite:
+the four `tests/unit/claude-hooks/*` files fail because `.claude/hooks/*.mjs`
+are missing from this checkout (pre-existing); `aiCostAbuse` flaked once under
+full-suite load and passes alone.
+
+**Fix (2026-09-24, found on the dev server).** A server-rendered thumbnail that
+404s before React hydrates never reaches onError (React 18 does not replay it):
+3–17 of 17 list photos stayed broken while thumbnails were missing. The card
+now also checks its image on mount (`fallBackIfBroken`: requested, complete,
+no pixels). Verified on the dev server: 0 broken in Chromium, Firefox and
+WebKit, cold and warm cache.
+
+**Rollout.** Merge (flag OFF) → backfill dry run → `--apply` → set
+`NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` in DigitalOcean (build-time; redeploy).
+Rollback: unset and redeploy.
+
 ### 2026-09-19 — Feature: resilient menu extraction + PDF upload
 status: DONE — all acceptance criteria green (docs/GOAL.md AC1–AC14)
 

@@ -721,3 +721,44 @@ above). And it needs a real scheduler — App Platform `PRE_DEPLOY` jobs are not
   bucket that `/complete` binds to the new store; do not key onboarding pages by site id.
 - **Worktrees have no node_modules.** Link the main checkout's with a PowerShell junction
   (`New-Item -ItemType Junction`); `cmd mklink /J` from Git Bash mangles the target path.
+
+## /add-feature workflow (2026-09-23)
+
+**`.claude/` is gitignored.** The workflow (skill, agents, hooks, rules,
+`.claude/docs/`) lives only in the main checkout. Hooks run from
+`$CLAUDE_PROJECT_DIR`, so they still guard feature worktrees; the hook tests
+in `tests/unit/claude-hooks/` find `.claude/hooks` through git's common dir.
+
+**Guards switch on only while a `docs/features/*/state.md` is not `done`.**
+Outside a run, `git push vsite` and Supabase writes follow the normal
+permission prompts. The two owner-owned files are always write-blocked.
+
+**`/api/version` reports `unknown` until `COMMIT_SHA=${_self.COMMIT_HASH}`
+(RUN_TIME) is set in the DO console.** `.do/app.yaml` is documentation, not
+applied. Live-verify cannot confirm a deploy without it.
+
+## Owner photos in the browser (2026-09-24)
+
+**Safari cannot encode WebP from a canvas and does not fail**: `toBlob(cb,
+'image/webp')` hands back a PNG. Always check `blob.type`. `prepareMenuPhoto`
+probes once with a 1×1 canvas and falls back to JPEG.
+
+**Never downscale a phone photo onto a canvas in one draw.** Measured on 1 px
+stripes, 4000 → 1600 px: banding std-dev 87.5 in WebKit, 64 in Firefox, 11 in
+Chromium; halving in steps gives 0 everywhere. Use `drawDownscaled`
+(`imageCompress.ts`), which also keeps each canvas under iOS Safari's 16.7 MP cap.
+
+**Canvas behaviour must be tested in real engines.** `tests/acceptance/
+menu-photo-compression.browser.test.ts` drives Chromium/WebKit/Firefox from
+vitest via `@playwright/test`: modules are transpiled with `typescript` and
+served by `page.route` — no dev server. Uninstalled engines are skipped.
+
+**React 18 loses `onError`/`onLoad` that fire before hydration.** A server-rendered
+`<img>` that fails early keeps its broken src. Check the element on mount as
+well (`fallBackIfBroken` in `menuImages.ts`); `currentSrc` tells a failed
+image from a lazy one not yet requested.
+
+**WebKit cannot run the dev site on http://localhost.** The CSP's
+`upgrade-insecure-requests` makes WebKit (unlike Chrome/Firefox) rewrite every
+localhost request to https, so no JS loads and nothing hydrates. Harmless on
+https production. In Playwright, route `https://localhost:3000/**` back to http.

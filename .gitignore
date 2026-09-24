@@ -54,3 +54,6 @@ delete/
 
 # pdf.js worker, copied from node_modules at build (scripts/copy-pdf-worker.mjs)
 apps/web/public/pdfjs/
+
+# /add-feature: owner business numbers stay local (template is committed)
+.claude/docs/business-context.md

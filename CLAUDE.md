@@ -137,6 +137,23 @@ scrubbed out of the content entirely.
 7. Update PROGRESS.md every iteration. Append gotchas to AGENTS.md.
 8. When all acceptance criteria pass, write `status: DONE` in PROGRESS.md.
 
+### End-to-end: `/add-feature`
+For a new feature from idea to production, use the `/add-feature "<idea>"`
+skill (`.claude/skills/add-feature/`). It wraps the steps above in seven
+phases:
+
+1. intake (the owner signs a Feature Contract)
+2. design (Opus architect + Claude Design UI)
+3. owner approval loop
+4. TDD build
+5. business + technical + E2E QA
+6. tagged release (the owner says "go live")
+7. live verify on production, with automatic rollback on Critical failures
+
+`/add-feature` with no argument resumes an unfinished run. State lives in
+`docs/features/<slug>/state.md`. Design spec:
+`docs/superpowers/specs/2026-09-23-add-feature-workflow-design.md`.
+
 ## Testing
 
 **Scope the run to what you touched.** Each feature file above names the
@@ -168,6 +185,35 @@ hook — Claude Code has no `PreCommit` event, so run
 hooks maintain the review graph — they do NOT run the test/lint/secret-scan
 suite for you. You must run `npx vitest run && npm run lint` manually before
 every commit. If a hook fails, fix the cause — do not disable the hook.
+
+**`/add-feature` guard hooks** (`.claude/hooks/*.mjs`; tests in
+`tests/unit/claude-hooks/`). Except where noted, they act only while some
+`docs/features/*/state.md` is not `done`:
+
+- `release-guard` (PreToolUse Bash): blocks `git push vsite` unless the run is
+  in phase 6, HEAD has a `release/*` tag, all three QA reports say
+  `VERDICT: PASS`, `release.md` has a rollback command, and the tree is clean.
+- `rollback-guard` (PreToolUse Bash): `rollback.sh` runs only for a recorded
+  Critical failure, back to `previous_tag`.
+- `protected-paths` (PreToolUse Edit|Write): blocks migrations, `.env*`,
+  payments, auth, `productFlags.ts`, `middleware.ts` and `.do/` unless the
+  contract approves them. It **always** blocks writes to the owner-owned
+  `.claude/docs/business-context.md` and `critical-flows.md`.
+- `db-readonly` (PreToolUse Supabase MCP): SELECT only; migrations and branches are denied.
+- `no-silent-stop` (Stop): no ending a turn mid build/qa/release/live-verify
+  without finishing the phase or recording `STOPPED:`.
+- `report-check` (SubagentStop): workflow agents must write a report ending in `VERDICT:`.
+- `resume-hint` (SessionStart) and `toast` (Notification).
+
+Permissions:
+- **ask:** `git push vsite`, force pushes, `doctl`, `npm install`, and Supabase
+  `apply_migration`.
+- **deny:** `git push origin master`, since `vsite` is the deploy remote.
+
+Always-loaded rule: `.claude/rules/release-safety.md` (expand-only migrations,
+flags default OFF).
+
+⚠️ `.claude/` is gitignored. The workflow files live only in the main checkout.
 
 ## When stuck
 Log the blocker to AGENTS.md with: symptom, what you tried, hypothesis. Move to

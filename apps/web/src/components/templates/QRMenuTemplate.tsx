@@ -13,6 +13,7 @@ import {
   resolveTheme, resolveFontPair, resolveAccent, themeCssVars,
 } from '@/lib/menu/menuThemes';
 import { MENU_MOTION_CSS } from '@/lib/menu/menuMotion';
+import { menuThumbSrc, fallBackToOriginal } from '@/lib/menu/menuImages';
 import { resolveBadge } from '@/lib/menu/badges';
 import { shopNameFontSize } from '@/lib/menu/shopNameStyle';
 import { useQuickReturn } from '@/hooks/useQuickReturn';
@@ -274,7 +275,8 @@ function ProductDetailSheet({
                 width: 54, height: 54, borderRadius: 6, overflow: 'hidden',
                 flexShrink: 0, background: '#F0F0F0',
               }}>
-                <img src={product.image_url} alt={product.name}
+                <img src={menuThumbSrc(product.image_url)} alt={product.name}
+                  onError={e => { fallBackToOriginal(e.currentTarget, product.image_url as string); }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               </div>
             )}
