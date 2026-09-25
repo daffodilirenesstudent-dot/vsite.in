@@ -129,18 +129,24 @@ describe('AC5: a tap answers at once', () => {
 });
 
 describe('AC6: the You page', () => {
+    /**
+     * Superseded 2026-09-25 by the You tab redesign (owner-approved; see
+     * you-tab.test.ts AC6): the rows now open phone-first screens under
+     * /manage/you/… instead of the desktop banner and subscription pages, and
+     * the sign-out question names the app.
+     */
     it('has every destination that left the bar and the header', () => {
         const you = shipped(YOU);
         for (const label of ['Store details', 'Banners', 'Plan', 'Help', 'Add a store', 'Sign out']) {
             expect(you, label).toContain(label);
         }
-        expect(you).toMatch(/\/manage\/banner-management/);
-        expect(you).toMatch(/\/manage\/subscription/);
+        expect(you).toMatch(/YOU_ROUTES\.banners/);
+        expect(you).toMatch(/YOU_ROUTES\.plan/);
         expect(you).toMatch(/storeCreation\(/);
     });
 
     it('asks before signing out', () => {
-        expect(shipped(YOU)).toMatch(/Sign out\?/);
+        expect(shipped(YOU)).toMatch(/Sign out of vsite\?/);
     });
 });
 
