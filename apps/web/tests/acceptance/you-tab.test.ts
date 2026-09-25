@@ -39,12 +39,16 @@ const iso = (ms: number) => new Date(ms).toISOString();
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('AC1: plan status is one pure rule', () => {
+    // The trial window is the store's own trial_ends_at since "one free trial
+    // per account" (2026-09-25, one-trial.test.ts); these fixtures give each
+    // store the window it would have had: created + trial length.
     it('reads trial, active, ending soon, trial ended and expired', async () => {
         const { planStatus } = await import('@/lib/you/planStatus');
         const { PLAN_PRICES_INR, TRIAL_DURATION_MS } = await import('@/lib/platform/productFlags');
         const price = PLAN_PRICES_INR.qr_menu;
+        const trialFor = (createdMs: number) => iso(createdMs + TRIAL_DURATION_MS);
 
-        const trial = planStatus({ created_at: iso(NOW - 2 * DAY), site_subscriptions: null }, NOW);
+        const trial = planStatus({ created_at: iso(NOW - 2 * DAY), site_subscriptions: { store_expires_at: null, trial_ends_at: trialFor(NOW - 2 * DAY) } }, NOW);
         expect(trial).toMatchObject({ state: 'trial', daysLeft: 5, canPay: false, cta: null });
         expect(trial.progress).toBeCloseTo(2 / 7, 2);
         expect(trial.endsAt.getTime()).toBe(NOW - 2 * DAY + TRIAL_DURATION_MS);
@@ -56,10 +60,10 @@ describe('AC1: plan status is one pure rule', () => {
         expect(soon).toMatchObject({ state: 'endingSoon', daysLeft: 3, canPay: false });
 
         // Paid during the trial: the plan is what counts.
-        const paidEarly = planStatus({ created_at: iso(NOW - DAY), site_subscriptions: { store_expires_at: iso(NOW + 30 * DAY) } }, NOW);
+        const paidEarly = planStatus({ created_at: iso(NOW - DAY), site_subscriptions: { store_expires_at: iso(NOW + 30 * DAY), trial_ends_at: trialFor(NOW - DAY) } }, NOW);
         expect(paidEarly.state).toBe('active');
 
-        const ended = planStatus({ created_at: iso(NOW - 10 * DAY), site_subscriptions: null }, NOW);
+        const ended = planStatus({ created_at: iso(NOW - 10 * DAY), site_subscriptions: { store_expires_at: null, trial_ends_at: trialFor(NOW - 10 * DAY) } }, NOW);
         expect(ended).toMatchObject({ state: 'trialEnded', daysLeft: 0, canPay: true, price });
         expect(ended.cta).toBe(`Activate — ₹${price}/month`);
         expect(ended.endsAt.getTime()).toBe(NOW - 10 * DAY + TRIAL_DURATION_MS);
@@ -161,19 +165,15 @@ describe('AC3: banners', () => {
 });
 
 describe('AC4: add a store', () => {
-    it('knows when a free-trial spot opens', async () => {
-        const { nextTrialSlotAt } = await import('@/lib/store/storeLimits');
-        const { TRIAL_DURATION_MS } = await import('@/lib/platform/productFlags');
-        const trial = (ageDays: number) => ({ created_at: iso(NOW - ageDays * DAY), site_subscriptions: null });
-        expect(nextTrialSlotAt([trial(1), trial(3)], NOW)).toBe(NOW - 3 * DAY + TRIAL_DURATION_MS);
-        expect(nextTrialSlotAt([trial(10)], NOW)).toBeNull();
-    });
-
+    /**
+     * The "when does a free-trial spot open" rule is gone: since 2026-09-25 an
+     * account gets one trial, ever, and at most 2 stores (one-trial.test.ts).
+     * The pre-screen now asks for the owner's agreement to pay instead.
+     */
     it('is a limit-aware pre-screen into the existing wizard', () => {
         const src = shipped(page('add-store'));
         expect(src).toMatch(/storeCreation\(/);
-        expect(src).toMatch(/nextTrialSlotAt\(/);
-        expect(src).toMatch(/PAID_STORE_LIMIT/);
+        expect(src).toMatch(/STORE_LIMIT/);
         expect(src).toMatch(/\/onboarding\?intent=add-store/);
         expect(src).toMatch(/supportWhatsAppUrl\(/);
     });

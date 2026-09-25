@@ -118,9 +118,44 @@ describe('AC5: a tap answers at once', () => {
         clearNav();
     });
 
+    /**
+     * Owner report, 2026-09-25: "every skeleton loading on every navigation is
+     * showing the same thing". The shell knew the destination but drew one
+     * dashboard-shaped skeleton for all four tabs. A placeholder that does not
+     * look like the page it stands for reads as a glitch, not as loading.
+     */
+    it('the skeleton is shaped like the page being opened', async () => {
+        const { createElement } = await import('react');
+        const { renderToStaticMarkup } = await import('react-dom/server');
+        const { default: PendingPage } = await import('@/components/PendingPage');
+        const html = (href: string) => renderToStaticMarkup(createElement(PendingPage, { href }));
+
+        const pages = {
+            '/manage/dashboard': 'Home',
+            '/manage/product-inventory': 'Menu',
+            '/manage/qr': 'QR',
+            '/manage/you': 'You',
+        };
+        const drawn = Object.entries(pages).map(([href, name]) => {
+            const out = html(href);
+            expect(out, href).toContain(`Opening ${name}`);
+            return out.replace(/Opening \w+/g, '');
+        });
+        // Four destinations, four different layouts.
+        expect(new Set(drawn).size).toBe(4);
+        // A page no tab owns still gets a sensible generic skeleton.
+        expect(html('/manage/orders')).toContain('Opening page');
+    });
+
+    it('the shell passes the destination to the skeleton', () => {
+        expect(shipped(SHELL)).toMatch(/<PendingPage href=\{pending\}/);
+    });
+
     it('the bar starts it and the shell shows a skeleton and progress until the page changes', () => {
         expect(shipped(NAV)).toMatch(/startNav\(/);
-        const shell = shipped(SHELL);
+        // The skeleton moved into its own component (per-page shapes); the
+        // shell renders it, so the two files together are "the shell".
+        const shell = shipped(SHELL) + shipped('components/PendingPage.tsx');
         expect(shell).toMatch(/usePendingNav\(\)/);
         expect(shell).toMatch(/clearNav\(\)/);
         expect(shell).toMatch(/<ProgressTrack\b/);
@@ -164,16 +199,17 @@ describe('AC7: a simpler phone header', () => {
 });
 
 describe('AC8: one rule for adding stores', () => {
-    it('allows a new store under both limits, blocks at either', async () => {
-        const { storeCreation } = await import('@/lib/store/storeLimits');
-        const day = 86_400_000;
-        const now = Date.parse('2026-09-25T00:00:00Z');
-        const trial = (ageDays: number) => ({ created_at: new Date(now - ageDays * day).toISOString(), site_subscriptions: null });
-        const paid = () => ({ created_at: new Date(now - 90 * day).toISOString(), site_subscriptions: { store_expires_at: new Date(now + 20 * day).toISOString() } });
-        expect(storeCreation([trial(1)], now).canCreate).toBe(true);
-        expect(storeCreation([trial(1), trial(2)], now)).toMatchObject({ canCreate: false, atTrialLimit: true });
-        expect(storeCreation([paid(), paid(), paid(), paid(), paid()], now)).toMatchObject({ canCreate: false, atPaidLimit: true });
-        expect(storeCreation([paid(), trial(1)], now)).toMatchObject({ canCreate: true, paidCount: 1, activeTrialCount: 1 });
+    /**
+     * Superseded 2026-09-25 by "one free trial per account" (owner decision;
+     * see one-trial.test.ts): the 5-store / 2-trial-at-once rule let an owner
+     * roll a new free store every week. An account now has at most 2 stores.
+     */
+    it('allows a second store and blocks a third', async () => {
+        const { storeCreation, STORE_LIMIT } = await import('@/lib/store/storeLimits');
+        const site = { created_at: '2026-09-25T00:00:00Z', site_subscriptions: null };
+        expect(STORE_LIMIT).toBe(2);
+        expect(storeCreation([site]).canCreate).toBe(true);
+        expect(storeCreation([site, site])).toMatchObject({ canCreate: false, atLimit: true });
     });
 
     it('the header uses it too', () => {

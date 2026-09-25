@@ -96,8 +96,13 @@ describe('056: the public key reads only the sites columns the app needs', () =>
         const missing: string[] = [];
         for (const { path, chain } of sitesChains()) {
             const sel = chain.match(/\.select\(\s*['"`]([^'"`]*)['"`]/);
+            // An embedded relation — site_subscriptions(a, b, c) — is another
+            // table's columns. Drop it whole before splitting: splitting first
+            // left its middle columns looking like sites columns once an embed
+            // named three.
+            const own = sel ? sel[1].replace(/\w+\s*\([^)]*\)/g, '') : '';
             const cols = [
-                ...(sel ? sel[1].split(',') : []),
+                ...own.split(','),
                 ...Array.from(chain.matchAll(/\.(?:eq|neq|in|is|order|gt|lt|gte|lte)\(\s*['"](\w+)['"]/g), (m) => m[1]),
             ]
                 .map((c) => c.trim())

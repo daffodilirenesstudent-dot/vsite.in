@@ -86,7 +86,7 @@ vi.mock('@/lib/auth/verifyFirebaseToken', () => ({
 
 // ── Fake database (tables + the three RPCs of migration 057) ─────────────────
 
-interface SiteRow { id: string; user_id: string; created_at: string; site_subscriptions: { store_expires_at: string | null } | null }
+interface SiteRow { id: string; user_id: string; created_at: string; site_subscriptions: { store_expires_at: string | null; trial_ends_at: string | null } | null }
 interface UsageRow {
   id: string; kind: string; user_id: string; site_id: string | null; period_key: string;
   period_ends_at: string | null; pages_used: number; pages_refunded: number; page_limit: number;
@@ -180,6 +180,10 @@ import {
   resolveBulkAllowance, planBulkPdf, bulkAllowanceView,
 } from '@/lib/menu/aiPageLimits';
 import { reserveBulkPages, bindOnboardingPages } from '@/lib/menu/aiPageLedger';
+import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
+
+/** A store's trial window, as the database opens it: created + trial length (migration 058). */
+const trialEndOf = (createdIso: string) => new Date(new Date(createdIso).getTime() + TRIAL_DURATION_MS).toISOString();
 import { POST as onboardingExtract } from '@/app/api/onboarding/extract/route';
 import { POST as bulkExtract } from '@/app/api/bulk-import/extract/route';
 import { POST as bulkInsert } from '@/app/api/bulk-import/insert/route';
@@ -231,7 +235,11 @@ function addSite(token: string, opts: { ageDays: number; paidUntilMs?: number })
   db.sites.push({
     id, user_id: uidOf(token),
     created_at: new Date(Date.now() - opts.ageDays * DAY).toISOString(),
-    site_subscriptions: opts.paidUntilMs === undefined ? null : { store_expires_at: new Date(Date.now() + opts.paidUntilMs).toISOString() },
+    // Every store opens with its trial decided (migration 058): created + 7 days.
+    site_subscriptions: {
+      store_expires_at: opts.paidUntilMs === undefined ? null : new Date(Date.now() + opts.paidUntilMs).toISOString(),
+      trial_ends_at: new Date(Date.now() - opts.ageDays * DAY + TRIAL_DURATION_MS).toISOString(),
+    },
   });
   return id;
 }
@@ -381,10 +389,10 @@ describe('AC2: a trial store gets 2 bulk pages for the whole trial', () => {
   it('AC2: a trial store resolves to 2 pages under one never-resetting key', () => {
     const now = Date.now();
     const created = new Date(now - 2 * DAY).toISOString();
-    const a = resolveBulkAllowance({ siteCreatedAt: created, storeExpiresAt: null, now });
+    const a = resolveBulkAllowance({ trialEndsAt: trialEndOf(created), storeExpiresAt: null, now });
     expect(a).toMatchObject({ state: 'trial', kind: 'bulk_trial', limit: TRIAL_BULK_PAGE_LIMIT, periodKey: 'trial', resetsAt: null });
     expect(TRIAL_BULK_PAGE_LIMIT).toBe(2);
-    const later = resolveBulkAllowance({ siteCreatedAt: created, storeExpiresAt: null, now: now + 4 * DAY });
+    const later = resolveBulkAllowance({ trialEndsAt: trialEndOf(created), storeExpiresAt: null, now: now + 4 * DAY });
     expect(later.periodKey).toBe(a.periodKey);
   });
 
@@ -406,13 +414,13 @@ describe('AC2: a trial store gets 2 bulk pages for the whole trial', () => {
 describe('AC3: an expired unpaid store gets 0 bulk pages', () => {
   it('AC3: a store 8 days old with no payment resolves to expired, limit 0', () => {
     const now = Date.now();
-    const a = resolveBulkAllowance({ siteCreatedAt: new Date(now - 8 * DAY).toISOString(), storeExpiresAt: null, now });
+    const a = resolveBulkAllowance({ trialEndsAt: trialEndOf(new Date(now - 8 * DAY).toISOString()), storeExpiresAt: null, now });
     expect(a).toMatchObject({ state: 'expired', limit: 0 });
   });
 
   it('AC3: a lapsed paid store is expired too', () => {
     const now = Date.now();
-    const a = resolveBulkAllowance({ siteCreatedAt: new Date(now - 60 * DAY).toISOString(), storeExpiresAt: new Date(now - 1000).toISOString(), now });
+    const a = resolveBulkAllowance({ trialEndsAt: trialEndOf(new Date(now - 60 * DAY).toISOString()), storeExpiresAt: new Date(now - 1000).toISOString(), now });
     expect(a.state).toBe('expired');
   });
 
@@ -442,7 +450,7 @@ describe('AC4: a paid store gets 5 bulk pages per billing month', () => {
   it('AC4: the monthly allowance is 5 and resets on the payment date', () => {
     const now = Date.now();
     const E = new Date(now + 10 * DAY).toISOString();
-    const a = resolveBulkAllowance({ siteCreatedAt: new Date(now - 40 * DAY).toISOString(), storeExpiresAt: E, now });
+    const a = resolveBulkAllowance({ trialEndsAt: trialEndOf(new Date(now - 40 * DAY).toISOString()), storeExpiresAt: E, now });
     expect(a).toMatchObject({ state: 'paid', kind: 'bulk_paid', limit: PAID_BULK_PAGE_LIMIT, resetsAt: E });
     expect(PAID_BULK_PAGE_LIMIT).toBe(5);
   });
@@ -450,15 +458,15 @@ describe('AC4: a paid store gets 5 bulk pages per billing month', () => {
   it('AC4: an early renewal keeps the same month, so it cannot reset pages', () => {
     const now = Date.now();
     const created = new Date(now - 40 * DAY).toISOString();
-    const before = resolveBulkAllowance({ siteCreatedAt: created, storeExpiresAt: new Date(now + 10 * DAY).toISOString(), now });
-    const after = resolveBulkAllowance({ siteCreatedAt: created, storeExpiresAt: new Date(now + 40 * DAY).toISOString(), now });
+    const before = resolveBulkAllowance({ trialEndsAt: trialEndOf(created), storeExpiresAt: new Date(now + 10 * DAY).toISOString(), now });
+    const after = resolveBulkAllowance({ trialEndsAt: trialEndOf(created), storeExpiresAt: new Date(now + 40 * DAY).toISOString(), now });
     expect(after.periodKey).toBe(before.periodKey);
     expect(after.resetsAt).toBe(before.resetsAt);
   });
 
   it('AC4: a store paid during its trial uses the paid rules', () => {
     const now = Date.now();
-    const a = resolveBulkAllowance({ siteCreatedAt: new Date(now - 2 * DAY).toISOString(), storeExpiresAt: new Date(now + 25 * DAY).toISOString(), now });
+    const a = resolveBulkAllowance({ trialEndsAt: trialEndOf(new Date(now - 2 * DAY).toISOString()), storeExpiresAt: new Date(now + 25 * DAY).toISOString(), now });
     expect(a.state).toBe('paid');
     expect(a.limit).toBe(5);
   });
@@ -501,7 +509,7 @@ describe('AC5: pages are reserved atomically before any AI call', () => {
   it('AC5: 20 concurrent one-page reservations on a paid store: exactly 5 succeed', async () => {
     const t = freshToken();
     const siteId = addSite(t, { ageDays: 40, paidUntilMs: 12 * DAY });
-    const allowance = resolveBulkAllowance({ siteCreatedAt: db.sites[0].created_at, storeExpiresAt: db.sites[0].site_subscriptions!.store_expires_at, now: Date.now() });
+    const allowance = resolveBulkAllowance({ trialEndsAt: trialEndOf(db.sites[0].created_at), storeExpiresAt: db.sites[0].site_subscriptions!.store_expires_at, now: Date.now() });
     const results = await Promise.all(Array.from({ length: 20 }, () => reserveBulkPages(uidOf(t), siteId, allowance, 1)));
     expect(results.filter(r => r.ok)).toHaveLength(5);
     expect(results.filter(r => !r.ok && r.reason === 'limit')).toHaveLength(15);
