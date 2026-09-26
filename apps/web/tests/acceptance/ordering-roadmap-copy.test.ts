@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -90,4 +90,54 @@ describe('marketing pages tell the same story', () => {
             expect(src).toMatch(/UPI|ordering/i);
         },
     );
+});
+
+/**
+ * QA 2026-09-26: two surfaces a DINER sees still sold ordering as live. Both
+ * were missed because this suite only read articles and marketing pages.
+ *
+ *   - the customer menu footer on every store: "Skip the queue. Scan & order"
+ *   - the QR page's classic poster, printed on every table: artwork with
+ *     "SCAN & ORDER" baked into the PNG
+ */
+describe('what diners see does not advertise ordering', () => {
+    const ORDER_CLAIM = /scan\s*(?:&|&amp;|and)\s*order|skip the queue/i;
+    const shippedSrc = (p: string) => read(p).replace(/(^|[\s{])\/\*[\s\S]*?\*\//g, '$1').replace(/\/\/[^\n]*/g, '');
+
+    it('the customer menu footer does not say "Scan & order"', () => {
+        expect(shippedSrc('components/templates/QRMenuTemplate.tsx')).not.toMatch(ORDER_CLAIM);
+    });
+
+    it('the classic QR poster is the menu artwork while ordering is frozen, on every plan', async () => {
+        const { classicPosterTemplate, MENU_POSTER } = await import('@/lib/qr/posterTemplate');
+        for (const plan of [
+            { qrMenuOnly: true, isQrOrder: false },
+            { qrMenuOnly: false, isQrOrder: true },
+            { qrMenuOnly: false, isQrOrder: false },
+        ]) {
+            expect(classicPosterTemplate(plan, true)).toBe(MENU_POSTER);
+        }
+    });
+
+    it('a menu-only store never gets ordering artwork, even after ordering unfreezes', async () => {
+        const { classicPosterTemplate, MENU_POSTER } = await import('@/lib/qr/posterTemplate');
+        expect(classicPosterTemplate({ qrMenuOnly: true, isQrOrder: false }, false)).toBe(MENU_POSTER);
+    });
+
+    it('keeps the ordering artwork for the day ordering ships', async () => {
+        const { classicPosterTemplate, MENU_POSTER } = await import('@/lib/qr/posterTemplate');
+        expect(classicPosterTemplate({ qrMenuOnly: false, isQrOrder: true }, false)).not.toBe(MENU_POSTER);
+    });
+
+    it('the menu artwork exists in public/', async () => {
+        const { MENU_POSTER } = await import('@/lib/qr/posterTemplate');
+        expect(existsSync(join(WEB, 'public', decodeURI(MENU_POSTER)))).toBe(true);
+        expect(MENU_POSTER).not.toMatch(/order/i);
+    });
+
+    it('the QR page picks its poster through that rule, not a hardcoded ordering PNG', () => {
+        const page = shippedSrc('app/manage/qr/page.tsx');
+        expect(page).toMatch(/classicPosterTemplate\(/);
+        expect(page).not.toMatch(/brand poster (scan order|template)\.png/);
+    });
 });
