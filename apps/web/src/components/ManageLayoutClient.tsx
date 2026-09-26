@@ -2,9 +2,12 @@
 import { PageLoader } from '@/components/loading';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { MOBILE_NAV_V2, isYouSubPage } from '@/lib/ui/mobileNav';
+import { clearNav, usePendingNav } from '@/lib/ui/navPending';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
+import PendingPage from './PendingPage';
 import { AuthProvider, useAuth } from './AuthContext';
 import { PlanProvider } from './PlanContext';
 import { SiteProvider, useSite } from './SiteContext';
@@ -119,6 +122,18 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function ManageShell({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const pending = usePendingNav();
+    // The new page is here: drop the skeleton.
+    React.useEffect(() => { clearNav(); }, [pathname]);
+    const showPending = MOBILE_NAV_V2 && pending !== null && pending !== pathname;
+    // Screens behind the You tab bring their own back header and bottom
+    // actions, so on phones they get the whole screen.
+    const fullScreen = MOBILE_NAV_V2 && isYouSubPage(pathname);
+    React.useEffect(() => {
+        if (showPending) document.querySelector('main')?.scrollTo({ top: 0 });
+    }, [showPending]);
+
     return (
         <>
             {/* Branded splash — fixed overlay above AuthGate so it covers the
@@ -128,14 +143,21 @@ function ManageShell({ children }: { children: React.ReactNode }) {
             <AuthGate>
                 <div className="relative flex h-screen w-full overflow-hidden bg-white font-display text-neutral-900 antialiased">
                     <Sidebar />
-                    <main className="flex-1 h-full overflow-y-auto pb-20 md:pb-0">
-                        <DashboardHeader />
-                        <div className="px-4 md:px-8 pt-4">
-                            <SubscriptionNotifications />
+                    <main className={`flex-1 h-full overflow-y-auto ${fullScreen ? 'pb-0' : 'pb-20'} md:pb-0`}>
+                        <div className={fullScreen ? 'hidden md:block' : undefined}>
+                            <DashboardHeader />
+                            <div className="px-4 md:px-8 pt-4">
+                                <SubscriptionNotifications />
+                            </div>
                         </div>
-                        {children}
+                        {MOBILE_NAV_V2 ? (
+                            <>
+                                {showPending && pending && <PendingPage href={pending} />}
+                                <div hidden={showPending}>{children}</div>
+                            </>
+                        ) : children}
                     </main>
-                    <MobileNav />
+                    {!fullScreen && <MobileNav />}
                 </div>
             </AuthGate>
         </>

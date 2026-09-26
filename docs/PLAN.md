@@ -1,3 +1,83 @@
+# PLAN — One free trial per account  (status: CODE DONE 2026-09-25 — migrations 058/059 await the owner's go)
+
+Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/one-trial.test.ts`.
+Release order: migration 058 (expand) → deploy → migration 059 (tighten). Neither is applied
+until the owner says go — the only Supabase project is production.
+
+## Tasks (paths under `apps/web/`)
+
+1. **Rule** — `src/lib/store/trialRules.ts`: `STORE_LIMIT`, `decideStoreCreation`, the consent
+   header + `hasPaidConsent`, `refusalFromDbError`, `trialEndsMs`. `src/lib/platform/phone.ts`:
+   `readablePhone`. `src/lib/store/storeLimits.ts`: 2-store `storeCreation`. (AC1)
+2. **Migrations** — `supabase/migrations/058_one_trial_per_account.sql` (columns, `trial_claims`,
+   backfill, AFTER INSERT trigger opening the subscription row with its trial);
+   `059_store_limit_two_with_consent.sql` (BEFORE INSERT trigger: lock, 2 stores, consent). (AC2, AC3)
+3. **Gates** — shop page, toggle-live, `PlanContext` (+`hasTrial`), `SiteContext`,
+   `lib/you/planStatus` (+`unpaid`), `lib/menu/aiPageLimits` + `aiPageLedger` read
+   `trial_ends_at`. (AC4)
+4. **Server** — `lib/platform/storeEligibility.ts` (rule + trial record; `readStoreEligibility`);
+   onboarding `extract` + `complete` (consent header, consent column, DB refusals → 403 without
+   retries, `live` in the response); new `app/api/onboarding/eligibility/route.ts`. (AC5)
+5. **Consent screen** — `src/components/store/PaidStoreConsent.tsx`. (AC6)
+6. **Flows** — onboarding page (eligibility, gate, header, refusal handling), launch screen
+   `paidRequired` variant, scan messages; You add-store page + You row; header store menu. (AC7)
+7. **Copy** — TrialBanner, SubscriptionNotifications, dashboard, subscription page: "not live yet"
+   for a store that never had a trial. (AC8)
+8. **Exit check** — one-trial + updated suites + onboarding suite + payment suites, tsc, lint;
+   then ask the owner to apply 058.
+
+---
+
+# PLAN — You tab redesign  (status: DONE 2026-09-25 — owner review pending)
+
+Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/you-tab.test.ts`.
+Behind `NEXT_PUBLIC_MOBILE_NAV_V2`. Phone-first pages under `/manage/you/…`; desktop keeps the
+old pages. Same backend; no schema, route or dependency change. Design:
+https://claude.ai/artifact/JH435VTbKGwj3dDP9M1xSy
+
+## Tasks (paths under `apps/web/`)
+
+1. **Rules (pure)** — `src/lib/you/planStatus.ts`, `storeDetails.ts` (nudge, form, validate,
+   update, dirty, delete confirm), `banners.ts` (move, order changes, summary, crop),
+   `support.ts` (WhatsApp link, contacts, owner FAQs), `menuDesign.ts` (theme patch, summary);
+   `src/lib/store/storeLimits.ts` + `nextTrialSlotAt`; `src/lib/ui/mobileNav.ts` +
+   `YOU_ROUTES`, `isYouSubPage`. (AC1–AC5, AC7, AC10)
+2. **Data** — `src/lib/you/bannerData.ts` (the banner page's queries and upload, same table and
+   bucket); `src/lib/store/deleteStore.ts` (archive + delete, moved from settings). (AC3, AC10)
+3. **Checkout** — `src/hooks/useQrMenuCheckout.ts`: the ₹299 flow moved verbatim from
+   `app/manage/subscription/page.tsx`, which now calls it. (AC8)
+4. **Kit** — `src/components/you/`: `YouStyles` (tokens, motion, reduced motion), `SubPage`
+   (back header + slide-in), `Sheet` (bottom sheet, Escape/back), `Toggle`, `Row`. (AC9)
+5. **Shell** — `ManageLayoutClient.tsx`: on `/manage/you/*` with the flag on, no header, notices,
+   bottom bar or bar padding on phones. (AC7, AC11)
+6. **Screens** — `app/manage/you/page.tsx` (rewrite) and `you/{store,design,banners,plan,
+   add-store,help}/page.tsx`. (AC2–AC6, AC8)
+7. **Settings** — `handleDeleteStore` calls `deleteStore()`. (AC10)
+8. **Exit check** — you-tab + mobile-nav + dashboard-ux + store-details + qr-sticker +
+   payment suites, tsc, lint; 390 px walkthrough on the dev server.
+
+---
+
+# PLAN — Mobile nav v2  (status: IN PROGRESS)
+
+Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/mobile-nav.test.ts`.
+Flag `NEXT_PUBLIC_MOBILE_NAV_V2` (default OFF), menu-only stores, phones only.
+
+## Tasks (paths under `apps/web/`)
+
+1. `src/lib/ui/mobileNav.ts` — flag, four tabs, `activeTabFor`, `badgeText`. (AC1–AC3)
+2. `src/lib/ui/navPending.ts` — tiny store + `usePendingNav` for "a tab was tapped". (AC5)
+3. `src/lib/store/storeLimits.ts` — `storeCreation()` moved out of the header. (AC8)
+4. `src/components/MobileNav.tsx` — v2 bar: pill, 12 px labels, aria-current, badges,
+   re-tap to top, optimistic active tab; legacy bar kept for flag off. (AC2–AC5, AC9)
+5. `src/components/ManageLayoutClient.tsx` — skeleton + progress while a tap is pending. (AC5)
+6. `src/components/DashboardHeader.tsx` — phone: avatar hidden, switcher only for 2+ stores. (AC7)
+7. `src/app/manage/you/page.tsx` — the You page. (AC6)
+8. `src/app/manage/dashboard/page.tsx` — "View menu" label. (AC7)
+9. Exit check: vitest, tsc, lint, build, 390 px phone walkthrough.
+
+---
+
 # PLAN — Food posters  (status: DONE 2026-09-25 — rollout pending the owner)
 
 Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/food-posters.test.ts`.

@@ -1,3 +1,5 @@
+import { TRIAL_RULE } from '@/content/policy';
+
 export const FAQ_GROUPS = [
   {
     id: 'setup',
@@ -65,6 +67,11 @@ export const FAQ_GROUPS = [
         id: 'q9',
         q: 'What happens after the 7-day free trial?',
         a: 'After your trial ends, you choose a plan to continue. No credit card is needed to start — there is no automatic charge at the end of your trial. Your menu data stays safe and we will remind you before anything changes.',
+      },
+      {
+        id: 'q11',
+        q: 'Do I get a free trial for every store I add?',
+        a: TRIAL_RULE,
       },
       {
         id: 'q10',

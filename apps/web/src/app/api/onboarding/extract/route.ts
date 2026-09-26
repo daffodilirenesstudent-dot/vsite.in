@@ -40,6 +40,7 @@ import { rateLimit } from '@/lib/platform/rateLimit';
 import { boundBody } from '@/lib/platform/boundedBody';
 import { admitUpload } from '@/lib/platform/uploadAdmission';
 import { checkStoreEligibility } from '@/lib/platform/storeEligibility';
+import { hasPaidConsent } from '@/lib/store/trialRules';
 import { aiSpendAllowed } from '@/lib/menu/aiSpendGuard';
 import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
 import { ONBOARDING_PAGE_LIMIT } from '@/lib/menu/aiPageLimits';
@@ -135,7 +136,8 @@ export async function POST(incoming: NextRequest) {
     }
 
     // ── 4. Eligibility, before any money is spent ────────────────────────────
-    const eligibility = await checkStoreEligibility(userId);
+    // A no-trial store is scanned only after the owner agreed to pay for it.
+    const eligibility = await checkStoreEligibility(userId, { paidConsent: hasPaidConsent(incoming.headers) });
     if (!eligibility.ok) {
       return fail(eligibility.status, { code: eligibility.code, error: eligibility.error });
     }

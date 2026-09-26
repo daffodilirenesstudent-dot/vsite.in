@@ -23,6 +23,7 @@ import {
 } from '@/lib/menu/menuThemes';
 import { audit } from '@/lib/platform/auditLog';
 import { checkStoreEligibility } from '@/lib/platform/storeEligibility';
+import { hasPaidConsent, refusalFromDbError, trialEndsMs } from '@/lib/store/trialRules';
 import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
 import { bindOnboardingPages } from '@/lib/menu/aiPageLedger';
 
@@ -66,11 +67,16 @@ interface CompletePayload {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelayMs = 1500): Promise<T> {
+async function withRetry<T>(
+  fn: () => Promise<T>, attempts = 3, baseDelayMs = 1500,
+  /** A decision that will not change on retry (a store-limit refusal) is thrown at once. */
+  retryable: (err: unknown) => boolean = () => true,
+): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
     try { return await fn(); } catch (err) {
       lastErr = err;
+      if (!retryable(err)) break;
       if (i < attempts - 1) await new Promise(r => setTimeout(r, baseDelayMs * (i + 1)));
     }
   }
@@ -250,6 +256,8 @@ async function insertSiteWithUniqueSlug(
   userId: string,
   shopName: string,
   design: { menu_theme: string; menu_font: string; primary_color: string },
+  /** When the owner agreed to pay for a no-trial store; required by the store-limit trigger then. */
+  paidStoreConsentAt: string | null,
 ): Promise<{ id: string; slug: string }> {
   const baseSlug = generateSlug(shopName);
   // Try base, base-1, base-2, ... up to 50 attempts.
@@ -264,6 +272,7 @@ async function insertSiteWithUniqueSlug(
         name: shopName,
         category: 'cafe',
         ...design,
+        ...(paidStoreConsentAt ? { paid_store_consent_at: paidStoreConsentAt } : {}),
       })
       .select('id, slug')
       .single();
@@ -311,7 +320,7 @@ export async function POST(request: NextRequest) {
 
     // Existing-store + trial-limit check (shared with /extract, which asks
     // first so an ineligible user never pays for a scan).
-    const eligibility = await checkStoreEligibility(userId);
+    const eligibility = await checkStoreEligibility(userId, { paidConsent: hasPaidConsent(request.headers) });
     if (!eligibility.ok) {
       const body = eligibility.code === 'ELIGIBILITY_UNAVAILABLE'
         ? { error: eligibility.error }
@@ -347,7 +356,23 @@ export async function POST(request: NextRequest) {
           ? payload.brandColor
           : MENU_THEMES[chosenTheme].accent,
       };
-      site = await withRetry(() => insertSiteWithUniqueSlug(userId, trimmedShopName, design));
+      // A no-trial store only passes eligibility with the owner's consent, so
+      // "no trial" here means the owner agreed: record when, on the store.
+      const consentAt = eligibility.trial ? null : new Date().toISOString();
+      site = await withRetry(
+        () => insertSiteWithUniqueSlug(userId, trimmedShopName, design, consentAt),
+        3, 1500, err => refusalFromDbError(err) === null,
+      );
+      if (consentAt) {
+        audit({
+          userId,
+          siteId: site.id,
+          action: 'paid_store_consent',
+          targetId: site.id,
+          details: { consentAt, shopName: trimmedShopName },
+          request,
+        });
+      }
 
       // The design chosen at signup, recorded as the BASELINE. Without it the
       // October question — what share of owners change design in 30 days — has
@@ -362,6 +387,15 @@ export async function POST(request: NextRequest) {
         request,
       });
     } catch (err) {
+      // The database's own store-limit rule (migration 059) refused: the same
+      // answer the eligibility check gives, reached by a race or a stale app.
+      const refusal = refusalFromDbError(err);
+      if (refusal) {
+        const error = refusal === 'PLAN_LIMIT'
+          ? 'An account can have at most 2 stores.'
+          : 'The free trial for this phone number is already used. This store goes live only after you pay for it.';
+        return NextResponse.json({ error, code: refusal }, { status: 403 });
+      }
       console.error('[onboarding/complete] site insert failed:', err);
       return NextResponse.json({ error: 'Failed to create site after retries' }, { status: 500 });
     }
@@ -478,8 +512,18 @@ export async function POST(request: NextRequest) {
       console.error('[onboarding/complete] CRITICAL: failed to mark onboarding complete:', err);
     }
 
+    // Live now only if the database opened the store with a trial (058): a
+    // store created after the account's trial was used waits for payment.
+    const { data: opened } = await supabaseServer
+      .from('site_subscriptions')
+      .select('trial_ends_at')
+      .eq('site_id', site.id)
+      .maybeSingle();
+    const live = trialEndsMs(opened as { trial_ends_at: string | null } | null) > Date.now();
+
     const responseBody = {
       success: true,
+      live,
       siteId: site.id,
       siteSlug: site.slug,
       itemCount: insertedCount,

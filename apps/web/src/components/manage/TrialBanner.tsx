@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePlan } from '@/components/PlanContext';
 
 export default function TrialBanner() {
-    const { planLoading, isSubscribed, isTrialActive, isTrialExpired, trialDaysLeft } = usePlan();
+    const { planLoading, isSubscribed, isTrialActive, isTrialExpired, trialDaysLeft, hasTrial } = usePlan();
 
     if (planLoading) return null;
 
@@ -16,7 +16,9 @@ export default function TrialBanner() {
             <div className="flex items-center justify-between gap-4 bg-red-600 px-4 py-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-white">
                     <span className="material-symbols-outlined text-base shrink-0">warning</span>
-                    Your free trial has ended. Your menu is now offline.
+                    {hasTrial
+                        ? 'Your free trial has ended. Your menu is now offline.'
+                        : 'This store is not live yet — it has no free trial. Pay for its plan to put it online.'}
                 </div>
                 <Link
                     href="/manage/subscription"

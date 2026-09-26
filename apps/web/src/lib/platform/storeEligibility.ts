@@ -1,63 +1,79 @@
 import 'server-only';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
-import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
+import { STORE_LIMIT, decideStoreCreation, type StoreRefusal } from '@/lib/store/trialRules';
 
-// Whether a user may create another store.
+// Whether a user may create another store — and whether it gets a trial.
 //
-// Moved verbatim out of `onboarding/complete` so the extract route can ask the
-// same question BEFORE it spends on AI. Previously a user already at the limit
-// could scan a full menu — paying for every GPT-4o call — and only be refused
-// at launch. One definition, two call sites: the limits cannot drift apart.
-
-export const TRIAL_STORE_LIMIT = 2;
-export const PAID_STORE_LIMIT = 5;
+// One definition, asked by /api/onboarding/extract (before any AI is spent),
+// /api/onboarding/complete (before the store is inserted) and
+// /api/onboarding/eligibility (so the app can ask the owner first). The rule
+// itself is lib/store/trialRules.ts; the database enforces the same rule on
+// insert (migrations 058/059), so this is the early, friendly answer.
+//
+// "Trial used" is the account's row in trial_claims — not "has a store": a
+// deleted trial store still used the trial, and the claim outlives it.
 
 export type Eligibility =
-  | { ok: true }
-  | { ok: false; status: 403 | 503; error: string; code: 'PLAN_LIMIT' | 'TRIAL_LIMIT' | 'ELIGIBILITY_UNAVAILABLE' };
+  | { ok: true; trial: boolean }
+  | { ok: false; status: 403 | 503; error: string; code: StoreRefusal | 'ELIGIBILITY_UNAVAILABLE' };
 
-export async function checkStoreEligibility(userId: string): Promise<Eligibility> {
-  const { data: existingSites, error: existingSitesError } = await supabaseServer
-    .from('sites')
-    .select('id, created_at, site_subscriptions(store_expires_at)')
-    .eq('user_id', userId);
+interface AccountStanding {
+  storeCount: number;
+  trialUsed: boolean;
+  trialSiteId: string | null;
+}
 
-  // Fail CLOSED. The error was previously discarded, so a failed query left
-  // `existingSites` null, `totalSites` computed as 0, and both the 5-store
-  // and 2-trial-store caps were skipped — a DB blip (or anything that could
-  // induce one) granted unlimited stores. Refusing to create a store during
-  // an outage is recoverable; silently lifting the limit is not.
-  if (existingSitesError) {
-    console.error('[storeEligibility] could not read existing sites:', existingSitesError);
-    return {
-      ok: false, status: 503, code: 'ELIGIBILITY_UNAVAILABLE',
-      error: 'Could not verify your existing stores. Please try again in a moment.',
-    };
+const UNAVAILABLE = {
+  ok: false as const, status: 503 as const, code: 'ELIGIBILITY_UNAVAILABLE' as const,
+  error: 'Could not verify your existing stores. Please try again in a moment.',
+};
+
+async function readStanding(userId: string): Promise<AccountStanding | null> {
+  // trial_claims is keyed by user_id, so this list has at most one row.
+  const [sites, claims] = await Promise.all([
+    supabaseServer.from('sites').select('id').eq('user_id', userId),
+    supabaseServer.from('trial_claims').select('site_id').eq('user_id', userId),
+  ]);
+  // Fail CLOSED. A failed read once left the counts at 0 and lifted every
+  // limit; refusing to create a store during an outage is recoverable.
+  if (sites.error || claims.error) {
+    console.error('[storeEligibility] could not read the account:', sites.error ?? claims.error);
+    return null;
   }
+  const claim = (claims.data?.[0] ?? null) as { site_id?: string | null } | null;
+  return {
+    storeCount: sites.data?.length ?? 0,
+    trialUsed: claim !== null,
+    trialSiteId: claim?.site_id ?? null,
+  };
+}
 
-  const nowMs = Date.now();
-  const totalSites = existingSites?.length ?? 0;
-  const trialSites = (existingSites ?? []).filter(s => {
-    const rawSub = (s as unknown as { site_subscriptions: unknown }).site_subscriptions;
-    const sub = (Array.isArray(rawSub) ? rawSub[0] : rawSub) as
-      | { store_expires_at: string | null } | null | undefined;
-    const paidExpiry = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
-    if (paidExpiry > nowMs) return false;
-    const trialEnd = new Date((s as { created_at: string }).created_at).getTime() + TRIAL_DURATION_MS;
-    return trialEnd > nowMs;
-  }).length;
+export async function checkStoreEligibility(userId: string, opts: { paidConsent: boolean }): Promise<Eligibility> {
+  const standing = await readStanding(userId);
+  if (!standing) return UNAVAILABLE;
+  const decision = decideStoreCreation({ storeCount: standing.storeCount, trialUsed: standing.trialUsed, paidConsent: opts.paidConsent });
+  if (!decision.ok) return { ok: false, status: 403, code: decision.code, error: decision.error };
+  return { ok: true, trial: decision.trial };
+}
 
-  if (totalSites >= PAID_STORE_LIMIT) {
-    return {
-      ok: false, status: 403, code: 'PLAN_LIMIT',
-      error: `You have reached the maximum of ${PAID_STORE_LIMIT} stores on your account.`,
-    };
+/** Where the account stands, for the app to show before anything is built. */
+export async function readStoreEligibility(userId: string): Promise<
+  | { ok: true; storeCount: number; storeLimit: number; canCreate: boolean; trialAvailable: boolean; trialStoreName: string | null }
+  | typeof UNAVAILABLE
+> {
+  const standing = await readStanding(userId);
+  if (!standing) return UNAVAILABLE;
+  let trialStoreName: string | null = null;
+  if (standing.trialSiteId) {
+    const { data } = await supabaseServer.from('sites').select('name').eq('id', standing.trialSiteId).maybeSingle();
+    trialStoreName = (data as { name: string | null } | null)?.name ?? null;
   }
-  if (trialSites >= TRIAL_STORE_LIMIT) {
-    return {
-      ok: false, status: 403, code: 'TRIAL_LIMIT',
-      error: `Free trial allows up to ${TRIAL_STORE_LIMIT} stores at once. Activate a plan on an existing store to create more.`,
-    };
-  }
-  return { ok: true };
+  return {
+    ok: true,
+    storeCount: standing.storeCount,
+    storeLimit: STORE_LIMIT,
+    canCreate: standing.storeCount < STORE_LIMIT,
+    trialAvailable: !standing.trialUsed,
+    trialStoreName,
+  };
 }

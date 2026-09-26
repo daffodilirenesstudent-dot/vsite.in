@@ -4,7 +4,8 @@ import type { Shop } from '@/lib/platform/db/supabase';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import ShopPageClient from './ShopPageClient';
 import type { MenuProduct, ShopBanner } from './ShopPageClient';
-import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/platform/productFlags';
+import { normalizePlan } from '@/lib/platform/productFlags';
+import { trialEndsMs as trialEndOf } from '@/lib/store/trialRules';
 import { buildMenuDescription } from '@/lib/store/businessTypes';
 
 // ISR: Cache pages for 10 seconds so toggle/live changes reflect quickly.
@@ -75,23 +76,23 @@ async function getShop(slug: string): Promise<{ shop: Shop; menuProducts: MenuPr
     }
 
     // 2. Check store trial/subscription status via per-store table.
-    // Trial baseline is sites.created_at (the canonical "store age"), NOT
-    // site_subscriptions.created_at — which can drift if the sub row is
-    // re-created or backfilled. maybeSingle so a missing sub row is not
-    // logged as a Postgrest error for trial-only stores.
+    // The trial is the store's own site_subscriptions.trial_ends_at (one free
+    // trial per account, migration 058) — never sites.created_at + 7 days,
+    // which owners can rewrite from the browser. A store created after the
+    // account's trial was used has none, so it stays offline until paid.
+    // maybeSingle so a missing sub row reads as "not live", not an error.
     let canGoLive = false;
     let tier: 'view' | 'order' | 'order_no_pay' = 'view';
     {
         const { data: sub } = await supabaseServer
             .from('site_subscriptions')
-            .select('store_expires_at, store_plan')
+            .select('store_expires_at, store_plan, trial_ends_at')
             .eq('site_id', site.id)
             .maybeSingle();
 
         const now = Date.now();
         const subEndsMs = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
-        const trialEndsMs = new Date(site.created_at).getTime() + TRIAL_DURATION_MS;
-        canGoLive = subEndsMs > now || trialEndsMs > now;
+        canGoLive = subEndsMs > now || trialEndOf(sub) > now;
         // normalizePlan collapses the frozen ordering products into qr_menu,
         // so this resolves to 'view' for every store while ORDERING_FROZEN.
         // That single assignment is what removes the cart, checkout, payment

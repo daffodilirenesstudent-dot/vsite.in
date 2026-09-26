@@ -350,41 +350,27 @@ describe('AC10: a failed download says so and frees the buttons', () => {
 // AC11 — phones
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('AC11: the download action is never under the phone nav', () => {
+describe('AC11: one Download PDF button, in the Print card, that scrolls with the page', () => {
     /**
-     * Measured on a 390×844 phone, 2026-09-25: a sticky element stops at its
-     * scroller's PADDING edge, and <main> already pads 80 px (pb-20) for the
-     * 60 px nav. An offset of 60 px + safe area on top of that floated the bar
-     * 89 px above the nav. The rule is the sum: layout padding + bar offset
-     * must clear the nav plus an 8 px gap — with and without an iPhone safe area.
+     * Owner, 2026-09-25: the floating download bar covered the page on a phone
+     * ("remove the floating button"). The button lives in one place — the
+     * Print card, under the choices it prints — and the owner scrolls to it.
      */
-    it('clears the 60 px bottom nav by the layout padding plus the bar offset', () => {
-        const panel = read(PANEL);
-        expect(panel).toMatch(/position:\s*sticky/);
-        const layoutPad = Number(read('components/ManageLayoutClient.tsx').match(/overflow-y-auto pb-(\d+)/)?.[1]) * 4;
-        const m = panel.match(/\.qrk-bar \{ bottom: max\((\d+)px, calc\(env\(safe-area-inset-bottom\) - (\d+)px\)\); \}/);
-        expect(m, 'bar offset rule').not.toBeNull();
-        const [offset, lessThanSafe] = [Number(m?.[1]), Number(m?.[2])];
-        const NAV = 60, GAP = 8;
-        expect(layoutPad + offset).toBeGreaterThanOrEqual(NAV + GAP);
-        // With a safe area s: bar bottom = layoutPad + s - lessThanSafe, nav top = NAV + s.
-        expect(layoutPad - lessThanSafe).toBeGreaterThanOrEqual(NAV + GAP);
-        // …and not floating far above it either.
-        expect(layoutPad + offset).toBeLessThanOrEqual(NAV + GAP + 24);
+    it('has no floating or sticky download bar', () => {
+        const panel = shipped(PANEL);
+        expect(panel).not.toMatch(/qrk-bar/);
+        expect(panel).not.toMatch(/bottom:\s*\d+px;\s*z-index/);
     });
 
-    /**
-     * Measured on a 390×844 phone, 2026-09-25: a sticky button inside the
-     * Print card cannot rise above that card, and the card starts below the
-     * poster — so on arrival the button sat at 801 px, under the nav at 785 px.
-     * The sticky bar must hang off the whole panel, not a card.
-     */
-    it('the phone bar is a child of the panel root, not of a card', () => {
+    it('renders the Download PDF button exactly once, inside the Print card, at every width', () => {
         const panel = shipped(PANEL);
-        const root = panel.indexOf('className="qrk-root"');
-        const bar = panel.indexOf('className="qrk-bar"');
-        const gridEnd = panel.lastIndexOf('{stickerCard}');
-        expect(root).toBeGreaterThan(-1);
-        expect(bar).toBeGreaterThan(gridEnd);
+        expect(panel.match(/\{pdfButton\}/g) ?? []).toHaveLength(1);
+        const print = panel.indexOf('Print it');
+        const share = panel.indexOf('Share your menu link');
+        const btn = panel.indexOf('{pdfButton}');
+        expect(btn).toBeGreaterThan(print);
+        expect(btn).toBeLessThan(share);
+        // Nothing hides it on narrow screens.
+        expect(panel).not.toMatch(/qrk-inline-action \{ display: none/);
     });
 });

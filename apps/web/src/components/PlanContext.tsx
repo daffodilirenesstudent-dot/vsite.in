@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useSite } from './SiteContext';
-import { TRIAL_DURATION_MS, normalizePlan } from '@/lib/platform/productFlags';
+import { normalizePlan } from '@/lib/platform/productFlags';
 
 type Plan = 'qr_menu' | 'base' | 'qr_order' | 'pro' | 'pay_eat' | string;
 
@@ -21,6 +21,11 @@ interface PlanContextType {
     isTrialActive: boolean;
     /** trial has ended AND no active paid subscription for the active store */
     isTrialExpired: boolean;
+    /**
+     * The active store had a free trial at all. False for a store created after
+     * the account's trial was used: it is "not live yet", never "trial ended".
+     */
+    hasTrial: boolean;
     /** active store has a paid subscription with store_expires_at in the future */
     isSubscribed: boolean;
     /** menu can be live: trial active OR subscribed */
@@ -38,6 +43,7 @@ const PlanContext = createContext<PlanContextType>({
     trialDaysLeft: 0,
     isTrialActive: false,
     isTrialExpired: false,
+    hasTrial: true,
     isSubscribed: false,
     canGoLive: false,
     refreshPlan: async () => {},
@@ -54,12 +60,12 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         return () => clearInterval(id);
     }, []);
 
-    // Per-store trial: TRIAL_DURATION_MS from when the store was created
-    const siteCreatedMs = activeSite ? new Date(activeSite.created_at).getTime() : 0;
-    const trialEndsMs   = siteCreatedMs > 0 ? siteCreatedMs + TRIAL_DURATION_MS : 0;
-
-    // Per-store paid subscription
+    // Per-store paid subscription and trial. The trial is the store's own
+    // trial_ends_at (one free trial per account) — not created_at + 7 days,
+    // which an owner could rewrite from the browser.
     const sub           = activeSite?.site_subscriptions ?? null;
+    const trialEndsMs   = sub?.trial_ends_at ? new Date(sub.trial_ends_at).getTime() || 0 : 0;
+    const hasTrial      = trialEndsMs > 0;
     const subEndsMs     = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
     // normalizePlan collapses the frozen ordering products (qr_order/pay_eat/pro)
     // into qr_menu, so every gate below reads as Smart QR Menu while frozen.
@@ -89,7 +95,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         <PlanContext.Provider value={{
             plan, planLoading: sitesLoading,
             isPayEat, isQrMenu, isQrOrder,
-            trialDaysLeft, isTrialActive, isTrialExpired, isSubscribed, canGoLive,
+            trialDaysLeft, isTrialActive, isTrialExpired, hasTrial, isSubscribed, canGoLive,
             refreshPlan,
         }}>
             {children}

@@ -24,6 +24,7 @@
  */
 
 import { PLAN_PRICES_INR, TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
+import { STORE_LIMIT } from '@/lib/store/trialRules';
 
 /**
  * Review date for /terms and /privacy.
@@ -31,13 +32,23 @@ import { PLAN_PRICES_INR, TRIAL_DURATION_MS } from '@/lib/platform/productFlags'
  * Both pages read this rather than carrying their own hardcoded month, which is
  * how they ended up four months stale while claiming to be current.
  */
-export const POLICY_LAST_UPDATED = 'August 2026';
+export const POLICY_LAST_UPDATED = 'September 2026';
 
 /** Length of one paid period. Mirrors the 30-day window verify-payment writes. */
 export const BILLING_CYCLE_DAYS = 30;
 
 /** Free trial length, derived so it can never drift from the enforced value. */
 export const TRIAL_DAYS = Math.round(TRIAL_DURATION_MS / (24 * 60 * 60 * 1000));
+
+/**
+ * The free-trial rule (one free trial per account, 2026-09-25), stated once so
+ * the Terms, the FAQ and the in-app agreement (PaidStoreConsent) say the same
+ * thing. The database enforces it: migrations 058/059.
+ */
+export const TRIAL_RULE =
+    `The ${TRIAL_DAYS}-day free trial is for your first store and is given once per phone number — ` +
+    `deleting a store does not bring it back. An account can have up to ${STORE_LIMIT} stores; ` +
+    `a second store has no free trial and goes live only after you pay for it.`;
 
 /** The one sellable price. */
 export const PLAN_PRICE_INR = PLAN_PRICES_INR.qr_menu;

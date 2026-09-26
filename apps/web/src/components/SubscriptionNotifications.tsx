@@ -10,6 +10,8 @@ import { useSite } from './SiteContext';
 // subscription state from PlanContext and surfaces four states in priority
 // order:
 //
+//   0. not_live           — a store with no free trial (created after the
+//                           account's trial was used), not paid for yet
 //   1. plan_expired       — paid plan ended; store is offline until renewal
 //   2. trial_expired      — trial ended and never subscribed
 //   3. trial_ending       — trial active, ≤ 3 days left
@@ -22,7 +24,7 @@ import { useSite } from './SiteContext';
 // them once doesn't see the same banner on every nav change. Dismissal is
 // keyed by site + state so a different site or escalation re-shows it.
 
-type BannerState = 'plan_expired' | 'trial_expired' | 'plan_ending' | 'trial_ending';
+type BannerState = 'not_live' | 'plan_expired' | 'trial_expired' | 'plan_ending' | 'trial_ending';
 
 interface BannerCfg {
   bg:       string;
@@ -40,7 +42,7 @@ interface BannerCfg {
 export default function SubscriptionNotifications() {
   const { activeSite } = useSite();
   const {
-    isTrialActive, trialDaysLeft, isTrialExpired, isSubscribed, planLoading,
+    isTrialActive, trialDaysLeft, isTrialExpired, isSubscribed, planLoading, hasTrial,
   } = usePlan();
 
   // Days until paid subscription ends (0 if not subscribed)
@@ -54,6 +56,8 @@ export default function SubscriptionNotifications() {
   // Compute the single highest-priority banner state, or null.
   const state: BannerState | null = useMemo(() => {
     if (planLoading || !activeSite) return null;
+    // Never had a trial and never paid: "not live yet", never "trial ended".
+    if (!hasTrial && !isSubscribed && !sub?.store_expires_at) return 'not_live';
     if (isTrialExpired) return 'trial_expired';
     if (isSubscribed && subDaysLeft <= 5) return 'plan_ending';
     if (isTrialActive && trialDaysLeft <= 3) return 'trial_ending';
@@ -61,7 +65,7 @@ export default function SubscriptionNotifications() {
     // distinguish: a sub row exists but expiry is in the past.
     if (sub?.store_expires_at && !isSubscribed && !isTrialActive) return 'plan_expired';
     return null;
-  }, [planLoading, activeSite, isTrialExpired, isSubscribed, subDaysLeft, isTrialActive, trialDaysLeft, sub?.store_expires_at]);
+  }, [planLoading, activeSite, hasTrial, isTrialExpired, isSubscribed, subDaysLeft, isTrialActive, trialDaysLeft, sub?.store_expires_at]);
 
   // Per-session dismissal keyed by site + state.
   const dismissKey = state && activeSite ? `bys_banner_dismissed:${activeSite.id}:${state}` : null;
@@ -86,6 +90,14 @@ export default function SubscriptionNotifications() {
   if (!state || dismissed) return null;
 
   const cfg: Record<BannerState, BannerCfg> = {
+    not_live: {
+      bg: '#FFFBEB', border: '#FDE68A', color: '#92400E',
+      iconBg: '#FEF3C7', iconColor: '#D97706', icon: 'lock_clock',
+      title: 'This store is not live yet',
+      body: 'It has no free trial — the trial for this phone number was used. Pay for its plan and customers can scan its menu.',
+      ctaLabel: 'Pay to go live',
+      dismissible: false,
+    },
     plan_expired: {
       bg: '#FEF2F2', border: '#FECACA', color: '#7F1D1D',
       iconBg: '#FEE2E2', iconColor: '#DC2626', icon: 'error',

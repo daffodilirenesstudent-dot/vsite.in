@@ -15,7 +15,6 @@
 // `store_expires_at` in the future is paid, else a store younger than the
 // trial is in trial, else it is expired.
 
-import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 
 export const ONBOARDING_PAGE_LIMIT = 15;
 export const TRIAL_BULK_PAGE_LIMIT = 2;
@@ -47,7 +46,8 @@ export interface BulkAllowance {
  * the same slice, so paying early cannot be used to reset pages.
  */
 export function resolveBulkAllowance(input: {
-  siteCreatedAt: string | null;
+  /** The store's own trial end (site_subscriptions.trial_ends_at) — null when it never had one. */
+  trialEndsAt: string | null;
   storeExpiresAt: string | null;
   now: number;
 }): BulkAllowance {
@@ -63,11 +63,13 @@ export function resolveBulkAllowance(input: {
     };
   }
 
-  const createdMs = input.siteCreatedAt ? new Date(input.siteCreatedAt).getTime() : NaN;
-  if (Number.isFinite(createdMs) && createdMs + TRIAL_DURATION_MS > now) {
+  // A store created after the account's trial was used has no trial window,
+  // so no trial pages: its first payment opens the paid allowance.
+  const trialEndMs = input.trialEndsAt ? new Date(input.trialEndsAt).getTime() : NaN;
+  if (Number.isFinite(trialEndMs) && trialEndMs > now) {
     return {
       state: 'trial', kind: 'bulk_trial', limit: TRIAL_BULK_PAGE_LIMIT,
-      periodKey: 'trial', periodEndsAt: new Date(createdMs + TRIAL_DURATION_MS).toISOString(), resetsAt: null,
+      periodKey: 'trial', periodEndsAt: new Date(trialEndMs).toISOString(), resetsAt: null,
     };
   }
 

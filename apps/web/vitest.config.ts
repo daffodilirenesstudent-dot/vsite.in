@@ -37,4 +37,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // tsconfig keeps JSX as-is for Next ("jsx": "preserve"); tests that render a
+  // component (renderToStaticMarkup) need it compiled. Vite 8 transforms with
+  // oxc (an `esbuild` option is ignored). Tests only — Next's build never
+  // reads this file.
+  oxc: { jsx: { runtime: 'automatic' } },
 });

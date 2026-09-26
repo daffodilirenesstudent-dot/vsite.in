@@ -2,7 +2,7 @@
 import { Spinner, PageLoader } from '@/components/loading';
 import { LogoMark } from '@/components/Logo';
 
-import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
+import { useCallback, useEffect, useRef, useState, Suspense, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthContext';
@@ -23,6 +23,9 @@ import {
 import { pdfToPageImages, PdfPagesError } from '@/lib/menu/pdfPages';
 import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
 import { needsRescan, photoKey } from './rescan';
+import PaidStoreConsent from '@/components/store/PaidStoreConsent';
+import { PAID_STORE_CONSENT_HEADER, PAID_STORE_CONSENT_VALUE } from '@/lib/store/trialRules';
+import { MOBILE_NAV_V2 } from '@/lib/ui/mobileNav';
 
 const MAX_PHOTOS = 15;
 
@@ -129,6 +132,16 @@ function OnboardingContent() {
   const [photos, setPhotos] = useState<PreviewPhoto[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [error, setError] = useState('');
+  // One free trial per account (2026-09-25). Where this account stands, and
+  // the owner's agreement to pay for a store that has no trial — given on the
+  // You tab's add-store screen (?consent=paid) or on the screen below. The
+  // server checks the same rule at scan and at launch, whatever this says.
+  const [standingChecked, setStandingChecked] = useState(false);
+  const [trialStoreName, setTrialStoreName] = useState<string | null>(null);
+  const [consentGiven, setConsentGiven] = useState(() => searchParams.get('consent') === 'paid');
+  const [consentNeeded, setConsentNeeded] = useState(false);
+  const [storeLimitReached, setStoreLimitReached] = useState(false);
+  const [launchLive, setLaunchLive] = useState(true);
   // Setup-step problems carry a code so they can be worded for the owner and so
   // we know whether to offer the way forward without a scan.
   const [scanError, setScanError] = useState<{ code: string; message: ScanMessage } | null>(null);
@@ -171,6 +184,33 @@ function OnboardingContent() {
     if (!user) { router.replace('/login'); return; }
     setChecking(false);
   }, [user, loading, router]);
+
+  // Ask the server where the account stands before anything is built.
+  useEffect(() => {
+    if (loading || checking || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await firebaseAuth.currentUser?.getIdToken();
+        if (!token) return;
+        const res = await fetch('/api/onboarding/eligibility', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const body = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        setTrialStoreName(typeof body.trialStoreName === 'string' ? body.trialStoreName : null);
+        if (!body.canCreate) setStoreLimitReached(true);
+        else if (!body.trialAvailable) setConsentNeeded(true);
+      } catch {
+        // No answer: the scan and the launch ask the server again.
+      } finally {
+        if (!cancelled) setStandingChecked(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loading, checking, user]);
+
+  /** Sent with the scan and the launch once the owner agreed to pay for a no-trial store. */
+  const consentHeaders = (): Record<string, string> =>
+    (consentGiven ? { [PAID_STORE_CONSENT_HEADER]: PAID_STORE_CONSENT_VALUE } : {});
 
   // Reset wizard state when the page mounts fresh (new account flow)
   useEffect(() => {
@@ -303,7 +343,7 @@ function OnboardingContent() {
           res = await fetch('/api/onboarding/extract', {
             method: 'POST',
             // Lets the server estimate this scan's token cost before reading the body.
-            headers: { Authorization: `Bearer ${token}`, 'X-Photo-Count': String(sentPhotoNumbers.length) },
+            headers: { Authorization: `Bearer ${token}`, 'X-Photo-Count': String(sentPhotoNumbers.length), ...consentHeaders() },
             body: formData,
             signal: ctrl.signal,
           });
@@ -323,6 +363,16 @@ function OnboardingContent() {
           // Jitter so a crowd told "5s" does not return in lockstep.
           await sleep(retryAfterSec * 1000 + Math.random() * 2000);
           continue;
+        }
+
+        // The account's trial is used and the owner has not agreed yet (or the
+        // store limit is reached): nothing was scanned — show that screen.
+        if (res.status === 403 && (data.code === 'CONSENT_REQUIRED' || data.code === 'PLAN_LIMIT')) {
+          setScanNotice(null);
+          setExtracting(false);
+          if (data.code === 'PLAN_LIMIT') setStoreLimitReached(true);
+          else { setConsentGiven(false); setConsentNeeded(true); }
+          return;
         }
 
         // Out of AI pages for this store: say how many are left, and offer the way on without a scan.
@@ -400,6 +450,7 @@ function OnboardingContent() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Idempotency-Key': idemKey,
+          ...consentHeaders(),
         },
         body: JSON.stringify({
           shopName: businessName.trim(),
@@ -422,10 +473,17 @@ function OnboardingContent() {
 
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 403 && (data.code === 'TRIAL_LIMIT' || data.code === 'TRIAL_EXPIRED' || data.code === 'PLAN_LIMIT')) {
-          setError(data.error ?? 'You need an active plan to create this store.');
+        // One free trial per account: the server refused before creating
+        // anything. The dishes stay; the owner sees why and decides.
+        if (res.status === 403 && data.code === 'CONSENT_REQUIRED') {
           setLaunching(false);
-          setTimeout(() => router.replace('/manage/subscription'), 2500);
+          setConsentGiven(false);
+          setConsentNeeded(true);
+          return;
+        }
+        if (res.status === 403 && data.code === 'PLAN_LIMIT') {
+          setLaunching(false);
+          setStoreLimitReached(true);
           return;
         }
         setError(data.error ?? 'Something went wrong. Please try again.');
@@ -441,6 +499,8 @@ function OnboardingContent() {
 
       // Signal the loading screen that backend is done
       setLaunchItemCount(data.itemCount ?? 0);
+      // A store created after the account's trial was used is not live until paid.
+      setLaunchLive(data.live !== false);
       setLaunchSlug(data.siteSlug ?? '');
       setLaunchDone(true);
     } catch {
@@ -451,6 +511,11 @@ function OnboardingContent() {
 
   const handleLaunchRedirect = () => {
     router.replace(`/manage/dashboard?onboarded=true&items=${launchItemCount}`);
+  };
+
+  // A no-trial store's first payment — the same checkout as any other store.
+  const handleLaunchPay = () => {
+    router.replace(MOBILE_NAV_V2 ? '/manage/you/plan?pay=1' : '/manage/subscription');
   };
 
   // ── Animated step navigation ────────────────────────────────────────────────
@@ -465,6 +530,57 @@ function OnboardingContent() {
       <div className="bg-white">
         <PageLoader />
       </div>
+    );
+  }
+
+  // An existing owner adding a store: wait for the account's answer so the
+  // paid-store agreement comes before the setup screen, not after the owner
+  // has started. A brand-new account never waits — its first store has the trial.
+  if (!isNewAccount && !standingChecked) {
+    return (
+      <div className="bg-white">
+        <PageLoader />
+      </div>
+    );
+  }
+
+  const gate = (children: ReactNode) => (
+    <div className="min-h-screen w-full bg-gradient-to-br from-violet-50 via-purple-50 to-slate-50 flex flex-col">
+      <header className="flex items-center px-6 sm:px-8 py-4">
+        <LogoMark size={30} tone="brand" />
+      </header>
+      <main className="flex flex-1 items-start justify-center px-4 pb-10 pt-2 sm:pt-10">
+        <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">{children}</div>
+      </main>
+    </div>
+  );
+
+  if (storeLimitReached) {
+    return gate(
+      <div className="flex flex-col items-center gap-3 text-center">
+        <span className="material-symbols-outlined text-amber-700" style={{ fontSize: 34 }} aria-hidden>storefront</span>
+        <h1 className="text-xl font-bold text-slate-900">No more stores on this account</h1>
+        <p className="text-[15px] leading-relaxed text-slate-600">
+          An account can have 2 stores. Need another outlet under this login? Message us and we will set it up with you.
+        </p>
+        <button
+          onClick={() => router.replace('/manage/dashboard')}
+          className="mt-2 w-full rounded-xl bg-primary py-3 text-[15px] font-semibold text-white"
+        >
+          Go to dashboard
+        </button>
+      </div>,
+    );
+  }
+
+  if (consentNeeded && !consentGiven) {
+    return gate(
+      <PaidStoreConsent
+        phone={firebaseAuth.currentUser?.phoneNumber ?? null}
+        trialStoreName={trialStoreName}
+        onContinue={() => { setConsentGiven(true); setConsentNeeded(false); }}
+        onCancel={() => router.replace(isNewAccount ? '/' : '/manage/dashboard')}
+      />,
     );
   }
 
@@ -749,6 +865,8 @@ function OnboardingContent() {
         shopName={businessName}
         slug={launchSlug}
         onRedirect={handleLaunchRedirect}
+        paidRequired={!launchLive}
+        onPay={handleLaunchPay}
       />
     </div>
   );

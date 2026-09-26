@@ -109,7 +109,7 @@ export async function loadStoreAllowance(userId: string, siteId: string): Promis
 > {
   const { data, error } = await settle(() => supabaseServer
     .from('sites')
-    .select('id, created_at, site_subscriptions(store_expires_at)')
+    .select('id, site_subscriptions(store_expires_at, trial_ends_at)')
     .eq('id', siteId)
     .eq('user_id', userId)
     .maybeSingle());
@@ -118,12 +118,12 @@ export async function loadStoreAllowance(userId: string, siteId: string): Promis
     return { ok: false, reason: 'unavailable' };
   }
   if (!data) return { ok: false, reason: 'not_found' };
-  const site = data as { created_at: string | null; site_subscriptions: unknown };
+  const site = data as { site_subscriptions: unknown };
   const rawSub = Array.isArray(site.site_subscriptions) ? site.site_subscriptions[0] : site.site_subscriptions;
-  const sub = rawSub as { store_expires_at: string | null } | null | undefined;
+  const sub = rawSub as { store_expires_at: string | null; trial_ends_at?: string | null } | null | undefined;
   return {
     ok: true,
-    allowance: resolveBulkAllowance({ siteCreatedAt: site.created_at, storeExpiresAt: sub?.store_expires_at ?? null, now: Date.now() }),
+    allowance: resolveBulkAllowance({ trialEndsAt: sub?.trial_ends_at ?? null, storeExpiresAt: sub?.store_expires_at ?? null, now: Date.now() }),
   };
 }
 

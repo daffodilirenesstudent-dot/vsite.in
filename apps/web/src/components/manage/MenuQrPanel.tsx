@@ -25,9 +25,9 @@ import { supabase } from '@/lib/platform/db/supabase';
  *
  * Built around the owner's one job — get a QR onto the tables and the link in
  * front of customers — in the order they do it: see the poster, choose where
- * it goes, download a file that prints right, share the link. The poster and
- * the download button are both above the fold on a laptop; on a phone the
- * button rides above the bottom nav instead of hiding under it.
+ * it goes, download a file that prints right, share the link. The download
+ * button sits in the Print card, under the choices it prints; on a phone the
+ * owner scrolls to it (no floating bar — owner, 2026-09-25).
  */
 
 const A = {
@@ -282,27 +282,10 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
                 .qrk-designs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
                 .qrk-share { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
                 @media (max-width: 480px) { .qrk-share { grid-template-columns: minmax(0, 1fr); } }
-                .qrk-bar { display: none; }
                 @media (max-width: 960px) {
                     .qrk-grid { grid-template-columns: minmax(0, 1fr); }
                     .qrk-poster { position: static; }
                     .qrk-poster-img { max-height: 42vh; }
-                    /* One column: the download lives in a bar that floats over
-                       the page. It hangs off .qrk-root, not the Print card, so
-                       it is on screen from the first view — a sticky element
-                       cannot rise above its own parent, and the card starts
-                       below the poster. */
-                    .qrk-inline-action { display: none; }
-                    .qrk-bar { display: flex; position: sticky; bottom: 16px; z-index: 20; margin-top: 16px; }
-                }
-                /* Below 768 px the bottom nav (MobileNav) is 60 px plus the safe
-                   area. <main> (ManageLayoutClient) already pads 80 px for it
-                   (pb-20), and a sticky element stops at its scroller's padding
-                   edge — so 8 px more puts the bar just above the nav. On an
-                   iPhone the safe area (up to 34 px) eats into the spare 20 px,
-                   hence the max(). */
-                @media (max-width: 767px) {
-                    .qrk-bar { bottom: max(8px, calc(env(safe-area-inset-bottom) - 12px)); }
                 }
             `}</style>
 
@@ -504,7 +487,7 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
                             </div>
                             <p aria-live="polite" style={{ margin: '0 0 16px', fontSize: 12, color: A.text, lineHeight: '17px' }}>{summary}</p>
 
-                            <div className="qrk-inline-action">{pdfButton}</div>
+                            {pdfButton}
 
                             <div className="flex items-center flex-wrap" style={{ gap: 8, marginTop: 14, fontSize: 12, color: A.muted }}>
                                 <span>QR code only:</span>
@@ -578,21 +561,6 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
 
                     {stickerCard}
                 </div>
-            </div>
-
-            {/* Phones and narrow windows: what will print, and the button, always on screen. */}
-            <div
-                className="qrk-bar"
-                style={{
-                    alignItems: 'center', gap: 12, padding: 10, borderRadius: 14,
-                    background: A.white, border: `1px solid ${A.border}`, boxShadow: '0 8px 28px rgba(20, 16, 60, 0.16)',
-                }}
-            >
-                <div style={{ flex: 1, minWidth: 0, paddingLeft: 4 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: A.dark }}>{PLACEMENTS[placement].label} · {PLACEMENTS[placement].paper}</p>
-                    <p style={{ margin: '1px 0 0', fontSize: 12, color: A.muted }}>{method === 'home' ? `${perSheet} on one A4 sheet` : 'For the print shop'}</p>
-                </div>
-                <div style={{ flexShrink: 0, width: 172 }}>{pdfButton}</div>
             </div>
         </div>
     );

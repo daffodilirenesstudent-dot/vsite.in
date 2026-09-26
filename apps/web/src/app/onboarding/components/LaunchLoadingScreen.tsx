@@ -3,6 +3,8 @@ import { ProgressTrack } from '@/components/loading';
 
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
+import { formatPrice } from '@/lib/platform/currency';
 
 /**
  * What the owner sees while the store is being created.
@@ -35,6 +37,13 @@ interface LaunchLoadingScreenProps {
   /** The owner's own business name. Seeing it is the proof that it worked. */
   shopName?: string;
   onRedirect: () => void;
+  /**
+   * The store was created after the account's free trial was used: it is built
+   * but not live until paid. The screen must not say "is live" or offer the
+   * live menu — it offers the payment instead.
+   */
+  paidRequired?: boolean;
+  onPay?: () => void;
 }
 
 export default function LaunchLoadingScreen({
@@ -44,6 +53,8 @@ export default function LaunchLoadingScreen({
   slug,
   shopName,
   onRedirect,
+  paidRequired = false,
+  onPay,
 }: LaunchLoadingScreenProps) {
   const [msgIdx, setMsgIdx]       = useState(0);
   const [success, setSuccess]     = useState(false);
@@ -244,7 +255,7 @@ export default function LaunchLoadingScreen({
               any sentence about menus can. */}
           <div className="relative z-10 flex flex-col items-center gap-2">
             <h2 className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-slate-900 [text-wrap:balance]">
-              {shopName?.trim() || 'Your menu'} is live
+              {shopName?.trim() || 'Your menu'} {paidRequired ? 'is ready' : 'is live'}
             </h2>
 
             {/* The count as a fact, not a sentence. A dot-separated pair reads
@@ -254,23 +265,40 @@ export default function LaunchLoadingScreen({
                 {itemCount > 0 ? `${itemCount} ${itemCount === 1 ? 'dish' : 'dishes'}` : 'No dishes yet'}
               </span>
               <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden />
-              <span className="flex items-center gap-1.5">
-                <span className="live-dot h-[7px] w-[7px] rounded-full bg-emerald-500" aria-hidden />
-                Ready to scan
-              </span>
+              {paidRequired ? (
+                <span className="flex items-center gap-1.5 font-medium text-amber-700">
+                  <span className="h-[7px] w-[7px] rounded-full bg-amber-500" aria-hidden />
+                  Not live yet
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <span className="live-dot h-[7px] w-[7px] rounded-full bg-emerald-500" aria-hidden />
+                  Ready to scan
+                </span>
+              )}
             </div>
           </div>
 
           {/* No card around this. It is one short instruction, and boxing it
               gave it the same weight as the actions below it. */}
           <p className="relative z-10 max-w-[290px] text-[14px] leading-relaxed text-slate-500">
-            Put your QR on the tables. Price changes and sold-out dishes reach
-            customers instantly.
+            {paidRequired
+              ? `This store has no free trial. Pay ${formatPrice(PLAN_PRICES_INR.qr_menu, 'INR')} and customers can scan its menu straight away.`
+              : 'Put your QR on the tables. Price changes and sold-out dishes reach customers instantly.'}
           </p>
 
           {/* Actions */}
           <div className="relative z-10 mt-1 flex w-full flex-col gap-2.5">
-            {liveUrl && (
+            {paidRequired && onPay && (
+              <button
+                onClick={onPay}
+                className="flex w-full items-center justify-center gap-2 rounded-[10px] bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-dark active:scale-[0.98]"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>lock</span>
+                {`Pay ${formatPrice(PLAN_PRICES_INR.qr_menu, 'INR')} to go live`}
+              </button>
+            )}
+            {!paidRequired && liveUrl && (
               <button
                 onClick={viewLiveMenu}
                 className="flex w-full items-center justify-center gap-2 rounded-[10px] bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary-dark active:scale-[0.98]"
@@ -279,7 +307,7 @@ export default function LaunchLoadingScreen({
                 View live menu
               </button>
             )}
-            {liveUrl && (
+            {!paidRequired && liveUrl && (
               <button
                 onClick={shareMenu}
                 className="flex w-full items-center justify-center gap-2 rounded-[10px] border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]"

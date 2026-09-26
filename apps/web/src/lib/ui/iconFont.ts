@@ -22,11 +22,11 @@
  */
 
 export const ICON_NAMES = [
-    'add', 'add_photo_alternate', 'analytics', 'arrow_back', 'arrow_downward',
+    'add', 'add_business', 'add_photo_alternate', 'analytics', 'arrow_back', 'arrow_downward',
     'arrow_forward', 'arrow_upward', 'auto_awesome', 'autorenew', 'bar_chart',
     'block', 'bolt', 'cake', 'call', 'campaign', 'cancel', 'category',
     'celebration', 'chat', 'check', 'check_circle', 'checklist', 'chevron_left',
-    'chevron_right', 'close', 'cloud_upload', 'computer', 'contact_phone',
+    'chevron_right', 'close', 'cloud_upload', 'computer', 'confirmation_number', 'contact_phone',
     'content_copy', 'credit_card', 'currency_rupee', 'dashboard', 'delete',
     'delete_forever', 'description', 'desktop_windows', 'dinner_dining',
     'download', 'drag_indicator', 'edit', 'edit_note', 'emoji_food_beverage',
@@ -36,8 +36,8 @@ export const ICON_NAMES = [
     'insights', 'inventory_2', 'ios_share', 'keyboard_arrow_down', 'kitchen',
     'language', 'link', 'link_off', 'local_cafe', 'local_shipping',
     'location_on', 'lock', 'lock_clock', 'logout', 'lunch_dining', 'mail',
-    'map', 'menu_book', 'nfc', 'notifications', 'notifications_off',
-    'open_in_new', 'package_2', 'paid', 'palette', 'payments', 'pending',
+    'map', 'menu_book', 'more_vert', 'nfc', 'notifications', 'notifications_off',
+    'open_in_new', 'package_2', 'paid', 'palette', 'payments', 'pending', 'person',
     'phone_android', 'photo_camera', 'photo_library', 'picture_as_pdf',
     'point_of_sale', 'power_settings_new', 'print', 'qr_code', 'qr_code_2',
     'qr_code_2_add', 'qr_code_scanner', 'radio_button_checked',

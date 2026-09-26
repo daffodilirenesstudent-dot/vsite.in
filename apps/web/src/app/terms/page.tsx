@@ -15,6 +15,7 @@ import {
     POLICY_LAST_UPDATED,
     BILLING_CYCLE_DAYS,
     TRIAL_DAYS,
+    TRIAL_RULE,
     PLAN_PRICE_INR,
     NO_REFUND_POLICY,
     HOW_TO_STOP,
@@ -143,6 +144,7 @@ export default function TermsPage() {
                                 with no setup fee and no commission on anything you sell. New accounts
                                 get {TRIAL_DAYS} days free, with no card required.
                             </p>
+                            <p>{TRIAL_RULE}</p>
                             <p>
                                 Each payment covers one {BILLING_CYCLE_DAYS}-day period, paid in
                                 advance through Razorpay. We do not store your card and we do not hold

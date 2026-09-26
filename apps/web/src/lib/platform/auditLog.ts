@@ -45,7 +45,13 @@ export type AuditAction =
      * the share of stores that change design within 30 days. `details` carries
      * { before, after, source: 'onboarding' | 'settings' }.
      */
-    | 'menu_theme_change';
+    | 'menu_theme_change'
+    /**
+     * The owner agreed that a new store has no free trial and goes live only
+     * after it is paid for (one free trial per account). The record of that
+     * agreement, should an owner later say they were never told.
+     */
+    | 'paid_store_consent';
 
 export interface AuditEntry {
     userId: string;
