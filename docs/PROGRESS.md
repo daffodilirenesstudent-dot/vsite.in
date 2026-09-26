@@ -6,7 +6,12 @@ status: DONE
 status: CODE DONE — new acceptance suites green: product-pricing (24), menu-freshness (20),
 owner-qa-polish (44), bulk-review (9), ordering-roadmap-copy (+6). Full suite: only the
 pre-existing tests/unit/claude-hooks/* (69) and the timing-sensitive aiCostAbuse test fail, same
-as before this pass. tsc clean, lint 0 errors. NOT committed; NOT deployed.
+as before this pass. tsc clean, lint 0 errors. **RELEASED 2026-09-26** with this week's features
+(tag `release/2026-09-26`, deployed as `acc18cf`, a no-change redeploy after the first deploy was
+stopped; the owner added the six NEXT_PUBLIC flags in DO). **059 applied** after the deploy and
+verified. Live checks: new footer, 34 `.thumb.jpg` images (flags on), CSP has apis.google.com,
+poster art 200, new routes 401 without a token. `/api/version` answers but says `sha: unknown` —
+DO's app spec does not have COMMIT_SHA. Runbook: docs/releases/2026-09-26.md.
 
 **High.**
 - Sizes dish showed "₹0 onwards": save now stores `listedPrice()` (cheapest size); the menu
