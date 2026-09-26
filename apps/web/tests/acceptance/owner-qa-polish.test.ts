@@ -194,17 +194,22 @@ describe('menu-design previews show real prices, never a bare ₹', () => {
     });
 });
 
-describe('the customer menu shows the saved hours and location', () => {
-    it('the menu template renders them', () => {
+/**
+ * Owner decision, 26 Sep 2026: the customer menu header shows the shop name
+ * only — no address, no opening hours. The QA list asked for them; the owner
+ * rejected it after seeing it ("only the shop name is enough").
+ */
+describe('the customer menu header is the shop name only', () => {
+    it('the menu template renders no location or hours', () => {
         const t = shipped('components/templates/QRMenuTemplate.tsx');
-        expect(t).toMatch(/shopTimings/);
-        expect(t).toMatch(/shopLocation/);
+        expect(t).not.toMatch(/shopTimings/);
+        expect(t).not.toMatch(/shopLocation/);
     });
 
-    it('the shop passes them in', () => {
+    it('the shop does not pass them in', () => {
         const c = shipped('app/shop/[slug]/ShopPageClient.tsx');
-        expect(c).toMatch(/shopTimings=\{/);
-        expect(c).toMatch(/shopLocation=\{/);
+        expect(c).not.toMatch(/shopTimings=\{/);
+        expect(c).not.toMatch(/shopLocation=\{/);
     });
 });
 

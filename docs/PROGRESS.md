@@ -36,7 +36,7 @@ plan in the icon sidebar.
 **Low.** Escape closes notifications, bulk modal, both drawers; drawers are dialogs; labelled
 deletes, sidebar icons, store switch, bulk "Choose Files" is a button. Tab titles per page, no
 "| Vsite | Vsite". Header "Owner · <store>". Subscription copy consistent with no early renewal.
-Design previews show real prices. Menu header shows saved location + hours. 44px chips and
+Design previews show real prices. 44px chips and
 swatches. Cleared name clears the library photo; "Veg Combo"-style names abstain (matcher). CSP +
 https://apis.google.com in script-src only.
 
@@ -51,6 +51,10 @@ point into product-images; 0 uploads shared by two rows. Backlog NOT touched: 15
 originals already in product-images (77 in `temp/`, Feb–Apr test uploads; the rest deleted stores /
 old replacements) — a one-off cleanup needs the owner's go. Store deletion still leaves its photos
 (the site row is gone before a release could verify ownership) — belongs in that same sweep.
+
+**Owner decision (26 Sep):** the customer menu header stays the shop name only — the location +
+hours line the QA list asked for was built, shown, and removed at the owner's request. Guarded in
+owner-qa-polish.test.ts; do not re-add it from a QA finding.
 
 **Not done — needs a decision.** (1) The backlog above. (2) Bulk extraction speed (~47 s): pages already run in parallel; the remaining time
 is the vision call plus the description pass. Deferring descriptions until after insert would

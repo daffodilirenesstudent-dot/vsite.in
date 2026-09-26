@@ -86,10 +86,6 @@ export interface ShopBanner {
 interface QRMenuTemplateProps {
   shopName: string;
   shopTagline?: string;
-  /** Area as the owner saved it in Settings, e.g. "Anna Nagar, Chennai". */
-  shopLocation?: string;
-  /** Opening hours as saved (lib/store/storeTiming), e.g. "9:00 AM - 11:00 PM". */
-  shopTimings?: string;
   menuProducts: MenuProduct[];
   banners: ShopBanner[];
   tier: Tier;
@@ -1067,7 +1063,7 @@ function BrowseResultCard({
 
 // ── MAIN TEMPLATE ─────────────────────────────────────────────────────────────
 export default function QRMenuTemplate({
-  shopName, shopTagline, shopLocation, shopTimings, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
+  shopName, shopTagline, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
   menuTheme, menuFont, brandColor,
 }: QRMenuTemplateProps) {
   const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
@@ -1604,19 +1600,6 @@ export default function QRMenuTemplate({
                 fontFamily: "'Manrope',sans-serif", fontWeight: 400, fontSize: 11,
                 color: T.descColor, letterSpacing: '0.01em',
               }}>{shopTagline}</span>
-            )}
-            {/* Where and when. The owner fills both in Settings; they were saved
-                and never shown, so a diner still had to ask. */}
-            {(shopLocation || shopTimings) && (
-              <span style={{
-                fontFamily: "'Manrope',sans-serif", fontWeight: 500, fontSize: 11,
-                color: T.descColor, letterSpacing: '0.01em', textAlign: 'center',
-              }}>
-                {[
-                  shopLocation?.trim(),
-                  shopTimings?.trim() && (/^open/i.test(shopTimings.trim()) ? shopTimings.trim() : `Open ${shopTimings.trim()}`),
-                ].filter(Boolean).join(' · ')}
-              </span>
             )}
           </div>
 

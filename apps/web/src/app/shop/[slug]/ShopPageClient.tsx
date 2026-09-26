@@ -169,8 +169,6 @@ export default function ShopPageClient({
       <Template
         shopName={shop.name}
         shopTagline={shop.tagline ?? undefined}
-        shopLocation={shop.location ?? undefined}
-        shopTimings={shop.timings ?? undefined}
         menuProducts={pricedProducts}
         banners={banners}
         tier={tier}
