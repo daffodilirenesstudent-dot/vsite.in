@@ -11,7 +11,8 @@ import ManageLayoutClient from '@/components/ManageLayoutClient';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-    title: 'Dashboard | Vsite',
+    // The root layout's template adds " | Vsite"; spelling it here doubled it.
+    title: 'Dashboard',
     description: 'Manage your Vsite digital menu and shop settings.',
 };
 

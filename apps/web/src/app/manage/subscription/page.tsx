@@ -8,6 +8,8 @@ import { useSite } from '@/components/SiteContext';
 import { firebaseAuth } from '@/lib/auth/firebase';
 import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 import { formatPrice } from '@/lib/platform/currency';
+import { QR_MENU_FEATURES } from '@/content/smartQrMenu';
+import { useQrMenuCheckout, loadRazorpayScript, type PaymentState } from '@/hooks/useQrMenuCheckout';
 
 // Per-plan monthly pricing. Keep in sync with create-subscription/route.ts.
 // 30-day cycle, no setup fee.
@@ -19,16 +21,6 @@ const QR_ORDERING_MONTHLY = 699;
 const QR_ORDERING_MOCK_PRICE = QR_ORDERING_MONTHLY;
 
 type ModalType = 'payment' | 'qr_ordering_payment' | 'qr_order_payment' | 'coming_soon' | null;
-type PaymentState = 'idle' | 'creating' | 'activating' | 'slow' | 'success' | 'failed';
-
-const QR_MENU_FEATURES = [
-    'Clean digital menu (no printing needed)',
-    'AI-generated food images',
-    'Edit menu anytime from dashboard',
-    'Highlight offers & sold-out items live',
-    'Works for dine-in & takeaway',
-    'Shareable QR code link',
-];
 
 const QR_ORDERING_FEATURES = [
     'Everything in Smart QR Menu, plus —',
@@ -61,33 +53,17 @@ interface Invoice {
     paymentId: string | null;
 }
 
-declare global {
-    interface Window {
-        Razorpay: new (options: Record<string, unknown>) => { open(): void };
-    }
-}
-
-function loadRazorpayScript(): Promise<boolean> {
-    return new Promise((resolve) => {
-        if (typeof window !== 'undefined' && window.Razorpay) { resolve(true); return; }
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.body.appendChild(script);
-    });
-}
-
 export default function SubscriptionPage() {
     const { user } = useAuth();
     const { activeSite, sitesLoading } = useSite();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { isTrialActive, trialDaysLeft, isTrialExpired, planLoading, refreshPlan, isQrOrder } = usePlan();
+    const { isTrialActive, trialDaysLeft, isTrialExpired, hasTrial, planLoading, refreshPlan, isQrOrder } = usePlan();
     const [modalType, setModalType] = useState<ModalType>(null);
-    const [paymentState, setPaymentState] = useState<PaymentState>('idle');
+    // The ₹299 checkout — shared with the phone Plan & bills screen.
+    const { paymentState, setPaymentState, activate: handleActivate, stopPolling } =
+        useQrMenuCheckout({ onSettled: () => setModalType(null) });
     const [qrOrderingState, setQrOrderingState] = useState<PaymentState>('idle');
     const [qrOrderState, setQrOrderState] = useState<PaymentState>('idle');
-    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const sub = activeSite?.site_subscriptions ?? null;
 
@@ -117,48 +93,10 @@ export default function SubscriptionPage() {
         ? new Date(sub.store_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
         : null;
 
-    const stopPolling = () => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-        }
-    };
-
-    const startPolling = () => {
-        let attempts = 0;
-        const MAX_ATTEMPTS = 15; // 30 seconds at 2s intervals
-
-        pollingRef.current = setInterval(async () => {
-            attempts += 1;
-            await refreshPlan();
-
-            if (attempts >= MAX_ATTEMPTS) {
-                stopPolling();
-                setPaymentState('slow');
-            }
-        }, 2000);
-    };
-
     // Kept for the guard in openPayment; with no early renewal the plan is
     // always inactive when the modal opens, so "a plan became active" is once
     // again a sound success signal on its own.
     const expiryAtOpenRef = useRef<number | null>(null);
-    const currentExpiryMs = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
-
-    // Detect plan activation during polling — any plan, not just qr_menu.
-    React.useEffect(() => {
-        const anyActive = isQrMenuActive || isQrOrderingActive || isQrOrderActive;
-        if (paymentState === 'activating' && anyActive) {
-            stopPolling();
-            setPaymentState('success');
-            try { localStorage.setItem('subscription_just_activated', '1'); } catch { /* quota */ }
-            setTimeout(() => {
-                setModalType(null);
-                setPaymentState('idle');
-            }, 2500);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isQrMenuActive, isQrOrderingActive, isQrOrderActive, paymentState, currentExpiryMs]);
 
     // ── Invoice history ─────────────────────────────────────────────────────
     // `billing_history` has been recording every payment since the first
@@ -195,9 +133,6 @@ export default function SubscriptionPage() {
         if (paymentState === 'success') loadInvoices();
     }, [paymentState, loadInvoices]);
 
-    // Cleanup on unmount
-    React.useEffect(() => () => stopPolling(), []);
-
     const openPayment = () => {
         // Nothing to buy while a plan or trial is running.
         if (isQrMenuActive || isTrialActive) return;
@@ -219,106 +154,6 @@ export default function SubscriptionPage() {
         setPaymentState('idle');
         setQrOrderingState('idle');
         setQrOrderState('idle');
-    };
-
-    const verifyAndActivate = async (
-        response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string },
-        token: string,
-        siteId: string,
-    ) => {
-        try {
-            const userEmail = firebaseAuth.currentUser?.email ?? '';
-            const res = await fetch('/api/subscription/verify-payment', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    ...(userEmail ? { 'X-User-Email': userEmail } : {}),
-                },
-                body: JSON.stringify({ ...response, siteId }),
-            });
-            if (res.ok) {
-                // Immediately refresh so polling picks up the DB change fast
-                await refreshPlan();
-            } else {
-                const data = await res.json().catch(() => ({}));
-                console.error('[subscription] verify-payment failed:', data);
-            }
-        } catch (err) {
-            console.error('[subscription] verifyAndActivate error:', err);
-        }
-        // Always start polling regardless — catches cases where verify was fast or slow
-        startPolling();
-    };
-
-    const handleActivate = async () => {
-        if (!user || !activeSite || paymentState !== 'idle') return;
-        setPaymentState('creating');
-
-        try {
-            const firebaseUser = firebaseAuth.currentUser;
-            if (!firebaseUser) { setPaymentState('failed'); return; }
-
-            // Kick off script load immediately — it likely started in openPayment
-            // already (idempotent), so this resolves instantly on a warm load.
-            // Run token fetch in parallel so neither blocks the other.
-            const [token, loaded] = await Promise.all([
-                firebaseUser.getIdToken(),
-                loadRazorpayScript(),
-            ]);
-
-            if (!loaded) {
-                setPaymentState('failed');
-                return;
-            }
-
-            const res = await fetch('/api/subscription/create-subscription', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ siteId: activeSite.id, plan: 'qr_menu' }),
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                console.error('[subscription] create-subscription failed:', data);
-                setPaymentState('failed');
-                return;
-            }
-
-            const siteId = activeSite.id;
-
-            const rzp = new window.Razorpay({
-                key: data.keyId,
-                order_id: data.orderId,
-                amount: data.amount,
-                currency: data.currency,
-                name: 'vsite',
-                description: 'Smart QR Menu — Monthly',
-                prefill: {
-                    name: firebaseUser.displayName ?? '',
-                    contact: firebaseUser.phoneNumber ?? '',
-                },
-                theme: { color: '#5452F6' },
-                handler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-                    setPaymentState('activating');
-                    verifyAndActivate(response, token, siteId);
-                },
-                modal: {
-                    ondismiss: () => {
-                        setPaymentState((prev) => (prev === 'creating' ? 'idle' : prev));
-                    },
-                },
-            });
-
-            rzp.open();
-        } catch (err) {
-            console.error('[subscription] handleActivate error:', err);
-            setPaymentState('failed');
-        }
     };
 
     // Generic Razorpay activator. All three plans (qr_menu / pay_eat / qr_order)
@@ -453,12 +288,21 @@ export default function SubscriptionPage() {
                             </>
                         )}
                         {isTrialExpired && !isPlanExpired && (
-                            <>
-                                <p style={{ fontSize: 15, fontWeight: 600, color: '#DC2626' }}>Free trial ended</p>
-                                <p style={{ fontSize: 13, color: '#7F1D1D', marginTop: 2 }}>
-                                    Your menu is offline. Activate a plan below to go live again.
-                                </p>
-                            </>
+                            hasTrial ? (
+                                <>
+                                    <p style={{ fontSize: 15, fontWeight: 600, color: '#DC2626' }}>Free trial ended</p>
+                                    <p style={{ fontSize: 13, color: '#7F1D1D', marginTop: 2 }}>
+                                        Your menu is offline. Activate a plan below to go live again.
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p style={{ fontSize: 15, fontWeight: 600, color: '#B45309' }}>Store not live yet</p>
+                                    <p style={{ fontSize: 13, color: '#78350F', marginTop: 2 }}>
+                                        The free trial for this phone number was used on another store. Activate a plan below to put this menu live.
+                                    </p>
+                                </>
+                            )
                         )}
                         {isTrialActive && !isQrMenuActive && !isQrOrderingActive && !isQrOrderActive && (
                             <>
@@ -474,7 +318,7 @@ export default function SubscriptionPage() {
                             <>
                                 <p style={{ fontSize: 15, fontWeight: 600, color: '#166534' }}>Smart QR Menu — Active</p>
                                 <p style={{ fontSize: 13, color: '#14532D', marginTop: 2 }}>
-                                    {expiryLabel ? `Expires on ${expiryLabel} · Renew to extend` : 'Subscription active'}
+                                    {expiryLabel ? `Active until ${expiryLabel} · Renew here once it ends` : 'Subscription active'}
                                 </p>
                             </>
                         )}
@@ -482,7 +326,7 @@ export default function SubscriptionPage() {
                             <>
                                 <p style={{ fontSize: 15, fontWeight: 600, color: '#166534' }}>QR Ordering + Payment — Active</p>
                                 <p style={{ fontSize: 13, color: '#14532D', marginTop: 2 }}>
-                                    {expiryLabel ? `Expires on ${expiryLabel} · Renew to extend` : 'Subscription active'}
+                                    {expiryLabel ? `Active until ${expiryLabel} · Renew here once it ends` : 'Subscription active'}
                                 </p>
                             </>
                         )}
@@ -490,7 +334,7 @@ export default function SubscriptionPage() {
                             <>
                                 <p style={{ fontSize: 15, fontWeight: 600, color: '#166534' }}>QR Ordering (No Payment) — Active</p>
                                 <p style={{ fontSize: 13, color: '#14532D', marginTop: 2 }}>
-                                    {expiryLabel ? `Expires on ${expiryLabel} · Renew to extend` : 'Subscription active'}
+                                    {expiryLabel ? `Active until ${expiryLabel} · Renew here once it ends` : 'Subscription active'}
                                 </p>
                             </>
                         )}
@@ -737,7 +581,9 @@ export default function SubscriptionPage() {
                 {invoicesState === 'ready' && invoices.length === 0 && (
                     <div style={{ padding: '28px 20px', textAlign: 'center' }}>
                         <p style={{ margin: 0, fontSize: 13, color: '#71717A' }}>
-                            No payments for this store yet. Your first invoice appears here once you activate the plan.
+                            {isQrMenuActive
+                                ? 'No payments recorded for this store yet.'
+                                : 'No payments for this store yet. Your first invoice appears here once you activate the plan.'}
                         </p>
                     </div>
                 )}

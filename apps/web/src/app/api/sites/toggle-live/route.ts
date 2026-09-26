@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { rateLimit } from '@/lib/platform/rateLimit';
-import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
+import { trialEndsMs as trialEndOf } from '@/lib/store/trialRules';
 
 export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('Authorization');
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     // endpoint directly (the dashboard UI gate is not enough).
     const { data: site, error: siteError } = await supabaseServer
         .from('sites')
-        .select('id, created_at')
+        .select('id, slug')
         .eq('id', siteId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -53,22 +54,26 @@ export async function POST(request: NextRequest) {
     // When turning ON, enforce that the store is either trial-active or paid-active.
     // Turning OFF is always allowed (defensive — owners must be able to disable).
     if (is_live) {
-        const trialEndsMs = new Date(site.created_at).getTime() + TRIAL_DURATION_MS;
-        const trialActive = trialEndsMs > Date.now();
-
-        let paidActive = false;
-        if (!trialActive) {
-            const { data: sub } = await supabaseServer
-                .from('site_subscriptions')
-                .select('store_expires_at')
-                .eq('site_id', siteId)
-                .maybeSingle();
-            paidActive = !!(sub?.store_expires_at && new Date(sub.store_expires_at).getTime() > Date.now());
-        }
+        // The trial is the store's own trial_ends_at (migration 058), not
+        // created_at + 7 days — owners can rewrite created_at from the browser.
+        const { data: sub } = await supabaseServer
+            .from('site_subscriptions')
+            .select('store_expires_at, trial_ends_at')
+            .eq('site_id', siteId)
+            .maybeSingle();
+        const now = Date.now();
+        const trialActive = trialEndOf(sub) > now;
+        const paidActive = !!(sub?.store_expires_at && new Date(sub.store_expires_at).getTime() > now);
 
         if (!trialActive && !paidActive) {
+            const hadTrial = trialEndOf(sub) > 0;
             return NextResponse.json(
-                { error: 'Free trial has ended. Activate a plan to bring your store back online.', code: 'TRIAL_EXPIRED' },
+                {
+                    error: hadTrial
+                        ? 'Free trial has ended. Activate a plan to bring your store back online.'
+                        : 'This store is not live yet. Pay for its plan to put it online.',
+                    code: 'TRIAL_EXPIRED',
+                },
                 { status: 403 }
             );
         }
@@ -85,6 +90,9 @@ export async function POST(request: NextRequest) {
     if (error || !data) {
         return NextResponse.json({ error: 'Update failed' }, { status: 500 });
     }
+
+    // Closing must take effect for the very next scan, not after the cache window.
+    if (site.slug) revalidatePath(`/shop/${site.slug}`);
 
     return NextResponse.json({ success: true, is_live: data.is_live });
 }

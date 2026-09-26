@@ -69,8 +69,15 @@ import { withSentryConfig } from '@sentry/nextjs';
 // - upgrade-insecure-requests: any http:// asset references get rewritten.
 const isDev = process.env.NODE_ENV !== 'production';
 
-/** The signed-off production policy. Never conditionally spelled. */
-const SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://*.clarity.ms https://www.googletagmanager.com https://www.google-analytics.com https://checkout.razorpay.com https://cdn.razorpay.com https://www.google.com https://www.gstatic.com https://*.googleapis.com";
+/**
+ * The signed-off production policy. Never conditionally spelled.
+ *
+ * QA 2026-09-26: + https://apis.google.com. Firebase Auth loads its gapi
+ * loader (apis.google.com/js/api.js) on mobile, and the refusal was a console
+ * error on every phone login. Phone OTP itself still worked, so this is one
+ * additive host for an already-trusted vendor — nothing else widened.
+ */
+const SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://*.clarity.ms https://www.googletagmanager.com https://www.google-analytics.com https://checkout.razorpay.com https://cdn.razorpay.com https://www.google.com https://www.gstatic.com https://*.googleapis.com https://apis.google.com";
 
 // Appended, never substituted — so the production string above stays the one
 // source of truth and cannot drift from a second hand-maintained copy.

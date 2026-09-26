@@ -45,6 +45,7 @@ export default function MenuDesignPicker({
     theme,
     brandColor,
     dishNames,
+    dishPrices,
     onThemeChange,
     onColourChange,
     disabled = false,
@@ -53,6 +54,8 @@ export default function MenuDesignPicker({
     theme: MenuThemeId;
     brandColor: string | null;
     dishNames: string[];
+    /** Prices for dishNames, same order. */
+    dishPrices?: ReadonlyArray<number | null | undefined>;
     onThemeChange: (id: MenuThemeId) => void;
     onColourChange: (hex: string) => void;
     disabled?: boolean;
@@ -95,6 +98,7 @@ export default function MenuDesignPicker({
                             <ThemeSwatch
                                 themeId={t.id}
                                 dishNames={dishNames}
+                                dishPrices={dishPrices}
                                 brandColor={activeColour}
                                 selected={on}
                                 height={compact ? 96 : 116}
@@ -144,8 +148,9 @@ export default function MenuDesignPicker({
                                 aria-label={c.name}
                                 title={c.name}
                                 style={{
-                                    width: 30,
-                                    height: 30,
+                                    // 44px: the 30px dot was a small target for a thumb.
+                                    width: 44,
+                                    height: 44,
                                     borderRadius: '50%',
                                     background: c.hex,
                                     // The ring sits outside the swatch so the

@@ -6,6 +6,7 @@
 // reads the same state without each one running its own poll.
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
 
 export type PrinterRole = 'kot' | 'bill';
 export type PrinterRoleState = 'ready' | 'disconnected' | 'incompatible' | 'overflow' | 'not_assigned' | 'unknown';
@@ -52,6 +53,9 @@ export function PrinterStatusProvider({ children }: { children: React.ReactNode 
     const tickRef  = useRef(0);
 
     useEffect(() => {
+        // The bridge prints KOTs and bills — ordering output. While ordering is
+        // frozen there is nothing to print, so do not knock on 127.0.0.1:7878.
+        if (ORDERING_FROZEN) return;
         let cancelled = false;
 
         const fetchStatus = async () => {

@@ -12,6 +12,8 @@ import RevenueBarChart, { type RevenueBucket } from '@/components/RevenueBarChar
 import PaymentModeRing from '@/components/PaymentModeRing';
 import TopLowPerformers from '@/components/TopLowPerformers';
 import StoreSetupGuide from '@/components/StoreSetupGuide';
+import ConfirmDialog from '@/components/manage/ConfirmDialog';
+import { MOBILE_NAV_V2 } from '@/lib/ui/mobileNav';
 
 // Insights metrics — populated by GET /api/manage/insights, which is the SINGLE
 // SOURCE OF TRUTH for revenue numbers. Reads from `transactions` (Success rows
@@ -40,7 +42,7 @@ interface Insights {
    DASHBOARD
 ══════════════════════════════════════════════════════════ */
 function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string; siteId: string; initialStoreOpen: boolean }) {
-    const { isPayEat, isQrOrder, isQrMenu, isTrialExpired, planLoading } = usePlan();
+    const { isPayEat, isQrOrder, isQrMenu, isTrialExpired, hasTrial, planLoading } = usePlan();
     const [storeOpen, setStoreOpen] = useState(initialStoreOpen);
     const [toggling, setToggling] = useState(false);
     const [insights, setInsights] = useState<Insights | null>(null);
@@ -143,14 +145,23 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
     };
 
     // ── Store toggle ────────────────────────────────────────────────────────
+    // Going offline hides the menu from every diner who scans, so it is asked
+    // first; going live is what the owner wants almost every time, so it is not.
+    const [confirmOffline, setConfirmOffline] = useState(false);
+    const handleToggleStore = () => {
+        if (toggling || !siteId || isTrialExpired) return;
+        if (storeOpen) { setConfirmOffline(true); return; }
+        void setStoreLive(true);
+    };
+
     // Optimistic flip with rollback on failure. Without the rollback + toast,
     // a failed network request leaves the UI showing "Open" while the server
     // still has the store closed — owners think they're taking orders when
     // they aren't.
-    const handleToggleStore = async () => {
-        if (toggling || !siteId || isTrialExpired) return;
+    const setStoreLive = async (next: boolean) => {
+        if (toggling || !siteId) return;
+        setConfirmOffline(false);
         const prev = storeOpen;
-        const next = !storeOpen;
         setStoreOpen(next);
         setToggling(true);
         const rollback = (message: string) => {
@@ -190,10 +201,13 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-white hover:opacity-90 transition-opacity shrink-0"
-                    style={{ background: '#5137EF', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}
+                    style={MOBILE_NAV_V2
+                        ? { background: '#5137EF', borderRadius: 10, padding: '0 16px', minHeight: 44, fontSize: 14, fontWeight: 600, textDecoration: 'none' }
+                        : { background: '#5137EF', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}
                 >
-                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>open_in_new</span>
-                    <span className="hidden sm:inline">Preview Store</span>
+                    <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 15 }}>open_in_new</span>
+                    {/* v2: a labelled button on phones too — an unlabelled purple square said nothing. */}
+                    {MOBILE_NAV_V2 ? <span>View menu</span> : <span className="hidden sm:inline">Preview Store</span>}
                 </a>
             </div>
 
@@ -216,8 +230,12 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#DC2626', fontVariationSettings: "'FILL' 1" }}>lock</span>
                         </div>
                         <div>
-                            <p className="font-semibold" style={{ fontSize: 14, color: '#7F1D1D' }}>Store is offline</p>
-                            <p style={{ fontSize: 12, color: '#B91C1C' }}>Your free trial ended. Activate a plan to go live.</p>
+                            <p className="font-semibold" style={{ fontSize: 14, color: '#7F1D1D' }}>{hasTrial ? 'Store is offline' : 'Store is not live yet'}</p>
+                            <p style={{ fontSize: 12, color: '#B91C1C' }}>
+                                {hasTrial
+                                    ? 'Your free trial ended. Activate a plan to go live.'
+                                    : 'This store has no free trial. Pay for its plan to go live.'}
+                            </p>
                         </div>
                     </div>
                     <Link href="/manage/subscription" className="shrink-0 flex items-center gap-1.5 text-white hover:opacity-90 transition-opacity" style={{ background: '#DC2626', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
@@ -241,6 +259,10 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                             {storeOpen ? (canViewInsights ? 'Open & Accepting Orders' : 'Open, users can view now') : 'Closed'}
                         </span>
                         <button
+                            type="button"
+                            role="switch"
+                            aria-checked={storeOpen}
+                            aria-label="Store status: menu visible to customers"
                             onClick={handleToggleStore}
                             disabled={toggling}
                             style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 46, height: 24, borderRadius: 9999, background: storeOpen ? '#00A63E' : '#D4D4D8', border: 'none', cursor: toggling ? 'wait' : 'pointer', transition: 'background 0.2s', padding: 0, flexShrink: 0, opacity: toggling ? 0.7 : 1 }}
@@ -250,6 +272,17 @@ function RealDashboard({ siteUrl, siteId, initialStoreOpen }: { siteUrl: string;
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={confirmOffline}
+                title="Take your menu offline?"
+                body="Customers who scan your QR code will see “Shop currently unavailable” instead of your menu until you turn it back on."
+                confirmLabel="Take offline"
+                cancelLabel="Keep it online"
+                busy={toggling}
+                onConfirm={() => { void setStoreLive(false); }}
+                onCancel={() => setConfirmOffline(false)}
+            />
 
             {/* ── INSIGHTS ─────────────────────────────────────────────────────── */}
             <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">

@@ -53,6 +53,7 @@ function timeAgo(iso: string): string {
 export default function NotificationBell() {
   const { user } = useAuth();
   const [open, setOpen]       = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
   const [data, setData]       = useState<FetchResult>({ items: [], unread: 0 });
   const [loading, setLoading] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -94,8 +95,18 @@ export default function NotificationBell() {
     const onDoc = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
     };
+    // Escape closes it too, and hands focus back to the bell.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      bellRef.current?.focus();
+    };
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   const markRead = async (id: string) => {
@@ -125,7 +136,11 @@ export default function NotificationBell() {
   return (
     <div ref={wrapperRef} style={{ position: 'relative' }}>
       <button
+        ref={bellRef}
+        type="button"
         onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         aria-label="Notifications"
         style={{
           position: 'relative', width: 36, height: 36, borderRadius: 8,
@@ -134,7 +149,7 @@ export default function NotificationBell() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#52525C' }}>notifications</span>
+        <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 20, color: '#52525C' }}>notifications</span>
         {data.unread > 0 && (
           <span
             aria-label={`${data.unread} unread`}

@@ -38,6 +38,9 @@ const FUZZY_MIN_SIM = 0.82;
 const UNKNOWN_WEIGHT = 1.0;
 
 const UNKNOWN_PREFIX = '~';
+/** Concepts that say what a dish is not, never what it is. */
+const DIET_LABELS: ReadonlySet<string> = new Set(['VEG', 'NONVEG']);
+const COMBO = /\bcombos?\b/i;
 const SURFACES: readonly string[] = Array.from(CONCEPT.keys());
 
 // ── 1–3. Name → concept ids ──────────────────────────────────────────────────
@@ -221,6 +224,20 @@ export function matchImage(
   }
 
   const q = roles(concepts);
+
+  // A diet label is not a dish. VEG is a CORE so "paruppu"-style bare-core
+  // queries still resolve, but "veg special" / "veg plate" name nothing that is
+  // on the plate — and were served veg-kolhapuri, a curry.
+  if (concepts.every((c) => DIET_LABELS.has(c))) {
+    return { decision: 'abstain', image: null, score: null, concepts, reason: 'diet label only' };
+  }
+  // A combo is several dishes; the photo of one of them misdescribes it. Only
+  // a combo named after its dish form ("biryani combo") keeps that picture.
+  // `combo` is a STOP word, so this reads the raw name.
+  if (COMBO.test(query) && q.heads.length === 0) {
+    return { decision: 'abstain', image: null, score: null, concepts, reason: 'combo' };
+  }
+
   const qSet = new Set(concepts);
   const qWeight = concepts.reduce((s, c) => s + index.idf(c), 0);
 

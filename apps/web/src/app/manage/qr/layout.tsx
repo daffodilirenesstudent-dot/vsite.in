@@ -1,4 +1,7 @@
+import type { Metadata } from 'next';
 import { Poppins, Newsreader } from 'next/font/google';
+
+export const metadata: Metadata = { title: 'QR codes' };
 
 /**
  * Fonts the food posters draw with (lib/qr/designRender.ts), as CSS variables

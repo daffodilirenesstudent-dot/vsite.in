@@ -75,13 +75,21 @@ describe('the printed poster uses the owner\'s own artwork', () => {
      *
      * The owner asked for their own template back. That is their call, so the
      * tests now guard the shape they chose rather than the one I argued for.
-     * The freeze conflict is recorded in docs/PROGRESS.md — it is a known,
-     * accepted trade, not an oversight to be silently "fixed" later.
+     *
+     * UPDATED BY THE OWNER, 26 Sep 2026. Their QA list flagged the "SCAN &
+     * ORDER" headline as a freeze break, and — asked explicitly, with the
+     * 11 Sep decision in front of them — they chose a copy of the same artwork
+     * reading "SCAN FOR MENU" while ordering is frozen. It is still their own
+     * PNG, not a code-drawn poster; the ordering artwork stays for the day
+     * ordering ships. The rule lives in lib/qr/posterTemplate.ts and is guarded
+     * by ordering-roadmap-copy.test.ts.
      */
     it('composites onto the owner\'s PNG templates', () => {
-        const qr = read(QR);
-        expect(qr).toMatch(/brand poster scan order\.png/);
-        expect(qr).toMatch(/brand poster template\.png/);
+        const rule = read('lib/qr/posterTemplate.ts');
+        expect(read(QR)).toMatch(/classicPosterTemplate\(/);
+        expect(rule).toMatch(/brand poster scan menu\.png/);
+        expect(rule).toMatch(/brand poster scan order\.png/);
+        expect(rule).toMatch(/brand poster template\.png/);
     });
 
     it('does not reintroduce the code-drawn poster', () => {

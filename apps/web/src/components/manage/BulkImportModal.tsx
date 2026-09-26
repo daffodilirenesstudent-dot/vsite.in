@@ -6,6 +6,7 @@ import { supabase } from '@/lib/platform/db/supabase';
 import { firebaseAuth } from '@/lib/auth/firebase';
 import { compressImage } from '@/lib/menu/imageCompress';
 import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
+import { categorySummary, itemsToAdd, reviewProblems } from '@/lib/menu/bulkReview';
 import { bulkAllowanceView, planBulkPdf, type BulkState } from '@/lib/menu/aiPageLimits';
 import { countPdfPages, pdfToPageImages } from '@/lib/menu/pdfPages';
 
@@ -34,9 +35,13 @@ interface ExtractedItem {
   star_rating: number;
   profit_tier: number;
   prep_complexity_tier: number;
+  /** Ticked in the check step. Unticked items are never sent. */
+  include: boolean;
 }
 
-type Phase = 'upload' | 'processing' | 'review' | 'inserting' | 'results' | 'error';
+// 'check' = the owner reads every dish, price and category the AI found before
+// anything is added. It used to go straight to the bestseller picker.
+type Phase = 'upload' | 'processing' | 'check' | 'review' | 'inserting' | 'results' | 'error';
 
 const DAILY_LIMIT = 15;
 const SESSION_MAX = 5;
@@ -139,6 +144,14 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
     ? Math.min(SESSION_MAX, pagesLeft)
     : Math.min(SESSION_MAX, quotaUsed !== null ? DAILY_LIMIT - quotaUsed : SESSION_MAX);
   const canClose = phase !== 'processing' && phase !== 'inserting';
+
+  // Escape closes it like the × does — but never mid-upload, when closing
+  // would abandon pages the owner has already been charged for.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && canClose) onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [canClose, onClose]);
 
   // ── File handling ─────────────────────────────────────────────────────────
   // AI_PAGE_LIMITS ON: photos and PDFs. Each PDF page becomes one JPEG in the
@@ -250,11 +263,12 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
         star_rating:          DEFAULT_TIER,
         profit_tier:          DEFAULT_TIER,
         prep_complexity_tier: DEFAULT_TIER,
+        include:              true,
       }));
 
       setExtractedItems(items);
       setReviewStep(0);
-      setPhase('review');
+      setPhase('check');
     } catch (err: unknown) {
       clearInterval(stepTimerRef.current!);
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.');
@@ -273,7 +287,7 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
       const insertRes = await fetch('/api/bulk-import/insert', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteId, items: extractedItems, photosCount: files.length }),
+        body: JSON.stringify({ siteId, items: itemsToAdd(extractedItems), photosCount: files.length }),
       });
       const insertData = await insertRes.json();
       if (!insertRes.ok) throw new Error(insertData.error ?? 'Failed to save products.');
@@ -286,6 +300,13 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
       setPhase('error');
     }
   };
+
+  // ── Check helpers ─────────────────────────────────────────────────────────
+  const updateItem = (idx: number, patch: Partial<ExtractedItem>) =>
+    setExtractedItems(prev => prev.map((item, i) => (i === idx ? { ...item, ...patch } : item)));
+  const problems = reviewProblems(extractedItems);
+  const included = extractedItems.filter(i => i.include).length;
+  const categories = categorySummary(extractedItems);
 
   // ── Review helpers ────────────────────────────────────────────────────────
   const starSelected   = extractedItems.filter(i => i.star_rating   === SELECTED_TIER).length;
@@ -337,6 +358,9 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
       onClick={canClose ? onClose : undefined}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bulk-import-title"
         className="bg-white flex flex-col"
         style={{ width: 'min(520px, 96vw)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', maxHeight: '92vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}
@@ -345,10 +369,11 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #E4E4E7', flexShrink: 0 }}>
           <div className="flex items-start justify-between">
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0A0A0A', lineHeight: '28px' }}>Add Bulk Products</h2>
+              <h2 id="bulk-import-title" style={{ fontSize: 20, fontWeight: 700, color: '#0A0A0A', lineHeight: '28px' }}>Add Bulk Products</h2>
               <p style={{ fontSize: 13, color: '#71717A', marginTop: 2 }}>
-                {phase === 'review' && reviewStep === 0 && 'Step 2 of 3 — Mark your bestsellers'}
-                {phase === 'review' && reviewStep === 1 && 'Step 3 of 3 — Mark your high-margin items'}
+                {phase === 'check' && 'Step 2 of 4 — Check names and prices'}
+                {phase === 'review' && reviewStep === 0 && 'Step 3 of 4 — Mark your bestsellers'}
+                {phase === 'review' && reviewStep === 1 && 'Step 4 of 4 — Mark your high-margin items'}
                 {(phase === 'upload' || phase === 'processing' || phase === 'inserting') && 'Upload menu photos — AI extracts and adds items automatically'}
                 {phase === 'results' && 'Products added to your inventory'}
                 {phase === 'error' && 'Something went wrong'}
@@ -356,28 +381,29 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
             </div>
             {canClose && (
               <button
+                type="button"
+                aria-label="Close"
                 onClick={onClose}
                 className="flex items-center justify-center hover:bg-neutral-100 transition-colors"
                 style={{ width: 32, height: 32, borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#71717A' }}>close</span>
+                <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 20, color: '#71717A' }}>close</span>
               </button>
             )}
           </div>
 
-          {/* Step progress bar */}
-          {(phase === 'upload' || phase === 'processing' || phase === 'review' || phase === 'inserting') && (
+          {/* Step progress bar: upload · check · bestsellers · margins */}
+          {(phase === 'upload' || phase === 'processing' || phase === 'check' || phase === 'review' || phase === 'inserting') && (
             <div style={{ display: 'flex', gap: 4, marginTop: 14 }}>
-              {[0, 1, 2].map(s => {
+              {[0, 1, 2, 3].map(s => {
                 const p = phase as string;
-                const done =
-                  s === 0 ? (p !== 'upload') :
-                  s === 1 ? (p === 'review' && reviewStep === 1) || p === 'inserting' || p === 'results' :
-                  p === 'inserting' || p === 'results';
-                const active =
-                  s === 0 ? p === 'upload' || p === 'processing' :
-                  s === 1 ? p === 'review' && reviewStep === 0 :
-                  p === 'review' && reviewStep === 1;
+                const at =
+                  p === 'upload' || p === 'processing' ? 0 :
+                  p === 'check' ? 1 :
+                  p === 'review' ? 2 + reviewStep :
+                  4;
+                const done = s < at;
+                const active = s === at;
                 return (
                   <div key={s} style={{ flex: 1, height: 3, borderRadius: 2, background: done ? purple : active ? purple : '#E4E4E7', opacity: active ? 0.5 : 1, transition: 'background 0.3s' }} />
                 );
@@ -523,13 +549,15 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                     </p>
                       </>
                     )}
-                    <label
-                      htmlFor="bulk-photo-input"
-                      onClick={e => e.stopPropagation()}
-                      style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer', display: 'inline-block' }}
+                    {/* A button, not a <label>: a label for a hidden input is not in
+                        the tab order, so a keyboard could never reach it. */}
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                      style={{ border: '1px solid #E4E4E7', borderRadius: 8, padding: '7px 20px', minHeight: 40, fontSize: 13, fontWeight: 600, color: '#0A0A0A', background: '#FFFFFF', cursor: 'pointer', display: 'inline-block' }}
                     >
                       Choose Files
-                    </label>
+                    </button>
                   </div>
 
                   {AI_PAGE_LIMITS && pickError && (
@@ -585,6 +613,104 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
             </div>
           )}
 
+          {/* ── CHECK: every dish the AI read, before any of it is added ── */}
+          {phase === 'check' && (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0A0A0A', marginBottom: 4 }}>Check what we read</h3>
+                <p style={{ fontSize: 12, color: '#71717A', lineHeight: '18px' }}>
+                  Fix any name or price we misread. Untick anything you don&apos;t want on your menu.
+                </p>
+              </div>
+
+              {categories.length > 0 && (
+                <p style={{ fontSize: 12, color: '#52525C', lineHeight: '18px', marginBottom: 10 }}>
+                  <strong>Categories:</strong> {categories.map(c => `${c.name} (${c.count})`).join(', ')}.
+                  {' '}Change a dish&apos;s category below to move it.
+                </p>
+              )}
+
+              <ul style={{ listStyle: 'none', margin: '0 0 12px', padding: 0, maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {extractedItems.map((item, idx) => {
+                  const sizes = (item.variants ?? []).filter(v => v.size && v.price > 0);
+                  const unpriced = item.include && item.price <= 0 && sizes.length === 0;
+                  const unnamed = item.include && !item.name.trim();
+                  return (
+                    <li key={idx} style={{ border: `1px solid ${unpriced || unnamed ? '#FCA5A5' : '#E4E4E7'}`, borderRadius: 10, padding: '8px 10px', background: item.include ? '#FFFFFF' : '#FAFAFA', opacity: item.include ? 1 : 0.6 }}>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={item.include}
+                          onChange={e => updateItem(idx, { include: e.target.checked })}
+                          aria-label={`Add ${item.name || `item ${idx + 1}`}`}
+                          style={{ width: 20, height: 20, accentColor: purple, flexShrink: 0 }}
+                        />
+                        <FoodDot type={item.food_type} />
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={e => updateItem(idx, { name: e.target.value })}
+                          aria-label={`Name of item ${idx + 1}`}
+                          style={{ flex: 1, minWidth: 0, border: '1px solid #E4E4E7', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#0A0A0A' }}
+                        />
+                        <div className="flex items-center shrink-0" style={{ border: `1px solid ${unpriced ? '#FCA5A5' : '#E4E4E7'}`, borderRadius: 8, overflow: 'hidden', width: 92 }}>
+                          <span aria-hidden style={{ padding: '8px 6px 8px 8px', fontSize: 13, color: '#71717A', background: '#FAFAFA' }}>₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            value={item.price > 0 ? item.price : ''}
+                            placeholder={sizes.length ? String(Math.min(...sizes.map(v => v.price))) : '0'}
+                            onChange={e => updateItem(idx, { price: Number(e.target.value) || 0 })}
+                            aria-label={`Price of ${item.name || `item ${idx + 1}`}`}
+                            style={{ flex: 1, width: 0, border: 'none', padding: '8px 6px', fontSize: 13, color: '#0A0A0A', outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2" style={{ marginTop: 6, paddingLeft: 28 }}>
+                        <input
+                          type="text"
+                          value={item.category}
+                          onChange={e => updateItem(idx, { category: e.target.value })}
+                          placeholder="Category"
+                          aria-label={`Category of ${item.name || `item ${idx + 1}`}`}
+                          style={{ flex: 1, minWidth: 0, border: '1px solid #F4F4F5', borderRadius: 6, padding: '5px 8px', fontSize: 12, color: '#52525C' }}
+                        />
+                        {sizes.length > 0 && (
+                          <span style={{ fontSize: 11, color: '#71717A', whiteSpace: 'nowrap' }}>
+                            {sizes.length} size{sizes.length === 1 ? '' : 's'} · from ₹{Math.min(...sizes.map(v => v.price))}
+                          </span>
+                        )}
+                      </div>
+                      {unpriced && <p role="alert" style={{ fontSize: 11, color: '#B91C1C', margin: '6px 0 0 28px' }}>Add a price, or untick this dish.</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {(problems.missingName > 0 || problems.missingPrice > 0) && (
+                <p role="status" style={{ fontSize: 12, color: '#9A3412', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 10px', marginBottom: 12 }}>
+                  {problems.missingPrice > 0 && `${problems.missingPrice} dish${problems.missingPrice === 1 ? ' has' : 'es have'} no price. `}
+                  {problems.missingName > 0 && `${problems.missingName} dish${problems.missingName === 1 ? ' has' : 'es have'} no name. `}
+                  Fix or untick them to continue.
+                </p>
+              )}
+
+              <div className="flex items-center justify-between" style={{ borderTop: '1px solid #F4F4F5', paddingTop: 14 }}>
+                <span style={{ fontSize: 12, color: '#71717A' }}>{included} of {extractedItems.length} will be added</span>
+                <button
+                  type="button"
+                  onClick={() => setPhase('review')}
+                  disabled={problems.missingName > 0 || problems.missingPrice > 0 || included === 0}
+                  className="disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: purple, borderRadius: 8, padding: '10px 28px', minHeight: 44, fontSize: 14, fontWeight: 600, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
+                >
+                  Continue
+                </button>
+              </div>
+            </>
+          )}
+
           {/* ── REVIEW ── */}
           {phase === 'review' && (
             <>
@@ -633,6 +759,7 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
               {/* Item grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 340, overflowY: 'auto', marginBottom: 16 }}>
                 {extractedItems.map((item, idx) => {
+                  if (!item.include) return null;
                   const isSelected = reviewStep === 0 ? item.star_rating === SELECTED_TIER : item.profit_tier === SELECTED_TIER;
                   const limitHit   = reviewStep === 0 ? starSelected >= MAX_STAR_SELECT : profitSelected >= MAX_PROFIT_SELECT;
                   const isDisabled = !isSelected && limitHit;
@@ -683,7 +810,7 @@ export default function BulkImportModal({ siteId, siteName, onClose, onSuccess }
                   onClick={continueReview}
                   style={{ background: purple, borderRadius: 8, padding: '10px 28px', fontSize: 14, fontWeight: 600, color: '#FFFFFF', border: 'none', cursor: 'pointer' }}
                 >
-                  {reviewStep === 0 ? 'Continue' : `Add ${extractedItems.length} items`}
+                  {reviewStep === 0 ? 'Continue' : `Add ${included} item${included === 1 ? '' : 's'}`}
                 </button>
               </div>
             </>

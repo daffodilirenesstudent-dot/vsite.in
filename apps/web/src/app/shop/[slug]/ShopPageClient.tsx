@@ -1,10 +1,12 @@
 'use client';
 import { Spinner } from '@/components/loading';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Shop, supabase } from '@/lib/platform/db/supabase';
 import { TEMPLATE_MAP, DEFAULT_TEMPLATE, type TemplateName } from '@/components/templates/index';
 import type { MenuProduct, ShopBanner } from '@/components/templates/QRMenuTemplate';
+import { menuCardPrice } from '@/lib/menu/productForm';
+import { isOwnerDevice } from '@/lib/menu/ownerDevice';
 
 export type { MenuProduct, ShopBanner };
 
@@ -121,6 +123,8 @@ export default function ShopPageClient({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      // The owner checking their own menu is not a customer scan.
+      if (isOwnerDevice(window.localStorage, initialShop.id)) return;
       const STORAGE_KEY = 'vsite_visitor_id';
       let visitorId = window.localStorage.getItem(STORAGE_KEY);
       if (!visitorId) {
@@ -140,6 +144,16 @@ export default function ShopPageClient({
     } catch { /* localStorage / crypto unavailable — skip silently */ }
   }, [initialShop.id, tableNumber]);
 
+  // Sizes dishes saved before the fix carry selling_price 0; every card, the
+  // search results and the detail sheet read selling_price, so fix it once here.
+  const pricedProducts = useMemo(
+    () => products.map(p => {
+      const price = menuCardPrice(p.selling_price, p.metadata);
+      return price === p.selling_price ? p : { ...p, selling_price: price };
+    }),
+    [products],
+  );
+
   const templateKey: TemplateName = DEFAULT_TEMPLATE;
   const Template = TEMPLATE_MAP[templateKey];
 
@@ -155,7 +169,9 @@ export default function ShopPageClient({
       <Template
         shopName={shop.name}
         shopTagline={shop.tagline ?? undefined}
-        menuProducts={products}
+        shopLocation={shop.location ?? undefined}
+        shopTimings={shop.timings ?? undefined}
+        menuProducts={pricedProducts}
         banners={banners}
         tier={tier}
         shopId={shop.id}

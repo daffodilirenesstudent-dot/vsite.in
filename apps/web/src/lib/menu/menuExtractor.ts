@@ -38,6 +38,7 @@ import OpenAI from 'openai';
 import { matchByKeyword } from '@/lib/menu/defaultImages';
 import { rateScheduler, SchedulerError } from '@/lib/menu/openaiScheduler';
 import { recordAiUsage } from '@/lib/menu/aiSpendGuard';
+import { listedPrice } from '@/lib/menu/productForm';
 
 import { logger } from '@/lib/platform/logger';
 
@@ -279,7 +280,7 @@ const FOOD_CHAR_MAP: Record<string, MenuItem['food_type']> = { v: 'veg', n: 'non
 
 // Tuple → MenuItem (without description). Tolerant to extra/missing fields and
 // to the model occasionally returning verbose objects instead of tuples.
-function tupleToItem(t: unknown): Omit<MenuItem, 'description'> | null {
+export function tupleToItem(t: unknown): Omit<MenuItem, 'description'> | null {
   // Tuple form
   if (Array.isArray(t)) {
     const [name, price, category, typeChar, foodChar, variantsRaw] = t as unknown[];
@@ -295,7 +296,8 @@ function tupleToItem(t: unknown): Omit<MenuItem, 'description'> | null {
 
     let finalPrice = clampPrice(price);
     if (item_type === 'variant' && variants.length > 0 && finalPrice === 0) {
-      finalPrice = Math.min(...variants.map(v => v.price).filter(p => p > 0)) || 0;
+      // listedPrice, not Math.min(...): with every size unpriced that was Math.min() = Infinity.
+      finalPrice = listedPrice('Variants', '', variants);
     }
 
     return {

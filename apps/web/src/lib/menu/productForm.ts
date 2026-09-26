@@ -41,13 +41,63 @@ export function initialDishType(smart: boolean): DishTypeChoice {
     return smart ? '' : 'Non-Vegetarian';
 }
 
+/** One size row. Prices arrive as strings from the drawer and as numbers from AI extraction. */
+export interface SizeRow { size: string; price: string | number }
+
+const priceOf = (raw: string | number): number => {
+    const n = typeof raw === 'number' ? raw : raw.trim() === '' ? NaN : Number(raw);
+    return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * The price the menu card shows. A Sizes dish is listed at its cheapest size
+ * ("₹140 onwards"); the Selling Price box is not asked for there, so it is
+ * usually empty and saving it put "₹0 onwards" on the menu. 0 when nothing is
+ * priced — never Infinity, which `Math.min()` of nothing would be.
+ */
+export function listedPrice(productType: string, sellingPrice: string, sizes: readonly SizeRow[]): number {
+    if (productType !== 'Variants') return priceOf(sellingPrice);
+    const priced = sizes.filter(s => s.size.trim()).map(s => priceOf(s.price)).filter(p => p > 0);
+    return priced.length > 0 ? Math.min(...priced) : 0;
+}
+
+/**
+ * The price a menu card prints. Sizes dishes saved before listedPrice existed
+ * carry selling_price 0; derive theirs from the sizes so the menu is right
+ * without rewriting menu data. Any price the owner set is kept as it is.
+ */
+export function menuCardPrice(sellingPrice: number, metadata: Record<string, unknown> | null | undefined): number {
+    const stored = Number(sellingPrice) || 0;
+    if (stored > 0) return stored;
+    const variants = metadata?.variants;
+    if (!Array.isArray(variants)) return stored;
+    const sizes = variants.filter((v): v is SizeRow =>
+        !!v && typeof v === 'object' && typeof (v as SizeRow).size === 'string'
+        && (typeof (v as SizeRow).price === 'string' || typeof (v as SizeRow).price === 'number'));
+    return listedPrice('Variants', '', sizes) || stored;
+}
+
 /** The first thing stopping a save, in the owner's words, or null when it can be saved. */
 export function validateProductForm(
-    form: { name: string; sellingPrice: string; dishType: string },
+    form: { name: string; sellingPrice: string; dishType: string; productType?: string; sizes?: readonly SizeRow[] },
     opts: { requireDishType: boolean },
 ): string | null {
     if (!form.name.trim()) return 'Product name is required';
     if (opts.requireDishType && !form.dishType) return 'Choose Veg or Non-veg';
-    if (form.sellingPrice !== '' && Number(form.sellingPrice) < 0) return 'Price cannot be negative';
+
+    // A diner must never read ₹0 for something they have to pay for.
+    if (form.productType === 'Variants') {
+        const sizes = form.sizes ?? [];
+        const filled = (p: string | number) => String(p).trim() !== '';
+        if (sizes.some(s => !s.size.trim() && filled(s.price))) return 'Give every size a name';
+        const named = sizes.filter(s => s.size.trim());
+        const unpriced = named.find(s => priceOf(s.price) <= 0);
+        if (unpriced) return `Add a price for "${unpriced.size.trim()}"`;
+        if (named.length === 0) return 'Add at least one size with its price';
+        return null;
+    }
+    const price = priceOf(form.sellingPrice);
+    if (price < 0) return 'Price cannot be negative';
+    if (price === 0) return 'Enter a price above ₹0';
     return null;
 }

@@ -86,6 +86,10 @@ export interface ShopBanner {
 interface QRMenuTemplateProps {
   shopName: string;
   shopTagline?: string;
+  /** Area as the owner saved it in Settings, e.g. "Anna Nagar, Chennai". */
+  shopLocation?: string;
+  /** Opening hours as saved (lib/store/storeTiming), e.g. "9:00 AM - 11:00 PM". */
+  shopTimings?: string;
   menuProducts: MenuProduct[];
   banners: ShopBanner[];
   tier: Tier;
@@ -1063,7 +1067,7 @@ function BrowseResultCard({
 
 // ── MAIN TEMPLATE ─────────────────────────────────────────────────────────────
 export default function QRMenuTemplate({
-  shopName, shopTagline, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
+  shopName, shopTagline, shopLocation, shopTimings, menuProducts, banners, tier, shopId, shopSlug, tableNumber, gstRatePct = 0, whatsappOrderTaking = false, currencyCode = 'INR',
   menuTheme, menuFont, brandColor,
 }: QRMenuTemplateProps) {
   const CURR = currencyCode === 'AED' ? 'AED ' : '₹';
@@ -1601,6 +1605,19 @@ export default function QRMenuTemplate({
                 color: T.descColor, letterSpacing: '0.01em',
               }}>{shopTagline}</span>
             )}
+            {/* Where and when. The owner fills both in Settings; they were saved
+                and never shown, so a diner still had to ask. */}
+            {(shopLocation || shopTimings) && (
+              <span style={{
+                fontFamily: "'Manrope',sans-serif", fontWeight: 500, fontSize: 11,
+                color: T.descColor, letterSpacing: '0.01em', textAlign: 'center',
+              }}>
+                {[
+                  shopLocation?.trim(),
+                  shopTimings?.trim() && (/^open/i.test(shopTimings.trim()) ? shopTimings.trim() : `Open ${shopTimings.trim()}`),
+                ].filter(Boolean).join(' · ')}
+              </span>
+            )}
           </div>
 
           <button
@@ -1862,7 +1879,7 @@ export default function QRMenuTemplate({
           <p style={{
             fontFamily: "'Poppins',sans-serif", fontWeight: 600, fontSize: 26,
             lineHeight: '37px', color: T.lightGray, margin: '0 0 8px', maxWidth: 256,
-          }}>Skip the queue. Scan &amp; order</p>
+          }}>Fresh menu, always up to date</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 13.5S1.5 9.5 1.5 5.5A3.5 3.5 0 0 1 8 3.2 3.5 3.5 0 0 1 14.5 5.5C14.5 9.5 8 13.5 8 13.5Z" fill="#F9595F" />

@@ -126,6 +126,7 @@ export default function SummaryPhase({ onLaunch, launching }: SummaryPhaseProps)
           theme={menuTheme}
           brandColor={brandColor}
           dishNames={items.map(i => i.name)}
+          dishPrices={items.map(i => i.price)}
           onThemeChange={setMenuTheme}
           onColourChange={setBrandColor}
         />

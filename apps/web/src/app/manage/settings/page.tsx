@@ -18,6 +18,8 @@ import {
 import { BUSINESS_TYPES, isBusinessType, isValidPincode } from '@/lib/store/businessTypes';
 import { TIME_SLOTS, formatTiming, parseTiming, type StoreTiming } from '@/lib/store/storeTiming';
 import { ORDERING_FROZEN } from '@/lib/platform/productFlags';
+import { deleteStore } from '@/lib/store/deleteStore';
+import { refreshPublicMenu } from '@/lib/menu/refreshPublicMenu';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -78,6 +80,7 @@ export default function SettingsPage() {
     });
     /** Real dish names for the design swatches — never placeholders. */
     const [dishNames, setDishNames] = useState<string[]>([]);
+    const [dishPrices, setDishPrices] = useState<number[]>([]);
     const [loading, setLoading]       = useState(true);
     const [saving, setSaving]         = useState(false);
 
@@ -191,13 +194,14 @@ export default function SettingsPage() {
                         // query on a settings screen rather than a menu fetch.
                         supabase
                             .from('products')
-                            .select('name')
+                            .select('name, selling_price')
                             .eq('site_id', activeSite.id)
                             .order('display_order')
                             .limit(2)
                             .then(({ data: rows }) => {
                                 if (rows?.length) {
                                     setDishNames(rows.map(r => String(r.name)));
+                                    setDishPrices(rows.map(r => Number(r.selling_price) || 0));
                                 }
                             });
                         setAppearance({
@@ -255,6 +259,7 @@ export default function SettingsPage() {
             setRawTiming(pickedTiming || rawTiming);
             toast.success('Settings saved');
             refreshSites();
+            refreshPublicMenu(siteId);
         }
     };
 
@@ -680,54 +685,12 @@ export default function SettingsPage() {
         setDeleting(true);
 
         try {
-            // Archive to deleted_sites before deleting. Columns are named, not
-            // `*`: the browser may only read the columns granted in migration
-            // 056, and a wildcard fails outright once any column is revoked.
-            const { data: siteData } = await supabase
-                .from('sites')
-                .select('id, created_at, user_id, name, slug, type, owner_name, contact_number, timing, established_year, location, state, pincode, address, email, whatsapp_number, tagline, social_links, is_live')
-                .eq('id', siteId)
-                .single();
-
-            if (siteData) {
-                await supabase.from('deleted_sites').insert({
-                    id: siteData.id,
-                    original_created_at: siteData.created_at,
-                    user_id: siteData.user_id,
-                    name: siteData.name,
-                    slug: siteData.slug,
-                    type: siteData.type,
-                    owner_name: siteData.owner_name,
-                    contact_number: siteData.contact_number,
-                    timing: siteData.timing,
-                    established_year: siteData.established_year,
-                    location: siteData.location,
-                    state: siteData.state,
-                    pincode: siteData.pincode,
-                    address: siteData.address,
-                    email: siteData.email,
-                    whatsapp_number: siteData.whatsapp_number,
-                    tagline: siteData.tagline,
-                    social_links: siteData.social_links,
-                    is_live: siteData.is_live,
-                });
-            }
-
-            // Delete the site — cascades to products, banners, categories, orders, transactions
-            const { error } = await supabase.from('sites').delete().eq('id', siteId);
-            if (error) throw error;
-
+            // Archive + delete lives in one place, shared with the phone Store details screen.
+            const { remaining } = await deleteStore(siteId, user?.id ?? '');
             toast.success('Store deleted successfully');
             setDeleteModalOpen(false);
-
-            // Re-fetch directly — allSites is a stale closure after refreshSites()
-            const { data: remaining } = await supabase
-                .from('sites')
-                .select('id')
-                .eq('user_id', user?.id ?? '')
-                .neq('id', siteId);
             await refreshSites();
-            router.replace((remaining?.length ?? 0) > 0 ? '/manage/dashboard' : '/onboarding?intent=first-store');
+            router.replace(remaining > 0 ? '/manage/dashboard' : '/onboarding?intent=first-store');
         } catch (err) {
             console.error('Delete store error:', err);
             toast.error('Failed to delete store');
@@ -1078,6 +1041,7 @@ export default function SettingsPage() {
                     siteId={siteId}
                     siteSlug={siteSlug || null}
                     dishNames={dishNames}
+                    dishPrices={dishPrices}
                     value={appearance}
                     onChange={setAppearance}
                 />

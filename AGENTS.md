@@ -377,8 +377,10 @@ glyph, so no component has to branch on script.
   `Math.max(Date.now(), currentExpiryMs)` for a same-plan payment. Do not add
   client-side guards that block paying while active; remaining days carry over.
 - **The QR posters are baked PNGs.** `/brand poster scan order.png` has its
-  wording and its sports artwork in pixels. Menu-only plans use the canvas
-  `drawMenuPoster()`; only the ordering plans still composite onto a PNG.
+  wording and its sports artwork in pixels. `drawMenuPoster()` is gone: while
+  ordering is frozen, and always for qr_menu, the classic poster is
+  `/brand poster scan menu.png` (same artwork, "SCAN FOR MENU"). The choice is
+  `classicPosterTemplate()` in lib/qr/posterTemplate.ts — never hardcode a PNG.
 
 ## Gotchas from the 2026-09 security remediation
 
@@ -809,3 +811,62 @@ https production. In Playwright, route `https://localhost:3000/**` back to http.
 - **Quiet zone is 4 modules, not a fixed padding.** A bigger QR card needs a bigger
   pad: pad ≥ (4·size − 8·border) / 41 for a 33-module code.
 
+
+## You tab redesign (2026-09-25)
+
+- **One undefined `var()` voids a whole `font-family`.** FONT_PAIRS stacks name Tamil
+  faces (`--font-noto-tamil`…) that exist only under `/shop`; anywhere else every lettering
+  option silently inherits Outfit (the settings Appearance tab still does). Define the
+  missing variables (`you/design/layout.tsx` sets them to `sans-serif`) or load the faces.
+- **`tests/unit/iconFont.test.ts` does not see `icon="…"` props.** Its prop regex is built
+  in a template literal, so `\b` and `\s` lose their backslash and it never matches. It
+  passed while `add_business`, `more_vert` and `confirmation_number` were missing from
+  ICON_NAMES. Check new icons against the list by hand until the regex is fixed.
+- **`minHeight: '100%'` does not reach inside the manage shell** — the page sits in an
+  unsized wrapper under `<main>`. Full-screen phone pages use `min-h-[100dvh]`.
+- **Payment opens only when nothing is running** (client rule on both plan screens; the
+  server would accept early payment). `planStatus().canPay` is that rule — don't re-derive it.
+- **Vitest here runs on Vite 8, which compiles with oxc — an `esbuild` option in
+  vitest.config.ts is silently ignored.** JSX in tests needs `oxc: { jsx: { runtime:
+  'automatic' } }` (tsconfig keeps `"jsx": "preserve"` for Next). With it, a test can
+  `renderToStaticMarkup` a component instead of grepping its source.
+- **The tab-tap skeleton must be shaped like its destination** (`components/PendingPage.tsx`,
+  one shape per tab via `activeTabFor`). One generic shape for every tab read as a glitch.
+
+## One free trial per account (2026-09-25)
+
+- **Owners can INSERT and UPDATE their own `sites` rows from the browser** (sites_insert_own,
+  sites_update_own, table-wide grants). Never derive money state from a `sites` column —
+  `created_at` was the trial clock and could be rewritten. Billing state lives on
+  `site_subscriptions` (SELECT-only for browsers); store-creation rules live in the DB trigger.
+- **The trial is `site_subscriptions.trial_ends_at`**, set by the AFTER INSERT trigger (058) from
+  `trial_claims`. Read it via `trialEndsMs()` (lib/store/trialRules.ts); never add
+  `created_at + TRIAL_DURATION_MS` anywhere — one-trial.test.ts AC4 fails on it.
+- **Code that selects `trial_ends_at` needs migration 058 applied first**, or PostgREST 400s the
+  whole query (SiteContext's embed takes the dashboard down).
+- **The "deleted stores" archive never worked**: `deleted_sites` has only a SELECT policy, so the
+  browser insert in `lib/store/deleteStore.ts` is silently refused (0 rows live). `delete_site()`
+  (015/054) archives properly but nothing calls it.
+- **Route-test Supabase fakes answer every table the same way and lack `maybeSingle()`.** New
+  server reads that should run under them: list-select + take the first row.
+
+## Owner QA fixes (2026-09-26)
+
+- **`revalidate = 10` on /shop/[slug] still serves one stale copy after an edit**, even though the
+  page reads searchParams (dynamic): the Supabase reads sit in Next's Data Cache. Owner edits are
+  browser Supabase writes the server never sees — call `refreshPublicMenu(siteId)` after any new
+  dashboard edit, or `revalidatePath('/shop/<slug>')` in a server route that changes the menu.
+- **`menuCardPrice()` is applied in ShopPageClient**, so every template reads a derived price for
+  old Sizes rows saved at ₹0. Do not read `selling_price` for display before that map.
+- **Scan tracking skips owner devices** (`vsite_owner_sites` in localStorage, written by
+  SiteContext). Testing scan counts from a browser that has opened /manage will record nothing.
+- **conceptMatcher abstains on diet-label-only names and on combos without a dish form**
+  ("Veg Combo", "Veg Special"); "Biryani Combo" still matches. `combo` is a STOP word, so the
+  combo rule reads the raw query.
+- **Icon-font subset:** any new Material Symbols name must be in `ICON_NAMES`
+  (lib/ui/iconFont.ts) or it renders as its ligature text.
+- **Photo deletes go through `/api/manage/media/release` only, after a successful save.** It can
+  address `product-images` alone; the food library (`default-images`) is shared by every store and
+  must never be deleted (owner rule, guarded in photo-cleanup.test.ts). A new screen that replaces
+  or deletes a photo should call `releaseMenuPhotos(siteId, replacedPhotos(old, new))` after its
+  DB write — never before.

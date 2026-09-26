@@ -4,10 +4,13 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { supabase } from '@/lib/platform/db/supabase';
 import { useAuth } from './AuthContext';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
+import { markOwnerDevice } from '@/lib/menu/ownerDevice';
 
 export interface SiteSub {
     store_plan: string;
     store_expires_at: string | null;
+    /** When the store's free trial ends; null when it never had one (one free trial per account). */
+    trial_ends_at: string | null;
 }
 
 export interface SiteEntry {
@@ -61,7 +64,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 
         const { data } = await supabase
             .from('sites')
-            .select('id, slug, name, is_live, type, created_at, site_subscriptions(store_plan, store_expires_at)')
+            .select('id, slug, name, is_live, type, created_at, site_subscriptions(store_plan, store_expires_at, trial_ends_at)')
             .eq('user_id', user.id)
             .order('created_at', { ascending: true });
 
@@ -76,6 +79,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
             return { ...(row as Omit<SiteEntry, 'site_subscriptions'>), site_subscriptions: sub };
         });
         setAllSites(sites);
+        // This device manages these stores: their menus must not count its visits as scans.
+        if (typeof window !== 'undefined') markOwnerDevice(window.localStorage, sites.map(s => s.id));
 
         // Restore persisted selection, fall back to first site
         const stored = typeof window !== 'undefined'

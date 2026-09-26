@@ -9,6 +9,10 @@ import { uploadMenuImage } from '@/lib/menu/menuImages';
 import { makeMenuThumbnail, prepareMenuPhoto } from '@/lib/menu/imageCompress';
 import { MENU_PHOTO_COMPRESS, PHOTO_MAX_INPUT_BYTES, isPhotoFile, photoErrorMessage } from '@/lib/menu/menuPhoto';
 import { useSite } from '@/components/SiteContext';
+import { refreshPublicMenu } from '@/lib/menu/refreshPublicMenu';
+import { moveItem } from '@/lib/ui/reorder';
+import { releaseMenuPhotos } from '@/lib/menu/releaseMenuPhotos';
+import { replacedPhotos } from '@/lib/menu/photoCleanup';
 
 interface Banner {
     id: string;
@@ -22,7 +26,37 @@ interface Banner {
 
 const emptyForm = { name: '', description: '', imagePreview: null as string | null, imageFile: null as File | null };
 
-const COLS = ['BANNER NAME', 'UPLOADED DATE', 'DESCRIPTION', 'PREVIEW THUMBNAIL', 'ACTION'];
+const COLS = ['BANNER NAME', 'UPLOADED', 'DESCRIPTION', 'PREVIEW', 'ACTION'];
+// Flexible tracks: the fixed 670px set left the description 2px wide at the
+// width where the table first appears, and overflowed below it.
+const BANNER_TRACKS = 'minmax(120px, 1.2fr) 112px minmax(0, 1.6fr) 136px 80px 140px';
+
+/** Move-up / move-down for one row. Disabled at the ends rather than hidden, so the row never reflows. */
+function MoveButtons({ name, idx, count, size, onMove }: {
+    name: string; idx: number; count: number; size: number;
+    onMove: (from: number, to: number) => void;
+}) {
+    const btn = (dir: 'up' | 'down') => {
+        const to = dir === 'up' ? idx - 1 : idx + 1;
+        const disabled = to < 0 || to >= count;
+        return (
+            <button
+                type="button"
+                aria-label={`Move ${name} ${dir}`}
+                title={dir === 'up' ? 'Move up' : 'Move down'}
+                disabled={disabled}
+                onClick={() => onMove(idx, to)}
+                className="flex items-center justify-center hover:bg-neutral-100 transition-colors"
+                style={{ width: size, height: size, borderRadius: 6, border: 'none', background: 'none', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.3 : 1, padding: 0 }}
+            >
+                <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 18, color: '#52525C' }}>
+                    {dir === 'up' ? 'arrow_upward' : 'arrow_downward'}
+                </span>
+            </button>
+        );
+    };
+    return <div className="flex items-center">{btn('up')}{btn('down')}</div>;
+}
 
 export default function BannerManagementPage() {
     const { activeSite } = useSite();
@@ -70,18 +104,21 @@ export default function BannerManagementPage() {
     const handleDragOver  = (e: React.DragEvent, idx: number) => { e.preventDefault(); setDragOverIndex(idx); };
     const handleDragEnd   = () => { dragIndex.current = null; setDragOverIndex(null); };
 
-    const handleDrop = async (idx: number) => {
-        if (dragIndex.current === null || dragIndex.current === idx) {
-            setDragOverIndex(null);
-            return;
-        }
-        const next = [...banners];
-        const [moved] = next.splice(dragIndex.current, 1);
-        next.splice(idx, 0, moved);
-        const reordered = next.map((b, i) => ({ ...b, sort_order: i }));
-        setBanners(reordered); // optimistic
+    const handleDrop = (idx: number) => {
+        const from = dragIndex.current;
         dragIndex.current = null;
         setDragOverIndex(null);
+        if (from === null) return;
+        void reorderBanners(from, idx);
+    };
+
+    // Dragging is unreliable with a finger on a tablet, so every row also has
+    // move-up / move-down buttons that land here.
+    const reorderBanners = async (from: number, to: number) => {
+        const next = moveItem(banners, from, to);
+        if (next === banners) return;
+        const reordered = next.map((b, i) => ({ ...b, sort_order: i }));
+        setBanners(reordered); // optimistic
 
         // Persist sort order — update each banner's sort_order individually.
         // upsert with partial columns fails because required NOT NULL columns
@@ -98,7 +135,9 @@ export default function BannerManagementPage() {
             const err = failed.status === 'rejected' ? failed.reason : (failed as PromiseFulfilledResult<{ error: unknown }>).value.error;
             console.error('[banner-reorder] save failed:', err);
             toast.error('Failed to save order — please reload');
+            return;
         }
+        refreshPublicMenu(siteId);
     };
 
     // ── Drawer helpers ────────────────────────────────────────────────────────
@@ -128,6 +167,14 @@ export default function BannerManagementPage() {
         setEditingBanner(null);
         setForm({ ...emptyForm });
     };
+
+    useEffect(() => {
+        if (!drawerOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) closeDrawer(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeDrawer only resets local state
+    }, [drawerOpen, saving]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -181,11 +228,14 @@ export default function BannerManagementPage() {
         setUploading(!!form.imageFile);
 
         let imageUrl = editingBanner?.image_url ?? null;
+        // Set only when this save uploaded a new file, so a failed save can release it.
+        let uploadedUrl: string | null = null;
 
         if (form.imageFile) {
             const uploaded = await uploadImage(form.imageFile);
             if (!uploaded) { setSaving(false); setUploading(false); return; }
             imageUrl = uploaded;
+            uploadedUrl = uploaded;
         }
 
         setUploading(false);
@@ -196,13 +246,16 @@ export default function BannerManagementPage() {
                 .update({ name: form.name.trim(), description: form.description.trim() || null, image_url: imageUrl, updated_at: new Date().toISOString() })
                 .eq('id', editingBanner.id);
 
-            if (error) { toast.error('Failed to save banner'); }
+            if (error) { toast.error('Failed to save banner'); releaseMenuPhotos(siteId, [uploadedUrl]); }
             else {
+                // Saved: the photo this banner no longer shows can go.
+                releaseMenuPhotos(siteId, replacedPhotos(editingBanner.image_url, imageUrl));
                 setBanners(prev => prev.map(b => b.id === editingBanner.id
                     ? { ...b, name: form.name.trim(), description: form.description.trim() || null, image_url: imageUrl }
                     : b
                 ));
                 toast.success('Banner updated');
+                refreshPublicMenu(siteId);
                 closeDrawer();
             }
         } else {
@@ -213,10 +266,11 @@ export default function BannerManagementPage() {
                 .select()
                 .single();
 
-            if (error) { toast.error('Failed to add banner'); }
+            if (error) { toast.error('Failed to add banner'); releaseMenuPhotos(siteId, [uploadedUrl]); }
             else {
                 setBanners(prev => [...prev, data]);
                 toast.success('Banner added');
+                refreshPublicMenu(siteId);
                 closeDrawer();
             }
         }
@@ -228,6 +282,7 @@ export default function BannerManagementPage() {
     const handleDelete = async () => {
         if (!deleteTarget) return;
         setDeleting(true);
+        const photo = banners.find(b => b.id === deleteTarget.id)?.image_url;
         const { error } = await supabase.from('banners').delete().eq('id', deleteTarget.id);
         setDeleting(false);
         if (error) { toast.error('Failed to delete banner'); }
@@ -235,6 +290,8 @@ export default function BannerManagementPage() {
             setBanners(prev => prev.filter(b => b.id !== deleteTarget.id));
             toast.success('Banner deleted');
             setDeleteTarget(null);
+            refreshPublicMenu(siteId);
+            releaseMenuPhotos(siteId, [photo]);
         }
     };
 
@@ -250,6 +307,8 @@ export default function BannerManagementPage() {
         if (error) {
             setBanners(prev => prev.map(b => b.id === banner.id ? { ...b, is_active: banner.is_active } : b));
             toast.error('Failed to update banner');
+        } else {
+            refreshPublicMenu(siteId);
         }
         setTogglingId(null);
     };
@@ -305,8 +364,12 @@ export default function BannerManagementPage() {
                 </div>
             ) : (
                 <>
-                {/* ── MOBILE CARDS (below md) ── */}
-                <div className="md:hidden flex flex-col gap-3">
+                {/* Table or cards by the room the list actually has, not the window:
+                    at 768px the sidebar leaves ~480px and the table was cut off. */}
+                <div className="cq">
+                {/* ── NARROW: cards ── */}
+                <div className="cq-narrow">
+                <div className="flex flex-col gap-3">
                     {banners.map((banner, idx) => (
                         <div
                             key={banner.id}
@@ -339,6 +402,10 @@ export default function BannerManagementPage() {
                             </div>
                             <div className="flex items-center justify-between" style={{ borderTop: '1px solid #F4F4F5', paddingTop: 10 }}>
                                 <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={banner.is_active}
+                                    aria-label={`Show ${banner.name} on the menu`}
                                     onClick={() => handleToggleActive(banner)}
                                     disabled={togglingId === banner.id}
                                     className="flex items-center gap-2 disabled:opacity-60"
@@ -351,27 +418,26 @@ export default function BannerManagementPage() {
                                 </button>
                                 <div className="flex items-center gap-2">
                                     <button type="button" aria-label={`Edit ${banner.name}`} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => openEditDrawer(banner)}>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#0A0A0A' }}>edit</span>
+                                        <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 18, color: '#0A0A0A' }}>edit</span>
                                     </button>
-                                    <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => setDeleteTarget({ id: banner.id, name: banner.name })}>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E7000B' }}>delete</span>
+                                    <button type="button" aria-label={`Delete ${banner.name}`} className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 40, height: 40, borderRadius: 8 }} onClick={() => setDeleteTarget({ id: banner.id, name: banner.name })}>
+                                        <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 18, color: '#E7000B' }}>delete</span>
                                     </button>
-                                    <div className="flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: 8, cursor: 'grab' }} title="Hold and drag to reorder">
-                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#71717A' }}>drag_indicator</span>
-                                    </div>
+                                    <MoveButtons name={banner.name} idx={idx} count={banners.length} size={40} onMove={reorderBanners} />
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
+                </div>
 
-                {/* ── DESKTOP TABLE (md+) ── */}
-                <div className="hidden md:block overflow-x-auto">
-                    <div className="overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14, minWidth: 700 }}>
+                {/* ── WIDE: table ── */}
+                <div className="cq-wide">
+                    <div className="overflow-hidden" style={{ border: '1px solid #E4E4E7', borderRadius: 14 }}>
                         {/* Header */}
-                        <div className="grid" style={{ gridTemplateColumns: '180px 130px 1fr 160px 80px 120px', background: '#F4F4F4', borderBottom: '1px solid #E4E4E7', padding: '0 24px' }}>
+                        <div className="grid" style={{ gridTemplateColumns: BANNER_TRACKS, background: '#F4F4F4', borderBottom: '1px solid #E4E4E7', padding: '0 24px' }}>
                             {[...COLS, 'VISIBLE'].map(col => (
-                                <div key={col} className="text-[#71717A]" style={{ padding: '12px 0', fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase' }}>{col}</div>
+                                <div key={col} className="text-[#71717A] truncate" style={{ padding: '12px 8px 12px 0', minWidth: 0, fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase' }}>{col}</div>
                             ))}
                         </div>
 
@@ -386,7 +452,7 @@ export default function BannerManagementPage() {
                                 onDragEnd={handleDragEnd}
                                 className="grid items-center"
                                 style={{
-                                    gridTemplateColumns: '180px 130px 1fr 160px 80px 120px',
+                                    gridTemplateColumns: BANNER_TRACKS,
                                     padding: '0 24px',
                                     minHeight: 72,
                                     background: dragOverIndex === idx ? '#F5F3FF' : '#FFFFFF',
@@ -397,7 +463,7 @@ export default function BannerManagementPage() {
                                 }}
                             >
                                 {/* Name */}
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>{banner.name}</div>
+                                <div className="truncate pr-3" style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A', minWidth: 0 }}>{banner.name}</div>
 
                                 {/* Date */}
                                 <div style={{ fontSize: 13, color: '#52525C' }}>{formatDate(banner.created_at)}</div>
@@ -420,16 +486,20 @@ export default function BannerManagementPage() {
                                 {/* Actions */}
                                 <div className="flex items-center gap-1">
                                     <button type="button" aria-label={`Edit ${banner.name}`} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => openEditDrawer(banner)} title="Edit">
-                                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#0A0A0A' }}>edit</span>
+                                        <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 16, color: '#0A0A0A' }}>edit</span>
                                     </button>
-                                    <button className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => setDeleteTarget({ id: banner.id, name: banner.name })} title="Delete">
-                                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#E7000B' }}>delete</span>
+                                    <button type="button" aria-label={`Delete ${banner.name}`} className="flex items-center justify-center hover:bg-red-50 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }} onClick={() => setDeleteTarget({ id: banner.id, name: banner.name })} title="Delete">
+                                        <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 16, color: '#E7000B' }}>delete</span>
                                     </button>
                                 </div>
 
-                                {/* Visible toggle + drag */}
+                                {/* Visible toggle + reorder */}
                                 <div className="flex items-center gap-2">
                                     <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={banner.is_active}
+                                        aria-label={`Show ${banner.name} on the menu`}
                                         onClick={() => handleToggleActive(banner)}
                                         disabled={togglingId === banner.id}
                                         className="relative shrink-0 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
@@ -442,14 +512,13 @@ export default function BannerManagementPage() {
                                             transition: 'left 0.15s',
                                         }} />
                                     </button>
-                                    <div className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 28, height: 28, borderRadius: 6, cursor: 'grab' }} title="Drag to reorder">
-                                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#71717A' }}>drag_indicator</span>
-                                    </div>
+                                    <MoveButtons name={banner.name} idx={idx} count={banners.length} size={32} onMove={reorderBanners} />
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
+                </div>{/* /.cq */}
                 </>
             )}
 
@@ -483,17 +552,17 @@ export default function BannerManagementPage() {
             {drawerOpen && (
                 <>
                     <div className="fixed inset-0" style={{ background: 'rgba(0,0,0,0.25)', zIndex: 55 }} onClick={closeDrawer} />
-                    <div className="fixed top-0 right-0 flex flex-col bg-white" style={{ width: 'min(480px, 100vw)', height: '100dvh', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 60 }}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="banner-drawer-title" className="fixed top-0 right-0 flex flex-col bg-white" style={{ width: 'min(480px, 100vw)', height: '100dvh', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 60 }}>
 
                         {/* Header */}
                         <div style={{ padding: '22px 24px 16px', borderBottom: '1px solid #E4E4E7', flexShrink: 0 }}>
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <h2 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: '28px' }}>{editingBanner ? 'Edit Banner' : 'Add New Banner'}</h2>
+                                    <h2 id="banner-drawer-title" className="font-semibold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: '28px' }}>{editingBanner ? 'Edit Banner' : 'Add New Banner'}</h2>
                                     <p className="text-[#71717A]" style={{ fontSize: 13, marginTop: 2 }}>{editingBanner ? 'Update the banner details below' : 'Fill in the banner details below'}</p>
                                 </div>
-                                <button onClick={closeDrawer} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#71717A' }}>close</span>
+                                <button type="button" aria-label="Close" onClick={closeDrawer} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }}>
+                                    <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 20, color: '#71717A' }}>close</span>
                                 </button>
                             </div>
                         </div>

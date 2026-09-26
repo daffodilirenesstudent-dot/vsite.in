@@ -9,10 +9,10 @@ import { useSite } from './SiteContext';
 import { usePlan } from './PlanContext';
 import PrinterStatusIndicator from './PrinterStatusIndicator';
 import NotificationBell from './NotificationBell';
-import { TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
-
-const TRIAL_STORE_LIMIT = 2;
-const PAID_STORE_LIMIT  = 5;
+import { headerIdentity } from '@/lib/ui/headerIdentity';
+import { storeCreation, storeCountLabel, STORE_LIMIT } from '@/lib/store/storeLimits';
+import { supportWhatsAppUrl } from '@/lib/you/support';
+import { MOBILE_NAV_V2 } from '@/lib/ui/mobileNav';
 
 export default function DashboardHeader() {
     const { user, signOut } = useAuth();
@@ -97,7 +97,7 @@ export default function DashboardHeader() {
         }
     };
 
-    const displayName = profile?.full_name || 'User';
+    const { name: displayName, subtitle: headerSubtitle } = headerIdentity({ fullName: profile?.full_name, storeName: activeSite?.name });
     const avatarLetter = displayName.charAt(0).toUpperCase();
     // Stores have no logo since 054; the initial is the avatar everywhere.
     const avatarImg = null;
@@ -113,8 +113,16 @@ export default function DashboardHeader() {
             {/* ── Normal row ── */}
             <div className="flex items-center h-full" style={{ padding: '0 16px', gap: 10 }}>
 
+                {/* Phone, v2: a one-store owner just sees the store's name — the
+                    switcher (and "create a store", now on the You page) is noise. */}
+                {MOBILE_NAV_V2 && qrMenuOnly && !(allSites.length > 1) && (
+                    <span className="md:hidden truncate" style={{ fontSize: 16, fontWeight: 700, color: '#0A0A0A', maxWidth: 220 }}>
+                        {activeSite?.name}
+                    </span>
+                )}
+
                 {/* Store selector */}
-                <div className="relative shrink-0" ref={dropdownRef}>
+                <div className={MOBILE_NAV_V2 && qrMenuOnly && !(allSites.length > 1) ? 'relative shrink-0 hidden md:block' : 'relative shrink-0'} ref={dropdownRef}>
                     <button
                         onClick={() => setDropdownOpen(v => !v)}
                         className="flex items-center gap-1.5 hover:bg-neutral-50 transition-colors"
@@ -169,29 +177,17 @@ export default function DashboardHeader() {
 
                             {/* Divider + store count */}
                             {(() => {
-                                const now = Date.now();
-                                const activeTrialCount = allSites.filter(s => {
-                                    const sub = s.site_subscriptions;
-                                    const paidExpiry = sub?.store_expires_at ? new Date(sub.store_expires_at).getTime() : 0;
-                                    if (paidExpiry > now) return false;
-                                    return new Date(s.created_at).getTime() + TRIAL_DURATION_MS > now;
-                                }).length;
-                                const paidCount = allSites.filter(s => {
-                                    const sub = s.site_subscriptions;
-                                    return sub?.store_expires_at
-                                        ? new Date(sub.store_expires_at).getTime() > now
-                                        : false;
-                                }).length;
-                                const atTrialLimit = activeTrialCount >= TRIAL_STORE_LIMIT;
-                                const atPaidLimit  = allSites.length >= PAID_STORE_LIMIT;
-                                const canCreate    = !atTrialLimit && !atPaidLimit;
+                                // One free trial per account, at most 2 stores. Whether the next
+                                // store gets a trial is onboarding's question (it asks the server
+                                // and shows the paid-store agreement), so this menu only counts.
+                                const { storeCount, canCreate } = storeCreation(allSites);
 
                                 return (
                                     <>
                                         <div style={{ borderTop: '1px solid #E4E4E7', padding: '6px 14px 4px' }}>
                                             {!planLoading && (
                                                 <p style={{ fontSize: 10, fontWeight: 500, color: '#6B6A7B', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                                                    {`${allSites.length} / ${PAID_STORE_LIMIT} stores · ${paidCount} paid · ${activeTrialCount} trial`}
+                                                    {storeCountLabel(storeCount)}
                                                 </p>
                                             )}
                                         </div>
@@ -210,7 +206,7 @@ export default function DashboardHeader() {
                                             </button>
                                         ) : (
                                             <button
-                                                onClick={() => { setDropdownOpen(false); router.push('/manage/subscription'); }}
+                                                onClick={() => { setDropdownOpen(false); window.open(supportWhatsAppUrl(null), '_blank', 'noopener,noreferrer'); }}
                                                 className="flex w-full items-center gap-2 hover:bg-neutral-50 transition-colors"
                                                 style={{ padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer' }}
                                             >
@@ -219,12 +215,10 @@ export default function DashboardHeader() {
                                                 </div>
                                                 <div style={{ textAlign: 'left' }}>
                                                     <p style={{ fontSize: 13, fontWeight: 500, color: '#DC2626' }}>
-                                                        {atPaidLimit ? 'Max stores reached' : 'Trial limit reached'}
+                                                        Max stores reached
                                                     </p>
                                                     <p style={{ fontSize: 10, color: '#71717A' }}>
-                                                        {atPaidLimit
-                                                            ? `${PAID_STORE_LIMIT}-store account limit reached`
-                                                            : `Free trial allows ${TRIAL_STORE_LIMIT} unpaid stores — activate a plan to add more`}
+                                                        {`${STORE_LIMIT} stores per account — message us for more`}
                                                     </p>
                                                 </div>
                                             </button>
@@ -250,7 +244,8 @@ export default function DashboardHeader() {
                     <NotificationBell />
 
                     {/* Profile button + dropdown */}
-                    <div className="relative" ref={profileMenuRef}>
+                    {/* Phone, v2: the account lives on the You tab. */}
+                    <div className={MOBILE_NAV_V2 && qrMenuOnly ? 'relative hidden md:block' : 'relative'} ref={profileMenuRef}>
                         <button
                             type="button"
                             onClick={() => setProfileMenuOpen(v => !v)}
@@ -271,7 +266,7 @@ export default function DashboardHeader() {
                             </div>
                             <div className="hidden sm:flex flex-col leading-tight" style={{ maxWidth: 110 }}>
                                 <span className="font-semibold text-[#0A0A0A] truncate text-left" style={{ fontSize: 13, lineHeight: '18px' }}>{displayName}</span>
-                                <span className="text-[#6B6A7B] truncate hidden lg:block text-left" style={{ fontSize: 11, lineHeight: '15px' }}>Product Management</span>
+                                <span className="text-[#6B6A7B] truncate hidden lg:block text-left" style={{ fontSize: 11, lineHeight: '15px' }}>{headerSubtitle}</span>
                             </div>
                             <span
                                 className="material-symbols-outlined text-[#6B6A7B] hidden sm:block shrink-0"

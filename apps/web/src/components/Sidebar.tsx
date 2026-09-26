@@ -109,6 +109,8 @@ export default function Sidebar() {
                             key={item.name}
                             href={href}
                             title={item.name}
+                            aria-label={item.name}
+                            aria-current={active ? 'page' : undefined}
                             style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 position: 'relative', width: '100%', height: 36,
@@ -119,17 +121,35 @@ export default function Sidebar() {
                         >
                             <span
                                 className="material-symbols-outlined"
+                                aria-hidden
                                 style={{ fontSize: 18, fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
                             >
                                 {item.icon}
                             </span>
                             {showDot && (
-                                <span style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: '#E7000B' }} />
+                                <span aria-hidden style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: '#E7000B' }} />
                             )}
                         </Link>
                     );
                 })}
             </nav>
+
+            {/* The expanded sidebar's "Manage plan" card, as an icon. Without it a
+                tablet (always this column) reached the plan only through Settings. */}
+            <Link
+                href="/manage/subscription"
+                title="Manage plan"
+                aria-label="Manage plan"
+                aria-current={pathname.startsWith('/manage/subscription') ? 'page' : undefined}
+                style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 40, height: 40, borderRadius: 10, textDecoration: 'none',
+                    background: pathname.startsWith('/manage/subscription') ? '#EEEBFD' : 'linear-gradient(90deg, #615FFF 0%, #AD46FF 100%)',
+                    color: pathname.startsWith('/manage/subscription') ? '#5137EF' : '#FFFFFF',
+                }}
+            >
+                <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 18 }}>workspace_premium</span>
+            </Link>
 
         </aside>
     );
@@ -189,7 +209,7 @@ export default function Sidebar() {
                                             style={{ padding: '0 8px', height: 36, borderRadius: 10, color: '#B0B0B0', fontSize: 14, textDecoration: 'none' }}
                                         >
                                             <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined shrink-0" style={{ fontSize: 16, color: '#C4C4C4', width: 16, height: 16 }}>
+                                                <span className="material-symbols-outlined shrink-0" aria-hidden style={{ fontSize: 16, color: '#C4C4C4', width: 16, height: 16 }}>
                                                     {item.icon}
                                                 </span>
                                                 <span>{item.name}</span>
@@ -221,7 +241,7 @@ export default function Sidebar() {
                                             textDecoration: 'none', position: 'relative',
                                         }}
                                     >
-                                        <span className="material-symbols-outlined shrink-0" style={{ fontSize: 16, color: active ? '#5137EF' : '#4C4C4C', width: 16, height: 16 }}>
+                                        <span className="material-symbols-outlined shrink-0" aria-hidden style={{ fontSize: 16, color: active ? '#5137EF' : '#4C4C4C', width: 16, height: 16 }}>
                                             {item.icon}
                                         </span>
                                         <span className="flex-1">{item.name}</span>

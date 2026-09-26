@@ -19,6 +19,7 @@ import { MENU_THEMES, FONT_PAIRS, resolveAccent, type MenuThemeId } from '@/lib/
 export default function ThemeSwatch({
     themeId,
     dishNames,
+    dishPrices = [],
     brandColor,
     selected,
     height = 108,
@@ -26,6 +27,8 @@ export default function ThemeSwatch({
     themeId: MenuThemeId;
     /** Real dish names, in menu order. Falls back only if the menu is empty. */
     dishNames: string[];
+    /** Their prices, in the same order. A dish with none shows no price, never a bare ₹. */
+    dishPrices?: ReadonlyArray<number | null | undefined>;
     brandColor?: string | null;
     selected?: boolean;
     height?: number;
@@ -73,7 +76,9 @@ export default function ThemeSwatch({
                 {rows.length ? 'Your menu' : ''}
             </div>
 
-            {rows.map((name, i) => (
+            {rows.map((name, i) => {
+                const price = Number(dishPrices[i]) || 0;
+                return (
                 <div
                     key={i}
                     style={{
@@ -116,17 +121,19 @@ export default function ThemeSwatch({
                     >
                         {name}
                     </span>
-                    <span
-                        style={{
-                            fontFamily: font.display,
-                            fontWeight: 600,
-                            fontSize: 8.5,
-                            color: accent,
-                            flex: 'none',
-                        }}
-                    >
-                        ₹
-                    </span>
+                    {price > 0 && (
+                        <span
+                            style={{
+                                fontFamily: font.display,
+                                fontWeight: 600,
+                                fontSize: 8.5,
+                                color: accent,
+                                flex: 'none',
+                            }}
+                        >
+                            {`₹${price}`}
+                        </span>
+                    )}
                     <span
                         style={{
                             width: 18,
@@ -137,7 +144,8 @@ export default function ThemeSwatch({
                         }}
                     />
                 </div>
-            ))}
+                );
+            })}
         </div>
     );
 }

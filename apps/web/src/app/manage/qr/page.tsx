@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { loadQRLib, qrOptions, getStyledQRBlob, downloadBlob } from '@/lib/qr/styledQr';
 import { blobToImage, loadImage, detectWhiteBox } from '@/lib/qr/posterRender';
 import { QR_PRINT_KIT } from '@/lib/qr/printKit';
+import { classicPosterTemplate } from '@/lib/qr/posterTemplate';
 import MenuQrPanel from '@/components/manage/MenuQrPanel';
 import { useSite } from '@/components/SiteContext';
 import { usePlan } from '@/components/PlanContext';
@@ -71,7 +72,7 @@ function makeTableBadgeBlobUrl(n: number, size: number): Promise<string> {
   });
 }
 
-async function brandPosterBlob(qrData: string, imageDataUrl?: string, templatePath = '/brand poster template.png'): Promise<Blob | null> {
+async function brandPosterBlob(qrData: string, imageDataUrl: string | undefined, templatePath: string): Promise<Blob | null> {
   const [template, qrBlob] = await Promise.all([
     loadImage(templatePath),
     getStyledQRBlob(qrData, imageDataUrl, 900),
@@ -260,11 +261,9 @@ export default function QRPage() {
   }, [orderKey]);
 
 
-  // The owner's own artwork. qr_menu and qr_order use the "Scan & Order"
-  // template; pay_eat uses the default one.
-  const posterTemplate = (qrMenuOnly || isQrOrder)
-    ? '/brand poster scan order.png'
-    : '/brand poster template.png';
+  // The owner's own artwork. While ordering is frozen (and always for a
+  // menu-only store) it reads "SCAN FOR MENU", never "SCAN & ORDER".
+  const posterTemplate = classicPosterTemplate({ qrMenuOnly, isQrOrder });
 
   const makePoster = useCallback(
     (data: string, imageDataUrl?: string) => brandPosterBlob(data, imageDataUrl, posterTemplate),

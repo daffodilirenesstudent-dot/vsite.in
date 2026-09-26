@@ -219,6 +219,14 @@ export function createPhotoSuggester(
                 // Keep the shimmer up if another search follows; otherwise settle.
                 if (!willSearch) emit({ status: 'idle' });
             }
+            // The name was cleared (or cut below a searchable length) after a
+            // match: that photo belongs to a dish that is no longer named, so it
+            // goes, and retyping the same name looks it up again.
+            if (query.length < SUGGEST_MIN_CHARS && settled) {
+                settled = null;
+                emit({ status: 'none', query });
+                return;
+            }
             if (!willSearch) return;
             pendingQuery = query;
             timer = setTimeout(() => {

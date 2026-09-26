@@ -17,8 +17,11 @@ import { photoSourceOf, shouldAutoSuggest } from '@/lib/menu/photoSuggest';
 import {
     SMART_ADD_PRODUCT, SMART_FORM_ORDER, PRICING_MODES,
     initialDishType, validateProductForm,
-    type DishTypeChoice, type SmartFormField,
+    listedPrice, type DishTypeChoice, type SmartFormField,
 } from '@/lib/menu/productForm';
+import { refreshPublicMenu } from '@/lib/menu/refreshPublicMenu';
+import { releaseMenuPhotos } from '@/lib/menu/releaseMenuPhotos';
+import { replacedPhotos } from '@/lib/menu/photoCleanup';
 import toast from 'react-hot-toast';
 
 interface Product {
@@ -100,13 +103,14 @@ function PriceInput({ value, onChange, placeholder }: { value: string; onChange:
     );
 }
 
-function DeleteBtn({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+/** `label` names the row it removes; the icon alone read as "delete" to a screen reader. */
+function DeleteBtn({ onClick, disabled, label }: { onClick: () => void; disabled: boolean; label: string }) {
     return (
-        <button type="button" onClick={onClick} disabled={disabled}
+        <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label}
             className="flex items-center justify-center hover:bg-red-50 transition-colors shrink-0"
             style={{ width: 32, height: 38, borderRadius: 6, border: 'none', background: 'none', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.3 : 1 }}
         >
-            <span className="material-symbols-outlined" style={{ fontSize: 17, color: '#E7000B' }}>delete</span>
+            <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 17, color: '#E7000B' }}>delete</span>
         </button>
     );
 }
@@ -129,8 +133,14 @@ function SectionRows({ label, rows, onAdd, addLabel, renderRow }: {
     );
 }
 
-function PriceFields({ form, setForm, lbl }: { form: any; setForm: any; inp?: React.CSSProperties; lbl: React.CSSProperties }) {
-    const sp  = Number(form.sellingPrice)  || 0;
+/**
+ * `derivedPrice` is set for a Sizes dish: its listed price is the cheapest
+ * size, so the Selling Price box becomes a read-out of that instead of a field
+ * the owner leaves empty (which put "₹0 onwards" on the menu).
+ */
+function PriceFields({ form, setForm, lbl, derivedPrice }: { form: any; setForm: any; inp?: React.CSSProperties; lbl: React.CSSProperties; derivedPrice?: number | null }) {
+    const derived = derivedPrice !== undefined && derivedPrice !== null;
+    const sp  = derived ? derivedPrice : Number(form.sellingPrice) || 0;
     const op  = Number(form.originalPrice) || 0;
     const pct = op > sp && op > 0 ? Math.round((1 - sp / op) * 100) : 0;
 
@@ -152,14 +162,23 @@ function PriceFields({ form, setForm, lbl }: { form: any; setForm: any; inp?: Re
             {/* Price inputs */}
             <div style={{ padding: '14px', border: '1px solid #E4E4E7', borderTop: 'none', borderRadius: '0 0 10px 10px', background: '#FFFFFF' }}>
                 <div className={`grid gap-3 ${form.discountEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    {/* Selling price — always shown */}
+                    {/* Selling price — typed for one price / combo, derived for sizes */}
+                    {derived ? (
+                        <div>
+                            <p style={lbl}>Menu price</p>
+                            <p aria-live="polite" style={{ fontSize: 13, color: sp > 0 ? '#0A0A0A' : '#71717A', padding: '9px 0' }}>
+                                {sp > 0 ? <>₹{sp} onwards <span style={{ color: '#71717A' }}>— your cheapest size</span></> : 'Add a price to a size above'}
+                            </p>
+                        </div>
+                    ) : (
                     <div>
-                        <label style={lbl}>{form.discountEnabled ? 'Selling Price (Offer)' : 'Selling Price'}<span style={{ color: '#E7000B' }}> *</span></label>
+                        <label htmlFor="product-selling-price" style={lbl}>{form.discountEnabled ? 'Selling Price (Offer)' : 'Selling Price'}<span style={{ color: '#E7000B' }}> *</span></label>
                         <div className="flex items-center" style={{ border: '1px solid #E4E4E7', borderRadius: 8, overflow: 'hidden' }}>
                             <span style={{ padding: '9px 10px 9px 12px', fontSize: 13, color: '#71717A', background: '#FAFAFA', borderRight: '1px solid #E4E4E7' }}>₹</span>
-                            <input type="number" value={form.sellingPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f: any) => ({ ...f, sellingPrice: e.target.value }))} placeholder="0" style={{ flex: 1, padding: '9px 10px', fontSize: 13, color: '#0A0A0A', outline: 'none', border: 'none', background: 'transparent', width: 0 }} />
+                            <input id="product-selling-price" type="number" min="0" inputMode="decimal" value={form.sellingPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f: any) => ({ ...f, sellingPrice: e.target.value }))} placeholder="0" style={{ flex: 1, padding: '9px 10px', fontSize: 13, color: '#0A0A0A', outline: 'none', border: 'none', background: 'transparent', width: 0 }} />
                         </div>
                     </div>
+                    )}
 
                     {/* Original price — only when discount is on */}
                     {form.discountEnabled && (
@@ -441,6 +460,7 @@ export default function ProductInventoryPage() {
             fetchProducts(siteId); // re-sync on failure
         } else {
             toast.success(`"${name}" category removed`);
+            refreshPublicMenu(siteId);
         }
     }, [siteId, fetchProducts]);
 
@@ -452,15 +472,21 @@ export default function ProductInventoryPage() {
             // Revert on failure
             setProducts(prev => prev.map(p => p.id === id ? { ...p, is_live: current } : p));
             toast.error('Failed to update');
+            return;
         }
+        refreshPublicMenu(siteId);
     };
 
     const confirmDelete = async () => {
         if (!deleteTarget) return;
+        const photo = products.find(p => p.id === deleteTarget.id)?.image_url;
         const { error } = await supabase.from('products').delete().eq('id', deleteTarget.id);
         if (error) { toast.error('Failed to delete'); return; }
         setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
         setDeleteTarget(null);
+        refreshPublicMenu(siteId);
+        // The dish is gone, so its photo is too (kept if anything else uses it).
+        releaseMenuPhotos(siteId, [photo]);
     };
 
     // Revokes any blob URL still held in the form before we replace it —
@@ -537,6 +563,14 @@ export default function ProductInventoryPage() {
         setDrawerOpen(false);
         setEditingProduct(null);
     };
+
+    useEffect(() => {
+        if (!drawerOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) closeDrawer(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeDrawer only resets local state
+    }, [drawerOpen, saving]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -623,7 +657,7 @@ export default function ProductInventoryPage() {
         setComboItems(c => c.map(r => r.id === id ? { ...r, [field]: val } : r));
 
     const handleSaveProduct = async () => {
-        const problem = validateProductForm(form, { requireDishType: SMART_ADD_PRODUCT });
+        const problem = validateProductForm({ ...form, sizes: variants }, { requireDishType: SMART_ADD_PRODUCT });
         if (problem) {
             toast.error(problem);
             if (SMART_ADD_PRODUCT && !form.dishType) setDishTypeMissing(true);
@@ -632,6 +666,8 @@ export default function ProductInventoryPage() {
 
         setSaving(true);
 
+        // What the menu card prints: the cheapest size for a Sizes dish.
+        const price = listedPrice(form.productType, form.sellingPrice, variants);
         const metadata: Record<string, unknown> = {};
         if (form.productType === 'Variants') {
             metadata.variants = variants.filter(v => v.size.trim());
@@ -642,7 +678,7 @@ export default function ProductInventoryPage() {
         }
         // Discount / offer pricing
         if (form.discountEnabled && form.originalPrice) {
-            const sp  = Number(form.sellingPrice) || 0;
+            const sp  = price;
             const op  = Number(form.originalPrice) || 0;
             metadata.discount_enabled = true;
             metadata.original_price   = op;
@@ -653,6 +689,8 @@ export default function ProductInventoryPage() {
 
         // Upload new image if one was selected; or use professional image URL directly
         let imageUrl: string | null = editingProduct?.image_url ?? null;
+        // Set only when this save uploaded a new file, so a failed save can release it.
+        let uploadedUrl: string | null = null;
         if (proImageUsed && form.imagePreview && !form.imageFile) {
             imageUrl = form.imagePreview;
         } else if (form.imageFile) {
@@ -684,6 +722,7 @@ export default function ProductInventoryPage() {
                     .from('product-images')
                     .getPublicUrl(path);
                 imageUrl = urlData.publicUrl;
+                uploadedUrl = imageUrl;
             }
         }
 
@@ -706,7 +745,7 @@ export default function ProductInventoryPage() {
             item_type:     ITEM_TYPE_TO_DB[form.productType] ?? 'single',
             food_type:     DISH_TYPE_TO_DB[form.dishType]    ?? 'unknown',
             category:      form.category.trim() || undefined,
-            selling_price: Number(form.sellingPrice) || 0,
+            selling_price: price,
             is_live:       form.available,
             image_url:     imageUrl,
             metadata:      Object.keys(metadata).length > 0 ? metadata : {},
@@ -717,7 +756,9 @@ export default function ProductInventoryPage() {
                 .from('products')
                 .update(row)
                 .eq('id', editingProduct.id);
-            if (error) { toast.error('Failed to update product'); setSaving(false); return; }
+            if (error) { toast.error('Failed to update product'); releaseMenuPhotos(siteId, [uploadedUrl]); setSaving(false); return; }
+            // Saved: the photo this dish no longer shows can go.
+            releaseMenuPhotos(siteId, replacedPhotos(editingProduct.image_url, imageUrl));
             setProducts(prev => prev.map(p =>
                 p.id === editingProduct.id ? { ...p, ...row } : p
             ) as Product[]);
@@ -729,7 +770,7 @@ export default function ProductInventoryPage() {
                 .insert({ ...row, site_id: siteId })
                 .select('id, name, description, type, dish_type, item_type, food_type, category, selling_price, is_live, image_url, metadata')
                 .single();
-            if (error || !data) { toast.error('Failed to add product'); setSaving(false); return; }
+            if (error || !data) { toast.error('Failed to add product'); releaseMenuPhotos(siteId, [uploadedUrl]); setSaving(false); return; }
             setProducts(prev => [{ ...data, site_id: siteId }, ...prev]);
             toast.success(photoAddedAtSave ? 'Product added with a photo from our library' : 'Product added!');
         }
@@ -742,6 +783,7 @@ export default function ProductInventoryPage() {
 
         setSaving(false);
         closeDrawer();
+        refreshPublicMenu(siteId);
         // Re-check notification dots — image may have been added
         refreshNotifications();
     };
@@ -786,10 +828,13 @@ export default function ProductInventoryPage() {
                                 key={cat}
                                 type="button"
                                 onClick={() => { if (!active) setForm(f => ({ ...f, category: cat })); }}
+                                aria-pressed={active}
                                 style={{
                                     border: active ? '2px solid #5137EF' : '1.5px solid #E4E4E7',
-                                    borderRadius: 20,
-                                    padding: '5px 14px',
+                                    borderRadius: 22,
+                                    // 44px: the 30px chip was a small target for a thumb.
+                                    minHeight: 44,
+                                    padding: '0 16px',
                                     fontSize: 12,
                                     fontWeight: 500,
                                     background: active ? '#F0EDFF' : '#FFFFFF',
@@ -920,7 +965,7 @@ export default function ProductInventoryPage() {
                             <div key={v.id} className="flex items-center gap-2">
                                 <input type="text" value={v.size} onChange={e => updateVariant(v.id, 'size', e.target.value)} placeholder="Size (e.g., Small)" style={{ ...inp, flex: 1 }} />
                                 <PriceInput value={v.price} onChange={val => updateVariant(v.id, 'price', val)} placeholder="0" />
-                                <DeleteBtn onClick={() => removeVariant(v.id)} disabled={variants.length === 1} />
+                                <DeleteBtn onClick={() => removeVariant(v.id)} disabled={variants.length === 1} label={v.size.trim() ? `Remove size ${v.size.trim()}` : 'Remove this size'} />
                             </div>
                         )}
                     />
@@ -933,7 +978,7 @@ export default function ProductInventoryPage() {
                             <div key={t.id} className="flex items-center gap-2">
                                 <input type="text" value={t.name} onChange={e => updateTopping(t.id, 'name', e.target.value)} placeholder="Toppings (e.g., Chocolate, jelly)" style={{ ...inp, flex: 1 }} />
                                 <PriceInput value={t.price} onChange={val => updateTopping(t.id, 'price', val)} placeholder="Price" />
-                                <DeleteBtn onClick={() => removeTopping(t.id)} disabled={toppings.length === 1} />
+                                <DeleteBtn onClick={() => removeTopping(t.id)} disabled={toppings.length === 1} label={t.name.trim() ? `Remove add-on ${t.name.trim()}` : 'Remove this add-on'} />
                             </div>
                         )}
                     />
@@ -956,7 +1001,7 @@ export default function ProductInventoryPage() {
                                 <input type="text" value={c.name} onChange={e => updateComboItem(c.id, 'name', e.target.value)} placeholder="Item name (e.g., Coca-Cola 250ml)" style={{ ...inp, flex: 1 }} />
                                 <input type="number" value={c.qty} onChange={e => updateComboItem(c.id, 'qty', e.target.value)} placeholder="Qty" min="1"
                                     style={{ ...inp, width: 60, flexShrink: 0, textAlign: 'center' }} />
-                                <DeleteBtn onClick={() => removeComboItem(c.id)} disabled={comboItems.length === 1} />
+                                <DeleteBtn onClick={() => removeComboItem(c.id)} disabled={comboItems.length === 1} label={c.name.trim() ? `Remove ${c.name.trim()} from the combo` : 'Remove this combo item'} />
                             </div>
                         )}
                     />
@@ -1020,7 +1065,7 @@ export default function ProductInventoryPage() {
                 <label style={lbl}>Pricing <span style={{ color: '#E7000B' }}>*</span></label>
                 <ProductTypeSwitch value={form.productType} onChange={pt => setForm(f => ({ ...f, productType: pt }))} />
                 {typeRowsSection}
-                <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} />
+                <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} derivedPrice={isVariants ? listedPrice(form.productType, form.sellingPrice, variants) : null} />
             </div>
         ),
         description: descriptionSection,
@@ -1351,17 +1396,17 @@ export default function ProductInventoryPage() {
                 <>
                     <div className="fixed inset-0" style={{ background: 'rgba(0,0,0,0.25)', zIndex: 95 }} onClick={closeDrawer} />
 
-                    <div className="fixed top-0 right-0 flex flex-col bg-white" style={{ width: 'min(500px, 100vw)', height: '100dvh', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 100 }}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="product-drawer-title" className="fixed top-0 right-0 flex flex-col bg-white" style={{ width: 'min(500px, 100vw)', height: '100dvh', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 100 }}>
 
                         {/* Header */}
                         <div style={{ padding: '22px 24px 16px', borderBottom: '1px solid #E4E4E7', flexShrink: 0 }}>
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <h2 className="font-semibold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: '28px' }}>{editingProduct ? 'Edit Product' : 'Add New Product'}</h2>
+                                    <h2 id="product-drawer-title" className="font-semibold text-[#0A0A0A]" style={{ fontSize: 22, lineHeight: '28px' }}>{editingProduct ? 'Edit Product' : 'Add New Product'}</h2>
                                     <p className="text-[#71717A]" style={{ fontSize: 13, marginTop: 2 }}>{editingProduct ? 'Update the product details below' : 'Fill in the product details below'}</p>
                                 </div>
-                                <button onClick={closeDrawer} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#71717A' }}>close</span>
+                                <button type="button" aria-label="Close" onClick={closeDrawer} className="flex items-center justify-center hover:bg-neutral-100 transition-colors" style={{ width: 32, height: 32, borderRadius: 6 }}>
+                                    <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 20, color: '#71717A' }}>close</span>
                                 </button>
                             </div>
                         </div>
@@ -1477,7 +1522,7 @@ export default function ProductInventoryPage() {
                                 {typeRowsSection}
 
                                 {/* ── PRICE FIELDS: common for all types ── */}
-                                <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} />
+                                <PriceFields form={form} setForm={setForm} inp={inp} lbl={lbl} derivedPrice={isVariants ? listedPrice(form.productType, form.sellingPrice, variants) : null} />
 
                                 {visibilitySection}
                                 </>
@@ -1509,6 +1554,7 @@ export default function ProductInventoryPage() {
                     onClose={() => setBulkModalOpen(false)}
                     onSuccess={() => {
                         setBulkModalOpen(false);
+                        refreshPublicMenu(siteId);
                         if (siteId) fetchProducts(siteId);
                         refreshNotifications();
                     }}

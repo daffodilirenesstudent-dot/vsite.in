@@ -16,6 +16,7 @@
 // change theirs within 30 days, and this is the only place that is recorded.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { audit } from '@/lib/platform/auditLog';
@@ -101,14 +102,16 @@ export async function PATCH(
 
     // Read-before-write, scoped to the caller. A site that is not theirs reads
     // as absent, so an attacker learns nothing from the difference.
-    const { data: prev } = await supabaseServer
+    const { data: row } = await supabaseServer
         .from('sites')
-        .select('menu_theme, menu_font, primary_color')
+        .select('menu_theme, menu_font, primary_color, slug')
         .eq('id', params.siteId)
         .eq('user_id', userId)
         .maybeSingle();
 
-    if (!prev) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!row) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // The slug only locates the public page to refresh; it is not part of the design.
+    const { slug, ...prev } = row as typeof row & { slug?: string | null };
 
     const { error } = await supabaseServer
         .from('sites')
@@ -120,6 +123,9 @@ export async function PATCH(
         console.error('[PATCH menu-theme]', error);
         return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
     }
+
+    // The next diner gets the new design, not the cached page from before it.
+    if (slug) revalidatePath(`/shop/${slug}`);
 
     audit({
         userId,

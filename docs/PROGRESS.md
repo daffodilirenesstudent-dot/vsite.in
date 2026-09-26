@@ -2,6 +2,147 @@
 status: DONE
 ## Iteration history
 
+### 2026-09-26 — Owner QA fixes (high / medium / low list)
+status: CODE DONE — new acceptance suites green: product-pricing (24), menu-freshness (20),
+owner-qa-polish (44), bulk-review (9), ordering-roadmap-copy (+6). Full suite: only the
+pre-existing tests/unit/claude-hooks/* (69) and the timing-sensitive aiCostAbuse test fail, same
+as before this pass. tsc clean, lint 0 errors. NOT committed; NOT deployed.
+
+**High.**
+- Sizes dish showed "₹0 onwards": save now stores `listedPrice()` (cheapest size); the menu
+  derives it on read for rows already saved at ₹0 (`menuCardPrice`, only when the stored price is
+  0 — no data rewritten). Same bug in the AI extractor returned `Infinity` (`Math.min()` of no
+  prices); fixed through the same helper.
+- No-price dishes: `validateProductForm` requires > ₹0 (one price / combo) and at least one priced,
+  named size (Sizes). Existing ₹0 rows (e.g. "Browine") are untouched — the owner fixes them.
+- Ordering advertised: menu footer now "Fresh menu, always up to date". **Poster decision
+  reversed by the owner (asked explicitly, 26 Sep):** while frozen, and always for qr_menu, the
+  classic poster is `/brand poster scan menu.png` — the owner's artwork re-rendered with "SCAN FOR
+  MENU" (Playfair Display Bold, same layout). Rule: `lib/qr/posterTemplate.ts`. dashboard-ux.test.ts
+  updated to guard the new choice. The 11 Sep "keep Scan & Order" note below is superseded.
+- Env flags: NOT changed (protected). Owner action: add `NEXT_PUBLIC_MENU_PHOTO_COMPRESS=true`,
+  `NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` to .env.local and DO; `NEXT_PUBLIC_SMART_ADD_PRODUCT=true`
+  to DO. All are build-time — redeploy after.
+
+**Medium.** Store Status asks before going offline (`components/manage/ConfirmDialog.tsx`).
+Stale menu: root cause is Next's Data Cache (`revalidate = 10` on the Supabase fetches), not the
+page cache — `POST /api/manage/menu-refresh` revalidatePaths `/shop/<slug>` after dashboard edits;
+toggle-live and menu-theme revalidate inline. Owner visits: `lib/menu/ownerDevice.ts` marks the
+dashboard device; the menu skips the scan ping there. Printer bridge poll gated on
+ORDERING_FROZEN. Bulk upload has a "Check items" step (edit name / price / category, untick; ₹0
+blocked) before bestsellers. Tablet: banner list by container width, move-up/down buttons, Manage
+plan in the icon sidebar.
+
+**Low.** Escape closes notifications, bulk modal, both drawers; drawers are dialogs; labelled
+deletes, sidebar icons, store switch, bulk "Choose Files" is a button. Tab titles per page, no
+"| Vsite | Vsite". Header "Owner · <store>". Subscription copy consistent with no early renewal.
+Design previews show real prices. Menu header shows saved location + hours. 44px chips and
+swatches. Cleared name clears the library photo; "Veg Combo"-style names abstain (matcher). CSP +
+https://apis.google.com in script-src only.
+
+**Photo cleanup (owner asked, same day).** Replacing or deleting a dish / banner photo now
+deletes THAT file and its thumbnail via `POST /api/manage/media/release`, called only after the DB
+save succeeded (inventory, desktop banners, You-tab banners; a fresh upload whose save failed is
+released too). Guards (lib/menu/photoCleanup.ts): `product-images` only — **the food library
+(`default-images`) is never touched (owner: "don't delete the food lib")**; only this store's
+`<siteId>/` or `<slug>/` folder; kept if any products/banners row still references the file.
+Live check 26 Sep: only products.image_url and banners.image_url reference uploads; 0 library rows
+point into product-images; 0 uploads shared by two rows. Backlog NOT touched: 155 unreferenced
+originals already in product-images (77 in `temp/`, Feb–Apr test uploads; the rest deleted stores /
+old replacements) — a one-off cleanup needs the owner's go. Store deletion still leaves its photos
+(the site row is gone before a release could verify ownership) — belongs in that same sweep.
+
+**Not done — needs a decision.** (1) The backlog above. (2) Bulk extraction speed (~47 s): pages already run in parallel; the remaining time
+is the vision call plus the description pass. Deferring descriptions until after insert would
+roughly halve the wait but changes what the owner reviews.
+
+
+### 2026-09-25 — Feature: One free trial per account (`one-trial`)
+status: CODE DONE — acceptance green: one-trial.test.ts (37/37); updated mobile-nav AC8, you-tab
+AC1/AC4, ai-page-limits fixtures, db-least-privilege parser; onboarding, payment, dashboard and icon
+suites green. Full suite: only tests/unit/claude-hooks/* fail (pre-existing). tsc clean, lint 0
+errors. **058 APPLIED to production 2026-09-25 (owner's go)**; 059 waits for the deploy.
+
+**Why.** Research on the live DB: 12 of 32 owners had 2+ stores; 25 unpaid extra stores had 18
+customer visitors in total. The old rule (5 stores, 2 on trial at once; a lapsed trial frees its
+slot) allowed a new free store every week; delete-and-recreate reset the trial; the trial was
+`created_at + 7 days` and owners can UPDATE their own sites rows (created_at included) from the
+browser; the DB trigger said 14 days, the app 7. Owner chose a hybrid: max 2 stores per account,
+first store gets the trial once per account for good, a later store is built free and goes live
+only after payment, with an explicit agreement shown with the phone number.
+
+**Design.** Trial window moved to `site_subscriptions.trial_ends_at` (browser-unwritable).
+`trial_claims` (PK user_id, no FK — outlives a deleted store) records the used trial. 058:
+columns, table, backfill (every existing store keeps created_at + 7d; 25 stores without a
+subscription row get one; every existing owner has a claim), AFTER INSERT trigger that claims the
+trial and opens the store's subscription row. 059: BEFORE INSERT trigger — advisory lock per
+account, 2 stores, consent required once the trial is used. App: `lib/store/trialRules.ts` (the
+rule), `storeEligibility` (+`readStoreEligibility`), `GET /api/onboarding/eligibility`, consent
+header on extract + launch, DB refusals → 403 without retries, `live` in the launch response,
+`PaidStoreConsent` screen (phone, trial store, ₹299, checkbox), onboarding gate (existing owners
+wait for the answer; new signups never do), launch screen "is ready · Not live yet · Pay ₹299 to go
+live", You add-store = the agreement, header counts 2, banners say "not live yet". Consent is
+also written to the audit log (`paid_store_consent`).
+
+**Evidence.** Dry run of 058+059 inside a rolled-back block on production: 60/60 subscription rows,
+0 without a trial date, 0 differing from created_at + 7 days, 32 claims; new account's 1st store
+trial ✓, 2nd no trial ✓, 3rd PLAN_LIMIT ✓, 2nd without consent CONSENT_REQUIRED ✓, with consent no
+trial ✓, trial store deleted then re-created → no trial ✓. After applying 058: same counts; RLS on
+trial_claims, browsers cannot read/write it, can read trial_ends_at; site_subscriptions still has no
+write policies; old limit trigger intact until 059. Dev server (390 px, test account): You tab and
+store list load with the new columns; add-store at-limit screen; consent screen rendered from the
+component. Terms + FAQ state the rule (`TRIAL_RULE` in content/policy.ts).
+
+**Not done / known.** The consent → build → "Pay ₹299 to go live" path was not clicked through
+end to end: the only test account already has 4 stores and the only database is production. A second phone
+number still gets its own trial (the rule is per number). A no-trial store still gets its
+onboarding AI scan before payment (capped by the daily per-user AI budget).
+
+**Rollout.** 1) apply 058 (expand-only; the current release keeps working) 2) deploy 3) apply 059.
+Rollback: revert the deploy; 059's rollback re-runs 011's function body; 058's header lists drops.
+
+### 2026-09-25 — Feature: You tab redesign (phone)
+status: DONE — acceptance green: you-tab.test.ts (26/26); mobile-nav (15/15, AC6 superseded by
+owner decision), dashboard-ux, store-details, qr-sticker, qr-print-kit, food-posters,
+ordering-roadmap-copy, payment attacks, ordering freeze, routes — 308 passed. tsc clean, lint 0 errors.
+
+**Why.** The You tab opened on "Your account" + a phone number, and every row led to a desktop
+page (1,800-line settings, a banner table, a pricing page). Help opened the marketing FAQ;
+sign-out sat in a red section one tap from a confirmation, and each re-login costs an SMS.
+Owner approved the redesign on the design canvas (https://claude.ai/artifact/JH435VTbKGwj3dDP9M1xSy).
+
+**Design.** New phone screens under `/manage/you/{store,design,banners,plan,add-store,help}`,
+full-screen on phones (shell hides header, notices and bottom bar — flag on only). You page:
+store card with plan status and View menu, rows with live lines (first missing detail, design
+name, banners showing, plan end, trial spots), help, then a quiet "Sign out" behind "Sign out of
+vsite? / Stay signed in". Rules are pure in `lib/you/*`; banner queries in `lib/you/bannerData.ts`
+(same table/bucket); delete-store moved to `lib/store/deleteStore.ts` (settings now calls it).
+The ₹299 checkout moved verbatim into `hooks/useQrMenuCheckout.ts`, used by the old subscription
+page and the new Plan & bills; its rule is kept (no payment during a trial or a running plan).
+Feature list moved to `content/smartQrMenu.ts`. Menu design loads Newsreader + Familjen for that
+route only so the lettering options render in their real faces. No schema, route or dependency change.
+
+**Evidence (dev server, 390×844, test account).** Every screen loaded real data; Store details
+Save bar + "Discard changes?" + back via history; banners ⋮ menu; Plan shows "Active · paid till
+9 Dec"; add-store counts 1 of 2 trial spots; Help's WhatsApp text names the store; the old
+subscription page still renders ("Current plan") with no console errors; desktop keeps sidebar/header.
+Fixed during the walkthrough: stretched design preview, lettering fonts, footer floating on short
+screens, empty period bar for plans > 30 days, duplicated counts/dates.
+
+**Not done / known.** No bill download (no endpoint — the mockup's icon was dropped). The design's
+"Activate during trial / Renew early" was not built: today's flow forbids it (owner said flow
+unchanged). Payment itself was not run end to end (real money); the flow is the moved code, guarded
+by the payment suites. Full suite: only `tests/unit/claude-hooks/*` fail (pre-existing).
+
+**Rollout.** Ships with `NEXT_PUBLIC_MOBILE_NAV_V2=true` (build-time). Rollback: unset it.
+
+**Follow-up (owner report, same day): every tab tap showed the same skeleton.** Root cause: the
+shell knew the destination (`usePendingNav()`) but `PendingPage` took no props and drew one
+dashboard-shaped layout for all tabs. Now `components/PendingPage.tsx` draws Home / Menu / QR /
+You in each page's own shape (generic for anything else) and labels the progress "Opening Menu" etc.
+New mobile-nav AC5 test renders each one and requires four distinct layouts (vitest now compiles
+JSX via oxc). Verified on the phone viewport with page data delayed 4 s: each tab shows its own shape.
+
 ### 2026-09-25 — Feature: Food posters (QR page, pass 2)
 status: DONE — acceptance green: food-posters.test.ts (18/18); print kit (29/29) and sticker (8/8) unchanged.
 Rollout pending the owner.
@@ -1398,6 +1539,7 @@ to `min-width: 961px`.
 ### Two reversals, both the owner's call
 
 **1. The poster is back on the owner's "Scan & Order" artwork.**
+*(Superseded 2026-09-26 by the owner: frozen / qr_menu posters now read "SCAN FOR MENU" — see the top entry.)*
 `drawMenuPoster` is deleted; `qr_menu` composites onto
 `/brand poster scan order.png` again.
 ⚠️ **This conflicts with the ordering freeze and that is known and accepted.**

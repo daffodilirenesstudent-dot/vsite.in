@@ -47,6 +47,7 @@ export default function AppearancePanel({
     siteId,
     siteSlug,
     dishNames,
+    dishPrices,
     value,
     onChange,
 }: {
@@ -54,6 +55,7 @@ export default function AppearancePanel({
     siteSlug: string | null;
     /** Real dish names, so the swatches preview the owner's own menu. */
     dishNames: string[];
+    dishPrices?: ReadonlyArray<number | null | undefined>;
     value: AppearanceState;
     onChange: (next: AppearanceState) => void;
 }) {
@@ -112,6 +114,7 @@ export default function AppearancePanel({
                     theme={value.menu_theme}
                     brandColor={value.primary_color}
                     dishNames={dishNames}
+                    dishPrices={dishPrices}
                     disabled={saving}
                     onThemeChange={(id) =>
                         save({ menu_theme: id, menu_font: MENU_THEMES[id].fontPair })
