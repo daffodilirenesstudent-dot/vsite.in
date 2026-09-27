@@ -26,12 +26,26 @@ export const DASHBOARD = '/manage/dashboard';
  * bare "starts with /" check still admits `//evil.example`, which browsers read
  * as protocol-relative and follow off-site. Backslashes are rejected too, since
  * some browsers normalise `\\` to `//`.
+ *
+ * Browsers also strip TAB, CR and LF from anywhere in a URL before parsing it,
+ * so `/<TAB>/evil.example` becomes `//evil.example` — control characters are
+ * refused outright. The final URL-parse check is the backstop: whatever string
+ * tricks the prefix checks miss, a path that resolves to another origin is
+ * refused.
  */
+const PARSE_BASE = 'https://internal.invalid';
+
 export function safeInternalPath(path: string | null | undefined): string | null {
     if (!path) return null;
     if (!path.startsWith('/')) return null;
     if (path.startsWith('//')) return null;
     if (path.includes('\\')) return null;
+    if (/[\u0000-\u001F\u007F]/.test(path)) return null;
+    try {
+        if (new URL(path, PARSE_BASE).origin !== PARSE_BASE) return null;
+    } catch {
+        return null;
+    }
     return path;
 }
 

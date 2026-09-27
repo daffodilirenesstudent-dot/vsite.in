@@ -5,6 +5,7 @@ import { Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { firebaseAuth } from '@/lib/auth/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { DASHBOARD, safeInternalPath } from '@/lib/auth/postAuthDestination';
 
 // Silent refresh interstitial. Middleware routes here when a user's cookie
 // contains an expired Firebase ID token but Firebase client may still hold a
@@ -21,11 +22,9 @@ function RefreshInner() {
     useEffect(() => {
         if (handled.current) return;
 
-        const rawTo = params.get('to') ?? '/manage/dashboard';
-        // Only allow internal paths — blocks open-redirect attacks
-        const to = rawTo.startsWith('/') && !rawTo.startsWith('//')
-            ? rawTo
-            : '/manage/dashboard';
+        // Only allow internal paths — blocks open-redirect attacks. A local
+        // prefix check here once admitted `/\evil.example` and `/<TAB>/…`.
+        const to = safeInternalPath(params.get('to')) ?? DASHBOARD;
 
         // Give Firebase a moment to restore its persisted session before deciding.
         // onAuthStateChanged fires once with the restored user (or null) after init.
