@@ -1,162 +1,145 @@
 import type { SeoLandingData } from '@/components/home/SeoLanding';
 import type { CityPage } from './cities';
 import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
+import { ORDERING_COMING_SOON_SHORT } from '@/content/roadmap';
+import { PHOTO_CLAIM, TRIAL_DAYS } from '@/content/facts';
 
 /**
- * Turns a city record into a landing page.
+ * Turns a city record into a landing page, reusing `SeoLanding` so city pages
+ * inherit FAQ and breadcrumb schema and the internal-link cluster.
  *
- * Reuses `SeoLanding` rather than inventing a second page component, so city
- * pages inherit the FAQ and breadcrumb schema, the internal-link cluster and
- * the styling that the keyword pages already have.
- *
- * ─── WHAT MAKES THESE NOT DOORWAY PAGES ──────────────────────────────────────
- * The template is shared; the SUBSTANCE is not. Every page's opening paragraph,
- * its main argument, one FAQ and the local-detail section come from fields that
- * are specific to that city — the food it is known for, where its restaurants
- * actually are, and the thing about its menus that is true there and nowhere
- * else. Google treats city pages with swapped names as spam, and rightly: they
- * are unreadable. More to the point for this project, an AI engine has nothing
- * to quote from a page that says nothing particular, and getting quoted is the
- * whole objective.
- *
- * The shared parts — pricing, how setup works, what the product does — SHOULD be
- * identical everywhere, because they are the same everywhere. Varying them for
- * the sake of looking different would be the actual spam signal.
- * ─────────────────────────────────────────────────────────────────────────────
+ * What makes these not doorway pages: the opening answer, the typical food
+ * businesses, the local point, the setup scenario, the language note and three
+ * of the six FAQs all come from fields written for that city alone. The shared
+ * parts (price, trial, how setup works, what vsite does not do) are identical
+ * everywhere because they are the same everywhere. The FAQ answers that share a
+ * template still name the city, so no answer repeats across pages.
  */
 export function buildCityPage(c: CityPage): SeoLandingData {
     const price = PLAN_PRICES_INR.qr_menu;
-    const where = c.district && c.district !== c.city ? `${c.city}, ${c.district}` : c.city;
+    const yearly = price * 12;
+    const area = c.district && c.district !== c.city ? `${c.city} (${c.district})` : c.city;
 
     return {
         slug: `digital-menu/${c.slug}`,
         h1: `Digital Menu for Restaurants in ${c.city}`,
         subtitle:
-            `QR code menus for ${c.city} restaurants, cafés and messes — in Tamil and English, ` +
-            `with a photo for every dish. Photograph your paper menu and be live in 3 minutes. ₹${price}/month.`,
+            `QR code menus for ${c.city} (${c.tamil}) restaurants, cafés and messes, in Tamil and English, ` +
+            `with ${PHOTO_CLAIM.toLowerCase()}. ₹${price}/month with a ${TRIAL_DAYS}-day free trial and no commission.`,
 
         features: [
             {
                 icon: 'translate',
                 title: `Tamil and English, for ${c.city}`,
-                description: `Every dish appears in both languages, switched with one tap. Long Tamil dish names render properly — ${c.tamil} customers are not reading an English-only menu.`,
+                description: `Every dish holds a Tamil and an English name, switched with one tap, so ${c.tamil} diners and visitors read the same QR.`,
             },
             {
                 icon: 'photo_camera',
-                title: 'A photo for every dish',
-                description: 'AI generates a food photo for each item on your menu. No photographer, no shoot, no empty grey boxes where a picture should be.',
+                title: 'A photo beside each dish',
+                description: `${PHOTO_CLAIM} are matched to your dish names. You can review and change any of them.`,
             },
             {
-                icon: 'bolt',
-                title: 'Live in 3 minutes',
-                description: 'Photograph your existing menu. The AI reads every item, price and category — including handwritten boards.',
+                icon: 'document_scanner',
+                title: 'Read from your paper menu',
+                description: 'Photograph your existing menu and the AI reads items, prices and categories, including handwritten boards. You check the result before it goes live.',
             },
             {
                 icon: 'edit',
                 title: 'Change prices from your phone',
-                description: 'Update a price or mark a dish sold out and every table sees it on the next scan. The printed QR sticker never changes.',
+                description: 'Update a price or mark a dish sold out and every table sees it on the next scan. The printed QR never changes.',
             },
             {
                 icon: 'currency_rupee',
                 title: `₹${price} a month, no commission`,
-                description: 'One price. No per-scan fee, no cut of your sales, no charge for changing your menu as often as you like.',
+                description: 'One price. No per-scan fee, no cut of your sales, no item cap and no charge for editing the menu as often as you like.',
             },
             {
                 icon: 'support_agent',
                 title: 'Support in Tamil, on WhatsApp',
-                description: 'From the people who built it, based in Tamil Nadu — not a ticket queue in another timezone.',
+                description: 'From a team based in Tamil Nadu, reachable on WhatsApp rather than through a ticket queue.',
             },
         ],
 
         content: [
-            {
-                type: 'p',
-                text:
-                    `${where} is known for ${c.knownFor}. If you run a restaurant, café, mess or bakery here — ` +
-                    `around ${c.areas.slice(0, -1).join(', ')} or ${c.areas[c.areas.length - 1]}, or anywhere else in the city — ` +
-                    `vsite turns your existing paper menu into a QR menu customers open on their own phone, in Tamil or English, with a photo beside every dish.`,
-            },
+            { type: 'p', text: c.intro },
 
-            { type: 'h2', text: `Why ${c.city} restaurants are moving off paper` },
+            { type: 'h2', text: `What kinds of food businesses run a digital menu in ${c.city}?` },
+            { type: 'p', text: `${area} is known for ${c.knownFor}. ${c.businesses}` },
             { type: 'p', text: c.localTruth },
-            {
-                type: 'p',
-                text:
-                    `The cost argument is the same everywhere and it is simple: a printed menu costs ₹3,000–₹8,000 per batch and ` +
-                    `is wrong the day a price changes. vsite is ₹${price} a month and is never out of date.`,
-            },
 
-            { type: 'h2', text: `How to get a digital menu in ${c.city}` },
+            { type: 'h2', text: `How would a ${c.city} menu be set up?` },
+            { type: 'p', text: c.scenario },
             {
                 type: 'ol',
                 items: [
-                    'Photograph your paper menu — a phone picture is enough, and a handwritten board works too.',
-                    'The AI reads every dish, price and category, in Tamil and English.',
-                    'It generates a food photo for each dish and you check the prices.',
-                    'You get a QR code to print, plus weatherproof stickers and an NFC card posted to you.',
-                    'Customers scan and read the menu. Your staff take the order exactly as they do today.',
+                    'Photograph your paper menu or wall board. A phone picture is enough.',
+                    'The AI reads the dishes, prices and categories in Tamil and English.',
+                    'Check every price and name on the review screen, and fix what the AI read wrongly.',
+                    'Photos are matched to each dish from a curated library; replace any that do not look right.',
+                    'Print the QR code for the table or counter. Customers scan and read; your staff take the order as they do today.',
                 ],
             },
 
-            { type: 'h2', text: `What it costs in ${c.city}` },
-            {
-                type: 'table',
-                headers: ['', 'Printed menus', `vsite`],
-                rows: [
-                    ['Cost per year', '₹12,000 – ₹32,000 (3–4 reprints)', `₹${price * 12}`],
-                    ['Changing a price', 'Reprint everything', 'From your phone, instantly'],
-                    ['Photos of dishes', 'Extra photography cost', 'Included, AI-generated'],
-                    ['Tamil and English', 'Two separate prints', 'One menu, one tap'],
-                    ['Marking an item finished', 'Tell every customer', 'One toggle'],
-                ],
-            },
+            { type: 'h2', text: `Why a Tamil and English menu in ${c.city}?` },
+            { type: 'p', text: c.languageNote },
 
-            { type: 'h2', text: 'What vsite does not do' },
+            { type: 'h2', text: `What does a digital menu cost in ${c.city}?` },
             {
                 type: 'p',
                 text:
-                    'Customers read the menu on their phone and order with your staff, exactly as they did before. ' +
-                    'Ordering and payment inside the menu are not live yet — they are coming, at no extra cost, on the same ₹' +
-                    `${price} plan. We would rather say that plainly than have you find out after paying.`,
+                    `vsite is ₹${price} a month (₹${yearly} a year) with a ${TRIAL_DAYS}-day free trial and no commission on your sales. ` +
+                    `To compare it with paper, use your own numbers: yearly printing cost = cost of one print run × reprints per year. ` +
+                    `If that comes to more than ₹${yearly}, the digital menu costs less; if your menu almost never changes, paper may cost less.`,
+            },
+            {
+                type: 'table',
+                headers: ['', 'Printed menu', 'vsite'],
+                rows: [
+                    ['Cost per year', 'Print cost per run × reprints per year', `₹${yearly} (₹${price} × 12)`],
+                    ['Changing a price', 'Reprint the card', 'Edit on your phone'],
+                    ['Marking an item finished', 'Tell each customer or cross it out', 'One sold-out toggle'],
+                    ['Tamil and English', 'Two prints or crowded text', 'One menu, one tap'],
+                    ['Commission on sales', 'None', 'None'],
+                ],
+            },
+
+            { type: 'h2', text: 'What vsite does not do (yet)' },
+            {
+                type: 'p',
+                text:
+                    `${ORDERING_COMING_SOON_SHORT} Customers read the menu on their phone and order with your staff, exactly as they do now. ` +
+                    'It will arrive at no extra cost inside the same plan. We would rather say that plainly than have you find out after paying.',
             },
 
             {
                 type: 'callout',
-                text:
-                    `Start free for 7 days — no card needed. If it does not suit your ${c.city} restaurant, walk away and nothing is charged.`,
+                text: `Try it free for ${TRIAL_DAYS} days, no card needed. If it does not suit your ${c.city} business, walk away and nothing is charged.`,
             },
         ],
 
         relatedLinks: [
-            { label: 'QR Code Menus →', href: '/qr-menu' },
-            { label: 'Digital Menus in India →', href: '/digital-menu-india' },
-            { label: 'AI Menu Builder →', href: '/ai-menu-builder' },
-            { label: 'Café Menu Software →', href: '/cafe-menu-software' },
+            { label: 'Digital menu setup guide →', href: '/guide/digital-menu-setup' },
             { label: 'Pricing →', href: '/pricing' },
             { label: 'See a live demo menu →', href: '/demo' },
+            { label: 'QR Code Menus →', href: '/qr-menu' },
+            { label: 'Digital Menus in India →', href: '/digital-menu-india' },
+            { label: 'Café Menu Software →', href: '/cafe-menu-software' },
         ],
 
         faqs: [
             c.localFaq,
+            ...c.extraFaqs,
             {
-                q: `How much does a digital menu cost in ${c.city}?`,
-                a: `vsite costs ₹${price} per month — ₹${price * 12} a year — with no setup fee, no commission on your sales and no per-scan charge. That covers unlimited menu changes, AI food photos for every dish, Tamil and English, and the QR stickers and NFC card posted to your restaurant. A 7-day free trial needs no card.`,
+                q: `How much does a digital menu cost for a ${c.city} restaurant?`,
+                a: `vsite costs ₹${price} a month, which is ₹${yearly} a year, with no setup fee, no commission and no per-scan charge. A ${c.city} restaurant gets unlimited menu changes, Tamil and English, ${PHOTO_CLAIM} and analytics, and can test it free for ${TRIAL_DAYS} days without a card.`,
             },
             {
-                q: `How quickly can my ${c.city} restaurant be live?`,
-                a: 'About three minutes. Photograph your paper menu, let the AI read it, check the prices, and your menu is live at its own web address with a QR code ready to print.',
+                q: `How long does setup take for a ${c.city} menu?`,
+                a: `For a menu of about 40 items, setup is typically minutes: photograph the menu, let the AI read it, then check names and prices. A larger ${c.city} menu takes longer because the review is the slow part. The setup guide at /guide/digital-menu-setup breaks down where the time goes.`,
             },
             {
-                q: 'Do my customers need to download an app?',
-                a: 'No. They scan the QR code with the normal camera on their phone and the menu opens in the browser in about two seconds. Nothing to install, nothing to sign up for.',
-            },
-            {
-                q: 'Can I have the menu in Tamil?',
-                a: `Yes — every dish carries a Tamil and an English name, and the customer switches with one tap. vsite is built in Tamil Nadu and Tamil is not an afterthought: long Tamil dish names are tested to render properly on the card.`,
-            },
-            {
-                q: 'What happens to my printed QR codes if I change the menu?',
-                a: 'Nothing — they keep working. The QR code points at your menu, not at a particular version of it. Change prices, add dishes or switch your menu design and every sticker already on your tables stays valid.',
+                q: `Can customers in ${c.city} order and pay through the menu?`,
+                a: `Not yet. ${ORDERING_COMING_SOON_SHORT} Today customers in ${c.city} scan, read the menu in Tamil or English, and order with your staff as usual.`,
             },
         ],
     };
