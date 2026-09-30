@@ -831,7 +831,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
         en: {
             h1: 'How much does a vsite digital menu cost and how long does setup take?',
             answer:
-                `The vsite Smart QR Menu costs ${P} a month after a ${TRIAL}, with no setup fee and no commission. Setup takes ${LIVE} to a live menu link for a typical menu, and ${TOTAL} for a complete setup with the QR poster. You pay through Razorpay, one ${BILLING_DAYS}-day period at a time, with no auto-renewal.`,
+                `The vsite Smart QR Menu costs ${P} a month after a ${TRIAL}, with no setup fee or commission. Setup takes ${LIVE} to a live menu link for a typical menu, and ${TOTAL} for a complete setup with the QR poster. You pay through Razorpay, one ${BILLING_DAYS}-day period at a time, no auto-renewal.`,
             needs: [
                 'A mobile number for sign-up',
                 'Your menu as photos or a PDF',
