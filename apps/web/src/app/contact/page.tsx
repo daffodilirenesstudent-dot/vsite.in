@@ -3,6 +3,10 @@ import { whatsappUrl } from '@/lib/platform/brand';
 import Link from 'next/link';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
+import JsonLd from '@/components/seo/JsonLd';
+import { CONTACT_FAQS } from '@/content/faqs';
+import { orgRef } from '@/lib/seo/entity';
+import { faqPageSchema, serializeJsonLd } from '@/lib/seo/jsonld';
 
 export const metadata: Metadata = {
   title: 'Contact vsite — WhatsApp, Email & Phone',
@@ -13,50 +17,25 @@ export const metadata: Metadata = {
   },
 };
 
+// The Organization is defined once in the root layout; this page only says it
+// is the organisation's contact page.
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'LocalBusiness',
-  name: 'vsite',
-  url: 'https://vsite.in',
-  email: 'official@vsite.in',
-  description: 'AI-powered digital menu platform for Tamil Nadu restaurants.',
-  areaServed: { '@type': 'State', name: 'Tamil Nadu' },
-  contactPoint: [
-    {
-      '@type': 'ContactPoint',
-      contactType: 'customer support',
-      email: 'official@vsite.in',
-      availableLanguage: ['English', 'Tamil'],
-    },
-  ],
+  '@type': 'ContactPage',
+  name: 'Contact vsite',
+  url: 'https://vsite.in/contact',
+  about: orgRef(),
+  mainEntity: orgRef(),
 };
-
-const faqs = [
-  {
-    q: 'How long does setup take?',
-    a: 'About 3 minutes. Upload a photo of your menu, and AI does the rest.',
-  },
-  {
-    q: 'Do my customers need an app?',
-    a: 'No. Your digital menu opens in any phone browser — no download needed.',
-  },
-  {
-    q: 'What does the 7-day trial include?',
-    a: 'Full access to every feature. No credit card required. No automatic charge.',
-  },
-  {
-    q: 'Can I get help with setup?',
-    a: 'Yes — message us on WhatsApp and we will walk you through setup live.',
-  },
-];
 
 export default function ContactPage() {
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
+      <JsonLd data={faqPageSchema(CONTACT_FAQS)} />
       <Navbar />
       <main>
         {/* Hero */}
@@ -155,7 +134,7 @@ export default function ContactPage() {
               These answer 80% of questions we receive.
             </p>
             <div className="space-y-4">
-              {faqs.map((faq) => (
+              {CONTACT_FAQS.map((faq) => (
                 <div
                   key={faq.q}
                   className="bg-white rounded-xl border border-slate-200 p-4"

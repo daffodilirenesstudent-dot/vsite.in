@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
+import { orgRef } from '@/lib/seo/entity';
 
 export const metadata: Metadata = {
   title: "About vsite — India's Fastest-Growing Digital Menu Software",
@@ -12,23 +13,15 @@ export const metadata: Metadata = {
   },
 };
 
+// The Organization is defined once in the root layout; this page only says it
+// is the organisation's about page.
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: 'vsite',
-  url: 'https://vsite.in',
-  email: 'official@vsite.in',
-  description:
-    "India's fastest-growing digital menu software — AI-powered QR menus for restaurants across South India.",
-  foundingLocation: { '@type': 'Place', name: 'Tamil Nadu, India' },
-  areaServed: [
-    { '@type': 'City', name: 'Chennai' },
-    { '@type': 'City', name: 'Coimbatore' },
-    { '@type': 'City', name: 'Madurai' },
-    { '@type': 'City', name: 'Salem' },
-    { '@type': 'City', name: 'Trichy' },
-  ],
-  knowsLanguage: ['en', 'ta'],
+  '@type': 'AboutPage',
+  name: 'About vsite',
+  url: 'https://vsite.in/about',
+  about: orgRef(),
+  mainEntity: orgRef(),
 };
 
 const stats = [
