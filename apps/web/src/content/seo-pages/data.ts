@@ -159,7 +159,7 @@ export const aiMenuBuilderPage: SeoLandingData = {
         { label: 'How Tamil Nadu Restaurants Use AI Menus →', href: '/blog/tamil-nadu-restaurants-ai-menus' },
     ],
     faqs: [
-        { q: 'How does an AI menu builder work?', a: 'You upload a photo of your paper menu. The AI uses OCR to read every item, price, and category — including Tamil text. It then matches each dish to a professional food photo and publishes your full digital menu automatically. The process takes under 3 minutes with vsite.' },
+        { q: 'How does an AI menu builder work?', a: 'You upload a photo of your paper menu. The AI uses OCR to read every item, price, and category — including Tamil text. It then matches each dish to a professional food photo and publishes your full digital menu automatically. A typical menu has a live link in about 3 minutes with vsite.' },
         { q: 'Can the AI read handwritten menus?', a: 'Printed menus give the best results. Handwritten pages are accepted, but check the result carefully and expect to correct names and prices by hand. Use a clear photo taken in good lighting.' },
         { q: 'Does it work for Tamil-language menus?', a: 'Yes. vsite\'s AI reads Tamil script. Mixed Tamil-English menus are also supported — common in Chennai, Coimbatore, and Madurai restaurants.' },
         { q: 'What if the AI gets something wrong?', a: 'You can edit anything in the dashboard after setup — prices, names, categories, photos. Most restaurants find the AI gets 90% right and they tweak the remaining 10% in a few minutes.' },
@@ -340,7 +340,7 @@ export const barMenuPage: SeoLandingData = {
         { icon: 'wine_bar', title: 'Cocktail-First Layout', description: 'Categories tuned for bars — cocktails, mocktails, beer, wine, spirits, bar bites.' },
         { icon: 'schedule', title: 'Edit Prices Live', description: 'Change a price from your phone when happy hour starts and change it back after — no reprinting.' },
         { icon: 'photo_camera', title: 'Cocktail Photos', description: 'AI-matched cocktail photos from a curated library help premium drinks look the part.' },
-        { icon: 'translate', title: 'Bilingual', description: 'Tamil + English toggle for South Indian markets where both audiences sit at the same bar.' },
+        { icon: 'translate', title: 'Bilingual', description: 'Tamil and English on the same menu for South Indian markets where both audiences sit at the same bar.' },
         { icon: 'qr_code_2', title: 'Per-Table QR', description: 'Customers read the drinks list on their own phone, so busy bartenders answer fewer menu questions. Ordering in the menu is coming soon.' },
         { icon: 'visibility', title: 'Real-Time Specials', description: 'Add tonight\'s special or mark a bottle finished in seconds, from your phone.' },
     ],
@@ -527,7 +527,7 @@ export const contactlessMenuPage: SeoLandingData = {
         { icon: 'block', title: 'Zero App Downloads', description: 'Customers never download anything. The menu opens in their default browser.' },
         { icon: 'sanitizer', title: 'Hygienic by Design', description: 'No shared physical menu — customers use only their own phone.' },
         { icon: 'speed', title: '2-Second Load', description: 'The menu page loads in 2–3 seconds even on slow 4G connections.' },
-        { icon: 'translate', title: 'Multi-Language', description: 'Tamil + English toggle for South Indian customers.' },
+        { icon: 'translate', title: 'Multi-Language', description: 'Tamil and English on the same menu for South Indian customers.' },
         { icon: 'qr_code_2', title: 'QR or NFC', description: `Customers scan the QR code, or tap an optional NFC + QR sticker (₹${STICKER_PRICE_INR} each). The QR code itself is free. Choose either or both.` },
     ],
     content: [

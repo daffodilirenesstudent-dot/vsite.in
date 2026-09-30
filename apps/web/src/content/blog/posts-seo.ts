@@ -160,7 +160,7 @@ const glossaryFaqs = [
     },
     {
         q: 'Is a PDF menu enough for a Tamil Nadu restaurant?',
-        a: 'It works as a stopgap, but it is slow to edit, hard to read on a small phone screen and does not update by itself. A menu built for phones lets you change a price in seconds and lets diners switch between Tamil and English.',
+        a: 'It works as a stopgap, but it is slow to edit, hard to read on a small phone screen and does not update by itself. A menu built for phones lets you change a price in seconds and shows dish names in Tamil, English or both.',
     },
 ];
 
@@ -222,7 +222,7 @@ const glossaryPost: BlogPost = {
         { type: 'h2', text: 'How do the five compare?' },
         {
             type: 'table',
-            headers: ['Type', 'What it is', 'Updates easily?', 'Tamil and English toggle?', 'Takes orders?'],
+            headers: ['Type', 'What it is', 'Updates easily?', 'Tamil and English names?', 'Takes orders?'],
             rows: [
                 ['Digital menu', 'Menu on a screen', 'Yes', 'Depends on the tool', 'No'],
                 ['QR menu', 'Digital menu opened by scanning', 'Yes', 'Depends on the tool', 'No'],
@@ -269,7 +269,7 @@ const mealsFaqs = [
     },
     {
         q: 'Will my regular customers who read only Tamil manage the menu?',
-        a: 'Yes, if you check the Tamil names in review. Each dish holds a Tamil and an English name and the diner switches with one tap. Keep Tamil as the first view if most of your customers read Tamil.',
+        a: 'Yes, if you check the Tamil names in review. Type each dish name in Tamil, English or both, and it shows in proper Tamil fonts. Lead with the Tamil name if most of your customers read Tamil.',
     },
     {
         q: 'Can vsite take orders for my tiffin centre?',
@@ -304,7 +304,7 @@ const mealsPost: BlogPost = {
         },
         {
             type: 'p',
-            text: 'Many of these places also have a menu that exists only as a wall board or a handwritten slate. That is a good starting point: a photograph of the board is enough for the AI to read.',
+            text: 'Many of these places also have a menu that exists only as a wall board or a handwritten slate. A photograph of the board is a starting point for the AI, but handwritten text is the most likely to need corrections, so check every line.',
         },
 
         { type: 'h2', text: 'How do I set up a bilingual menu for a meals hotel?' },
@@ -387,8 +387,8 @@ const mealsPost: BlogPost = {
 
 const languageFaqs = [
     {
-        q: 'Can a diner switch between Tamil and English on a vsite menu?',
-        a: 'Yes. Each dish holds a Tamil name and an English name, and the diner switches the menu language with one tap. No app is needed, and both languages live in the same menu and QR code.',
+        q: 'Does a vsite menu show both Tamil and English?',
+        a: 'Yes, on the same menu. Each dish shows its name as the owner typed it: Tamil, English or both together, in proper Tamil fonts. There is no language switch and no automatic translation, so diners see the names you entered. No app is needed, and both scripts live in the same menu and QR code.',
     },
     {
         q: 'How does vsite read Tamil text from a photographed paper menu?',
@@ -400,7 +400,7 @@ const languageFaqs = [
     },
     {
         q: 'What should I check in the review screen for Tamil names?',
-        a: 'Check spelling, joined letters and the dish names your regulars actually use. Compare each Tamil name with its English name to make sure they mean the same dish, and check the price next to it.',
+        a: 'Check spelling, joined letters and the dish names your regulars actually use. If you type both a Tamil and an English name, make sure they mean the same dish, and check the price next to it.',
     },
     {
         q: 'Do I need to type Tamil on my phone to edit the menu?',
@@ -412,7 +412,7 @@ const languagePost: BlogPost = {
     slug: 'tamil-and-english-digital-menu-how-it-works',
     title: 'Tamil and English digital menu: how it works for diners and owners',
     description:
-        'How a bilingual Tamil and English digital menu works: the language toggle diners use, how Tamil text is read from a paper menu, what owners must check in review, and the limits.',
+        'How a Tamil and English digital menu works: one menu that shows both scripts as the owner typed them, how Tamil text is read from a paper menu, what owners must check in review, and the limits.',
     category: 'Guide',
     categoryClass: 'bg-[#EEEDFF] text-[#4340D4]',
     tags: ['Tamil menu', 'bilingual menu', 'Tamil and English', 'digital menu', 'Tamil Nadu'],
@@ -425,17 +425,17 @@ const languagePost: BlogPost = {
     content: [
         {
             type: 'p',
-            text: 'On a Tamil and English digital menu, every dish holds both a Tamil name and an English name, and the diner switches between them with one tap. The owner photographs the paper menu, the AI reads it, and the owner checks both names in a review screen before the menu goes live.',
+            text: 'A vsite menu shows Tamil and English together, exactly as the owner typed the dish names: in Tamil, in English or both. There is no language switch and no automatic translation. The owner photographs the paper menu, the AI reads both scripts, and the owner checks every name in a review screen before the menu goes live.',
         },
 
         { type: 'h2', text: 'What does the diner see?' },
         {
             type: 'p',
-            text: 'The diner scans the QR code with the normal phone camera and the menu opens in the browser. There is nothing to install. A language control switches the whole menu between Tamil and English, and the choice applies to every dish, category and description at once.',
+            text: 'The diner scans the QR code with the normal phone camera and the menu opens in the browser. There is nothing to install. Each dish appears with the name the owner entered, drawn in a proper Tamil font where the name is in Tamil. Nothing is translated for the diner, so the menu reads the same on every phone.',
         },
         {
             type: 'p',
-            text: 'That means one table can be read two ways. A grandparent reads the Tamil names on one phone while a grandchild reads English on another, from the same printed code. The owner does not print two cards and does not have to explain a dish twice.',
+            text: 'When the owner types both names, one table can read the same menu two ways. A grandparent reads the Tamil name and a grandchild reads the English name on the same line, from the same printed code. The owner does not print two cards and does not have to explain a dish twice.',
         },
 
         { type: 'h2', text: 'How does the owner get Tamil text into the menu?' },
@@ -474,7 +474,7 @@ const languagePost: BlogPost = {
             headers: ['Check', 'Why it matters'],
             rows: [
                 ['Tamil spelling of each dish', 'A misread letter can make the name unreadable or change it'],
-                ['English name matches the Tamil name', 'The two must describe the same dish'],
+                ['If both names are typed, they match', 'The two must describe the same dish'],
                 ['Price beside each item', 'A wrong price is the costliest error'],
                 ['Category of each item', 'Customers look in the section they expect'],
                 ['Veg or non-veg mark', 'Families look for it first'],
@@ -493,14 +493,14 @@ const languagePost: BlogPost = {
             text: 'Which one is right depends on your diners. For most Tamil Nadu restaurants, Tamil and English cover nearly every customer. Border towns such as Hosur, and tourist towns, are where the limit is most likely to matter.',
         },
 
-        { type: 'h2', text: 'Who should be the default language?' },
+        { type: 'h2', text: 'Which names should I type?' },
         {
             type: 'p',
-            text: 'Choose by who walks in. A local meals hotel with regulars who read Tamil should lead with Tamil. A café near a college or an office district can lead with English. A tourist-facing restaurant is usually English first. Either way, the other language is one tap away.',
+            text: 'Choose by who walks in. A local meals hotel with regulars who read Tamil can lead with the Tamil name. A café near a college or an office district can lead with English. A tourist-facing restaurant can type both on each dish, English first. Because nothing is translated for you, type the names you want customers to see.',
         },
         {
             type: 'p',
-            text: `What vsite does not do (yet): ${ORDERING_COMING_SOON_SHORT} Diners read the menu in their language and order with your staff as they do now. Support is in Tamil on WhatsApp at ${CONTACT.whatsapp}.`,
+            text: `What vsite does not do (yet): ${ORDERING_COMING_SOON_SHORT} Diners read the menu and order with your staff as they do now. Support is in Tamil on WhatsApp at ${CONTACT.whatsapp}.`,
         },
         {
             type: 'p',
@@ -559,7 +559,7 @@ const choosePost: BlogPost = {
         { type: 'h2', text: '2. Does it support Tamil properly?' },
         {
             type: 'p',
-            text: 'Do not accept a feature list. Open a live menu in the vendor\'s demo on your own phone and read Tamil dish names. vsite offers Tamil and English, with a one-tap toggle. Other tools also support Tamil, including DineCard, Menulite, MenuKard, AviQR and eMenuQR, per their own sites, as of September 2026.',
+            text: 'Do not accept a feature list. Open a live menu in the vendor\'s demo on your own phone and read Tamil dish names. vsite offers Tamil and English on the same menu, with dish names as the owner types them and no automatic translation. Other tools also support Tamil, including DineCard, Menulite, MenuKard, AviQR and eMenuQR, per their own sites, as of September 2026.',
         },
 
         { type: 'h2', text: '3. Who answers when something breaks, and in what language?' },

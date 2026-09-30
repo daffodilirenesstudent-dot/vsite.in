@@ -72,6 +72,10 @@ describe('there is no diner-side language toggle', () => {
             ),
         ).toEqual([]);
     });
+
+    it('never calls the Tamil and English feature a toggle or a one-tap switch', () => {
+        expect(hits(/(tamil|english)[^.\n]{0,30}(toggle|one[- ]tap)|(toggle|one[- ]tap)[^.\n]{0,30}(tamil|english)/i)).toEqual([]);
+    });
 });
 
 describe('the NFC + QR sticker is optional and paid', () => {

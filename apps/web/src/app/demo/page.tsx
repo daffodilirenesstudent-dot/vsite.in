@@ -68,7 +68,7 @@ const walkthrough: { minutes: string; title: string; desc: string; icon: LucideI
     {
         minutes: '8–12 min',
         title: 'The QR code, scanned on a real phone',
-        desc: 'We put the code on screen, scan it, and walk your customer’s side of it end to end — including the Tamil toggle.',
+        desc: 'We put the code on screen, scan it, and walk your customer’s side of it end to end — including how Tamil dish names look.',
         icon: QrCode,
     },
     {
