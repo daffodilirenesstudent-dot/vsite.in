@@ -1,4 +1,5 @@
 import { TRIAL_RULE } from '@/content/policy';
+import { QR_STICKER_PRICE_INR } from '@/lib/platform/hardware';
 
 export const FAQ_GROUPS = [
   {
@@ -13,12 +14,12 @@ export const FAQ_GROUPS = [
       {
         id: 'q2',
         q: 'Do my customers need to download an app?',
-        a: 'No. Customers simply tap the NFC card or scan the QR sticker with their phone camera. The menu opens instantly in their browser — no app download, no sign-up, no friction of any kind.',
+        a: 'No. Customers scan the QR code with their phone camera, or tap an NFC sticker if you order one. The menu opens in their browser — no app download and no sign-up.',
       },
       {
         id: 'q3',
         q: 'Is there a setup fee?',
-        a: 'There is no setup fee. Your ₹299/month covers store creation, AI menu scanning, professional food photo matching, NFC card, QR stickers, and onboarding support.',
+        a: `There is no setup fee. Your ₹299/month covers store creation, AI menu scanning, food photo matching, the QR code to print, and onboarding support. The optional NFC + QR sticker is ₹${QR_STICKER_PRICE_INR} each and is not part of the monthly price.`,
       },
     ],
   },

@@ -5,6 +5,7 @@ import { ArrowRight, Check } from 'lucide-react';
 import Reveal from './Reveal';
 import { LogoMark } from '@/components/Logo';
 import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
+import { QR_STICKER_PRICE_INR } from '@/lib/platform/hardware';
 
 /**
  * One product, one price — presented as a restaurant bill.
@@ -25,8 +26,8 @@ import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
 const INCLUDED = [
     'Unlimited items, categories and price changes',
     'AI menu reading, descriptions and dish photos',
-    'Tamil + English, offers, banners, sold-out control',
-    'NFC card + weatherproof QR stickers, posted free',
+    'Tamil and English on one menu, offers, banners, sold-out control',
+    'QR code to download and print, free',
     'WhatsApp support in Tamil, from a person',
 ];
 
@@ -171,7 +172,7 @@ export default function Pricing() {
                 </Reveal>
 
                 <p className="mt-8 text-center text-[15px] text-white/55">
-                    No commission. No per-scan fee. No charge for the NFC card.
+                    No commission. No per-scan fee. The NFC + QR sticker is optional, ₹{QR_STICKER_PRICE_INR} each.
                 </p>
             </div>
         </section>

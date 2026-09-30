@@ -69,7 +69,7 @@ const softwareSchema = {
     'Sold-out control',
     'Offers and banners',
     'Tamil and English menu names',
-    'NFC card and QR stickers included',
+    'Free QR code to print; optional NFC + QR stickers',
   ],
 };
 

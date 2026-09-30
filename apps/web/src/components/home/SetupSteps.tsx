@@ -2,6 +2,7 @@
 
 import { QRCodeSVG } from 'qrcode.react';
 import Reveal from './Reveal';
+import { QR_STICKER_PRICE_INR } from '@/lib/platform/hardware';
 import QRToMenu from './QRToMenu';
 
 /**
@@ -101,7 +102,7 @@ const STEPS = [
         cost: 'Done',
         Art: ArtQrSticker,
         title: 'Put the QR code on the table',
-        body: 'Print it yourself today. Your NFC card and weatherproof QR stickers arrive by post, free.',
+        body: `The QR code is free to download and print yourself. An optional NFC + QR sticker is ₹${QR_STICKER_PRICE_INR} each.`,
     },
 ];
 

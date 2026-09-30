@@ -1,4 +1,5 @@
 import type { Faq } from '@/lib/seo/jsonld';
+import { QR_STICKER_PRICE_INR as STICKER_PRICE_INR } from '@/lib/platform/hardware';
 
 /**
  * FAQ copy rendered on the homepage, pricing page and contact page.
@@ -32,7 +33,7 @@ export const HOME_FAQS: Faq[] = [
     },
     {
         q: 'Do you take a cut of my sales?',
-        a: 'No. ₹299 a month is the entire relationship. No commission, no per-scan fee, no charge for the NFC card.',
+        a: `No. ₹299 a month is the entire relationship. No commission and no per-scan fee. The QR code is free to print; an optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each.`,
     },
     {
         q: 'Do my customers need to install anything?',
@@ -48,7 +49,7 @@ export const HOME_FAQS: Faq[] = [
 export const PRICING_FAQS: Faq[] = [
     {
         q: 'Is there a setup fee?',
-        a: '₹299 a month is the whole bill. Store creation, AI menu scanning, food photo matching, the NFC card, the QR stickers and onboarding are all inside it.',
+        a: `₹299 a month is the whole bill. Store creation, AI menu scanning, food photo matching, the QR code to print and onboarding are all inside it. The optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each, separately.`,
     },
     {
         q: 'Do you take a cut of my sales?',

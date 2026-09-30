@@ -51,7 +51,7 @@ const qrFeatures = [
   'Edit menu anytime (add/remove/update)',
   'Highlight offers & sold-out items live',
   'Works for dine-in & takeaway',
-  'NFC card + QR stickers included',
+  'Free QR code to print (optional NFC + QR sticker, paid separately)',
 ];
 
 /**

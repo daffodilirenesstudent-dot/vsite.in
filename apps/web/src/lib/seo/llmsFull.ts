@@ -8,6 +8,7 @@ import {
     CONTACT,
     MENU_LANGUAGES,
     PHOTO_CLAIM,
+    STICKER_PRICE_INR,
 } from '@/content/facts';
 import { ORDERING_COMING_SOON_SHORT } from '@/content/roadmap';
 import { HOME_FAQS, PRICING_FAQS, CONTACT_FAQS } from '@/content/faqs';
@@ -68,7 +69,7 @@ export function buildLlmsFull(): string {
 - Scan analytics and menu-performance reporting.
 - Menu designs with the owner's own brand colour and logo.
 - GST-compliant billing fields.
-- QR stickers and an NFC card, included in the price.
+- The QR code is free to download and print. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each, not included in the monthly price.
 
 ## What it does NOT do
 

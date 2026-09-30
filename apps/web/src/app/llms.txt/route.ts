@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ORDERING_COMING_SOON_SHORT } from '@/content/roadmap';
-import { PRICE_INR_PER_MONTH, TRIAL_DAYS, LIVE_SINCE, CONTACT, PHOTO_CLAIM } from '@/content/facts';
+import { PRICE_INR_PER_MONTH, TRIAL_DAYS, LIVE_SINCE, CONTACT, PHOTO_CLAIM, STICKER_PRICE_INR } from '@/content/facts';
 
 /**
  * /llms.txt — the plain-language brief an AI crawler reads.
@@ -50,12 +50,12 @@ export async function GET() {
 - Reads a photographed paper menu with AI, including Tamil text
 - Matches a food photo to every dish by its name (${PHOTO_CLAIM}); the owner can swap in their own photo
 - Publishes a QR menu that opens in about 2 seconds, no app needed
-- Bilingual Tamil and English menus, switched with one tap
+- Tamil and English on the same menu: dish names in Tamil, English or both, shown in Tamil fonts. The AI reads Tamil and English text from the paper menu. There is no language switch and no automatic translation
 - Live price edits and sold-out toggles from the owner's phone
 - Scan analytics and menu-performance reporting for the owner
 - Three menu designs the owner picks from, plus their own brand colour and logo
 - GST-compliant billing fields
-- Weatherproof QR stickers and an NFC card, posted to the restaurant
+- The QR code is free to download and print. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each, ordered separately
 
 ## What it does NOT do
 

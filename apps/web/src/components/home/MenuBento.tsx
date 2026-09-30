@@ -5,6 +5,7 @@ import { useState } from 'react';
 import OfferDemo from './OfferDemo';
 import { Info, Nfc, QrCode } from 'lucide-react';
 import Reveal from './Reveal';
+import { QR_STICKER_PRICE_INR } from '@/lib/platform/hardware';
 
 /**
  * Replaces ProductCards + PainSection — two sections with near-identical
@@ -108,9 +109,9 @@ export default function MenuBento() {
                             </div>
                         </div>
                         <div className="min-w-0">
-                            <h3 className="text-h3 font-semibold text-ink">NFC card + stickers, posted</h3>
+                            <h3 className="text-h3 font-semibold text-ink">Optional NFC + QR sticker</h3>
                             <p className="mt-2 text-[15px] leading-relaxed text-ink-70">
-                                Tap or scan — older phones scan, newer ones just tap. Included, not an add-on.
+                                Tap or scan — older phones scan, newer ones just tap. The QR code is free to print; the sticker is an optional extra at ₹{QR_STICKER_PRICE_INR} each.
                             </p>
                         </div>
                     </div>
