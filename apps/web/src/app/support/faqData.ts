@@ -34,7 +34,7 @@ export const FAQ_GROUPS = [
       {
         id: 'q5',
         q: 'Can I add photos to my menu items?',
-        a: 'Yes. vsite automatically generates professional food photos using AI when you set up your menu. You can also upload your own photos for any item from the dashboard at any time.',
+        a: 'Yes. vsite automatically matches a professional food photo from a curated library to each item when you set up your menu. You can also upload your own photo for any item from the dashboard at any time.',
       },
     ],
   },
@@ -76,7 +76,7 @@ export const FAQ_GROUPS = [
       {
         id: 'q10',
         q: 'Is vsite available outside Tamil Nadu?',
-        a: 'vsite is built for restaurants across South India, starting with Tamil Nadu. The platform supports English and Tamil and is designed for the local F&B context — tiffin centres, cafés, hotels, food trucks, and more. We are expanding to other South Indian cities soon.',
+        a: 'vsite is built in Tamil Nadu and works for restaurants anywhere in India. Menus are in Tamil and English today, so it suits best where those two languages are what your customers read — tiffin centres, cafés, hotels, food trucks, and more.',
       },
     ],
   },

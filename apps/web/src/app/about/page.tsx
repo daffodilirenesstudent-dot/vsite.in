@@ -122,13 +122,13 @@ export default function AboutPage() {
                 tools that restaurant chains in Mumbai and Delhi had — without
                 the enterprise price tag, without the Zomato commission, and
                 without needing a tech team to set it up. So we built vsite.
-                Upload a photo of your existing menu. Our AI reads it, generates
-                professional food photos, writes item descriptions, and creates
-                your complete digital storefront — in under 3 minutes.
+                Upload a photo of your existing menu. Our AI reads it, matches
+                professional food photos from a curated library, and builds
+                your digital menu for you to review and publish.
               </p>
               <p>
-                Today vsite powers restaurants across Tamil Nadu — from tiffin
-                centres in Coimbatore to cafés in Chennai. We are a small team
+                vsite has been live since March 2026 and is used by restaurants in
+                Tamil Nadu. We are a small team
                 with a clear mission: make professional digital menus accessible
                 to every restaurant owner in South India, at a price that makes
                 sense.

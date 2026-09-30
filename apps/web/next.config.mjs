@@ -148,6 +148,39 @@ const nextConfig = {
                 destination: '/qr-menu',
                 permanent: true,
             },
+            // Trust repair (2026-09-30): posts removed because they made claims
+            // vsite cannot prove, or duplicated a page that targets the same
+            // query. Each 301 keeps the link equity on the closest live page.
+            {
+                source: '/blog/best-digital-menu-software-india-2026',
+                destination: '/best-digital-menu-software-india',
+                permanent: true,
+            },
+            {
+                source: '/blog/digital-menu-software-india-cities-2026',
+                destination: '/digital-menu/chennai',
+                permanent: true,
+            },
+            {
+                source: '/blog/smart-qr-menu-299-rupees-restaurants-india',
+                destination: '/pricing',
+                permanent: true,
+            },
+            {
+                source: '/blog/chennai-restaurant-case-study-digital-menu',
+                destination: '/blog',
+                permanent: true,
+            },
+            {
+                source: '/blog/indias-fastest-growing-digital-menu-software',
+                destination: '/about',
+                permanent: true,
+            },
+            {
+                source: '/blog/recommend-digital-menu-software-restaurant-clients-india',
+                destination: '/best-digital-menu-software-india',
+                permanent: true,
+            },
         ];
     },
     async headers() {
