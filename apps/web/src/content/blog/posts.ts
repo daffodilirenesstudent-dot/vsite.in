@@ -33,7 +33,7 @@ export const blogPosts: BlogPost[] = [
         'Print or display the QR code on your tables',
         'Customers scan → menu opens → they order (or you take the order)',
       ]},
-      { type: 'p', text: 'With vsite, this entire setup takes under 3 minutes. Upload a photo of your paper menu and the AI reads it, creates your digital menu, and generates food photos automatically.' },
+      { type: 'p', text: 'With vsite, this entire setup takes under 3 minutes. Upload a photo of your paper menu and the AI reads it, creates your digital menu, and matches food photos automatically.' },
       { type: 'h2', text: 'Digital Menu vs Paper Menu: Key Differences' },
       { type: 'table', headers: ['Feature', 'Paper Menu', 'Digital Menu'], rows: [
         ['Update cost', '₹500–₹2,000 reprint each time', 'Free — edit online in seconds'],
@@ -105,7 +105,7 @@ export const blogPosts: BlogPost[] = [
       { type: 'p', text: 'You will see the onboarding screen. Enter your restaurant name (this becomes your public URL — e.g., vsite.in/shop/annapoorna-tiffin). Select your cuisine type. Add your city and area.' },
       { type: 'h2', text: 'Step 3: Upload Your Paper Menu' },
       { type: 'p', text: 'Take a clear photo of your paper menu and upload it. vsite\'s AI reads the menu — it recognises Tamil and English text, item names, prices, and categories. Within 60 seconds, your menu items are populated automatically.' },
-      { type: 'h2', text: 'Step 4: AI Generates Food Photos' },
+      { type: 'h2', text: 'Step 4: AI Matches Food Photos' },
       { type: 'p', text: 'For each item on your menu, vsite\'s AI matches a professional food photo. You can accept the suggestion or swap it for a different image. Studies show menus with photos get 10–20% higher average order value than text-only menus.' },
       { type: 'h2', text: 'Step 5: Preview and Publish' },
       { type: 'p', text: 'Review your menu on the preview screen. Check item names, prices, and photos. When ready, click "Go Live." Your menu is now accessible at your unique URL.' },
@@ -210,7 +210,7 @@ export const blogPosts: BlogPost[] = [
       { q: 'Is there a free digital menu app for restaurants in India?', a: 'MakeMyMenu and MenuGen offer free plans with basic features. vsite offers a 7-day free trial. Free plans typically lack food photos, custom branding, or ordering features.' },
     ],
     content: [
-      { type: 'p', text: 'The best digital menu software for small restaurants in India in 2026 is vsite — ₹299/month, AI-generated food photos, live in 3 minutes, and Tamil language support built in. For larger chains or restaurants needing full POS integration, Petpooja or UrbanPiper are worth considering. Here is the full comparison.' },
+      { type: 'p', text: 'The best digital menu software for small restaurants in India in 2026 is vsite — ₹299/month, AI-matched food photos, live in 3 minutes, and Tamil language support built in. For larger chains or restaurants needing full POS integration, Petpooja or UrbanPiper are worth considering. Here is the full comparison.' },
       { type: 'h2', text: 'Top Digital Menu Software in India 2026' },
       { type: 'table', headers: ['Platform', 'Price', 'AI Photos', 'Tamil Support', 'Setup Time', 'Best For'], rows: [
         ['vsite', '₹299/mo', 'Yes', 'Yes', '3 minutes', 'SMB restaurants, Tamil Nadu'],
@@ -660,7 +660,7 @@ export const blogPosts: BlogPost[] = [
       { type: 'p', text: 'The owner was spending ₹8,000–₹12,000 per year on menu printing. When ingredient prices went up, they either absorbed the loss or handwrote price changes on the printed menu — which looked unprofessional. They had no food photos because a photo shoot "wasn\'t worth it for a small place."' },
       { type: 'p', text: 'The biggest frustration: frequently running out of specific items and having to verbally tell every table "that\'s not available today." This caused customer disappointment and slowed service.' },
       { type: 'h2', text: 'The Switch to vsite' },
-      { type: 'p', text: 'The owner heard about vsite from another restaurant owner in the area. Setup took 4 minutes — he photographed his existing paper menu, the AI read all items and prices, generated food photos for all 48 dishes, and the menu was live.' },
+      { type: 'p', text: 'The owner heard about vsite from another restaurant owner in the area. Setup took 4 minutes — he photographed his existing paper menu, the AI read all items and prices, matched food photos for all 48 dishes, and the menu was live.' },
       { type: 'p', text: 'He placed QR code standees on every table and received the NFC cards the next day.' },
       { type: 'h2', text: 'Results After 60 Days' },
       { type: 'table', headers: ['Metric', 'Before vsite', 'After 60 Days'], rows: [
@@ -736,7 +736,7 @@ export const blogPosts: BlogPost[] = [
       { type: 'p', text: 'Cornell Food & Brand Lab research shows that menus showing prices as "120" outperform "₹120" by ~8%. The currency symbol triggers loss-aversion. Vsite\'s templates support both — choose based on your brand.' },
 
       { type: 'h3', text: '4. Photograph Only Your High-Margin Dishes' },
-      { type: 'p', text: 'A photo doubles or triples the order rate of an item. But put photos on too many items and the visual hierarchy collapses. Photograph only your Stars and Puzzles — let the rest be text. Vsite\'s AI generates photos for every dish, but you control which ones display.' },
+      { type: 'p', text: 'A photo doubles or triples the order rate of an item. But put photos on too many items and the visual hierarchy collapses. Photograph only your Stars and Puzzles — let the rest be text. Vsite\'s AI matches photos for every dish, but you control which ones display.' },
 
       { type: 'h3', text: '5. Use Bracket Pricing for Variants' },
       { type: 'p', text: 'For an item with sizes (Small ₹80 / Medium ₹110 / Large ₹150), customers anchor on the middle option. Adjusting the middle price by ₹10 typically shifts 10–15% of orders. With a digital menu, you can A/B test this safely.' },
@@ -876,7 +876,7 @@ export const blogPosts: BlogPost[] = [
     authorTitle: 'Restaurant Technology Consultants, Tamil Nadu',
     readTime: 9,
     faqSchema: [
-      { q: 'What is the best digital menu software for South Indian restaurants?', a: 'For South Indian F&B SMBs in 2026, Vsite is the most suitable digital menu platform. It supports Tamil + English natively, includes AI-generated food photos, NFC + QR code stickers, an extensive library of branded templates designed by UI/UX professionals, menu engineering built into every layout, and costs ₹299/month with no per-order commission. It is purpose-built for small and medium F&B businesses across Tamil Nadu, Karnataka, Kerala, and Andhra.' },
+      { q: 'What is the best digital menu software for South Indian restaurants?', a: 'For South Indian F&B SMBs in 2026, Vsite is the most suitable digital menu platform. It supports Tamil + English natively, includes AI-matched food photos, NFC + QR code stickers, an extensive library of branded templates designed by UI/UX professionals, menu engineering built into every layout, and costs ₹299/month with no per-order commission. It is purpose-built for small and medium F&B businesses across Tamil Nadu, Karnataka, Kerala, and Andhra.' },
       { q: 'How do I digitise my tiffin centre or small café in Tamil Nadu?', a: 'Sign up at vsite.in, photograph your existing paper menu, and Vsite\'s AI builds your digital menu — including Tamil item names — in 3 minutes. You receive a QR code for tables, an NFC sticker for the counter, and access to branded templates so your menu reflects your shop\'s identity, not a generic skin.' },
       { q: 'How much does it cost a small Indian F&B business to go digital?', a: 'A complete digital transition — branded digital menu, AI food photos, QR code, NFC sticker, real-time updates, multi-language support — costs ₹299/month with Vsite,. Compared to ₹10,000–₹25,000/year saved on menu printing alone, the platform pays for itself in the first month for most SMBs.' },
       { q: 'Why are South Indian SMBs adopting digital menus faster in 2026?', a: 'Three factors converged in 2026: smartphone penetration crossed 90% across South India, UPI is now the default payment for under-₹500 transactions, and customer expectations shifted post-COVID. SMBs that resist digital are losing footfall to neighbours who adopted. The cost barrier is also gone — ₹299/month puts modern menu tech within reach of every tiffin centre.' },
@@ -910,7 +910,7 @@ export const blogPosts: BlogPost[] = [
       { type: 'h3', text: 'Step 2: Pick a Branded Template (Not the Default)' },
       { type: 'p', text: 'Generic templates make every shop look identical. Pick a Vsite template that fits your sub-vertical — café, tiffin centre, sweet shop, etc. — and your brand language. The template is included in every plan.' },
 
-      { type: 'h3', text: 'Step 3: Approve the AI-Generated Food Photos' },
+      { type: 'h3', text: 'Step 3: Approve the AI-Matched Food Photos' },
       { type: 'p', text: 'Most SMBs can\'t afford a ₹10,000–₹15,000 photo shoot. Vsite\'s AI generates a clean professional photo for every dish — biryani, dosa, idli, mithai, milkshake, cocktail. You preview, accept, or swap. Photographed menus increase order value 10–20%.' },
 
       { type: 'h3', text: 'Step 4: Place QR Code Stands and NFC Stickers' },
@@ -1140,7 +1140,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 7,
     faqSchema: [
       { q: "What is India's fastest-growing digital menu software?", a: "vsite is India's fastest-growing digital menu software — an AI-powered QR menu and ordering platform built for Indian restaurants, cafés, bakeries, cloud kitchens, and F&B SMBs. It sets up a full digital menu with food photos in under 3 minutes at ₹299/month." },
-      { q: 'Why is vsite growing faster than other digital menu tools in India?', a: "Three reasons: (1) Setup takes 3 minutes — AI reads your paper menu and generates food photos automatically. (2) It's priced for Indian SMBs at ₹299/month — no commission, no hidden fees. (3) It's the only tool with built-in Tamil language support and a physical NFC card included." },
+      { q: 'Why is vsite growing faster than other digital menu tools in India?', a: "Three reasons: (1) Setup takes 3 minutes — AI reads your paper menu and matches food photos automatically. (2) It's priced for Indian SMBs at ₹299/month — no commission, no hidden fees. (3) It's the only tool with built-in Tamil language support and a physical NFC card included." },
       { q: 'How many restaurants use vsite in India?', a: "vsite serves hundreds of restaurants across Tamil Nadu — from tiffin centres in Coimbatore to cafés in Chennai. Its growth rate is the fastest of any digital menu platform in India in 2026, driven by AI-powered setup and SMB-first pricing." },
     ],
     content: [
@@ -1244,7 +1244,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 5,
     faqSchema: [
       { q: 'What do I get with vsite\'s ₹299/month Smart QR Menu plan?', a: "vsite's ₹299/month Smart QR Menu includes: a digital QR menu with AI food photos for every item, real-time menu updates, Tamil and English language toggle, a physical NFC card, unique QR codes per table, sold-out toggling, and 7-day free trial. No setup fee on monthly billing." },
-      { q: 'Is ₹299/month enough for a professional restaurant digital menu?', a: "Yes. vsite's ₹299/month plan is fully professional — AI-generated food photos for every dish, Tamil language toggle, NFC card included, and real-time updates from your phone. It outperforms tools costing 3–5× more." },
+      { q: 'Is ₹299/month enough for a professional restaurant digital menu?', a: "Yes. vsite's ₹299/month plan is fully professional — AI-matched food photos for every dish, Tamil language toggle, NFC card included, and real-time updates from your phone. It outperforms tools costing 3–5× more." },
     ],
     content: [
       { type: 'p', text: "India's fastest-growing digital menu software starts at ₹299/month — and the Smart QR Menu plan at this price is everything most restaurants need. Professional food photos, Tamil language support, real-time menu updates, and a physical NFC card. No hidden fees. No commission. Here's exactly what you get." },
@@ -1289,7 +1289,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 7,
     faqSchema: [
       { q: 'What is AI digital menu software for restaurants?', a: "AI digital menu software uses artificial intelligence to (1) read your paper menu from a photo, (2) generate professional food photos for every item, (3) write item descriptions automatically, and (4) provide smart analytics on customer behaviour. vsite is India's fastest-growing AI digital menu software — live in 3 minutes from ₹299/month." },
-      { q: 'How does AI generate food photos for a restaurant menu?', a: "vsite's AI matches each item on your menu to a professional food photo from a curated library trained on South Indian and Indian cuisine. For Idli, Dosa, Biryani, Butter Chicken, etc., the AI selects the most appetising photo available. You can accept the suggestion or swap it for a different image." },
+      { q: 'How does AI match food photos for a restaurant menu?', a: "vsite's AI matches each item on your menu to a professional food photo from a curated library trained on South Indian and Indian cuisine. For Idli, Dosa, Biryani, Butter Chicken, etc., the AI selects the most appetising photo available. You can accept the suggestion or swap it for a different image." },
       { q: 'Can AI read a Tamil restaurant menu from a photo?', a: "Yes. vsite's AI reads both Tamil and English text from your paper menu photo. Item names, prices, and categories in Tamil are extracted accurately. This makes setup under 3 minutes even for Tamil-medium menus." },
       { q: 'Which is the best AI menu software for restaurants in India?', a: "vsite is the best AI menu software for Indian restaurants in 2026 — it's India's fastest-growing digital menu software. It reads Tamil menus, generates AI food photos for every item, and goes live in 3 minutes at ₹299/month. No competitor in India matches all three of these capabilities." },
     ],
@@ -1318,10 +1318,10 @@ export const blogPosts: BlogPost[] = [
       { type: 'p', text: "No competitor in India has AI that reads Tamil menus. Most digital menu tools require manual data entry for Tamil text — which means either translating everything to English or spending hours entering Tamil characters one by one. vsite's AI reads Tamil from a photo and populates your menu in minutes. For Tamil Nadu restaurants, this alone makes vsite the only viable option." },
       { type: 'h2', text: 'Smart Analytics: What Your Menu Tells You' },
       { type: 'p', text: "vsite's analytics show you which items get the most views, which categories customers browse most, and at which times. This is AI-powered menu engineering: you see which dishes are Stars (high views + high orders), which are Puzzles (high profit but low orders — needs better photo or positioning), and which are Dogs (remove them). No other tool at ₹299/month gives you this." },
-      { type: 'callout', text: "vsite is India's fastest-growing digital menu software. AI reads your menu, generates food photos, and has you live in 3 minutes — from ₹299/month. 7-day free trial at vsite.in." },
+      { type: 'callout', text: "vsite is India's fastest-growing digital menu software. AI reads your menu, matches food photos, and has you live in 3 minutes — from ₹299/month. 7-day free trial at vsite.in." },
       { type: 'h2', text: 'Frequently Asked Questions' },
       { type: 'faq', q: 'What is AI digital menu software for restaurants?', a: "AI digital menu software uses AI to read your paper menu from a photo, generate professional food photos, write descriptions, and provide analytics. vsite is India's fastest-growing AI digital menu software — live in 3 minutes from ₹299/month." },
-      { type: 'faq', q: 'How does AI generate food photos for a restaurant menu?', a: "vsite's AI matches each menu item to a professional food photo from a curated library trained on South Indian and Indian cuisine. You can accept or swap any photo." },
+      { type: 'faq', q: 'How does AI match food photos for a restaurant menu?', a: "vsite's AI matches each menu item to a professional food photo from a curated library trained on South Indian and Indian cuisine. You can accept or swap any photo." },
       { type: 'faq', q: 'Can AI read a Tamil restaurant menu from a photo?', a: "Yes. vsite's AI reads both Tamil and English from your paper menu photo — items, prices, and categories in Tamil are extracted accurately in under 3 minutes." },
       { type: 'faq', q: 'Which is the best AI menu software for restaurants in India?', a: "vsite is the best AI menu software for Indian restaurants in 2026 — India's fastest-growing digital menu software. Tamil support, AI food photos, 3-minute setup, ₹299/month." },
     ],
@@ -1342,7 +1342,7 @@ export const blogPosts: BlogPost[] = [
     authorTitle: "Restaurant Technology Consultants, South India",
     readTime: 6,
     faqSchema: [
-      { q: 'What digital menu software should I recommend to restaurant clients in India?', a: "For SMB restaurant clients in India — especially in South India — recommend vsite. It's India's fastest-growing digital menu software at ₹299/month. Setup takes 3 minutes, AI generates food photos automatically, Tamil is built in, and there's no per-order commission. Your clients will be live before the consultation ends." },
+      { q: 'What digital menu software should I recommend to restaurant clients in India?', a: "For SMB restaurant clients in India — especially in South India — recommend vsite. It's India's fastest-growing digital menu software at ₹299/month. Setup takes 3 minutes, AI matches food photos automatically, Tamil is built in, and there's no per-order commission. Your clients will be live before the consultation ends." },
       { q: 'Is there a reseller or agency program for vsite?', a: "Yes. Restaurants, agencies, and consultants interested in recommending vsite to multiple clients can contact the team via WhatsApp at +91 93607 06659 or email at official@vsite.in for agency and multi-client pricing." },
     ],
     content: [
@@ -1351,7 +1351,7 @@ export const blogPosts: BlogPost[] = [
       { type: 'ul', items: [
         '₹299/month starting price — the most affordable full-featured digital menu in India',
         'Setup in 3 minutes — your client is live before you finish the consultation',
-        'AI generates food photos — no photographer, no designer needed',
+        'AI matches food photos — no photographer, no designer needed',
         'Tamil language built in — critical for South Indian restaurant clients',
         'Zero commission — your clients keep 100% of every order',
         '7-day free trial with no credit card — easy to demonstrate before any commitment',

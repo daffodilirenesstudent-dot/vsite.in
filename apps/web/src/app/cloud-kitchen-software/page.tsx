@@ -3,7 +3,7 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { cloudKitchenPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Cloud Kitchen Software with QR Menu & UPI Ordering | vsite';
+const TITLE = 'Cloud Kitchen Software with a Branded QR Menu';
 const DESCRIPTION =
     'Cloud kitchen software for India — branded direct-order link, QR codes for packaging, zero commission. Skip aggregator fees with vsite.';
 

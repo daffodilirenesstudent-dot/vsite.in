@@ -3,9 +3,9 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { onlineMenuMakerPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Online Menu Maker for Restaurants & Cafés in India | vsite';
+const TITLE = 'Online Menu Maker for Restaurants & Cafés in India';
 const DESCRIPTION =
-    'Build your full digital menu online in 3 minutes. AI extracts items from your paper menu photo and generates food photos. Free 7-day trial.';
+    'Build your full digital menu online in 3 minutes. AI extracts items from your paper menu photo and matches food photos. Free 7-day trial.';
 
 export const metadata: Metadata = {
     title: TITLE,

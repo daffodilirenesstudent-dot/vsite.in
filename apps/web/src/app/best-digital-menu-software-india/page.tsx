@@ -119,7 +119,7 @@ export default function BestDigitalMenuSoftwarePage() {
                 acceptedAnswer: {
                     '@type': 'Answer',
                     text:
-                        `It depends on what you need. vsite (₹${PRICE}/month) is the strongest choice if you want a food photo on every dish and menu engineering that tells you which items make money. DineCard (₹99/month) is the cheapest way to get a text menu online. MenuScan (₹250–₹750/month) is the one to pick if you need customers to order and pay inside the menu today.`,
+                        `It depends on what you need. vsite (₹${PRICE}/month) is the strongest choice if you want a food photo on every dish and menu engineering that tells you which items make money. DineCard (₹99/month) is the cheapest way to get a text menu online. MenuScan (₹250–₹750/month) is the one to pick if you need customers to order and pay inside the menu today (vsite's ordering is coming soon, not live yet).`,
                 },
             },
             {

@@ -3,7 +3,7 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { aiMenuBuilderPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'AI Menu Builder for Restaurants | Free Setup in 3 Min | vsite';
+const TITLE = 'AI Menu Builder for Restaurants | Free Setup in 3 Min';
 const DESCRIPTION =
     'AI menu builder that reads your paper menu and generates a professional digital menu with food photos in 3 minutes. Tamil supported. Free trial — no credit card.';
 

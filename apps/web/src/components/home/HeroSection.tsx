@@ -111,7 +111,7 @@ export default function HeroSection() {
                         className="mt-6 max-w-xl text-body text-on-night-70 sm:text-lg"
                     >
                         Photograph the menu you already have — printed, laminated, or handwritten in a
-                        notebook. Our AI reads every item, writes the descriptions, generates the photos,
+                        notebook. Our AI reads every item, writes the descriptions, matches the photos,
                         and hands you a QR code for your tables.
                     </p>
 

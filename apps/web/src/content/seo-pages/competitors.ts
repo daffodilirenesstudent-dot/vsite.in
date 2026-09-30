@@ -19,7 +19,7 @@
  *    will check first.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * Last verified: 10 September 2026.
+ * Last verified: 10 September 2026 (DineCard, MenuScan); Menulite added 30 September 2026.
  */
 
 export interface Competitor {
@@ -59,7 +59,7 @@ export const COMPETITORS: Competitor[] = [
         ],
         theyLack: [
             'Menu engineering or item profitability analysis',
-            'AI-generated food photos or a matched photo library',
+            'AI-matched food photos or a matched photo library',
             'Promotional banners',
             'Per-item offers and discounts',
             'Multi-outlet or franchise management',
@@ -79,7 +79,7 @@ export const COMPETITORS: Competitor[] = [
         price: '₹250/month Basic · ₹600 Premium · ₹750 Premium + POS',
         priceNote: '7-day free trial; ~15% off annually',
         positioning:
-            'A QR ordering system for Indian restaurants: table ordering, kitchen notifications, payments through Razorpay and GST billing, with an optional POS tier.',
+            'A QR ordering system for Indian restaurants (unlike vsite, which does not take orders yet): table ordering, kitchen notifications, payments through Razorpay and GST billing, with an optional POS tier.',
         theyHave: [
             'In-menu ordering with kitchen notifications',
             'Payments via UPI, cards and net banking through Razorpay',
@@ -90,7 +90,7 @@ export const COMPETITORS: Competitor[] = [
         ],
         theyLack: [
             'Menu engineering or profitability analysis',
-            'AI-generated food photos or a matched photo library',
+            'AI-matched food photos or a matched photo library',
             'Bulk import of an existing menu from a photograph',
             'Promotional banners and per-item offers',
             'Menu design themes',

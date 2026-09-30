@@ -12,7 +12,7 @@ import { SUPPORT_EMAIL } from '@/lib/platform/brand';
 import { POLICY_LAST_UPDATED } from '@/content/policy';
 
 export const metadata: Metadata = {
-    title: 'Privacy Policy — vsite',
+    title: 'Privacy Policy',
     description:
         'What vsite collects, why, where it is stored, and who else can see it. We do not sell your data and we do not track your customers.',
     alternates: {
@@ -130,7 +130,7 @@ export default function PrivacyPage() {
                                     ['Razorpay', 'takes your subscription payment and holds the payment record.'],
                                     ['Google Firebase', 'verifies your mobile number when you log in.'],
                                     ['Supabase', 'stores your account, menu and images.'],
-                                    ['AI providers', 'receive your menu text and menu photographs in order to extract items, translate them, and generate food images.'],
+                                    ['AI providers', 'receive your menu text and menu photographs in order to extract items, translate them, and match food images.'],
                                     ['Email and WhatsApp providers', 'deliver your invoices, reminders and support replies.'],
                                 ].map(([name, role]) => (
                                     <li key={name} className="flex gap-3">

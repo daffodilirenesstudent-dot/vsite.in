@@ -15,9 +15,9 @@ import Reveal from '@/components/home/Reveal';
 import { SMART_QR_MENU_LIVE_SINCE } from '@/content/roadmap';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = "Features — India's Fastest-Growing Digital Menu Software | vsite";
+const TITLE = "Smart QR Menu Features: Tamil + English, AI Photos";
 const DESCRIPTION =
-    "Explore every feature of vsite — India's fastest-growing digital menu software. AI menu builder, QR code menu, real-time updates, Tamil support, and more.";
+    "Explore every feature of vsite, the Smart QR Menu built in Tamil Nadu and live since March 2026. AI menu builder, QR code menu, real-time updates, Tamil support, and more.";
 
 export const metadata: Metadata = {
     title: TITLE,

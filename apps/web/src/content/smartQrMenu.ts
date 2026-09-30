@@ -5,7 +5,7 @@
  */
 export const QR_MENU_FEATURES = [
     'Clean digital menu (no printing needed)',
-    'AI-generated food images',
+    'AI-matched food images',
     'Edit menu anytime from dashboard',
     'Highlight offers & sold-out items live',
     'Works for dine-in & takeaway',

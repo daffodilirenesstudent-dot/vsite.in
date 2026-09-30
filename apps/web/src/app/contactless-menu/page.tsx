@@ -3,7 +3,7 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { contactlessMenuPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Contactless Menu for Restaurants — No App Download | vsite';
+const TITLE = 'Contactless Menu for Restaurants — No App Download';
 const DESCRIPTION =
     'Contactless QR menu for Indian F&B businesses — opens in any phone browser, no app download, 2-second load. Tamil + English. ₹299/month with vsite.';
 

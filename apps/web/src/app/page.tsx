@@ -18,9 +18,9 @@ const BASE_URL = 'https://vsite.in';
 // Title format mirrors how high-authority SaaS like Petpooja / Zomato render
 // in Google: "Brand: Descriptor" — the colon makes Google treat the brand as
 // the entity name and use the descriptor as the SERP title proper.
-const TITLE = "Vsite: India's Fastest-Growing Digital Menu Software for Restaurants";
+const TITLE = "Vsite: Smart QR Menu for Restaurants, Built in Tamil Nadu";
 const DESCRIPTION =
-  "India's fastest-growing digital menu software. AI-powered QR menus that update in real time — live in 3 minutes. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹299/mo, no commission. Free 7-day trial.";
+  "Smart QR Menu built in Tamil Nadu and live since March 2026. AI-powered menus in Tamil and English that update in real time — live in 3 minutes. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹299/mo, no commission. Free 7-day trial.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -44,7 +44,7 @@ const softwareSchema = {
   operatingSystem: 'Web',
   url: BASE_URL,
   description:
-    "India's fastest-growing digital menu software — AI-powered QR menus for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. Live in 3 minutes.",
+    "Smart QR Menu built in Tamil Nadu, live since March 2026 — AI-powered QR menus for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. Live in 3 minutes.",
   offers: {
     '@type': 'Offer',
     price: '299',
@@ -59,7 +59,7 @@ const softwareSchema = {
   featureList: [
     'AI menu creation from a photo of your existing menu',
     'Handwritten menu recognition',
-    'AI-generated food photography for every dish',
+    'AI-matched food photography for every dish',
     'QR code menu',
     'Real-time menu and price updates',
     'Sold-out control',

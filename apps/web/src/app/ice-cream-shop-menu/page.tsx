@@ -3,7 +3,7 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { iceCreamShopPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Digital Menu for Ice Cream Shops & Parlours | vsite';
+const TITLE = 'Digital Menu for Ice Cream Shops & Parlours';
 const DESCRIPTION =
     'QR menu software for ice cream parlours in India — AI photos for every flavour, sold-out toggling, flavour-of-the-day banners, UPI checkout. ₹299/month.';
 

@@ -33,7 +33,7 @@ export async function generateMetadata(
     const c = getCityPage(params.city);
     if (!c) return {};
 
-    const title = `Digital Menu for Restaurants in ${c.city} | QR Menu ₹${PLAN_PRICES_INR.qr_menu}/mo — vsite`;
+    const title = `Digital Menu for Restaurants in ${c.city} | QR Menu ₹${PLAN_PRICES_INR.qr_menu}/mo`;
     const description =
         `QR code menu software for ${c.city} restaurants, cafés and messes. Tamil and English, ` +
         `AI food photos, live in 3 minutes. ₹${PLAN_PRICES_INR.qr_menu}/month, no commission. 7-day free trial.`;
