@@ -4,7 +4,7 @@ import type { GuideSlug } from './types';
 export { GUIDE } from './pages';
 export { guideSchema, guidePath, guideUrl, wordCount, ORG_ID } from './schema';
 export type { GuideCopy, GuidePage, GuideSlug, GuideLang, GuideStep, GuideFaq, GuideSection, GuideLink } from './types';
-export { CORE_STEP_MINUTES, TYPICAL_TOTAL_MINUTES } from '@/content/facts';
+export { CORE_STEP_MINUTES, TYPICAL_TOTAL_MINUTES, LIVE_MENU_MINUTES, COMPLETE_SETUP_MINUTES } from '@/content/facts';
 
 /** Shown on every guide page and used as `updated` in GUIDE_PAGES. */
 export const GUIDE_UPDATED = '2026-09-30';

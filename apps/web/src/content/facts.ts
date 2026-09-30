@@ -31,8 +31,16 @@ export const CONTACT = {
     founder: FOUNDER_NAME,
 } as const;
 
-/** Languages a diner can read the menu in today. */
+/**
+ * Scripts a menu can show today. There is NO diner-side language switch and no
+ * automatic translation: a dish shows its name as the owner typed it (Tamil,
+ * English or both together) and renders it with Tamil fonts. The AI reads
+ * Tamil and English text from the paper menu.
+ */
 export const MENU_LANGUAGES = ['Tamil', 'English'] as const;
+
+/** The one line for "what about Tamil?" on every public surface. */
+export const LANGUAGE_CLAIM = 'Tamil and English on the same menu: dish names in Tamil, English or both';
 
 /**
  * How food photos are made. They are MATCHED from a curated library by the dish
@@ -42,10 +50,23 @@ export const MENU_LANGUAGES = ['Tamil', 'English'] as const;
 export const PHOTO_CLAIM = 'AI-matched food photos from a curated library';
 
 /**
- * Setup time. PENDING a timed real run on the test store (plan, Phase C): the
- * setup guide must replace this with the measured figure before it publishes.
+ * Setup time, two figures, both stated everywhere they are relevant.
+ *
+ * LIVE_MENU_MINUTES: about 3 minutes from sign-up to a live menu link for a
+ * typical menu (owner-confirmed 2026-09-30). The fast path: sign up, add a menu
+ * photo, the AI reads it, launch. The two dish-picking screens are skippable.
+ *
+ * COMPLETE_SETUP_MINUTES: about 10 to 15 minutes for a complete setup including
+ * design, banners, correcting AI misreads and downloading and printing the QR
+ * poster or sticker. Never say setup is "under 3 minutes" for everything.
  */
-export const SETUP_TIME_CLAIM_UNVERIFIED = 'about 3 minutes';
+export const LIVE_MENU_MINUTES = 3;
+export const COMPLETE_SETUP_MINUTES = { min: 10, max: 15 } as const;
+
+/** The 3-minute definition, as one sentence fragment. */
+export const LIVE_MENU_CLAIM = `about ${LIVE_MENU_MINUTES} minutes from sign-up to a live menu link for a typical menu`;
+/** The complete-setup definition, as one sentence fragment. */
+export const COMPLETE_SETUP_CLAIM = `about ${COMPLETE_SETUP_MINUTES.min} to ${COMPLETE_SETUP_MINUTES.max} minutes for a complete setup including the QR poster`;
 
 /** Billing period in days: one payment buys one period, no auto-renewal (see `@/content/policy`). */
 export const BILLING_DAYS = BILLING_CYCLE_DAYS;
@@ -59,11 +80,14 @@ export const MENU_PDF_MAX_MB = Math.round(MAX_PDF_BYTES / (1024 * 1024));
 /** The optional NFC + QR sticker, per piece. Ordered by request from the QR page, paid separately. */
 export const STICKER_PRICE_INR = QR_STICKER_PRICE_INR;
 
+/** The one line for "what do I get for the QR?": the code is free, the sticker is optional and paid. */
+export const STICKER_CLAIM = `The QR code is free to download and print. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each`;
+
 /**
- * Setup time, step by step, in minutes. These are ESTIMATES from the number of
- * screens and from timeouts in the code, not a stopwatch measurement: the
- * owner must confirm them with a timed run on the test store before calling
- * them measured. Basis for each:
+ * Complete-setup time, step by step, in minutes. These per-step figures are
+ * ESTIMATES from the number of screens and from timeouts in the code, not a
+ * stopwatch measurement; the owner confirmed only the ~3 minute live-menu path
+ * (LIVE_MENU_MINUTES). Basis for each:
  *   signUp   : 3 fields + 6-digit code that submits itself (signup/page.tsx)
  *   photo    : up to MENU_SCAN_PAGE_LIMIT pages; depends on menu length
  *   aiRead   : server gives up at 50 s (menuExtractor DEFAULT_DEADLINE_MS)
@@ -81,5 +105,5 @@ export const CORE_STEP_MINUTES = [
     { id: 'qr', min: 2, max: 3 },
 ] as const;
 
-/** The range quoted publicly. Covers the sum of CORE_STEP_MINUTES (8 to 15), rounded to a plain range. */
-export const TYPICAL_TOTAL_MINUTES = { min: 10, max: 15 } as const;
+/** The complete-setup range. Covers the sum of CORE_STEP_MINUTES (8 to 15), rounded to a plain range. */
+export const TYPICAL_TOTAL_MINUTES = COMPLETE_SETUP_MINUTES;

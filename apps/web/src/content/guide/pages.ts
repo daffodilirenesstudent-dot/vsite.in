@@ -5,7 +5,8 @@ import {
     MENU_SCAN_PAGE_LIMIT,
     MENU_PDF_MAX_MB,
     STICKER_PRICE_INR,
-    TYPICAL_TOTAL_MINUTES,
+    LIVE_MENU_MINUTES,
+    COMPLETE_SETUP_MINUTES,
     CORE_STEP_MINUTES,
     CONTACT,
 } from '@/content/facts';
@@ -39,8 +40,16 @@ import type { GuideLink, GuidePage, GuideSlug } from './types';
 
 const P = `₹${PRICE_INR_PER_MONTH}`;
 const TRIAL = `${TRIAL_DAYS}-day free trial`;
-const TOTAL = `about ${TYPICAL_TOTAL_MINUTES.min} to ${TYPICAL_TOTAL_MINUTES.max} minutes`;
-const TOTAL_TA = `${TYPICAL_TOTAL_MINUTES.min} முதல் ${TYPICAL_TOTAL_MINUTES.max} நிமிடங்கள்`;
+/** Complete setup, including design, banners, fixes and the printed QR poster. */
+const TOTAL = `about ${COMPLETE_SETUP_MINUTES.min} to ${COMPLETE_SETUP_MINUTES.max} minutes`;
+const TOTAL_TA = `${COMPLETE_SETUP_MINUTES.min} முதல் ${COMPLETE_SETUP_MINUTES.max} நிமிடங்கள்`;
+/** Fast path (owner-confirmed): sign-up to a live menu link for a typical menu. */
+const LIVE = `about ${LIVE_MENU_MINUTES} minutes`;
+const LIVE_TA = `சுமார் ${LIVE_MENU_MINUTES} நிமிடங்கள்`;
+const LIVE_DEF =
+    'sign up, add a menu photo, let the AI read it and launch; the two dish-picking screens can be skipped';
+const LIVE_DEF_TA =
+    'sign up, மெனு போட்டோ சேர்த்தல், AI படித்தல், launch; இரண்டு உணவு தேர்வு திரைகளையும் தவிர்க்கலாம்';
 
 const L = {
     pricing: { label: 'Pricing', href: '/pricing' },
@@ -68,13 +77,13 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
     'digital-menu-setup': {
         slug: 'digital-menu-setup',
         title: 'How to set up a digital menu with vsite: steps, time and cost',
-        description: `Set up a vsite QR digital menu yourself in ${TOTAL}. The exact steps, what you need, and the cost: ${P} a month after a ${TRIAL}.`,
+        description: `Set up a vsite QR digital menu yourself: ${LIVE} to a live menu link, ${TOTAL} for a complete setup with the QR poster. Steps, what you need, and the cost: ${P} a month after a ${TRIAL}.`,
         short: 'Setup overview',
-        totalMinutes: TYPICAL_TOTAL_MINUTES.max,
+        totalMinutes: LIVE_MENU_MINUTES,
         en: {
             h1: 'How do I set up a digital menu with vsite?',
             answer:
-                `You can set up a vsite digital menu yourself in ${TOTAL}. Sign up with your mobile number, upload photos or a PDF of your current menu, let the AI read it, then pick a design and launch. The Smart QR Menu costs ${P} a month after a ${TRIAL}, with no setup fee.`,
+                `You can set up a vsite digital menu yourself: ${LIVE} from sign-up to a live menu link for a typical menu. A complete setup with design, banners and the printed QR poster takes ${TOTAL}. The Smart QR Menu costs ${P} a month after a ${TRIAL}, with no setup fee.`,
             needs: [
                 'A mobile number that can receive a 6-digit code (OTP)',
                 `Your current menu as photos or one PDF (up to ${MENU_SCAN_PAGE_LIMIT} pages) on your phone or computer`,
@@ -121,9 +130,10 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
             sections: [
                 {
                     heading: 'Time and cost at a glance',
-                    intro: 'The time figures are typical estimates for one shop, not a guarantee. A longer menu takes longer to photograph.',
+                    intro: 'The fast path is for a typical menu. The per-step ranges are for a careful first-time setup. A longer menu takes longer to photograph.',
                     rows: [
-                        ['Total time for the core steps', TOTAL],
+                        ['Live menu link (fast path)', `${LIVE} for a typical menu: ${LIVE_DEF}`],
+                        ['Complete setup with the QR poster', `${TOTAL}: design, banners, fixing any misread dish, downloading and printing the QR poster`],
                         ['Free trial', `${TRIAL}, no card needed`],
                         ['Price after the trial', `${P} a month (${BILLING_DAYS}-day periods, paid by hand, no auto-renewal)`],
                         ['Setup fee', 'None'],
@@ -146,7 +156,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
             faqs: [
                 {
                     q: 'How long does it take to set up a digital menu?',
-                    a: `Typically ${TOTAL} for the core steps: sign up, add your menu, launch and download the QR code. The AI reading your menu takes about a minute. Banners, settings and printing are extra and optional.`,
+                    a: `${LIVE[0].toUpperCase()}${LIVE.slice(1)} from sign-up to a live menu link for a typical menu: ${LIVE_DEF}. A complete setup, with design, banners, fixing any misread dish and downloading and printing the QR poster, takes ${TOTAL}.`,
                 },
                 {
                     q: 'How much does a digital menu cost in India?',
@@ -174,7 +184,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
         ta: {
             h1: 'vsite-ல் டிஜிட்டல் மெனுவை எப்படி அமைப்பது?',
             answer:
-                `vsite.in-ல் உங்கள் டிஜிட்டல் மெனுவை நீங்களே ${TOTAL_TA}ல் அமைக்கலாம். மொபைல் நம்பரில் sign up செய்யுங்கள், இப்போதுள்ள மெனுவை போட்டோ எடுத்து அல்லது PDF ஆக upload செய்யுங்கள், AI அதைப் படிக்கும், பிறகு design தேர்ந்தெடுத்து launch செய்யுங்கள். Smart QR Menu-க்கு ${TRIAL_DAYS} நாள் இலவச trial, அதன் பிறகு மாதம் ₹${PRICE_INR_PER_MONTH}.`,
+                `vsite.in-ல் உங்கள் டிஜிட்டல் மெனுவை நீங்களே அமைக்கலாம். வழக்கமான மெனுவுக்கு sign up முதல் live மெனு link வரை ${LIVE_TA}. design, banner, QR போஸ்டர் print உட்பட முழு அமைப்புக்கு ${TOTAL_TA}. மொபைல் நம்பரில் sign up செய்யுங்கள், மெனுவை போட்டோ எடுத்து அல்லது PDF ஆக upload செய்யுங்கள், AI படிக்கும், பிறகு launch செய்யுங்கள். Smart QR Menu-க்கு ${TRIAL_DAYS} நாள் இலவச trial, அதன் பிறகு மாதம் ₹${PRICE_INR_PER_MONTH}.`,
             needs: [
                 'OTP வரும் மொபைல் நம்பர்',
                 `உங்கள் இப்போதைய மெனு போட்டோக்களாக அல்லது ஒரு PDF ஆக (அதிகபட்சம் ${MENU_SCAN_PAGE_LIMIT} பக்கங்கள்)`,
@@ -221,9 +231,10 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
             sections: [
                 {
                     heading: 'நேரமும் செலவும் ஒரே பார்வையில்',
-                    intro: 'நேரம் ஒரு கடைக்கான பொதுவான மதிப்பீடு, உத்தரவாதம் அல்ல. மெனு பெரிதாக இருந்தால் போட்டோ எடுக்க அதிக நேரம் ஆகும்.',
+                    intro: 'வேகமான வழி வழக்கமான மெனுவுக்கு. ஒவ்வொரு படிக்கான நேரம் முதல்முறை கவனமாக அமைப்பவருக்கானது. மெனு பெரிதாக இருந்தால் போட்டோ எடுக்க அதிக நேரம் ஆகும்.',
                     rows: [
-                        ['முக்கிய படிகளுக்கான மொத்த நேரம்', TOTAL_TA],
+                        ['Live மெனு link (வேகமான வழி)', `வழக்கமான மெனுவுக்கு ${LIVE_TA}: ${LIVE_DEF_TA}`],
+                        ['QR போஸ்டர் உட்பட முழு அமைப்பு', TOTAL_TA],
                         ['இலவச trial', `${TRIAL_DAYS} நாள், கார்டு தேவையில்லை`],
                         ['Trial-க்கு பிறகு கட்டணம்', `மாதம் ₹${PRICE_INR_PER_MONTH} (${BILLING_DAYS} நாள் காலம், நீங்களே கட்டவேண்டும், தானாக பிடிக்காது)`],
                         ['Setup கட்டணம்', 'இல்லை'],
@@ -234,7 +245,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
             faqs: [
                 {
                     q: 'டிஜிட்டல் மெனு அமைக்க எவ்வளவு நேரம் ஆகும்?',
-                    a: `Sign up, மெனு சேர்த்தல், launch, QR download ஆகிய முக்கிய படிகளுக்கு பொதுவாக ${TOTAL_TA}. AI உங்கள் மெனுவைப் படிக்க சுமார் ஒரு நிமிடம் ஆகும். Banner, settings, print ஆகியவை கூடுதல் மற்றும் விருப்பமானவை.`,
+                    a: `வழக்கமான மெனுவுக்கு sign up முதல் live மெனு link வரை ${LIVE_TA} (${LIVE_DEF_TA}). Design, banner, தவறாகப் படித்த உணவுகளை சரிசெய்தல், QR போஸ்டர் download மற்றும் print உட்பட முழு அமைப்புக்கு ${TOTAL_TA}.`,
                 },
                 {
                     q: 'டிஜிட்டல் மெனுவுக்கு எவ்வளவு செலவாகும்?',
@@ -814,13 +825,13 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
     'cost-and-time': {
         slug: 'cost-and-time',
         title: 'vsite cost and setup time: price, free trial and minutes to go live',
-        description: `vsite costs ${P} a month after a ${TRIAL}, no setup fee. Setup typically takes ${TOTAL}. Full cost and time breakdown.`,
+        description: `vsite costs ${P} a month after a ${TRIAL}, no setup fee. Setup takes ${LIVE} to a live menu link and ${TOTAL} for a complete setup with the QR poster. Full cost and time breakdown.`,
         short: 'Cost and time',
-        totalMinutes: TYPICAL_TOTAL_MINUTES.max,
+        totalMinutes: COMPLETE_SETUP_MINUTES.max,
         en: {
             h1: 'How much does a vsite digital menu cost and how long does setup take?',
             answer:
-                `The vsite Smart QR Menu costs ${P} a month after a ${TRIAL}, with no setup fee and no commission. Setup typically takes ${TOTAL}. You pay through Razorpay by UPI, card or netbanking, one ${BILLING_DAYS}-day period at a time with no auto-renewal. Printing your QR poster is your own small cost.`,
+                `The vsite Smart QR Menu costs ${P} a month after a ${TRIAL}, with no setup fee and no commission. Setup takes ${LIVE} to a live menu link for a typical menu, and ${TOTAL} for a complete setup with the QR poster. You pay through Razorpay, one ${BILLING_DAYS}-day period at a time, with no auto-renewal.`,
             needs: [
                 'A mobile number for sign-up',
                 'Your menu as photos or a PDF',
@@ -835,7 +846,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                 {
                     name: 'Build and launch your menu during the trial',
                     text: 'Add your menu, choose a design, launch and download your QR code. The full Smart QR Menu is live during the trial.',
-                    time: `${TOTAL}`,
+                    time: `${LIVE} to go live, ${TOTAL} with the QR poster`,
                 },
                 {
                     name: `Pay ${P} to keep the menu live`,
@@ -866,7 +877,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                 },
                 {
                     heading: 'How long each step typically takes',
-                    intro: 'Estimates for a single shop from the steps on screen, not a guarantee. A longer menu takes longer to photograph.',
+                    intro: `The fast path (${LIVE_DEF}) takes ${LIVE}. The ranges below are for a careful first-time setup with a QR poster. A longer menu takes longer to photograph.`,
                     rows: [
                         ['1. Sign up (mobile number and code)', minutes('signUp')],
                         ['2. Photograph or upload your menu', minutes('photo')],
@@ -874,7 +885,8 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                         ['4. Pick bestsellers and top earners', minutes('picks')],
                         ['5. Choose a design and launch', minutes('launch')],
                         ['6. Download the QR code', minutes('qr')],
-                        ['Total for the core steps', TOTAL],
+                        ['Live menu link (fast path, for a typical menu)', LIVE],
+                        ['Complete setup with the QR poster', TOTAL],
                         ['Optional: banners and settings', 'typically 3 to 5 minutes each'],
                     ],
                 },
@@ -890,7 +902,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                 },
                 {
                     q: 'How long does it take to set up a digital menu?',
-                    a: `Typically ${TOTAL} for sign-up, adding your menu, launch and downloading the QR code.`,
+                    a: `${LIVE[0].toUpperCase()}${LIVE.slice(1)} from sign-up to a live menu link for a typical menu. A complete setup including the QR poster takes ${TOTAL}.`,
                 },
                 {
                     q: 'What happens after the free trial?',
@@ -910,7 +922,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
         ta: {
             h1: 'vsite டிஜிட்டல் மெனுவுக்கு எவ்வளவு செலவு, அமைக்க எவ்வளவு நேரம்?',
             answer:
-                `vsite Smart QR Menu-க்கு ${TRIAL_DAYS} நாள் இலவச trial, அதன் பிறகு மாதம் ₹${PRICE_INR_PER_MONTH}. Setup கட்டணம் இல்லை, கமிஷனும் இல்லை. அமைக்க பொதுவாக ${TOTAL_TA} ஆகும். Razorpay மூலம் UPI, card அல்லது netbanking-ல் ${BILLING_DAYS} நாளுக்கு ஒருமுறை நீங்களே கட்டலாம், தானாக பணம் பிடிக்காது. QR போஸ்டர் print செலவு உங்களுடையது.`,
+                `vsite Smart QR Menu-க்கு ${TRIAL_DAYS} நாள் இலவச trial, அதன் பிறகு மாதம் ₹${PRICE_INR_PER_MONTH}. Setup கட்டணம் இல்லை, கமிஷனும் இல்லை. வழக்கமான மெனுவுக்கு live link வரை ${LIVE_TA}, QR போஸ்டர் உட்பட முழு அமைப்புக்கு ${TOTAL_TA} ஆகும். Razorpay மூலம் UPI, card அல்லது netbanking-ல் ${BILLING_DAYS} நாளுக்கு ஒருமுறை நீங்களே கட்டலாம், தானாக பணம் பிடிக்காது. QR போஸ்டர் print செலவு உங்களுடையது.`,
             needs: [
                 'Sign up-க்கு மொபைல் நம்பர்',
                 'உங்கள் மெனு போட்டோ அல்லது PDF',
@@ -925,7 +937,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                 {
                     name: 'Trial காலத்தில் மெனுவை உருவாக்கி launch செய்யுங்கள்',
                     text: 'மெனுவை சேர்த்து, design தேர்ந்தெடுத்து, launch செய்து, QR code download செய்யுங்கள். Trial-லிலேயே எல்லா வசதிகளையும் பயன்படுத்தலாம்.',
-                    time: TOTAL_TA,
+                    time: `${LIVE_TA} (live link), ${TOTAL_TA} (QR போஸ்டர் உட்பட)`,
                 },
                 {
                     name: `மெனுவை தொடர ₹${PRICE_INR_PER_MONTH} கட்டுங்கள்`,
@@ -962,7 +974,8 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                         ['4. அதிகம் விற்பவை தேர்வு', minutesTa('picks')],
                         ['5. Design தேர்வு, launch', minutesTa('launch')],
                         ['6. QR code download', minutesTa('qr')],
-                        ['முக்கிய படிகளுக்கு மொத்தம்', TOTAL_TA],
+                        ['Live மெனு link (வேகமான வழி)', LIVE_TA],
+                        ['QR போஸ்டர் உட்பட முழு அமைப்பு', TOTAL_TA],
                     ],
                 },
             ],
@@ -973,7 +986,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                 },
                 {
                     q: 'டிஜிட்டல் மெனு அமைக்க எவ்வளவு நேரம் ஆகும்?',
-                    a: `Sign up, மெனு சேர்த்தல், launch, QR download ஆகியவற்றுக்கு பொதுவாக ${TOTAL_TA}.`,
+                    a: `வழக்கமான மெனுவுக்கு sign up முதல் live link வரை ${LIVE_TA}. QR போஸ்டர் உட்பட முழு அமைப்புக்கு ${TOTAL_TA}.`,
                 },
                 {
                     q: 'இலவச trial முடிந்த பிறகு என்ன ஆகும்?',
