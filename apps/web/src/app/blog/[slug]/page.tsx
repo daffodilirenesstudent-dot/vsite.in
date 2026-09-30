@@ -6,6 +6,9 @@ import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
 import { blogPosts, getPostBySlug, getAllSlugs } from '@/content/blog/posts';
 import type { ContentBlock, BlogPost } from '@/content/blog/types';
+import { InlineText } from '@/components/blog/InlineText';
+import { buildArticleSchema, relatedPosts as pickRelatedPosts } from '@/lib/seo/blog';
+import { serializeJsonLd } from '@/lib/seo/jsonld';
 
 const BASE_URL = 'https://vsite.in';
 
@@ -50,7 +53,7 @@ function renderBlock(block: ContentBlock, idx: number) {
     case 'p':
       return (
         <p key={idx} className="text-slate-700 leading-relaxed">
-          {block.text}
+          <InlineText text={block.text} />
         </p>
       );
     case 'h2':
@@ -69,7 +72,7 @@ function renderBlock(block: ContentBlock, idx: number) {
       return (
         <ul key={idx} className="list-disc list-inside space-y-1.5 text-slate-700">
           {block.items.map((item, i) => (
-            <li key={i}>{item}</li>
+            <li key={i}><InlineText text={item} /></li>
           ))}
         </ul>
       );
@@ -77,7 +80,7 @@ function renderBlock(block: ContentBlock, idx: number) {
       return (
         <ol key={idx} className="list-decimal list-inside space-y-1.5 text-slate-700">
           {block.items.map((item, i) => (
-            <li key={i}>{item}</li>
+            <li key={i}><InlineText text={item} /></li>
           ))}
         </ol>
       );
@@ -99,7 +102,7 @@ function renderBlock(block: ContentBlock, idx: number) {
                 <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                   {row.map((cell, j) => (
                     <td key={j} className="px-3 py-2 text-slate-700 border border-slate-200">
-                      {cell}
+                      <InlineText text={cell} />
                     </td>
                   ))}
                 </tr>
@@ -111,14 +114,14 @@ function renderBlock(block: ContentBlock, idx: number) {
     case 'callout':
       return (
         <div key={idx} className="bg-primary/8 border-l-4 border-primary rounded-r-xl px-5 py-4 my-2">
-          <p className="text-primary font-semibold text-sm leading-relaxed">{block.text}</p>
+          <p className="text-primary font-semibold text-sm leading-relaxed"><InlineText text={block.text} /></p>
         </div>
       );
     case 'faq':
       return (
         <div key={idx} className="border border-slate-200 rounded-xl p-5 my-2">
           <p className="font-semibold text-slate-900">{block.q}</p>
-          <p className="text-slate-600 mt-2 text-sm leading-relaxed">{block.a}</p>
+          <p className="text-slate-600 mt-2 text-sm leading-relaxed"><InlineText text={block.a} /></p>
         </div>
       );
     case 'image':
@@ -135,31 +138,6 @@ function renderBlock(block: ContentBlock, idx: number) {
     default:
       return null;
   }
-}
-
-function buildArticleSchema(post: BlogPost) {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: post.title,
-    description: post.description,
-    datePublished: post.publishedAt,
-    dateModified: post.updatedAt,
-    author: {
-      '@type': 'Organization',
-      name: post.author,
-      url: BASE_URL,
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: 'vsite',
-      url: BASE_URL,
-      logo: { '@type': 'ImageObject', url: `${BASE_URL}/logo.png` },
-    },
-    url: `${BASE_URL}/blog/${post.slug}`,
-    mainEntityOfPage: { '@type': 'WebPage', '@id': `${BASE_URL}/blog/${post.slug}` },
-    keywords: post.tags.join(', '),
-  };
 }
 
 function buildFaqSchema(post: BlogPost) {
@@ -205,7 +183,7 @@ export default async function BlogPostPage({
   if (!post) notFound();
 
   const faqSchema = buildFaqSchema(post);
-  const relatedPosts = blogPosts.filter((p) => p.slug !== post.slug).slice(0, 3);
+  const relatedPosts = pickRelatedPosts(blogPosts, post, 3);
 
   return (
     <>
@@ -213,16 +191,16 @@ export default async function BlogPostPage({
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildArticleSchema(post)) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(buildArticleSchema(post)) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildBreadcrumbSchema(post)) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(buildBreadcrumbSchema(post)) }}
       />
       {faqSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqSchema) }}
         />
       )}
 

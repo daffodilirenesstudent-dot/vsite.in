@@ -4,6 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 import ToastProvider from "@/components/ToastProvider";
 import { ICON_FONT_URL } from "@/lib/ui/iconFont";
+import { organizationSchema, orgRef } from "@/lib/seo/entity";
+import { serializeJsonLd } from "@/lib/seo/jsonld";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -48,13 +50,12 @@ export const metadata: Metadata = {
   authors: [{ name: "Vsite", url: BASE_URL }],
   creator: "Vsite",
   publisher: "Vsite",
-  alternates: {
-    canonical: BASE_URL,
-  },
+  // No site-wide canonical here on purpose: a canonical in the root layout is
+  // inherited by every page that does not set its own, telling Google that
+  // page is a copy of the homepage. Each page sets its own.
   openGraph: {
     type: "website",
     locale: "en_IN",
-    url: BASE_URL,
     siteName: "Vsite",
     title: "Vsite: Digital Menu Software for Restaurants & F&B in India",
     description:
@@ -115,32 +116,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const organizationSchema = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: "Vsite",
-    alternateName: "vsite.in",
-    legalName: "Vsite",
-    url: BASE_URL,
-    logo: `${BASE_URL}/logo.png`,
-    description:
-      "AI-powered digital menu platform for India's food and beverage SMBs — restaurants, cafés, bakeries, cloud kitchens, and more.",
-    areaServed: {
-      "@type": "State",
-      name: "Tamil Nadu",
-    },
-    contactPoint: {
-      "@type": "ContactPoint",
-      contactType: "customer support",
-      email: "official@vsite.in",
-      availableLanguage: ["English", "Tamil"],
-    },
-    sameAs: [
-      "https://www.linkedin.com/company/vsitein",
-      "https://www.instagram.com/vsitein",
-    ],
-  };
-
   // WebSite schema — Google uses `name` here as the canonical site name
   // shown next to the favicon in search results. `alternateName` covers
   // the domain-form so Google never falls back to "vsite.in".
@@ -151,12 +126,7 @@ export default function RootLayout({
     name: "Vsite",
     alternateName: ["vsite", "vsite.in"],
     url: BASE_URL,
-    publisher: {
-      "@type": "Organization",
-      name: "Vsite",
-      url: BASE_URL,
-      logo: { "@type": "ImageObject", url: `${BASE_URL}/logo.png` },
-    },
+    publisher: orgRef(),
     potentialAction: {
       "@type": "SearchAction",
       target: {
@@ -188,11 +158,11 @@ export default function RootLayout({
         <link rel="stylesheet" href={ICON_FONT_URL} />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationSchema()) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteSchema) }}
         />
       </head>
       <body className={`${outfit.variable} ${poppins.variable} ${manrope.variable} antialiased font-sans`}>

@@ -5,6 +5,8 @@ import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
 import Reveal from '@/components/home/Reveal';
 import { blogPosts } from '@/content/blog/posts';
+import { newestPost } from '@/lib/seo/blog';
+import { orgRef } from '@/lib/seo/entity';
 
 export const metadata: Metadata = {
   title: 'vsite Blog — Restaurant Tips & Digital Menu Guides',
@@ -21,11 +23,7 @@ const jsonLd = {
   name: 'vsite Blog',
   url: 'https://vsite.in/blog',
   description: 'Practical guides and tips for restaurant owners in Tamil Nadu on digital menus and restaurant technology.',
-  publisher: {
-    '@type': 'Organization',
-    name: 'vsite',
-    url: 'https://vsite.in',
-  },
+  publisher: orgRef(),
 };
 
 function formatDate(iso: string) {
@@ -37,7 +35,11 @@ function formatDate(iso: string) {
 }
 
 export default function BlogPage() {
-  const [featured, ...rest] = blogPosts;
+  // Newest by publishedAt, not whichever post happens to be first in the array.
+  const featured = newestPost(blogPosts);
+  const rest = blogPosts
+    .filter((p) => p.slug !== featured.slug)
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
   return (
     <>

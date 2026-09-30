@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
+import { orgRef } from '@/lib/seo/entity';
 
 export const metadata: Metadata = {
   title: "About vsite: Built in Tamil Nadu, Live Since March 2026",
@@ -12,17 +13,15 @@ export const metadata: Metadata = {
   },
 };
 
+// The Organization is defined once in the root layout; this page only says it
+// is the organisation's about page.
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: 'vsite',
-  url: 'https://vsite.in',
-  email: 'official@vsite.in',
-  description:
-    "Smart QR Menu built in Tamil Nadu, live since March 2026 — Tamil and English menus from a photo of your paper menu, ₹299/month flat, no commission.",
-  foundingLocation: { '@type': 'Place', name: 'Tamil Nadu, India' },
-  areaServed: { '@type': 'Country', name: 'India' },
-  knowsLanguage: ['en', 'ta'],
+  '@type': 'AboutPage',
+  name: 'About vsite',
+  url: 'https://vsite.in/about',
+  about: orgRef(),
+  mainEntity: orgRef(),
 };
 
 const stats = [

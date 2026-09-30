@@ -12,6 +12,7 @@ import EnterpriseBand from '@/components/home/EnterpriseBand';
 import Proof from '@/components/home/Proof';
 import FAQ from '@/components/home/FAQ';
 import FooterCTA from '@/components/home/FooterCTA';
+import { orgRef } from '@/lib/seo/entity';
 
 const BASE_URL = 'https://vsite.in';
 
@@ -37,12 +38,15 @@ export const metadata: Metadata = {
 
 const softwareSchema = {
   '@context': 'https://schema.org',
+  '@id': `${BASE_URL}/#software`,
   '@type': 'SoftwareApplication',
   name: 'Vsite',
   alternateName: 'vsite',
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
   url: BASE_URL,
+  // Points at the single Organization defined in the root layout.
+  publisher: orgRef(),
   description:
     "Smart QR Menu built in Tamil Nadu, live since March 2026 — AI-powered QR menus for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. Live in 3 minutes.",
   offers: {
@@ -67,26 +71,6 @@ const softwareSchema = {
     'Tamil and English menu names',
     'NFC card and QR stickers included',
   ],
-};
-
-const localBusinessSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'LocalBusiness',
-  name: 'Vsite',
-  url: BASE_URL,
-  email: 'official@vsite.in',
-  description:
-    'AI-powered digital menu platform for F&B SMBs in India. Live in 3 minutes.',
-  areaServed: [
-    { '@type': 'City', name: 'Chennai' },
-    { '@type': 'City', name: 'Coimbatore' },
-    { '@type': 'City', name: 'Madurai' },
-    { '@type': 'City', name: 'Salem' },
-    { '@type': 'City', name: 'Trichy' },
-    { '@type': 'State', name: 'Tamil Nadu' },
-  ],
-  serviceType: 'Digital Menu Software',
-  priceRange: '₹₹',
 };
 
 // Surfacing solutions and key informational pages in a SiteNavigationElement
@@ -122,10 +106,6 @@ export default function Home() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
       />
       <script
         type="application/ld+json"
