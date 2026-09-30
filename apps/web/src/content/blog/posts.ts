@@ -1,6 +1,7 @@
 import type { BlogPost } from './types';
+import { seoPosts } from './posts-seo';
 
-export const blogPosts: BlogPost[] = [
+const baseBlogPosts: BlogPost[] = [
   // ─── W1 ────────────────────────────────────────────────────────────────────
   {
     slug: 'what-is-digital-menu-restaurant',
@@ -1064,3 +1065,6 @@ export function getPostBySlug(slug: string): BlogPost | undefined {
 export function getAllSlugs(): string[] {
   return blogPosts.map((p) => p.slug);
 }
+
+/** Newest first is decided by the blog index; both lists are plain data. */
+export const blogPosts: BlogPost[] = [...seoPosts, ...baseBlogPosts];

@@ -56,8 +56,9 @@ describe('flagship SEO posts', () => {
     it('slugs are unique and do not collide with existing posts', () => {
         const slugs = seoPosts.map((p) => p.slug);
         expect(new Set(slugs).size).toBe(slugs.length);
-        const existing = new Set(blogPosts.map((p) => p.slug));
-        expect(slugs.filter((s) => existing.has(s))).toEqual([]);
+        // blogPosts is the merged list (seoPosts + base posts): no slug may appear twice.
+        const all = blogPosts.map((p) => p.slug);
+        expect(all.filter((s, i) => all.indexOf(s) !== i)).toEqual([]);
     });
 
     for (const p of seoPosts) {
