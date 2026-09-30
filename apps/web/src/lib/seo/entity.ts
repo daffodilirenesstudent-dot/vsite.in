@@ -32,15 +32,8 @@ export function organizationSchema() {
         url: SITE_ORIGIN,
         logo: `${SITE_ORIGIN}/logo.png`,
         description:
-            "AI-powered digital menu platform for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens and more.",
-        areaServed: [
-            { '@type': 'State', name: 'Tamil Nadu' },
-            { '@type': 'City', name: 'Chennai' },
-            { '@type': 'City', name: 'Coimbatore' },
-            { '@type': 'City', name: 'Madurai' },
-            { '@type': 'City', name: 'Salem' },
-            { '@type': 'City', name: 'Trichy' },
-        ],
+            'Smart QR Menu built in Tamil Nadu, live since March 2026: Tamil and English menus from a photo of your paper menu, Rs 299/month flat, no commission.',
+        areaServed: { '@type': 'Country', name: 'India' },
         foundingLocation: { '@type': 'Place', name: 'Tamil Nadu, India' },
         knowsLanguage: ['en', 'ta'],
         contactPoint: {

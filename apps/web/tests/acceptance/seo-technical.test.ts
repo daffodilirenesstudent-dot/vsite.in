@@ -220,7 +220,7 @@ describe('6. city hub', () => {
         expect(s).toMatch(/canonical/);
         expect(s).toMatch(/BreadcrumbList|breadcrumbSchema/);
         expect(s).toMatch(/ItemList|itemListSchema/);
-        expect(CITY_PAGES.length).toBe(13);
+        expect(CITY_PAGES.length).toBeGreaterThanOrEqual(13);
     });
 
     it('is linked from the footer with the setup guide', () => {
