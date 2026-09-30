@@ -41,7 +41,7 @@ export function buildCityPage(c: CityPage): SeoLandingData {
             {
                 icon: 'document_scanner',
                 title: 'Read from your paper menu',
-                description: 'Photograph your existing menu and the AI reads items, prices and categories, including handwritten boards. You check the result before it goes live.',
+                description: 'Photograph your existing menu and the AI reads items, prices and categories, with printed menus read best (handwritten pages are accepted, so check them closely). You check the result before it goes live.',
             },
             {
                 icon: 'edit',

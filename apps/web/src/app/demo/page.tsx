@@ -150,8 +150,8 @@ export default function DemoPage() {
                             </div>
                             <h2 className="font-display text-h3 font-bold text-ink">I’d rather just try it</h2>
                             <p className="mt-2 flex-1 text-caption leading-relaxed text-ink-70">
-                                Skip the call. Start the 7-day trial and have your menu live in
-                                three minutes. No card, no pressure, no salesperson.
+                                Skip the call. Start the 7-day trial and have a live menu link in
+                                about three minutes. No card, no pressure, no salesperson.
                             </p>
                             <Link
                                 href="/signup"

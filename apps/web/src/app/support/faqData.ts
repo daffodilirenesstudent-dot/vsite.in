@@ -8,7 +8,7 @@ export const FAQ_GROUPS = [
       {
         id: 'q1',
         q: 'How long does it take to set up my digital menu?',
-        a: 'About 3 minutes. Take a photo of your existing paper menu, upload it to vsite, and our AI reads it, matches professional food photos, writes item descriptions, and builds your complete digital storefront automatically. No design skills needed.',
+        a: 'About 3 minutes from sign-up to a live menu link for a typical menu: sign up, add a photo of your paper menu, the AI reads it, then launch. A complete setup with design, banners, fixing any misread dish and downloading and printing the QR poster takes about 10 to 15 minutes. No design skills needed.',
       },
       {
         id: 'q2',

@@ -66,8 +66,8 @@ export default function EnterpriseBand() {
                         Running more than one outlet?
                     </h2>
                     <p className="mt-5 text-body text-ink/70">
-                        The ₹299 plan is built for a single restaurant to set up on its own, in
-                        three minutes, without talking to anyone. A brand with several branches
+                        The ₹299 plan is built for a single restaurant to set up on its own, to a live menu link in
+                        about three minutes, without talking to anyone. A brand with several branches
                         needs something different — a menu designed to your brand, one dashboard
                         across every outlet, and stands made to match. We build that with you.
                     </p>

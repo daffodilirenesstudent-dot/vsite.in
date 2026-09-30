@@ -93,7 +93,7 @@ const STEPS = [
         cost: '40 seconds',
         Art: ArtSnapMenu,
         title: 'Take a pic of your existing printed menu',
-        body: 'Printed, laminated, or handwritten in a notebook — any of them. The AI reads every item, every price, every half-plate rate, then writes the descriptions and makes a photo for each dish.',
+        body: 'Printed or laminated menus read best; handwritten pages are accepted, but check the result carefully. The AI reads the items, prices and half-plate rates, then writes the descriptions and matches a photo to each dish.',
         feature: true,
     },
     {
@@ -113,7 +113,7 @@ export default function SetupSteps() {
                     <div className="max-w-2xl">
                         <p className="text-caption font-semibold uppercase tracking-[0.1em] text-ink-45">Setup</p>
                         <h2 className="mt-5 font-display text-h2 font-bold text-ink">
-                            Three minutes, start to QR on the table.
+                            About three minutes from sign-up to a live menu link.
                         </h2>
                     </div>
                     <p className="max-w-sm text-body text-ink-70">

@@ -26,7 +26,7 @@ const jsonLd = {
 
 const stats = [
   { value: 'Mar 2026', label: 'Live since' },
-  { value: '3 min', label: 'Average setup time' },
+  { value: '~3 min', label: 'Sign-up to a live menu link' },
   { value: '₹299', label: 'Starting monthly price' },
   { value: '7 days', label: 'Free to try' },
 ];
@@ -42,7 +42,7 @@ const values = [
     icon: 'bolt',
     title: 'Built for Speed',
     description:
-      '3 minutes from photo to live digital menu. We respect your time. Complex setup is our problem, not yours.',
+      'About 3 minutes from sign-up to a live menu link for a typical menu. We respect your time. Complex setup is our problem, not yours.',
   },
   {
     icon: 'translate',
@@ -77,7 +77,7 @@ export default function AboutPage() {
               vsite started with one observation — every restaurant owner in
               Tamil Nadu was still printing paper menus that cost money, went
               outdated, and had to be reprinted for every price change. We built the tool
-              we wish existed: AI-powered, live in 3 minutes, priced for a
+              we wish existed: AI-powered, a live menu link in about 3 minutes, priced for a
               small business owner, made for South India. vsite has
               been live since March 2026 and is used by restaurants in Tamil
               Nadu. It works anywhere in India.

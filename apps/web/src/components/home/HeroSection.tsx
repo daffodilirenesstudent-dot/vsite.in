@@ -96,7 +96,7 @@ export default function HeroSection() {
                                     key="3"
                                     className="bg-gradient-to-r from-[#C7C4FF] via-[#A9A7FF] to-[#F0A868] bg-clip-text text-transparent"
                                 >
-                                    in Three minutes.
+                                    live in about 3 minutes.
                                 </span>,
                             ]}
                         />
@@ -110,9 +110,9 @@ export default function HeroSection() {
                         style={{ '--reveal-delay': '380ms' } as React.CSSProperties}
                         className="mt-6 max-w-xl text-body text-on-night-70 sm:text-lg"
                     >
-                        Photograph the menu you already have — printed, laminated, or handwritten in a
-                        notebook. Our AI reads every item, writes the descriptions, matches the photos,
-                        and hands you a QR code for your tables.
+                        Photograph the menu you already have — printed or laminated. Handwritten pages are
+                        accepted too, but check the result carefully. Our AI reads the items and prices,
+                        matches the photos, and hands you a QR code for your tables.
                     </p>
 
                     <div

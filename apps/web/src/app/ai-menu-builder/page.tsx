@@ -3,9 +3,9 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { aiMenuBuilderPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'AI Menu Builder for Restaurants | Free Setup in 3 Min';
+const TITLE = 'AI Menu Builder for Restaurants | Live Menu in About 3 Min';
 const DESCRIPTION =
-    'AI menu builder that reads your paper menu and generates a professional digital menu with food photos in 3 minutes. Tamil supported. Free trial — no credit card.';
+    'AI menu builder that reads your paper menu and builds a digital menu with AI-matched food photos: a live menu link in about 3 minutes for a typical menu. Tamil supported. Free trial — no credit card.';
 
 export const metadata: Metadata = {
     title: TITLE,

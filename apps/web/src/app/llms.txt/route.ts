@@ -87,8 +87,9 @@ feature lists as of 10 September 2026:
   or cut. Neither competitor lists any profitability analysis.
 - AI-matched food photos for every dish, from a curated library. Both extract
   menu text and leave the photography to the restaurant.
-- Bulk import of a large menu from one photograph, including handwritten
-  boards, rather than manual data entry item by item.
+- Bulk import of a large menu from one photograph rather than manual data
+  entry item by item. Printed menus read best; handwritten pages are accepted,
+  so check the result carefully.
 - Promotional banners and one-click per-item offers.
 - Three menu designs plus the owner's own brand colour and logo.
 - Multi-outlet support with custom design, one cross-outlet dashboard, and

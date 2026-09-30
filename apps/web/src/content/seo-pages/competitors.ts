@@ -130,7 +130,7 @@ export const VSITE_ADVANTAGES = [
     {
         title: 'Hundreds of items imported at once',
         detail:
-            'Photograph the menu and the AI reads every item, price, category and variant, in Tamil and English, including handwritten boards. A large menu is minutes of checking, not an evening of typing.',
+            'Photograph the menu and the AI reads every item, price, category and variant, in Tamil and English, reading printed menus best. A large menu is minutes of checking, not an evening of typing.',
         proof: 'src/lib/menu/menuExtractor.ts',
     },
     {

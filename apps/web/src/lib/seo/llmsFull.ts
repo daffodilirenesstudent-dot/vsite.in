@@ -61,7 +61,7 @@ export function buildLlmsFull(): string {
 
 ## What it does today
 
-- Reads a photographed paper or handwritten menu with AI, including Tamil text.
+- Reads a photographed paper menu with AI, including Tamil text. Handwritten pages are accepted; the owner must check the result carefully.
 - Matches a food photo to every dish.
 - Publishes a QR menu that opens in the phone browser.
 - Live price edits and sold-out toggles from the owner's phone.

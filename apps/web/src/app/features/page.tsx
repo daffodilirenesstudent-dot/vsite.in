@@ -61,7 +61,7 @@ const featureGroups: FeatureGroup[] = [
         items: [
             { title: 'AI menu extraction', description: 'Photograph your paper menu — the AI reads every item, price, and category, Tamil script included.' },
             { title: 'AI food photos', description: 'Every dish is matched to a professional food photo automatically. No photographer, no shoot day.' },
-            { title: 'Three-minute setup', description: 'Signup to a live QR code, end to end, in under three minutes.' },
+            { title: 'About 3 minutes to a live menu', description: 'Sign up, add a menu photo, let the AI read it and launch: about 3 minutes to a live menu link for a typical menu. A complete setup with the QR poster takes about 10 to 15 minutes.' },
             { title: 'Tamil and English', description: 'Both languages on one menu, switched with a tap. Still unusual in India.' },
         ],
     },

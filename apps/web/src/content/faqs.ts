@@ -24,7 +24,7 @@ export const HOME_FAQS: Faq[] = [
     },
     {
         q: 'My menu is handwritten in a notebook. Will it work?',
-        a: 'That is the case we built it for. Photograph the page. You will fix a line or two afterwards, and the whole thing still takes under three minutes.',
+        a: 'Handwritten pages are accepted, but the AI is not tuned for handwriting, so check the result carefully. Photograph each page in good light, then read every dish name and price in the review step and fix what it misread.',
     },
     {
         q: 'What happens after the 7 free days?',
@@ -71,7 +71,7 @@ export const PRICING_FAQS: Faq[] = [
 export const CONTACT_FAQS: Faq[] = [
     {
         q: 'How long does setup take?',
-        a: 'About 3 minutes. Upload a photo of your menu, and AI does the rest.',
+        a: 'About 3 minutes from sign-up to a live menu link for a typical menu. A complete setup with the QR poster takes about 10 to 15 minutes.',
     },
     {
         q: 'Do my customers need an app?',

@@ -21,7 +21,7 @@ const BASE_URL = 'https://vsite.in';
 // the entity name and use the descriptor as the SERP title proper.
 const TITLE = "Vsite: Smart QR Menu for Restaurants, Built in Tamil Nadu";
 const DESCRIPTION =
-  "Smart QR Menu built in Tamil Nadu and live since March 2026. AI-powered menus in Tamil and English that update in real time — live in 3 minutes. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹299/mo, no commission. Free 7-day trial.";
+  "Smart QR Menu built in Tamil Nadu and live since March 2026. AI-powered menus in Tamil and English that update in real time — a live menu link in about 3 minutes. Built for India's F&B SMBs — restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. ₹299/mo, no commission. Free 7-day trial.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -48,7 +48,7 @@ const softwareSchema = {
   // Points at the single Organization defined in the root layout.
   publisher: orgRef(),
   description:
-    "Smart QR Menu built in Tamil Nadu, live since March 2026 — AI-powered QR menus for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. Live in 3 minutes.",
+    "Smart QR Menu built in Tamil Nadu, live since March 2026 — AI-powered QR menus for India's food and beverage SMBs: restaurants, cafés, bakeries, cloud kitchens, sweet shops, bars. A live menu link in about 3 minutes.",
   offers: {
     '@type': 'Offer',
     price: '299',
@@ -62,7 +62,7 @@ const softwareSchema = {
   },
   featureList: [
     'AI menu creation from a photo of your existing menu',
-    'Handwritten menu recognition',
+    'AI menu reading from a photo or PDF, Tamil and English',
     'AI-matched food photography for every dish',
     'QR code menu',
     'Real-time menu and price updates',
