@@ -1,5 +1,9 @@
 import { PLAN_PRICES_INR, TRIAL_DURATION_MS } from '@/lib/platform/productFlags';
 import { SMART_QR_MENU_LIVE_SINCE } from '@/content/roadmap';
+import { ONBOARDING_PAGE_LIMIT } from '@/lib/menu/aiPageLimits';
+import { MAX_PDF_BYTES } from '@/lib/menu/pdfPages';
+import { QR_STICKER_PRICE_INR } from '@/lib/platform/hardware';
+import { BILLING_CYCLE_DAYS } from '@/content/policy';
 import { WHATSAPP_DISPLAY, SUPPORT_EMAIL, FOUNDER_NAME } from '@/lib/platform/brand';
 
 /**
@@ -42,3 +46,40 @@ export const PHOTO_CLAIM = 'AI-matched food photos from a curated library';
  * setup guide must replace this with the measured figure before it publishes.
  */
 export const SETUP_TIME_CLAIM_UNVERIFIED = 'about 3 minutes';
+
+/** Billing period in days: one payment buys one period, no auto-renewal (see `@/content/policy`). */
+export const BILLING_DAYS = BILLING_CYCLE_DAYS;
+
+/** Pages (photos, or pages of a PDF) the AI reads per store during setup. From `aiPageLimits`. */
+export const MENU_SCAN_PAGE_LIMIT = ONBOARDING_PAGE_LIMIT;
+
+/** Largest menu PDF, in MB. From `pdfPages`. */
+export const MENU_PDF_MAX_MB = Math.round(MAX_PDF_BYTES / (1024 * 1024));
+
+/** The optional NFC + QR sticker, per piece. Ordered by request from the QR page, paid separately. */
+export const STICKER_PRICE_INR = QR_STICKER_PRICE_INR;
+
+/**
+ * Setup time, step by step, in minutes. These are ESTIMATES from the number of
+ * screens and from timeouts in the code, not a stopwatch measurement: the
+ * owner must confirm them with a timed run on the test store before calling
+ * them measured. Basis for each:
+ *   signUp   : 3 fields + 6-digit code that submits itself (signup/page.tsx)
+ *   photo    : up to MENU_SCAN_PAGE_LIMIT pages; depends on menu length
+ *   aiRead   : server gives up at 50 s (menuExtractor DEFAULT_DEADLINE_MS)
+ *   picks    : two skippable screens, pick up to 3 dishes each (onboarding)
+ *   launch   : design choice on the summary + launch screen that runs at least
+ *              ~10 s (LaunchLoadingScreen: 4 message steps of 2.5 s)
+ *   qr       : open the QR page and download the poster or QR
+ */
+export const CORE_STEP_MINUTES = [
+    { id: 'signUp', min: 1, max: 2 },
+    { id: 'photo', min: 2, max: 5 },
+    { id: 'aiRead', min: 1, max: 1 },
+    { id: 'picks', min: 1, max: 2 },
+    { id: 'launch', min: 1, max: 2 },
+    { id: 'qr', min: 2, max: 3 },
+] as const;
+
+/** The range quoted publicly. Covers the sum of CORE_STEP_MINUTES (8 to 15), rounded to a plain range. */
+export const TYPICAL_TOTAL_MINUTES = { min: 10, max: 15 } as const;

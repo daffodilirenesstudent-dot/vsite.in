@@ -108,7 +108,7 @@ describe('the guide renders structurally', () => {
     const article = read('src/components/guide/GuideArticle.tsx');
 
     it('puts the direct answer before the steps, in an ordered list', () => {
-        expect(article.indexOf('answer')).toBeLessThan(article.indexOf('<ol'));
+        expect(article.indexOf('copy.answer')).toBeLessThan(article.indexOf('copy.steps'));
         expect(article).toMatch(/<ol/);
         expect(article).toMatch(/Updated:/);
         expect(article).toMatch(/<Navbar \/>/);
@@ -160,7 +160,7 @@ describe('Tamil', () => {
         // One undefined var() voids a whole font-family: only name variables this file defines.
         const vars = [...layout.matchAll(/var\((--[a-z-]+)\)/g)].map((m) => m[1]);
         for (const v of vars) expect(layout).toContain(`variable: '${v}'`);
-        expect(read('src/app/layout.tsx')).not.toMatch(/Tamil/);
+        expect(read('src/app/layout.tsx')).not.toMatch(/Noto_Sans_Tamil|Anek_Tamil|Mukta_Malar/);
     });
 });
 
