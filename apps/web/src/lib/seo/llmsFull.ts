@@ -54,7 +54,7 @@ export function buildLlmsFull(): string {
 - Price: Rs ${PRICE_INR_PER_MONTH} per month, one plan, everything included. No setup fee, no commission, no per-scan fee.
 - Free trial: ${TRIAL_DAYS} days, no card required. After the trial the menu pauses until the owner pays; nothing is deleted.
 - Live since: ${LIVE_SINCE}
-- Menu languages: ${MENU_LANGUAGES.join(' and ')}, switched by the diner with one tap.
+- Menu languages: ${MENU_LANGUAGES.join(' and ')} on the same menu. Dish names appear as the owner typed them (Tamil, English or both) in Tamil fonts. There is no language switch and no automatic translation.
 - Food photos: ${PHOTO_CLAIM}.
 - Support: WhatsApp ${CONTACT.whatsapp} and ${CONTACT.email}, in Tamil or English.
 - Founder: ${CONTACT.founder}

@@ -33,7 +33,7 @@ export const HOME_FAQS: Faq[] = [
     },
     {
         q: 'Do you take a cut of my sales?',
-        a: `No. ₹299 a month is the entire relationship. No commission and no per-scan fee. The QR code is free to print; an optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each.`,
+        a: `No. ₹299 a month is the entire relationship. No commission and no per-scan fee. The QR code is free to print. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each.`,
     },
     {
         q: 'Do my customers need to install anything?',

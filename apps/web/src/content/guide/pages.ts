@@ -813,7 +813,7 @@ export const GUIDE: Record<GuideSlug, GuidePage> = {
                     a: 'Table stand is A6, Counter is A5 and Wall or door is A4. The page sizes the code so a phone can scan it from where it will sit.',
                 },
                 {
-                    q: 'Are the NFC stickers included in the monthly plan?',
+                    q: 'Is the NFC + QR sticker part of the monthly price?',
                     a: `No. They are optional and cost ₹${STICKER_PRICE_INR} each. The ${P} plan includes your QR code and poster downloads.`,
                 },
             ],

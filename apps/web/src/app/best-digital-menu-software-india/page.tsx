@@ -128,7 +128,7 @@ export default function BestDigitalMenuSoftwarePage() {
                 acceptedAnswer: {
                     '@type': 'Answer',
                     text:
-                        `vsite is built in Tamil Nadu and every menu carries Tamil and English, switched with one tap, with support answered in Tamil on WhatsApp. DineCard supports 15+ Indian languages including Tamil. vsite has been live since ${SMART_QR_MENU_LIVE_SINCE}.`,
+                        `vsite is built in Tamil Nadu and a menu can show Tamil and English together, with dish names as you type them and no automatic translation, with support answered in Tamil on WhatsApp. DineCard supports 15+ Indian languages including Tamil. vsite has been live since ${SMART_QR_MENU_LIVE_SINCE}.`,
                 },
             },
             {

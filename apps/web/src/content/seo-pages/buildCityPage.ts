@@ -31,7 +31,7 @@ export function buildCityPage(c: CityPage): SeoLandingData {
             {
                 icon: 'translate',
                 title: `Tamil and English, for ${c.city}`,
-                description: `Every dish holds a Tamil and an English name, switched with one tap, so ${c.tamil} diners and visitors read the same QR.`,
+                description: `Dish names in Tamil, English or both on the same menu, so ${c.tamil} diners and visitors read the same QR.`,
             },
             {
                 icon: 'photo_camera',
@@ -98,7 +98,7 @@ export function buildCityPage(c: CityPage): SeoLandingData {
                     ['Cost per year', 'Print cost per run × reprints per year', `₹${yearly} (₹${price} × 12)`],
                     ['Changing a price', 'Reprint the card', 'Edit on your phone'],
                     ['Marking an item finished', 'Tell each customer or cross it out', 'One sold-out toggle'],
-                    ['Tamil and English', 'Two prints or crowded text', 'One menu, one tap'],
+                    ['Tamil and English', 'Two prints or crowded text', 'One menu shows both'],
                     ['Commission on sales', 'None', 'None'],
                 ],
             },

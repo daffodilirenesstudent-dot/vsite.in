@@ -43,7 +43,7 @@ const OFFERS = [
         Icon: ScanLine,
         title: 'Custom QR and NFC stands',
         body:
-            'Table stands, counter stands and NFC cards, made to your design and posted to each outlet. Manufactured at cost — we make nothing on the hardware.',
+            'Table stands, counter stands and NFC cards, made to your design and delivered to each outlet. Supplied at cost — we make nothing on the hardware.',
     },
 ];
 

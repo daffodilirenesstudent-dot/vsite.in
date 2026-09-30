@@ -1,5 +1,6 @@
 import type { BlogPost } from './types';
 import { seoPosts } from './posts-seo';
+import { STICKER_PRICE_INR } from '@/content/facts';
 
 const baseBlogPosts: BlogPost[] = [
   // ─── W1 ────────────────────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ const baseBlogPosts: BlogPost[] = [
         'Print or display the QR code on your tables',
         'Customers scan → menu opens → they order (or you take the order)',
       ]},
-      { type: 'p', text: 'With vsite, this entire setup takes under 3 minutes. Upload a photo of your paper menu and the AI reads it, creates your digital menu, and matches food photos automatically.' },
+      { type: 'p', text: 'With vsite, getting to a live menu link takes about 3 minutes for a typical menu. Upload a photo of your paper menu and the AI reads it, builds your digital menu, and matches food photos automatically.' },
       { type: 'h2', text: 'Digital Menu vs Paper Menu: Key Differences' },
       { type: 'table', headers: ['Feature', 'Paper Menu', 'Digital Menu'], rows: [
         ['Update cost', '₹500–₹2,000 reprint each time', 'Free — edit online in seconds'],
@@ -42,7 +43,7 @@ const baseBlogPosts: BlogPost[] = [
         ['Customer hygiene', 'Handled by dozens of customers', 'Contactless — phone only'],
         ['Menu changes', '1–2 days (printer turnaround)', 'Real-time, instant'],
         ['Monthly cost', '₹800–₹3,000 (print + laminate)', '₹299/month (vsite)'],
-        ['Multi-language', 'Not possible without reprint', 'Toggle Tamil/English instantly'],
+        ['Multi-language', 'Not possible without reprint', 'Tamil and English on one menu'],
       ]},
       { type: 'h2', text: 'Types of Digital Menus' },
       { type: 'h3', text: '1. QR Code Menu (View-Only)' },
@@ -50,7 +51,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'h3', text: '2. QR Menu with Table Ordering' },
       { type: 'p', text: 'Customers scan and browse the full menu on their phone before they order, so staff spend less time reading out dishes and prices. vsite covers this menu layer; taking the order stays with your staff.' },
       { type: 'h3', text: '3. NFC Menu' },
-      { type: 'p', text: 'Instead of a QR code, a tap-enabled NFC card or sticker opens the menu when a customer taps their phone to it. No camera required. Works on all modern Android and iPhone 7+ devices. vsite includes a physical NFC card with every plan.' },
+      { type: 'p', text: `Instead of a QR code, a tap-enabled NFC card or sticker opens the menu when a customer taps their phone to it. No camera required. Works on all modern Android and iPhone 7+ devices. With vsite the QR code is free to download and print. An optional NFC + QR sticker costs ₹${STICKER_PRICE_INR} each and is ordered separately.` },
       { type: 'h2', text: 'Benefits of a Digital Menu for Your Restaurant' },
       { type: 'ul', items: [
         'Zero printing cost — update prices, add new dishes, run seasonal specials instantly',
@@ -63,8 +64,8 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'h2', text: 'Who Should Use a Digital Menu?' },
       { type: 'p', text: 'Digital menus work for every type of food establishment — tiffin centres, hotels, cafes, cloud kitchens, food courts, and fine dining restaurants. If your customers have smartphones (and in 2026, virtually all of them do), a digital menu saves you money and improves their experience.' },
       { type: 'h2', text: 'How Much Does a Digital Menu Cost in India?' },
-      { type: 'p', text: 'Costs range from ₹0 (basic free tools with no photos or branding) to ₹10,000+ per year for full POS systems. vsite charges ₹299/month with no setup fee — this includes AI food photos, QR code, NFC card, real-time menu updates, and WhatsApp support.' },
-      { type: 'callout', text: 'Start free: vsite offers a 7-day trial with no credit card required. Your menu goes live in 3 minutes.' },
+      { type: 'p', text: 'Costs range from ₹0 (basic free tools with no photos or branding) to ₹10,000+ per year for full POS systems. vsite charges ₹299/month with no setup fee — this includes AI-matched food photos, a QR code to print, real-time menu updates, and WhatsApp support. An optional NFC + QR sticker is extra.' },
+      { type: 'callout', text: 'Start free: vsite offers a 7-day trial with no credit card required. A typical menu has a live link in about 3 minutes.' },
       { type: 'h2', text: 'Frequently Asked Questions' },
       { type: 'faq', q: 'What is a digital menu for restaurants?', a: 'A digital menu is an online version of your restaurant\'s menu that customers view on their smartphone — usually by scanning a QR code on the table. There is no app to download. The menu opens instantly in the browser and can show photos, prices, and a direct ordering button.' },
       { type: 'faq', q: 'How much does a digital menu cost in India?', a: 'Published prices for digital menu tools in India run from about ₹99 to ₹1,500 per month. vsite offers a QR Menu plan at ₹299/month with no setup fee and no commission. DineCard lists ₹99/month for a text-only menu, and Menulite starts at ₹799/month on an annual plan.' },
@@ -75,9 +76,9 @@ const baseBlogPosts: BlogPost[] = [
   // ─── W2 ────────────────────────────────────────────────────────────────────
   {
     slug: 'how-to-create-qr-code-menu-restaurant',
-    title: 'How to Create a QR Code Menu for Your Restaurant in 3 Minutes',
+    title: 'How to Get a QR Code Menu Live for Your Restaurant in About 3 Minutes',
     description:
-      'Step-by-step guide to creating a QR code menu for your restaurant using vsite. Upload your paper menu, get AI food photos, and go live — all in under 3 minutes.',
+      'Step-by-step guide to creating a QR code menu for your restaurant using vsite. Upload your paper menu, get AI food photos, and go live — about 3 minutes to a live menu link for a typical menu.',
     category: 'How-To',
     categoryClass: 'bg-[#E9F3EC] text-[#2F6B45]',
     tags: ['QR menu', 'how-to', 'digital menu setup', 'restaurant'],
@@ -87,12 +88,12 @@ const baseBlogPosts: BlogPost[] = [
     authorTitle: 'Restaurant Technology Consultants, Tamil Nadu',
     readTime: 5,
     faqSchema: [
-      { q: 'How do I create a QR code menu for my restaurant?', a: 'Sign up on vsite.in, enter your restaurant name, upload a photo of your paper menu, and vsite\'s AI creates your digital menu with food photos in under 3 minutes. You get a QR code and NFC card to display on your tables.' },
+      { q: 'How do I create a QR code menu for my restaurant?', a: 'Sign up on vsite.in, enter your restaurant name, upload a photo of your paper menu, and vsite\'s AI creates your digital menu with food photos. A typical menu has a live link in about 3 minutes. You get a QR code to print and display on your tables.' },
       { q: 'Is QR code menu free for restaurants?', a: 'vsite offers a 7-day free trial. After that, the QR Menu plan costs ₹299/month with no setup fee. Some basic tools are free but lack food photos and branding.' },
       { q: 'Do customers need an app to use a QR menu?', a: 'No. Customers scan the QR code with their phone camera and the menu opens directly in their browser. No app download needed.' },
     ],
     content: [
-      { type: 'p', text: 'Creating a QR code menu for your restaurant takes 3 minutes with vsite. Sign up, upload a photo of your paper menu, and the AI builds your digital menu with professional food photos automatically. Here is exactly how to do it.' },
+      { type: 'p', text: 'Creating a QR code menu for your restaurant takes about 3 minutes to a live menu link with vsite. Sign up, upload a photo of your paper menu, and the AI builds your digital menu with professional food photos automatically. Here is exactly how to do it.' },
       { type: 'h2', text: 'What You Need Before You Start' },
       { type: 'ul', items: [
         'A smartphone or laptop',
@@ -111,12 +112,12 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'h2', text: 'Step 5: Preview and Publish' },
       { type: 'p', text: 'Review your menu on the preview screen. Check item names, prices, and photos. When ready, click "Go Live." Your menu is now accessible at your unique URL.' },
       { type: 'h2', text: 'Step 6: Display Your QR Code' },
-      { type: 'p', text: 'Download your QR code from the dashboard. Print it on a table standee, laminate it, or stick it on the table. vsite also ships a physical NFC card to your address — customers can tap it instead of scanning.' },
+      { type: 'p', text: `Download your QR code from the dashboard. Print it on a table standee, laminate it, or stick it on the table. If you want customers to tap instead of scan, you can order an optional NFC + QR sticker at ₹${STICKER_PRICE_INR} each.` },
       { type: 'callout', text: 'Setting up from a photo of your paper menu takes a few minutes; you review and edit the result before publishing.' },
       { type: 'h2', text: 'How to Update Your Menu Later' },
       { type: 'p', text: 'Log in to vsite.in/manage at any time. Add new items, change prices, mark items as out of stock, or upload new photos. Changes go live in real time — your QR code and URL stay the same forever.' },
       { type: 'h2', text: 'Frequently Asked Questions' },
-      { type: 'faq', q: 'How do I create a QR code menu for my restaurant?', a: 'Sign up on vsite.in, enter your restaurant name, upload a photo of your paper menu, and vsite\'s AI creates your digital menu with food photos in under 3 minutes. You get a QR code and NFC card to display on your tables.' },
+      { type: 'faq', q: 'How do I create a QR code menu for my restaurant?', a: 'Sign up on vsite.in, enter your restaurant name, upload a photo of your paper menu, and vsite\'s AI creates your digital menu with food photos. A typical menu has a live link in about 3 minutes. You get a QR code to print and display on your tables.' },
       { type: 'faq', q: 'Is QR code menu free for restaurants?', a: 'vsite offers a 7-day free trial. After that, the QR Menu plan costs ₹299/month with no setup fee. Some basic tools are free but lack food photos and branding.' },
       { type: 'faq', q: 'Do customers need an app to use a QR menu?', a: 'No. Customers scan the QR code with their phone camera and the menu opens directly in their browser. No app download needed.' },
     ],
@@ -159,7 +160,8 @@ const baseBlogPosts: BlogPost[] = [
         ['Annual subscription', '₹4,788'],
         ['Menu updates (unlimited)', '₹0'],
         ['AI-matched food photos (per item)', '₹0'],
-        ['QR code and NFC card', '₹0 (included)'],
+        ['QR code to print', '₹0'],
+        ['NFC + QR sticker (optional)', `₹${STICKER_PRICE_INR} each`],
         ['Total first-year cost', '₹6,787'],
         ['Total cost from year 2 onwards', '₹4,788/year'],
       ]},
@@ -217,7 +219,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'h2', text: 'vsite vs Petpooja: Side-by-Side' },
       { type: 'table', headers: ['', 'vsite', 'Petpooja'], rows: [
         ['Price', '₹299/month', '₹10,000+/year + 1.5% txn'],
-        ['Setup time', '3 minutes', '1–2 days (on-site setup)'],
+        ['Time to a live menu link', 'About 3 minutes for a typical menu', '1–2 days (on-site setup)'],
         ['Digital menu', 'Yes — core product', 'Yes — one of many features'],
         ['AI-matched food photos', 'Yes — included', 'Not listed'],
         ['Tamil language', 'Yes — built in', 'Partial'],
@@ -225,7 +227,7 @@ const baseBlogPosts: BlogPost[] = [
         ['POS / Billing / KOT', 'No', 'Yes'],
         ['Inventory management', 'No', 'Yes'],
         ['Per-order commission', 'None', '1.5% on orders'],
-        ['NFC card', 'Included', 'No'],
+        ['NFC + QR sticker', `Optional, ₹${STICKER_PRICE_INR} each`, 'No'],
         ['7-day free trial', 'Yes', 'No'],
         ['Target customer', 'SMB restaurants, TN', 'Mid-large restaurants, national'],
       ]},
@@ -281,7 +283,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'ul', items: [
         'Reads Tamil text from your menu photo — no manual data entry',
         'Matches professional food photos without a photographer',
-        'Sets up your full menu in under 3 minutes',
+        'Gets a typical menu live in about 3 minutes',
         'Updates in real time — no need to call anyone',
         'Works on basic 4G phones — no special hardware',
       ]},
@@ -297,9 +299,9 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'p', text: 'No major digital menu platform supports Tamil. vsite does. Restaurant owners can toggle their entire menu between Tamil and English with one click. For restaurants in Coimbatore, Madurai, Salem, and Trichy — where customers are more comfortable in Tamil — this is a genuine competitive advantage.' },
       { type: 'h2', text: 'The Mobile-First Reality of South India' },
       { type: 'p', text: 'In Tamil Nadu, 96% of internet access happens on mobile. QR code menus and NFC cards are perfectly suited to this — your customer\'s phone becomes the menu. No kiosk, no tablet, no app to install. The entire experience runs on the phone they already have in their pocket.' },
-      { type: 'callout', text: 'vsite is the only digital menu platform built for Tamil Nadu — Tamil language support, ₹299/month pricing, and AI setup in 3 minutes.' },
+      { type: 'callout', text: 'vsite is the only digital menu platform built for Tamil Nadu — Tamil language support, ₹299/month pricing, and a live menu link in about 3 minutes.' },
       { type: 'h2', text: 'Getting Started' },
-      { type: 'p', text: 'Sign up at vsite.in. Take a photo of your paper menu. Your AI-powered digital menu is live in 3 minutes. The 7-day trial requires no credit card. You can be live and showing customers a professional digital menu today.' },
+      { type: 'p', text: 'Sign up at vsite.in. Take a photo of your paper menu. Your AI-powered digital menu has a live link in about 3 minutes for a typical menu. The 7-day trial requires no credit card. You can be live and showing customers a professional digital menu today.' },
       { type: 'h2', text: 'Frequently Asked Questions' },
       { type: 'faq', q: 'What restaurant software is built for Tamil Nadu?', a: 'vsite is the only digital menu platform built specifically for Tamil Nadu restaurants. It supports Tamil language menus, is priced for the Indian SMB market at ₹299/month, and has customers across Chennai, Coimbatore, Madurai, Salem, and Trichy.' },
       { type: 'faq', q: 'How do AI menus work for restaurants?', a: 'AI menus use machine learning to read your paper menu (including Tamil text), match appropriate food photos to each dish, and build a digital menu you then review. With vsite, the first draft takes a few minutes.' },
@@ -367,7 +369,7 @@ const baseBlogPosts: BlogPost[] = [
     authorTitle: 'Restaurant Technology Consultants, Tamil Nadu',
     readTime: 6,
     faqSchema: [
-      { q: 'What are the benefits of a digital menu for restaurants?', a: 'The main benefits are: zero printing cost, instant price updates, AI food photos that increase order value, contactless hygiene, real-time out-of-stock marking, analytics on customer preferences, and Tamil/English language toggle. Restaurants switching to digital menus save ₹10,000–₹25,000 per year.' },
+      { q: 'What are the benefits of a digital menu for restaurants?', a: 'The main benefits are: zero printing cost, instant price updates, AI food photos that increase order value, contactless hygiene, real-time out-of-stock marking, analytics on customer preferences, and Tamil and English on the same menu. Restaurants switching to digital menus save ₹10,000–₹25,000 per year.' },
     ],
     content: [
       { type: 'p', text: 'Switching to a digital menu removes the cost and delay of reprinting. A paper menu set typically costs ₹500–₹2,000 to reprint, and many restaurants reprint a few times a year. Here are the most practical benefits.' },
@@ -381,8 +383,8 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'p', text: 'Mark any item as unavailable with one click. Customers cannot order it. This eliminates the painful "sorry, that\'s not available" conversation and the disappointment it causes.' },
       { type: 'h2', text: '5. Contactless and Hygienic' },
       { type: 'p', text: 'A single laminated menu is touched by dozens of customers per day. Post-COVID, hygiene awareness remains high. A QR menu means customers use only their own phone — fully contactless.' },
-      { type: 'h2', text: '6. Tamil and English Language Toggle' },
-      { type: 'p', text: 'With vsite, customers switch your entire menu between Tamil and English with one tap. Serve local Tamil-speaking customers and English-speaking tourists from the same menu, without reprinting.' },
+      { type: 'h2', text: '6. Tamil and English on One Menu' },
+      { type: 'p', text: 'With vsite, one menu can show Tamil and English together: you type each dish name in Tamil, English or both, and it shows in proper Tamil fonts. The AI reads Tamil and English text from your paper menu. There is no language switch and no automatic translation, so check the names you want customers to see. Serve local Tamil-speaking customers and English-speaking tourists from the same menu, without reprinting.' },
       { type: 'h2', text: '7. No App Download for Customers' },
       { type: 'p', text: '96% of QR code scans happen on mobile. Your customers already have a phone camera. They scan, the menu opens in their browser in 2–3 seconds. No download, no sign-up, no friction.' },
       { type: 'h2', text: '8. Analytics — Know Your Best-Selling Dishes' },
@@ -393,7 +395,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'p', text: 'A digital menu gives your restaurant a public URL that Google can index. When someone searches "[your restaurant name] menu Chennai," your vsite page can appear directly in search results — something a paper menu can never do.' },
       { type: 'callout', text: 'All 10 benefits come standard with vsite\'s ₹299/month plan. 7-day free trial — no credit card.' },
       { type: 'h2', text: 'Frequently Asked Questions' },
-      { type: 'faq', q: 'What are the benefits of a digital menu for restaurants?', a: 'The main benefits are: zero printing cost, instant price updates, AI food photos that increase order value, contactless hygiene, real-time out-of-stock marking, analytics on customer preferences, and Tamil/English language toggle. Restaurants switching to digital menus save ₹10,000–₹25,000 per year.' },
+      { type: 'faq', q: 'What are the benefits of a digital menu for restaurants?', a: 'The main benefits are: zero printing cost, instant price updates, AI food photos that increase order value, contactless hygiene, real-time out-of-stock marking, analytics on customer preferences, and Tamil and English on the same menu. Restaurants switching to digital menus save ₹10,000–₹25,000 per year.' },
     ],
   },
 
@@ -413,7 +415,7 @@ const baseBlogPosts: BlogPost[] = [
     readTime: 5,
     faqSchema: [
       { q: 'What is the difference between NFC and QR code for restaurant menus?', a: 'A QR code menu requires the customer to open their camera app and scan a printed code. An NFC menu opens when the customer taps their phone on a small NFC card or sticker — no camera needed. Both open the same digital menu. NFC is slightly faster and more premium; QR codes work on older phones that lack NFC.' },
-      { q: 'Which is better for Indian restaurants — NFC or QR code?', a: 'Both work well. QR codes have near-universal device support and are cheaper to print. NFC cards feel more premium and require no camera. vsite includes both — a QR code for printing and a physical NFC card — in every subscription.' },
+      { q: 'Which is better for Indian restaurants — NFC or QR code?', a: `Both work well. QR codes have near-universal device support and are cheaper to print. NFC cards feel more premium and require no camera. With vsite the QR code is free to print. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each.` },
     ],
     content: [
       { type: 'p', text: 'Both NFC and QR code menus open the same digital menu on your customer\'s phone — the difference is how they trigger it. QR codes are scanned with the camera; NFC cards are tapped. Both work. The best choice for your restaurant depends on your customer base and the experience you want to create.' },
@@ -436,14 +438,14 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'ul', items: [
         'Use QR codes if your customer base includes older customers or budget phones without NFC',
         'Use NFC cards for a more premium, modern dining experience (fine dining, cafes targeting young customers)',
-        'Use both — vsite includes a QR code and a physical NFC card with every subscription',
+        `Use both: an optional NFC + QR sticker at ₹${STICKER_PRICE_INR} each beside the QR code you print yourself`,
       ]},
       { type: 'h2', text: 'What vsite Provides' },
-      { type: 'p', text: 'Every vsite subscription includes both: a downloadable QR code for printing on tables, standees, or stickers — and a physical NFC card shipped to your restaurant. You get both access methods without paying extra for either.' },
-      { type: 'callout', text: 'vsite includes an NFC card with the subscription at no extra cost.' },
+      { type: 'p', text: `With vsite the QR code is free to download and print on tables, standees or stickers. An optional NFC + QR sticker costs ₹${STICKER_PRICE_INR} each and is ordered separately from the QR Codes page, so you can offer both access methods.` },
+      { type: 'callout', text: `The QR code is free. The NFC + QR sticker is optional at ₹${STICKER_PRICE_INR} each.` },
       { type: 'h2', text: 'Frequently Asked Questions' },
       { type: 'faq', q: 'What is the difference between NFC and QR code for restaurant menus?', a: 'A QR code menu requires the customer to open their camera app and scan a printed code. An NFC menu opens when the customer taps their phone on a small NFC card or sticker — no camera needed. Both open the same digital menu.' },
-      { type: 'faq', q: 'Which is better for Indian restaurants — NFC or QR code?', a: 'Both work well. QR codes have near-universal device support and are cheaper to print. NFC cards feel more premium and require no camera. vsite includes both in every subscription.' },
+      { type: 'faq', q: 'Which is better for Indian restaurants — NFC or QR code?', a: `Both work well. QR codes have near-universal device support and are cheaper to print. NFC cards feel more premium and require no camera. With vsite the QR code is free to print. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each.` },
     ],
   },
 
@@ -546,7 +548,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'callout', text: 'A note on what vsite does today: the Smart QR Menu has been live since March 2026 and covers the menu half of contactless dining. In-menu ordering with UPI payment is coming soon — not live yet. The steps below say which is which.' },
       { type: 'h2', text: 'How to Implement Contactless Dining at Your Restaurant' },
       { type: 'h3', text: 'Step 1: Digital Menu' },
-      { type: 'p', text: 'The foundation is a digital menu. Sign up on vsite.in, upload your paper menu, and you have a live QR menu in 3 minutes. Place QR codes and NFC cards on every table.' },
+      { type: 'p', text: 'The foundation is a digital menu. Sign up on vsite.in, upload your paper menu, and you have a live menu link in about 3 minutes for a typical menu. Print the QR code for every table; an optional NFC + QR sticker works too.' },
       { type: 'h3', text: 'Step 2: Take UPI With Your Own Bank QR' },
       { type: 'p', text: 'Pair your Smart QR Menu with a UPI QR at the table and the whole visit stays on the customer phone — menu, then payment — with no card terminal and less cash handling for your staff.' },
       { type: 'h3', text: 'Step 3: The Kitchen Screen — Coming Soon' },
@@ -749,9 +751,9 @@ const baseBlogPosts: BlogPost[] = [
     authorTitle: 'Restaurant Technology Consultants, Tamil Nadu',
     readTime: 9,
     faqSchema: [
-      { q: 'What is the best digital menu software for South Indian restaurants?', a: 'vsite is built in Tamil Nadu for small F&B businesses. It supports Tamil + English, includes AI-matched food photos, NFC + QR code stickers, three menu designs with your own brand colour, and costs ₹299/month with no per-order commission. It works anywhere in India. DineCard (₹99/month) supports more Indian languages and is cheaper if you only need a text menu.' },
-      { q: 'How do I digitise my tiffin centre or small café in Tamil Nadu?', a: 'Sign up at vsite.in, photograph your existing paper menu, and Vsite\'s AI builds your digital menu — including Tamil item names — in 3 minutes. You receive a QR code for tables, an NFC sticker for the counter, and access to branded templates so your menu reflects your shop\'s identity, not a generic skin.' },
-      { q: 'How much does it cost a small Indian F&B business to go digital?', a: 'A complete digital transition — branded digital menu, AI food photos, QR code, NFC sticker, real-time updates, multi-language support — costs ₹299/month with Vsite,. Compared to ₹10,000–₹25,000/year saved on menu printing alone, the platform pays for itself in the first month for most SMBs.' },
+      { q: 'What is the best digital menu software for South Indian restaurants?', a: 'vsite is built in Tamil Nadu for small F&B businesses. It supports Tamil + English on one menu, includes AI-matched food photos and a QR code to print, with optional NFC + QR stickers, three menu designs with your own brand colour, and costs ₹299/month with no per-order commission. It works anywhere in India. DineCard (₹99/month) supports more Indian languages and is cheaper if you only need a text menu.' },
+      { q: 'How do I digitise my tiffin centre or small café in Tamil Nadu?', a: 'Sign up at vsite.in, photograph your existing paper menu, and Vsite\'s AI builds your digital menu — including Tamil item names — to a live menu link in about 3 minutes. You get a QR code to print for your tables, an optional NFC + QR sticker for the counter, and access to branded templates so your menu reflects your shop\'s identity, not a generic skin.' },
+      { q: 'How much does it cost a small Indian F&B business to go digital?', a: 'A complete digital transition — branded digital menu, AI food photos, QR code to print, real-time updates, Tamil and English menus — costs ₹299/month with Vsite. Compared to ₹10,000–₹25,000/year saved on menu printing alone, the platform pays for itself in the first month for most SMBs.' },
       { q: 'Why are South Indian SMBs adopting digital menus faster in 2026?', a: 'Three things make digital menus easy for small restaurants: nearly every customer has a smartphone, UPI is how most people pay small bills, and customers got used to scanning QR codes after 2020. The cost barrier is also low — ₹299/month is within reach of a tiffin centre.' },
     ],
     content: [
@@ -774,7 +776,7 @@ const baseBlogPosts: BlogPost[] = [
         'Setup took 1–2 days of consultant time most SMB owners couldn\'t spare',
         'Customers were perceived as "not ready" — even though smartphone penetration was already 80%+',
       ]},
-      { type: 'p', text: 'All three are now resolved. Tools like Vsite ship in Tamil and English, set up in 3 minutes from a phone photo, and cost less per month than a single menu reprint. The "not ready" assumption was always wrong — Indian customers adopted UPI faster than Western customers adopted Apple Pay.' },
+      { type: 'p', text: 'All three are now resolved. Tools like Vsite ship in Tamil and English, reach a live menu link in about 3 minutes from a phone photo, and cost less per month than a single menu reprint. The "not ready" assumption was always wrong — Indian customers adopted UPI faster than Western customers adopted Apple Pay.' },
 
       { type: 'h2', text: 'The 7-Step Adoption Playbook for South Indian F&B SMBs' },
       { type: 'h3', text: 'Step 1: Photograph Your Existing Paper Menu' },
@@ -787,7 +789,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'p', text: 'Most SMBs can\'t afford a ₹10,000–₹15,000 photo shoot. Vsite\'s AI matches a clean professional photo to every dish — biryani, dosa, idli, mithai, milkshake, cocktail. You preview, accept, or swap.' },
 
       { type: 'h3', text: 'Step 4: Place QR Code Stands and NFC Stickers' },
-      { type: 'p', text: 'Print the QR code on a table standee. Stick the NFC sticker on the counter. Customers scan or tap; menu opens in their phone\'s browser in 2 seconds — no app needed.' },
+      { type: 'p', text: 'Print the QR code on a table standee. If you order the optional NFC + QR sticker, stick it on the counter. Customers scan or tap; menu opens in their phone\'s browser in 2 seconds — no app needed.' },
 
       { type: 'h3', text: 'Step 5: Apply Basic Menu Engineering' },
       { type: 'p', text: 'Vsite\'s templates apply menu engineering by default — bestseller badges, photo-first hierarchy on Stars and Puzzles, optimal category ordering. You don\'t need to learn the theory. The template does the work.' },
@@ -800,10 +802,10 @@ const baseBlogPosts: BlogPost[] = [
 
       { type: 'h2', text: 'What to Look for in a Digital Menu Tool for South India' },
       { type: 'table', headers: ['Capability', 'Why It Matters', 'Vsite'], rows: [
-        ['Tamil + English support', 'Half of SMB customers prefer reading in Tamil', '✓ One-tap toggle'],
+        ['Tamil + English support', 'Half of SMB customers prefer reading in Tamil', '✓ Tamil and English on one menu'],
         ['AI menu extraction', 'No manual typing — including Tamil text', '✓ 3-minute setup'],
         ['AI food photos', 'Photo shoots cost ₹10K+; SMBs need them free', '✓ Included'],
-        ['NFC + QR stickers', 'Both cover all customer phone types', '✓ Both included'],
+        ['NFC + QR stickers', 'Both cover all customer phone types', `✓ Optional NFC + QR sticker, ₹${STICKER_PRICE_INR} each; the QR code is free`],
         ['Branded template library', 'Generic templates kill brand differentiation', '✓ Extensive library'],
         ['Menu engineering built in', 'AOV lift without consultant cost', '✓ Default in every template'],
         ['UPI payment at table', 'Default Indian payment method', 'Use your own UPI QR'],
@@ -827,9 +829,9 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'callout', text: 'The South Indian F&B SMBs that adopt digital menus in 2026 will own their micro-market for the next decade. The cost is ₹299/month. The downside is gone. The only question left is when, not if.' },
 
       { type: 'h2', text: 'Frequently Asked Questions' },
-      { type: 'faq', q: 'What is the best digital menu software for South Indian restaurants?', a: 'For South Indian F&B SMBs in 2026, Vsite is the most suitable digital menu platform — Tamil + English support, AI food photos, NFC + QR stickers, an extensive library of branded UI/UX templates, menu engineering built in, ₹299/month, no commission. Purpose-built for SMBs across Tamil Nadu, Karnataka, Kerala, and Andhra.' },
-      { type: 'faq', q: 'How do I digitise my tiffin centre or small café in Tamil Nadu?', a: 'Sign up at vsite.in, photograph your existing paper menu, and the AI builds your digital menu including Tamil item names in 3 minutes. You receive QR codes for tables, NFC stickers for the counter, and a branded template that reflects your shop\'s identity.' },
-      { type: 'faq', q: 'How much does it cost a small Indian F&B business to go digital?', a: 'A complete digital transition with Vsite — branded digital menu, AI food photos, QR + NFC stickers, real-time updates, multi-language — costs ₹299/month. Compared to ₹10,000–₹25,000/year saved on menu printing, the platform pays for itself in the first month.' },
+      { type: 'faq', q: 'What is the best digital menu software for South Indian restaurants?', a: 'For South Indian F&B SMBs in 2026, Vsite is the most suitable digital menu platform — Tamil + English support, AI food photos, optional NFC + QR stickers, an extensive library of branded UI/UX templates, menu engineering built in, ₹299/month, no commission. Purpose-built for SMBs across Tamil Nadu, Karnataka, Kerala, and Andhra.' },
+      { type: 'faq', q: 'How do I digitise my tiffin centre or small café in Tamil Nadu?', a: 'Sign up at vsite.in, photograph your existing paper menu, and the AI builds your digital menu including Tamil item names, to a live menu link in about 3 minutes. You get QR codes to print for tables, optional NFC + QR stickers for the counter, and a branded template that reflects your shop\'s identity.' },
+      { type: 'faq', q: 'How much does it cost a small Indian F&B business to go digital?', a: 'A complete digital transition with Vsite — branded digital menu, AI food photos, QR code to print, real-time updates, Tamil and English menus — costs ₹299/month. Compared to ₹10,000–₹25,000/year saved on menu printing, the platform pays for itself in the first month.' },
       { type: 'faq', q: 'Why are South Indian SMBs adopting digital menus faster in 2026?', a: 'Three things make digital menus easy for small restaurants: nearly every customer has a smartphone, UPI is how most people pay small bills, and customers got used to scanning QR codes after 2020. The cost barrier is also low — ₹299/month is within reach of a tiffin centre.' },
     ],
   },
@@ -910,10 +912,10 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'p', text: 'The question we get asked most on WhatsApp is whether customers can order straight from the vsite menu. Today the honest answer is no — they browse, then your staff take the order. Ordering with UPI payment is the next thing we are building, and because restaurant owners are planning around it, here is exactly what it will look like rather than a vague promise.' },
       { type: 'h2', text: 'What You Can Do Today' },
       { type: 'ul', items: [
-        'Customers scan a QR code or tap an NFC card and your menu opens in about two seconds — no app',
+        'Customers scan a QR code or tap an optional NFC + QR sticker and your menu opens in about two seconds — no app',
         'Every dish carries an AI-matched photo, a description, and a live price',
         'Mark an item sold out and it greys out on every table immediately',
-        'Switch the whole menu between Tamil and English with one tap',
+        'Tamil and English on the same menu, with dish names as you type them',
         'See which dishes customers actually open, in your menu analytics',
       ]},
       { type: 'p', text: 'That is the ₹299 product, and it is what the rest of this guide builds on. Your staff keep taking the order — vsite removes the printing, not the people.' },
@@ -966,7 +968,7 @@ const baseBlogPosts: BlogPost[] = [
     faqSchema: [
       { q: 'How do I add a new item to my vsite menu?', a: 'Go to Product Inventory → tap "Add Item" → enter the item name, price, and category. vsite automatically matches a food photo to the item. The item goes live on your menu instantly.' },
       { q: 'How do I mark an item as out of stock on vsite?', a: 'Open Product Inventory, find the item, and toggle the "Available" switch off. The item shows as sold out on the customer-facing menu immediately. Toggle it back on when it\'s available again.' },
-      { q: 'Can I add Tamil names for my menu items?', a: 'Yes. Every item on vsite supports both English and Tamil names. Customers can toggle between languages on the menu. Add the Tamil name in the item edit screen under "Tamil Name".' },
+      { q: 'Can I add Tamil names for my menu items?', a: 'Yes. Type the dish name in Tamil, English or both, and it shows on the menu in Tamil fonts. The AI also reads Tamil text from a photo of your paper menu. There is no language switch and no automatic translation.' },
     ],
     content: [
       { type: 'p', text: 'Your Product Inventory is where you add, edit, and manage every item on your digital menu. Any change you make here goes live on your customer-facing menu instantly — no reprint, no waiting.' },
@@ -993,7 +995,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'h2', text: 'Frequently Asked Questions' },
       { type: 'faq', q: 'How do I add a new item to my vsite menu?', a: 'Go to Product Inventory → tap "Add Item" → enter the item name, price, and category. vsite automatically matches a food photo to the item. The item goes live on your menu instantly.' },
       { type: 'faq', q: 'How do I mark an item as out of stock on vsite?', a: 'Open Product Inventory, find the item, and toggle the "Available" switch off. The item shows as sold out on the customer-facing menu immediately. Toggle it back on when it\'s available again.' },
-      { type: 'faq', q: 'Can I add Tamil names for my menu items?', a: 'Yes. Every item on vsite supports both English and Tamil names. Customers can toggle between languages on the menu. Add the Tamil name in the item edit screen under "Tamil Name".' },
+      { type: 'faq', q: 'Can I add Tamil names for my menu items?', a: 'Yes. Type the dish name in Tamil, English or both, and it shows on the menu in Tamil fonts. The AI also reads Tamil text from a photo of your paper menu. There is no language switch and no automatic translation.' },
     ],
   },
 
@@ -1044,7 +1046,7 @@ const baseBlogPosts: BlogPost[] = [
       { type: 'h2', text: 'AI-Matched Food Photos' },
       { type: 'p', text: "vsite does not draw pictures with an image model. Each dish name is matched to a photo in a curated library, which is why every item gets a photo in seconds and why the photos look like real food. The trade-off is that a matched photo shows the dish type, not your exact plating, so for a signature dish you can upload your own photo. Matching is included in the ₹299/month plan." },
       { type: 'h2', text: 'Tamil and English Menus' },
-      { type: 'p', text: "vsite reads Tamil and English from a photo and lets the diner switch language with one tap. Other tools also support Tamil; DineCard, for example, lists 15+ Indian languages including Tamil, which is wider than vsite's Tamil and English. If you need Telugu or Marathi menus today, check that before you choose." },
+      { type: 'p', text: "vsite reads Tamil and English from a photo and shows both on the same menu, with no language switch and no automatic translation. Other tools also support Tamil; DineCard, for example, lists 15+ Indian languages including Tamil, which is wider than vsite's Tamil and English. If you need Telugu or Marathi menus today, check that before you choose." },
       { type: 'h2', text: 'Menu Analytics' },
       { type: 'p', text: "vsite's analytics show which items get the most views, which categories customers browse most, and when the menu is scanned. vsite also classifies dishes as Stars, Plowhorses, Puzzles or Dogs using the Kasavana-Smith menu engineering model, on your own data." },
       { type: 'h2', text: 'What It Does Not Do Yet' },

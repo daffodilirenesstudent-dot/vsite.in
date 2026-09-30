@@ -99,7 +99,7 @@ export default function FooterCTA() {
 
                     <p className="mt-6 text-[15px] text-on-night-45">
                         Serving Tamil Nadu since {PROOF_STATS.liveSince}. Menus in {PROOF_STATS.languages},
-                        live in {PROOF_STATS.setupMinutes} minutes.
+                        a live menu link in about {PROOF_STATS.setupMinutes} minutes.
                     </p>
                 </Reveal>
             </section>

@@ -74,7 +74,7 @@ const CORE_CITY_PAGES: CityPage[] = [
             'Chennai diners read English comfortably but often speak Tamil, and office groups and visiting relatives are mixed. A menu that shows both names lets the younger diner read in English and the grandparent read in Tamil from the same QR.',
         localFaq: {
             q: 'Do Chennai restaurants need a Tamil menu if most customers read English?',
-            a: 'Most Chennai restaurants serve both kinds of reader. Tamil costs nothing extra on vsite because each dish holds both names and the diner switches with one tap. It matters most for the customers least likely to ask for help reading the menu.',
+            a: 'Most Chennai restaurants serve both kinds of reader. Tamil costs nothing extra on vsite because you can type each dish name in Tamil, English or both on the same menu. It matters most for the customers least likely to ask for help reading the menu.',
         },
         extraFaqs: [
             {
@@ -134,7 +134,7 @@ const CORE_CITY_PAGES: CityPage[] = [
         scenario:
             'A hotel-restaurant near the temple area runs three services: early tiffin, a meals lunch and a late-night parotta counter. Set up one category per service and mark breakfast items sold out after the morning rush. Visiting families scanning at the table see what is on now rather than the whole day\'s list.',
         languageNote:
-            'Madurai locals read Tamil, while visitors from other states and abroad usually need English. Because each dish holds both names and a photo, a family unfamiliar with kari dosai can work out what it is without staff explaining it.',
+            'Madurai locals read Tamil, while visitors from other states and abroad usually need English. Because each dish can carry both names and a photo, a family unfamiliar with kari dosai can work out what it is without staff explaining it.',
         localFaq: {
             q: 'My mess has no printed menu at all, only a board. Is vsite still useful?',
             a: 'Especially then. Photograph the board and vsite reads it into a digital menu with prices. You add photos matched from a curated library, and you change the board and the menu from the same phone.',
@@ -197,7 +197,7 @@ const CORE_CITY_PAGES: CityPage[] = [
         scenario:
             'A Fairlands mutton hotel with loyal regulars adds a "today" category at the top for the day\'s specials and marks the first dish to run out as sold out by mid-afternoon. Regulars see the change on the same QR they already scanned, and nobody has to ask the waiter what is left.',
         languageNote:
-            'Most Salem diners are comfortable in Tamil first. Showing Tamil dish names by default suits them, with English one tap away for the occasional visitor or younger family member.',
+            'Most Salem diners are comfortable in Tamil first. Tamil dish names suit them, and adding the English name beside each one helps the occasional visitor or younger family member.',
         localFaq: {
             q: 'My customers are regulars who know the menu. What does a digital menu add in Salem?',
             a: 'Two things regulars actually use: seeing immediately what is sold out today, and seeing the specials you have added. Both change daily, and both are invisible on a printed card.',
@@ -259,7 +259,7 @@ const CORE_CITY_PAGES: CityPage[] = [
         scenario:
             'A meals hotel near Brough Road has a fixed lunch, so the menu is short: the meals types, a few sides, and a non-veg list. Put the lunch set at the top as a single item, with extras below. A trader scanning at the table sees the price and the day\'s sold-out items in one screen.',
         languageNote:
-            'Most diners here read Tamil, so a menu that defaults to Tamil is the natural choice. English stays one tap away for visiting suppliers and highway travellers who stop to eat.',
+            'Most diners here read Tamil, so Tamil dish names are the natural choice. Adding English beside them helps visiting suppliers and highway travellers who stop to eat.',
         localFaq: {
             q: 'Will the menu work well on an ordinary phone and slow data in Erode?',
             a: 'The menu is an ordinary web page with no app to install, built to be light. Speed still depends on the phone and the network signal, so test it on a mid-range phone in your own dining room during the free trial.',
@@ -353,7 +353,7 @@ const CORE_CITY_PAGES: CityPage[] = [
         scenario:
             'A hotel-restaurant near the temple that gets tour groups puts its signature meals at the top, each with a photo and a one-line description in English. A group leader scans once and shares the link with the whole party, who all read the same menu on their own phones.',
         languageNote:
-            'Thanjavur visitors include Tamil-speaking families on temple trips and out-of-state and international tourists. A Tamil view for the former and an English view for the latter come from the same QR code.',
+            'Thanjavur visitors include Tamil-speaking families on temple trips and out-of-state and international tourists. Tamil and English names can sit together on the same menu and the same QR code, so both groups read it.',
         localFaq: {
             q: 'Most of my customers are tourists eating here once. What should my Thanjavur menu show?',
             a: 'Photos and clear descriptions of your signature dishes, placed first. vsite matches a photo from a curated library to each dish and lets you choose what sits at the top, so a first-time visitor sees your best items before the long list.',

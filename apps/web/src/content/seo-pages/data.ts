@@ -1,4 +1,5 @@
 import type { SeoLandingData } from '@/components/home/SeoLanding';
+import { STICKER_PRICE_INR } from '@/content/facts';
 
 // All SEO landing pages share the same component but carry different copy
 // and schema. Keeping data centralised lets us cross-link them trivially.
@@ -7,17 +8,17 @@ export const qrMenuPage: SeoLandingData = {
     slug: 'qr-menu',
     h1: 'QR Code Menu for Restaurants in India',
     subtitle:
-        'Give every table a QR code that opens your menu in 2 seconds — no app download, no waiter needed, no printing cost. Live in 3 minutes with vsite.',
+        'Give every table a QR code that opens your menu in 2 seconds — no app download, no waiter needed, no printing cost. A live menu link in about 3 minutes with vsite.',
     features: [
         { icon: 'qr_code_2', title: 'Unique QR Per Table', description: 'Each table gets its own QR code, so you always know which table a scan came from. Orders still go through your staff — in-menu ordering is coming soon.' },
         { icon: 'bolt', title: 'Opens in 2 Seconds', description: 'Customers scan with the native camera app. Your menu loads instantly — no app download required.' },
         { icon: 'edit', title: 'Real-Time Menu Edits', description: 'Change prices, mark items out of stock, add daily specials from your phone. No reprinting ever.' },
-        { icon: 'translate', title: 'Tamil + English', description: 'Customers toggle between languages with one tap. Built for South Indian restaurants.' },
+        { icon: 'translate', title: 'Tamil + English', description: 'Dish names in Tamil, English or both on the same menu, in proper Tamil fonts. Built for South Indian restaurants.' },
         { icon: 'image', title: 'AI Food Photos', description: 'Every item gets an AI-matched food photo from a curated library — no photographer, no shoot. Swap in your own photo any time.' },
         { icon: 'payments', title: 'UPI Payment — Coming Soon', description: 'Paying inside the menu via PhonePe/GPay/Paytm is not live yet. Today, pair vsite with your own UPI QR — zero commission either way.' },
     ],
     content: [
-        { type: 'p', text: 'A QR code menu lets your customers scan a printed code on the table and instantly view your restaurant\'s full menu on their own phone. With vsite, you get a unique QR code per table, AI-matched food photos for every item, and Tamil-language support — all live in under 3 minutes.' },
+        { type: 'p', text: 'A QR code menu lets your customers scan a printed code on the table and instantly view your restaurant\'s full menu on their own phone. With vsite, you get a unique QR code per table, AI-matched food photos for every item, and Tamil-language support — a live menu link in about 3 minutes for a typical menu.' },
         { type: 'h2', text: 'Why Every Indian Restaurant Needs a QR Menu in 2026' },
         { type: 'p', text: 'QR menus have become common in Indian restaurants since 2020. The reasons are practical: a price change no longer means a reprint, menus with photos are easier for customers to choose from, and for the customer it is faster, cleaner, and needs no app download. A paper menu set typically costs ₹500–₹2,000 to reprint, and many restaurants reprint a few times a year.' },
         { type: 'h2', text: 'How a QR Code Menu Works with vsite' },
@@ -25,15 +26,15 @@ export const qrMenuPage: SeoLandingData = {
             'You photograph your paper menu and upload it to vsite',
             'Our AI reads every item, price, and category — including Tamil text',
             'AI matches a food photo from a curated library to each dish',
-            'You get a QR code for each table plus an NFC card',
+            `You get a QR code to print for each table, free. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each`,
             'Customers scan → menu opens → they choose → your staff take the order (in-menu ordering coming soon)',
         ]},
         { type: 'h2', text: 'What Makes vsite\'s QR Menu Different' },
         { type: 'table', headers: ['Feature', 'vsite', 'Typical QR Menu Tool'], rows: [
-            ['Setup time', '3 minutes', '1–2 days'],
+            ['Time to a live menu link', 'About 3 minutes for a typical menu', '1–2 days'],
             ['AI-matched food photos', 'Included', 'Left to the restaurant'],
-            ['Tamil language', 'Built-in toggle', 'Varies by tool'],
-            ['NFC card included', 'Yes', 'Varies'],
+            ['Tamil language', 'Tamil and English on the same menu', 'Varies by tool'],
+            ['NFC + QR sticker', `Optional, ₹${STICKER_PRICE_INR} each`, 'Varies'],
             ['Monthly cost', '₹299 flat', 'DineCard ₹99, Menulite from ₹799 (annual), MenuScan from ₹250'],
             ['Per-order commission', 'None', 'None on these three; some aggregators charge one'],
         ]},
@@ -49,9 +50,9 @@ export const qrMenuPage: SeoLandingData = {
         { label: 'NFC vs QR Code Menus →', href: '/blog/nfc-vs-qr-code-restaurant-menus' },
     ],
     faqs: [
-        { q: 'How do I create a QR code menu for my restaurant?', a: 'Sign up on vsite.in, upload a photo of your paper menu, and vsite\'s AI builds your digital menu with food photos automatically. You get a QR code and NFC card to display on your tables. The entire process takes under 3 minutes.' },
+        { q: 'How do I create a QR code menu for my restaurant?', a: `Sign up on vsite.in, upload a photo of your paper menu, and vsite's AI builds your digital menu with food photos automatically. You get a QR code to print and display on your tables, free. Getting to a live menu link takes about 3 minutes for a typical menu; a complete setup with the QR poster takes about 10 to 15 minutes. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each.` },
         { q: 'Do customers need to download an app to scan a QR menu?', a: 'No. Customers use their phone\'s native camera app to scan the QR code. The menu opens in their browser within 2–3 seconds. No app download, no signup, no friction.' },
-        { q: 'How much does a QR code menu cost in India?', a: 'vsite\'s QR Menu plan costs ₹299/month with no setup fee. This includes AI-matched food photos, unlimited menu updates, an NFC card, and WhatsApp support. DineCard is cheaper at ₹99/month, and MenuScan\'s published tiers run ₹250–₹750/month. Neither lists matched food photos or menu engineering in its own feature list. If you only need your text menu online, DineCard is worth a look.' },
+        { q: 'How much does a QR code menu cost in India?', a: 'vsite\'s QR Menu plan costs ₹299/month with no setup fee. This includes AI-matched food photos, unlimited menu updates, a free QR code to print, and WhatsApp support. The optional NFC + QR sticker is extra. DineCard is cheaper at ₹99/month, and MenuScan\'s published tiers run ₹250–₹750/month. Neither lists matched food photos or menu engineering in its own feature list. If you only need your text menu online, DineCard is worth a look.' },
         { q: 'Can I have a unique QR code for each table?', a: 'Yes. vsite generates a unique QR code per table, so a scan always tells you which table it came from. Your staff still take the order today — in-menu ordering with UPI payment is coming soon.' },
         { q: 'Does the QR menu work without internet on the customer\'s side?', a: 'Customers need mobile data or Wi-Fi to open the menu the first time. Once loaded, the menu runs entirely in their browser and works even on slow 4G connections.' },
     ],
@@ -65,7 +66,7 @@ export const digitalMenuIndiaPage: SeoLandingData = {
     features: [
         { icon: 'smartphone', title: 'Works on Every Phone', description: 'Opens in any smartphone browser — Android, iPhone, even basic 4G phones.' },
         { icon: 'autorenew', title: 'Update Anytime', description: 'Change prices, add specials, mark out-of-stock items in real time from your phone.' },
-        { icon: 'language', title: 'Tamil + English', description: 'Serve Tamil-speaking and English-speaking customers from the same menu with one tap.' },
+        { icon: 'language', title: 'Tamil + English', description: 'Serve Tamil-speaking and English-speaking customers from the same menu: dish names in Tamil, English or both.' },
         { icon: 'insights', title: 'Built-In Analytics', description: 'See which dishes get the most views, your busiest times, and top-selling categories.' },
         { icon: 'receipt_long', title: 'Zero Commission', description: 'Unlike Zomato or Swiggy, you keep 100% of every order. No middleman fees.' },
         { icon: 'support_agent', title: 'WhatsApp Support', description: 'Real humans on WhatsApp respond within 2 hours. No chatbots, no ticket queues.' },
@@ -112,7 +113,7 @@ export const digitalMenuIndiaPage: SeoLandingData = {
         { q: 'Which is the best digital menu software for restaurants in India?', a: 'It depends on what you need. vsite suits restaurants that want a photo on every dish and Tamil + English menus: ₹299/month, AI-matched food photos, live in minutes. DineCard is cheaper (₹99/month) for a text-only menu, and MenuScan takes orders today. See our comparison page for the figures.' },
         { q: 'How much does a digital menu cost in India?', a: 'Published prices range from ₹99/month (DineCard) to about ₹1,400–1,500/month (Menulite Pro, which includes ordering). vsite\'s Smart QR Menu is ₹299/month flat with no setup fee and no commission.' },
         { q: 'Can I accept online orders through a digital menu?', a: 'Not today. vsite focuses on the menu itself — customers browse photos, prices and live availability on their phone, then order with your staff. There is no commission, because vsite never sits between you and the payment.' },
-        { q: 'Does a digital menu work in Tamil?', a: 'vsite supports Tamil and English menus with a one-tap toggle. You can run your menu in Tamil, English, or both. Other tools, such as DineCard, also support Tamil.' },
+        { q: 'Does a digital menu work in Tamil?', a: 'vsite supports Tamil and English on the same menu. Type dish names in Tamil, English or both and they show in proper Tamil fonts; the AI reads Tamil and English text from your paper menu. There is no language switch and no automatic translation. Other tools, such as DineCard, also support Tamil.' },
     ],
 };
 
@@ -124,7 +125,7 @@ export const aiMenuBuilderPage: SeoLandingData = {
     features: [
         { icon: 'auto_awesome', title: 'AI Menu Extraction', description: 'Photograph your paper menu. AI reads item names, prices, and categories — including Tamil text.' },
         { icon: 'photo_camera', title: 'AI-Matched Food Photos', description: 'Every item is matched to a professional food photo from a curated library. No shoot, no photographer.' },
-        { icon: 'schedule', title: '3-Minute Setup', description: 'From uploading your paper menu to a live QR code — under 3 minutes end to end.' },
+        { icon: 'schedule', title: 'About 3 Minutes to a Live Menu', description: 'Sign up, add a photo of your paper menu, let the AI read it and launch: about 3 minutes to a live menu link for a typical menu.' },
         { icon: 'translate', title: 'Tamil OCR', description: 'The AI reads Tamil script and mixed Tamil-English menus.' },
         { icon: 'edit', title: 'Edit Anything After', description: 'AI gets you 90% of the way. Fine-tune prices, swap photos, re-categorise in the dashboard.' },
         { icon: 'shield', title: 'Your Data, Your Menu', description: 'We don\'t share menus with anyone. Your restaurant data belongs only to you.' },
@@ -141,7 +142,7 @@ export const aiMenuBuilderPage: SeoLandingData = {
         ]},
         { type: 'h2', text: 'Why Use AI Instead of Manual Entry' },
         { type: 'ul', items: [
-            'Speed — 3 minutes vs 2+ hours typing item by item',
+            'Speed — about 3 minutes to a live menu link vs 2+ hours typing item by item',
             'Accuracy — AI rarely mistypes prices; humans do frequently',
             'Tamil support — the AI reads Tamil script as well as English',
             'Food photos — matching is included in the plan; a photo shoot typically costs ₹5,000–₹15,000',
@@ -159,7 +160,7 @@ export const aiMenuBuilderPage: SeoLandingData = {
     ],
     faqs: [
         { q: 'How does an AI menu builder work?', a: 'You upload a photo of your paper menu. The AI uses OCR to read every item, price, and category — including Tamil text. It then matches each dish to a professional food photo and publishes your full digital menu automatically. The process takes under 3 minutes with vsite.' },
-        { q: 'Can the AI read handwritten menus?', a: 'The AI works best on printed menus. Handwritten menus can be read but may require manual correction. For best results, use a clear printed menu photo taken in good lighting.' },
+        { q: 'Can the AI read handwritten menus?', a: 'Printed menus give the best results. Handwritten pages are accepted, but check the result carefully and expect to correct names and prices by hand. Use a clear photo taken in good lighting.' },
         { q: 'Does it work for Tamil-language menus?', a: 'Yes. vsite\'s AI reads Tamil script. Mixed Tamil-English menus are also supported — common in Chennai, Coimbatore, and Madurai restaurants.' },
         { q: 'What if the AI gets something wrong?', a: 'You can edit anything in the dashboard after setup — prices, names, categories, photos. Most restaurants find the AI gets 90% right and they tweak the remaining 10% in a few minutes.' },
     ],
@@ -174,13 +175,13 @@ export const cafeMenuPage: SeoLandingData = {
     slug: 'cafe-menu-software',
     h1: 'Digital Menu Software for Cafés in India',
     subtitle:
-        'Beautiful QR-code menus for cafés — coffee, pastries, all-day dining. AI food photos, real-time edits, Tamil + English. Live in 3 minutes.',
+        'Beautiful QR-code menus for cafés — coffee, pastries, all-day dining. AI food photos, real-time edits, Tamil + English. A live menu link in about 3 minutes.',
     features: [
         { icon: 'local_cafe', title: 'Café-Ready Categories', description: 'Coffee, tea, breakfast, brunch, all-day dining — vsite\'s menu structure fits café flow naturally.' },
         { icon: 'photo_camera', title: 'Aesthetic Food Photos', description: 'AI matches clean food and drink photos from a curated library to every item — no photographer needed.' },
         { icon: 'autorenew', title: 'Daily Specials in Real-Time', description: 'Add today\'s pour-over, weekend brunch, or seasonal lattes from your phone in seconds.' },
         { icon: 'qr_code_2', title: 'Per-Table QR Codes', description: 'A unique QR for every table — customers see the menu instantly, no app and no waiting for a printed card.' },
-        { icon: 'translate', title: 'Tamil + English', description: 'Toggle for both your local regulars and tourist customers. One tap.' },
+        { icon: 'translate', title: 'Tamil + English', description: 'Tamil and English on the same menu, for both your local regulars and tourist customers.' },
         { icon: 'payments', title: 'UPI Pay at Table — Coming Soon', description: 'Settling the bill inside the menu is not live yet. Until it is, display your own UPI QR — PhonePe, GPay and Paytm all work, with no commission.' },
     ],
     content: [
@@ -193,12 +194,12 @@ export const cafeMenuPage: SeoLandingData = {
             'Café customers expect tech — they\'ll judge your brand by your menu experience',
             'Hygiene matters in social settings — no more shared laminated menus',
         ]},
-        { type: 'h2', text: 'Café Menu Setup in 3 Minutes' },
+        { type: 'h2', text: 'Café Menu Setup: About 3 Minutes to a Live Menu' },
         { type: 'ol', items: [
             'Photograph your existing menu (or list items if you don\'t have one yet)',
             'AI extracts every coffee, tea, food item, and price',
             'AI matches a polished food photo to each item',
-            'Place QR code stands on tables and the NFC card at the counter',
+            'Place QR code stands on tables (an optional NFC + QR sticker works at the counter)',
             'You\'re live — your menu is on every table today',
         ]},
         { type: 'h2', text: 'vsite vs Generic Café Menu Tools' },
@@ -208,7 +209,7 @@ export const cafeMenuPage: SeoLandingData = {
             ['Per-table QR', 'Yes', 'Varies'],
             ['Setup', 'Minutes, from a photo of your menu', 'Varies'],
             ['Monthly cost', '₹299 flat', 'From ₹99 (DineCard) to ₹1,499 (Menulite Pro)'],
-            ['NFC card', 'Included', 'Varies'],
+            ['NFC + QR sticker', `Optional, ₹${STICKER_PRICE_INR} each`, 'Varies'],
         ]},
         { type: 'callout', text: 'Whether you run a single boutique café in Coimbatore or a 10-outlet chain, vsite can put a photo-rich, bilingual café menu live from a photo of your paper menu.' },
     ],
@@ -222,7 +223,7 @@ export const cafeMenuPage: SeoLandingData = {
     ],
     faqs: [
         { q: 'What is the best digital menu software for cafés in India?', a: 'vsite suits cafés that want a photo on every item and Tamil + English menus: ₹299/month flat, AI-matched food photos, live in minutes. If you only need a text menu online, DineCard is cheaper at ₹99/month.' },
-        { q: 'How much does a café digital menu cost?', a: 'vsite costs ₹299/month with no setup fee. This includes AI-matched photos, QR codes for every table, an NFC card, unlimited menu updates, and WhatsApp support. There is no per-order commission.' },
+        { q: 'How much does a café digital menu cost?', a: 'vsite costs ₹299/month with no setup fee. This includes AI-matched photos, QR codes to print for every table, unlimited menu updates, and WhatsApp support. The optional NFC + QR sticker is extra. There is no per-order commission.' },
         { q: 'Can I add daily specials to my café menu?', a: 'Yes. Add or remove daily specials from your phone in seconds. Customers see the update instantly on their next scan. No reprinting, no waiting.' },
         { q: 'Do customers need an app to see my café menu?', a: 'No. They scan the QR code with the phone camera and the menu opens in the browser within 2 seconds — no download, no signup. They order with your staff; in-menu ordering with UPI payment is coming soon.' },
     ],
@@ -235,7 +236,7 @@ export const cloudKitchenPage: SeoLandingData = {
         'Run your cloud kitchen from a phone. A branded digital menu, a shareable QR and WhatsApp link, and zero commission to aggregators. In-menu ordering with UPI payment is coming soon.',
     features: [
         { icon: 'kitchen', title: 'Your Own Menu Link', description: 'Share one branded link via WhatsApp, Instagram or stickers, so customers reach you without an aggregator in between. They order over WhatsApp or a call today; ordering inside the menu is coming soon.' },
-        { icon: 'restaurant_menu', title: 'AI Menu Generation', description: 'Upload your menu photo. AI builds your full digital menu with photos in 3 minutes.' },
+        { icon: 'restaurant_menu', title: 'AI Menu Generation', description: 'Upload your menu photo. AI builds your digital menu with matched photos: about 3 minutes to a live menu link for a typical menu.' },
         { icon: 'qr_code_2', title: 'QR Codes for Stickers', description: 'Print QR codes on delivery boxes, leaflets, and sticker drops. Repeat orders go to you, not aggregators.' },
         { icon: 'payments', title: 'UPI Straight to You', description: 'Customers pay your own UPI ID, so money lands in your account with no commission and no payout delay. UPI inside the menu is coming soon.' },
         { icon: 'speed', title: 'Live Kitchen Dashboard — Coming Soon', description: 'When ordering launches, orders will appear on any phone or tablet in your kitchen: Preparing → Ready → Out for delivery. Not live yet.' },
@@ -254,7 +255,7 @@ export const cloudKitchenPage: SeoLandingData = {
         { type: 'h2', text: 'How vsite Works for Cloud Kitchens' },
         { type: 'ol', items: [
             'Sign up — your cloud kitchen brand gets a unique URL like vsite.in/shop/your-brand',
-            'AI builds your digital menu from a photo in 3 minutes',
+            'AI builds your digital menu from a photo: about 3 minutes to a live menu link',
             'Print QR codes on packaging, leaflets, sticker drops, and Instagram bios',
             'Customers scan → browse your menu → order by WhatsApp or phone (in-menu ordering and UPI payment coming soon)',
             'You fulfil and deliver. Zero commission. Customer is yours forever.',
@@ -265,7 +266,7 @@ export const cloudKitchenPage: SeoLandingData = {
             ['Monthly platform fee', '₹0 (taken from orders)', '₹299 / month flat'],
             ['Customer data ownership', 'Aggregator', 'You'],
             ['Repeat-order marketing', 'Not possible', 'WhatsApp / SMS direct'],
-            ['Setup time', 'Weeks', '3 minutes'],
+            ['Time to a live menu link', 'Weeks', 'About 3 minutes for a typical menu'],
         ]},
         { type: 'callout', text: 'For a cloud kitchen doing ₹1 lakh/month in orders, if 30% of those orders came direct instead of through an aggregator charging 18–30%, the commission avoided would be roughly ₹5,400–₹9,000/month (illustrative arithmetic, not a guarantee).' },
     ],
@@ -478,14 +479,14 @@ export const onlineMenuMakerPage: SeoLandingData = {
     slug: 'online-menu-maker',
     h1: 'Online Menu Maker for Restaurants & Cafés',
     subtitle:
-        'Build your full digital menu online in 3 minutes. Upload a paper menu photo and the AI builds your items, prices, photos and layout. Then publish a live QR-ready menu.',
+        'Build your digital menu online: about 3 minutes to a live menu link for a typical menu. Upload a paper menu photo and the AI builds your items, prices, photos and layout. Then publish a live QR-ready menu.',
     features: [
         { icon: 'auto_awesome', title: 'AI Menu Builder', description: 'Photograph your paper menu — AI extracts every item and price automatically.' },
         { icon: 'image', title: 'Photos for Every Item', description: 'AI matches a professional food photo to every dish on your menu.' },
         { icon: 'palette', title: 'Branded Design', description: 'Your menu uses your shop name, logo, and colours — fully branded.' },
         { icon: 'qr_code_2', title: 'Publish + QR Code', description: 'One click to publish. You get a unique URL and a QR code instantly.' },
         { icon: 'edit', title: 'Edit Anything Live', description: 'Update any item, price, or photo at any time. Changes go live in real time.' },
-        { icon: 'language', title: 'Multi-Language', description: 'Toggle between Tamil and English. One menu, two language modes.' },
+        { icon: 'language', title: 'Tamil and English', description: 'One menu that shows Tamil and English together, as you type the dish names. No automatic translation.' },
     ],
     content: [
         { type: 'p', text: 'An online menu maker is a tool that lets you build your restaurant or café menu on the web and publish it as a live, shareable, QR-scannable digital menu. vsite is an AI-powered online menu maker: upload a photo of your paper menu and the AI builds your full digital menu with matched food photos in minutes.' },
@@ -499,7 +500,7 @@ export const onlineMenuMakerPage: SeoLandingData = {
             'You get a live URL and a printable QR code for your tables',
         ]},
         { type: 'h2', text: 'Free vs Paid Online Menu Makers' },
-        { type: 'p', text: 'Many "free" online menu makers exist but they can limit food photos, branding or ongoing menu updates. vsite includes everything in its 7-day free trial — AI photos, live menu updates, NFC card — and the full plan is ₹299/month after.' },
+        { type: 'p', text: 'Many "free" online menu makers exist but they can limit food photos, branding or ongoing menu updates. vsite includes everything in its 7-day free trial — AI photos, live menu updates, a QR code to print — and the full plan is ₹299/month after.' },
         { type: 'callout', text: 'Other tools, such as DineCard, also read a photographed menu; vsite adds matched food photos and Tamil + English menus on top.' },
     ],
     relatedLinks: [
@@ -527,7 +528,7 @@ export const contactlessMenuPage: SeoLandingData = {
         { icon: 'sanitizer', title: 'Hygienic by Design', description: 'No shared physical menu — customers use only their own phone.' },
         { icon: 'speed', title: '2-Second Load', description: 'The menu page loads in 2–3 seconds even on slow 4G connections.' },
         { icon: 'translate', title: 'Multi-Language', description: 'Tamil + English toggle for South Indian customers.' },
-        { icon: 'qr_code_2', title: 'QR or NFC', description: 'Customers scan a QR code OR tap their phone on an NFC card. Choose either or both.' },
+        { icon: 'qr_code_2', title: 'QR or NFC', description: `Customers scan the QR code, or tap an optional NFC + QR sticker (₹${STICKER_PRICE_INR} each). The QR code itself is free. Choose either or both.` },
     ],
     content: [
         { type: 'p', text: 'A contactless menu is a digital menu that customers view on their own smartphone — typically by scanning a QR code on the table — without needing to download an app or touch a shared physical menu. vsite\'s contactless menu loads in 2 seconds, works on every smartphone, and supports Tamil + English.' },
@@ -541,7 +542,7 @@ export const contactlessMenuPage: SeoLandingData = {
         ]},
         { type: 'h2', text: 'How a No-App Contactless Menu Works' },
         { type: 'ol', items: [
-            'You print a QR code on your table standee or NFC card',
+            'You print the QR code on a table standee, or order an optional NFC + QR sticker',
             'Customer scans with their phone\'s native camera (no app needed)',
             'Phone shows a notification — customer taps to open',
             'Menu loads in their browser within 2 seconds',
@@ -557,7 +558,7 @@ export const contactlessMenuPage: SeoLandingData = {
         { label: 'Pricing →', href: '/pricing' },
     ],
     faqs: [
-        { q: 'What is a contactless menu?', a: 'A contactless menu is a digital menu that customers view on their own smartphone by scanning a QR code or tapping an NFC card on the table. There is no shared physical menu and no app download required — it opens in any phone\'s default browser within 2 seconds.' },
+        { q: 'What is a contactless menu?', a: 'A contactless menu is a digital menu that customers view on their own smartphone by scanning a QR code or tapping an NFC sticker on the table. There is no shared physical menu and no app download required — it opens in any phone\'s default browser within 2 seconds.' },
         { q: 'Do customers need an app to use a contactless menu?', a: 'No. With vsite, the menu opens directly in the customer\'s phone browser. No app download, no signup, no login. This is the entire point of a contactless menu — frictionless access for every customer.' },
         { q: 'Does a contactless menu work on every smartphone?', a: 'Yes. The menu is a standard web page that loads on Android, iPhone, and even basic 4G feature phones with a camera. It works in any country, any browser, any phone manufactured in the last 5+ years.' },
     ],
@@ -656,7 +657,7 @@ export const restaurantMenuSoftwarePage: SeoLandingData = {
     ],
     faqs: [
         { q: 'What is restaurant menu software?', a: 'Restaurant menu software lets you create, publish, and manage your restaurant\'s menu digitally. Modern options like vsite generate a QR code that customers scan to view the menu on their phone, with features like food photos and real-time price updates. Ordering inside the menu is not live on vsite yet — it is coming soon.' },
-        { q: 'How much does restaurant menu software cost in India?', a: 'Published prices for menu tools run from ₹99/month (DineCard) to ₹1,499/month (Menulite Pro), and full POS systems cost more. vsite costs ₹299/month with no setup fee, including AI-matched food photos, QR codes, NFC cards, and Tamil support.' },
+        { q: 'How much does restaurant menu software cost in India?', a: 'Published prices for menu tools run from ₹99/month (DineCard) to ₹1,499/month (Menulite Pro), and full POS systems cost more. vsite costs ₹299/month with no setup fee, including AI-matched food photos, QR codes to print, and Tamil and English menus. NFC + QR stickers are optional extras.' },
         { q: 'Do I need a POS machine to use vsite?', a: 'No, and you never will. vsite runs entirely from your phone or browser: customers read the menu on their own phone and order with your staff. No POS terminal, no card reader, no extra hardware. When in-menu ordering with UPI payment launches — coming soon — it will run in the browser too.' },
         { q: 'Can I run multiple restaurants from one account?', a: 'Yes. vsite supports multiple stores under one login. Each store gets its own URL, QR code, and menu. You switch between stores in the dashboard.' },
         { q: 'Is there a free trial?', a: 'Yes. vsite offers a 7-day free trial with no credit card required. You can set up your full digital menu and test it with customers before paying anything.' },
