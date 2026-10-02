@@ -46,7 +46,8 @@ stale, so switching on late does not blast old messages.
 
 ## 3. Supabase: apply migrations and the Vault secret
 
-1. Apply `apps/web/supabase/migrations/062_notification_outbox.sql`.
+1. Apply `apps/web/supabase/migrations/062_notification_outbox.sql`, then
+   `064_notification_health.sql` (breaker/heartbeat table, service-role only).
 2. Create the secret pg_cron uses (SQL editor, **never commit this**):
    ```sql
    select vault.create_secret('<same value as DO CRON_SECRET>', 'cron_secret');
@@ -63,7 +64,8 @@ After the deploy is live:
    - **Callback URL:** `https://vsite.in/api/webhooks/whatsapp`
    - **Verify token:** the `WHATSAPP_VERIFY_TOKEN` value
    - **Verify and save** → must turn green.
-2. **Webhook fields → `messages` → Subscribe.**
+2. **Webhook fields → Subscribe** to all four: `messages`,
+   `message_template_status_update`, `phone_number_quality_update`, `account_update`.
 3. The orange banner: production webhooks arrive only after **App → Publish**
    (needs a privacy policy URL — use `https://vsite.in/privacy`) and business
    verification (Step 3 in the left menu).
@@ -137,7 +139,23 @@ select id, status_code, left(content::text, 200) from net._http_response order b
 | Meta code | Meaning | Action |
 |---|---|---|
 | 190 | token expired | new System User token (step 1) |
+| breaker_open system 190 | token rejected, sending paused | new System User token; sending resumes by itself within 15 min |
+| template_status PAUSED | Meta paused a template | fix wording in WhatsApp Manager; APPROVED reopens it |
+| 133010 | OUR number is not registered | register the number in WhatsApp Manager (not a recipient problem) |
 | 132000 / 132001 | template params / not approved | template in Meta ≠ `templates.ts` |
 | 131026 | undeliverable (not on WhatsApp, old app) | nothing; owner still gets the bell |
 | 131048 / 368 | quality / policy restriction | check WhatsApp Manager quality rating |
 | 130429 / 131056 | throughput / pair rate | retried automatically |
+
+## Alerts (Sentry, free plan)
+
+1. Sentry -> Alerts -> Create -> Issues -> "A new issue is created" OR "issue
+   changes state from resolved to unresolved"; filter tag `area` equals
+   `whatsapp`; action: email you.
+2. Sentry -> Crons: the `whatsapp-dispatch` monitor appears after the first run.
+   Set its alert to email you on missed/failed check-ins. It is the only monitor;
+   the daily run is watched through `heartbeat:daily` by the watchdog.
+3. Budget: the free plan is 5k events/month shared with the app. WhatsApp alerts
+   are de-duplicated to a few per incident.
+
+Housekeeping deletes outbox rows older than 90 days in one delete by cutoff.

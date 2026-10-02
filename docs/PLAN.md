@@ -1,3 +1,9 @@
+# PLAN — WhatsApp hardening (status: DONE 2026-10-02, owner actions pending)
+
+Plan: `docs/superpowers/plans/2026-10-02-whatsapp-hardening.md`. Spec: `docs/superpowers/specs/2026-10-02-whatsapp-hardening-design.md`. 9 tasks, all committed on `feat/whatsapp-live`.
+
+---
+
 # PLAN — WhatsApp notification layer: go-live rebase  (status: DONE 2026-10-02, go-live pending owner)
 
 Rebases `feat/whatsapp-notifications` (built 2026-09-22, never merged) onto the

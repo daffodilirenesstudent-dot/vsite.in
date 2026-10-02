@@ -151,3 +151,35 @@ describe('AC7 — QR image', () => {
         expect(r).toMatch(/\$\{SITE_URL\}\/shop\/\$\{slug\}/);
     });
 });
+
+describe('AC8 - account errors never lose messages', () => {
+    it('the outbox trips a breaker for system/template/throttle classes', () => {
+        const outboxSrc = src('lib/notifications/whatsapp/outbox.ts');
+        expect(outboxSrc).toMatch(/result\.cls === 'system' \|\| result\.cls === 'template' \|\| result\.cls === 'throttle'/);
+        expect(outboxSrc).toMatch(/Not this row's fault: keep its attempts/);
+    });
+});
+
+describe('AC9 - alerts and monitoring fit the Sentry free plan', () => {
+    it('exactly one cron monitor slug exists in the codebase', () => {
+        expect(src('lib/notifications/whatsapp/monitor.ts')).toMatch(/slug: 'whatsapp-dispatch'/);
+        expect(src('app/api/cron/whatsapp/route.ts').match(/monitorSlug:/g)?.length).toBe(2);
+    });
+    it('alerts never carry a phone number field', () => {
+        for (const f of ['alerts.ts', 'watchdog.ts', 'housekeeping.ts', 'accountEvents.ts', 'outbox.ts']) {
+            const s = src(`lib/notifications/whatsapp/${f}`);
+            expect(s, f).not.toMatch(/alert\([^)]*(phone|to_phone|display_phone_number)/);
+        }
+    });
+});
+
+describe('AC10 - migration 064', () => {
+    const sql = readFileSync(join(root, 'supabase', 'migrations', '064_notification_health.sql'), 'utf8').toLowerCase();
+    it('is service-role only with RLS on', () => {
+        expect(sql).toMatch(/enable row level security/);
+        expect(sql).toMatch(/revoke all on table public\.notification_health from public, anon, authenticated/);
+    });
+    it('is expand-only', () => {
+        expect(sql).not.toMatch(/^\s*(drop|alter table [^;]* drop)/m);
+    });
+});

@@ -898,3 +898,13 @@ Runbook: `docs/whatsapp-setup.md`. Spec: `docs/superpowers/specs/2026-09-22-what
 - **Opt-in/opt-out is out of scope by owner decision** (utility templates only,
   to the owner's own OTP-verified number). Inbound replies are counted, not
   handled. If Meta quality drops, add a one-line disclosure at signup first.
+- **Account-level Meta errors pause, they do not kill.** health.ts classifies
+  every code (verified 2026-10-02). system/template/throttle -> breaker in
+  notification_health (064), row back to `failed` with attempts unchanged.
+  Do not "simplify" these back to dead rows: a 190 would destroy the queue.
+- **133010 is OUR number not registered**, not "recipient not on WhatsApp".
+- **Breakers fail open.** If notification_health is unreadable, sending continues.
+- **Sentry free plan = one cron monitor** (`whatsapp-dispatch`). The daily run
+  is watched through `heartbeat:daily` by the watchdog, not a second monitor.
+- **Bulk reads are paged/chunked.** Sweep pages of 500; profiles lookups chunk
+  at 100 (URL length); retention is one delete by 90-day cutoff, not batches.
