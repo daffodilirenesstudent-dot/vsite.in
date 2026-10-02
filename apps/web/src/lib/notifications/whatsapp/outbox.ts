@@ -209,10 +209,10 @@ async function trip(breakers: Map<string, number>, cls: ErrorClass, template: st
 /** A send succeeded: any expired breaker this row was gated by has recovered. */
 async function recover(breakers: Map<string, number>, template: string, nowMs: number): Promise<void> {
     for (const key of ['system', `template:${template}`]) {
-        if (!breakers.has(key)) continue;
+        if (!breakers.has(key) || isOpen(breakers, key, nowMs)) continue;
         breakers.delete(key);
         try {
-            await closeBreaker(key, nowMs);
+            await closeBreaker(key, nowMs, true);
             logger.info('[whatsapp] recovered:', key);
         } catch (err) {
             logger.error('[whatsapp] breaker close failed:', err instanceof Error ? err.message : 'unknown');

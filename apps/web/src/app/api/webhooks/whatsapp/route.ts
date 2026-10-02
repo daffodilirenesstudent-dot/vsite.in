@@ -86,8 +86,16 @@ export async function POST(req: NextRequest) {
         }
     }
 
+    // Account events are best-effort: a health-store failure must not stall statuses.
+    for (const c of accountChanges) {
+        try {
+            await applyAccountEvent(c.field, c.value, Date.now());
+        } catch (err) {
+            logger.error('[whatsapp-webhook] account event failed:', c.field, err instanceof Error ? err.message : 'unknown');
+        }
+    }
+
     try {
-        for (const c of accountChanges) await applyAccountEvent(c.field, c.value, Date.now());
         const changed = statuses.length > 0 ? await applyStatuses(statuses) : 0;
         if (inbound > 0) logger.info('[whatsapp-webhook] inbound messages received (not handled in v1):', inbound);
         logger.debug('[whatsapp-webhook] statuses', statuses.length, 'changed', changed);

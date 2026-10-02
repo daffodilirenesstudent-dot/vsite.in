@@ -95,6 +95,14 @@ describe('healthStore', () => {
         expect(m.get('system')).toBe(NOW + MIN);
     });
 
+    it('closeBreaker leaves a still-open breaker open and closes an expired one', async () => {
+        await openBreaker('system', { code: 130429, reason: 'throttle', untilMs: NOW + 5 * MIN, nowMs: NOW });
+        await closeBreaker('system', NOW + MIN, true);
+        expect(health().find(h => h.key === 'system')?.open_until).toBe(new Date(NOW + 5 * MIN).toISOString());
+        await closeBreaker('system', NOW + 6 * MIN, true);
+        expect(health().find(h => h.key === 'system')?.open_until).toBeNull();
+    });
+
     it('heartbeats round-trip; a missing heartbeat is null', async () => {
         expect(await lastBeat('heartbeat:daily')).toBeNull();
         await beat('heartbeat:daily', NOW);
@@ -189,6 +197,20 @@ describe('dispatcher with breakers', () => {
         holder.db.failNext = { table: 'notification_health', op: 'select' };
         fetchMock.mockImplementation(async () => metaOk());
         expect(await dispatchRow(id, NOW)).toBe('sent');
+    });
+
+    it('a success running alongside a fresh trip does not close the breaker', async () => {
+        seedOwner();
+        for (let i = 0; i < 2; i++) await enqueue(receipt(`receipt:race${i}`));
+        let calls = 0;
+        fetchMock.mockImplementation(async () => {
+            calls += 1;
+            if (calls === 1) { await new Promise(r => setTimeout(r, 30)); return metaOk(); }
+            return metaErr(130429);
+        });
+        await dispatchDue({ nowMs: NOW });
+        const row = health().find(h => h.key === 'system');
+        expect(row?.open_until).toBe(new Date(NOW + 2 * MIN).toISOString());
     });
 
     it('a recipient error still kills only that row, with no breaker and no alert', async () => {
@@ -391,6 +413,19 @@ describe('webhook account events', () => {
     it('an account restriction alerts', async () => {
         await webhookPost(signed(change('account_update', { event: 'ACCOUNT_RESTRICTION' })));
         expect(sentry.captureMessage.mock.calls[0][0]).toBe('WhatsApp: account_update');
+    });
+
+    it('a health-store failure in an account event is not fatal', async () => {
+        holder.db.failNext = { table: 'notification_health', op: 'upsert' };
+        const res = await webhookPost(signed(change('message_template_status_update', { event: 'PAUSED', message_template_name: 'vsite_welcome_qr', reason: 'LOW_QUALITY' })));
+        expect(res.status).toBe(200);
+    });
+
+    it('a status-update DB failure still returns 500 so Meta retries', async () => {
+        outbox().push({ id: 'row-x', status: 'sent', wamid: 'wamid.X' });
+        holder.db.failNext = { table: 'notification_outbox', op: 'update' };
+        const res = await webhookPost(signed({ object: 'whatsapp_business_account', entry: [{ id: 'waba', changes: [{ field: 'messages', value: { statuses: [{ id: 'wamid.X', status: 'delivered', timestamp: '1', recipient_id: '1' }] } }] }] }));
+        expect(res.status).toBe(500);
     });
 
     it('still rejects an unsigned body before reading any field', async () => {

@@ -50,8 +50,14 @@ export async function openBreaker(
     return { newlyOpened, openUntil: iso(untilMs) };
 }
 
-export async function closeBreaker(key: string, nowMs: number): Promise<void> {
-    const { error } = await supabaseServer.from(TABLE).update({ open_until: null, updated_at: iso(nowMs) }).eq('key', key);
+/**
+ * Close a breaker. With onlyIfExpired, a breaker another worker has just
+ * (re)opened is left alone, so a stale success cannot wipe a fresh trip.
+ */
+export async function closeBreaker(key: string, nowMs: number, onlyIfExpired = false): Promise<void> {
+    let q = supabaseServer.from(TABLE).update({ open_until: null, updated_at: iso(nowMs) }).eq('key', key);
+    if (onlyIfExpired) q = q.lte('open_until', iso(nowMs));
+    const { error } = await q;
     if (error) throw new Error(`health write failed: ${error.message}`);
 }
 
