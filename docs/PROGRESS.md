@@ -10,7 +10,7 @@ Deviations from plan: retention is one delete by cutoff (not 1,000-row batches);
 
 Verification: `npx vitest run` = 69 failed | 1765 passed | 3 skipped (1837); the 69 are the pre-existing tests/unit/claude-hooks/* (need gitignored .claude/). `npx tsc --noEmit` exit 0. `npm run lint` 0 errors (img warnings only).
 
-Owner actions: apply 064 with 062/063; create the Sentry alert rule and cron-monitor alert; subscribe 3 more webhook fields (message_template_status_update, phone_number_quality_update, account_update).
+Owner actions (details: `docs/whatsapp-setup.md` sections 3, 4 and "Alerts"): in Supabase apply 062 -> 064 -> create the Vault secret -> apply 063; subscribe all four webhook fields (`messages`, `message_template_status_update`, `phone_number_quality_update`, `account_update`); create the Sentry alert rule and cron-monitor alert.
 
 ### 2026-10-02 — WhatsApp notification layer: rebased for go-live
 status: CODE DONE — go-live blocked on owner actions (`docs/whatsapp-setup.md`)

@@ -165,10 +165,30 @@ describe('AC9 - alerts and monitoring fit the Sentry free plan', () => {
         expect(src('lib/notifications/whatsapp/monitor.ts')).toMatch(/slug: 'whatsapp-dispatch'/);
         expect(src('app/api/cron/whatsapp/route.ts').match(/monitorSlug:/g)?.length).toBe(2);
     });
+    function alertSpans(code: string): string[] {
+        const spans: string[] = [];
+        const re = /\balert\(/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(code)) !== null) {
+            let depth = 0;
+            let i = m.index + m[0].length - 1;
+            for (; i < code.length; i++) {
+                if (code[i] === '(') depth++;
+                else if (code[i] === ')' && --depth === 0) break;
+            }
+            spans.push(code.slice(m.index, i + 1));
+        }
+        return spans;
+    }
+    it('the PII scan flags a phone field and passes a clean call', () => {
+        expect(alertSpans("alert('k', { id: String(x), phone: p })").some((x) => /phone/i.test(x))).toBe(true);
+        expect(alertSpans("alert('k', { id: String(x) })").some((x) => /phone/i.test(x))).toBe(false);
+    });
     it('alerts never carry a phone number field', () => {
         for (const f of ['alerts.ts', 'watchdog.ts', 'housekeeping.ts', 'accountEvents.ts', 'outbox.ts']) {
-            const s = src(`lib/notifications/whatsapp/${f}`);
-            expect(s, f).not.toMatch(/alert\([^)]*(phone|to_phone|display_phone_number)/);
+            for (const span of alertSpans(src(`lib/notifications/whatsapp/${f}`))) {
+                expect(span, f).not.toMatch(/phone/i);
+            }
         }
     });
 });

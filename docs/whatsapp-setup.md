@@ -138,14 +138,25 @@ select id, status_code, left(content::text, 200) from net._http_response order b
 
 | Meta code | Meaning | Action |
 |---|---|---|
-| 190 | token expired | new System User token (step 1) |
+| 190 | token expired | new System User token (step 1). Sending pauses and queued messages are kept; they resume by themselves within 15 minutes after the new token is set |
 | breaker_open system 190 | token rejected, sending paused | new System User token; sending resumes by itself within 15 min |
 | template_status PAUSED | Meta paused a template | fix wording in WhatsApp Manager; APPROVED reopens it |
 | 133010 | OUR number is not registered | register the number in WhatsApp Manager (not a recipient problem) |
 | 132000 / 132001 | template params / not approved | template in Meta ≠ `templates.ts` |
 | 131026 | undeliverable (not on WhatsApp, old app) | nothing; owner still gets the bell |
 | 131048 / 368 | quality / policy restriction | check WhatsApp Manager quality rating |
-| 130429 / 131056 | throughput / pair rate | retried automatically |
+| 130429 (also 4, 80007, 131057) | throughput / rate limit | all sending pauses about 2 minutes, then resumes by itself |
+| 131056 | pair rate limit | only that one message is retried later |
+
+Alerts such as `breaker_open` and `template_status` arrive as Sentry email alerts
+titled "WhatsApp: <kind>". Current pause state is in the database:
+
+```sql
+select key, open_until, reason, code from notification_health where open_until is not null;
+```
+
+Housekeeping runs once a day and deletes every outbox row older than 90 days
+(sent, read, dead, skipped).
 
 ## Alerts (Sentry, free plan)
 
@@ -158,4 +169,3 @@ select id, status_code, left(content::text, 200) from net._http_response order b
 3. Budget: the free plan is 5k events/month shared with the app. WhatsApp alerts
    are de-duplicated to a few per incident.
 
-Housekeeping deletes outbox rows older than 90 days in one delete by cutoff.
