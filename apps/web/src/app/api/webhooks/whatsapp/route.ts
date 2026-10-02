@@ -1,7 +1,8 @@
 // /api/webhooks/whatsapp
 //
 // Meta WhatsApp Cloud API webhook. Callback URL in the Meta App Dashboard:
-//   https://vsite.in/api/webhooks/whatsapp      (subscribe the `messages` field)
+//   https://vsite.in/api/webhooks/whatsapp      (subscribe `messages`,
+//   `message_template_status_update`, `phone_number_quality_update`, `account_update`)
 //
 // GET  — the one-time subscription handshake. Meta sends hub.mode=subscribe,
 //        hub.verify_token (the value typed into the dashboard) and
@@ -19,6 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyMetaSignature, tokensMatch } from '@/lib/notifications/whatsapp/signature';
 import { applyStatuses, type MetaStatus } from '@/lib/notifications/whatsapp/outbox';
+import { applyAccountEvent } from '@/lib/notifications/whatsapp/accountEvents';
 import { logger } from '@/lib/platform/logger';
 
 export const runtime = 'nodejs';
@@ -32,7 +34,7 @@ export async function GET(req: NextRequest) {
     const challenge = q.get('hub.challenge') ?? '';
     const expected = process.env.WHATSAPP_VERIFY_TOKEN ?? '';
 
-    if (!expected) console.error('[whatsapp-webhook] WHATSAPP_VERIFY_TOKEN is not set');
+    if (!expected) logger.error('[whatsapp-webhook] WHATSAPP_VERIFY_TOKEN is not set');
 
     if (mode === 'subscribe' && tokensMatch(token, expected) && /^[\w-]{1,128}$/.test(challenge)) {
         return new NextResponse(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
@@ -45,7 +47,7 @@ interface WebhookBody {
     entry?: Array<{
         changes?: Array<{
             field?: string;
-            value?: { statuses?: MetaStatus[]; messages?: unknown[] };
+            value?: { statuses?: MetaStatus[]; messages?: unknown[] } & Record<string, unknown>;
         }>;
     }>;
 }
@@ -53,7 +55,7 @@ interface WebhookBody {
 export async function POST(req: NextRequest) {
     const secret = process.env.WHATSAPP_APP_SECRET;
     if (!secret) {
-        console.error('[whatsapp-webhook] WHATSAPP_APP_SECRET is not set');
+        logger.error('[whatsapp-webhook] WHATSAPP_APP_SECRET is not set');
         return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
     }
 
@@ -70,21 +72,27 @@ export async function POST(req: NextRequest) {
     }
 
     const statuses: MetaStatus[] = [];
+    const accountChanges: Array<{ field: string; value: Record<string, unknown> }> = [];
     let inbound = 0;
     for (const entry of body.entry ?? []) {
         for (const change of entry.changes ?? []) {
-            if (change.field !== 'messages' || !change.value) continue;
+            if (change.field !== 'messages') {
+                if (change.field && change.value) accountChanges.push({ field: change.field, value: change.value });
+                continue;
+            }
+            if (!change.value) continue;
             if (Array.isArray(change.value.statuses)) statuses.push(...change.value.statuses);
             if (Array.isArray(change.value.messages)) inbound += change.value.messages.length;
         }
     }
 
     try {
+        for (const c of accountChanges) await applyAccountEvent(c.field, c.value, Date.now());
         const changed = statuses.length > 0 ? await applyStatuses(statuses) : 0;
         if (inbound > 0) logger.info('[whatsapp-webhook] inbound messages received (not handled in v1):', inbound);
         logger.debug('[whatsapp-webhook] statuses', statuses.length, 'changed', changed);
     } catch (err) {
-        console.error('[whatsapp-webhook] status update failed:', err instanceof Error ? err.message : 'unknown');
+        logger.error('[whatsapp-webhook] status update failed:', err instanceof Error ? err.message : 'unknown');
         return NextResponse.json({ error: 'Temporary failure' }, { status: 500 });
     }
 

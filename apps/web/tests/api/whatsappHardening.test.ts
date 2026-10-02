@@ -4,6 +4,8 @@
  * docs/superpowers/specs/2026-10-02-whatsapp-hardening-design.md
  */
 
+import crypto from 'node:crypto';
+import { NextRequest } from 'next/server';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createFakeDb, fakeClient, type FakeDb } from '../fixtures/fakeSupabase';
 
@@ -22,6 +24,8 @@ import { runWatchdog } from '@/lib/notifications/whatsapp/watchdog';
 import { enqueue, dispatchRow, dispatchDue } from '@/lib/notifications/whatsapp/outbox';
 import { runSweep } from '@/lib/notifications/whatsapp/sweep';
 import { runHousekeeping } from '@/lib/notifications/whatsapp/housekeeping';
+import { POST as cronPost } from '@/app/api/cron/whatsapp/route';
+import { POST as webhookPost } from '@/app/api/webhooks/whatsapp/route';
 import { readBreakers, openBreaker, closeBreaker, beat, lastBeat, claimAlert } from '@/lib/notifications/whatsapp/healthStore';
 
 const MIN = 60_000;
@@ -320,9 +324,6 @@ describe('housekeeping', () => {
     });
 });
 
-import { NextRequest } from 'next/server';
-import { POST as cronPost } from '@/app/api/cron/whatsapp/route';
-
 describe('cron check-in (one monitor: whatsapp-dispatch)', () => {
     const url = 'https://vsite.in/api/cron/whatsapp?task=dispatch';
     const auth = { authorization: `Bearer ${ENV.CRON_SECRET}` };
@@ -352,5 +353,49 @@ describe('cron check-in (one monitor: whatsapp-dispatch)', () => {
     it('an unauthorised call never checks in', async () => {
         await cronPost(new NextRequest(url, { method: 'POST' }));
         expect(sentry.captureCheckIn).not.toHaveBeenCalled();
+    });
+});
+
+function signed(body: unknown) {
+    const raw = JSON.stringify(body);
+    const sig = 'sha256=' + crypto.createHmac('sha256', ENV.WHATSAPP_APP_SECRET).update(raw).digest('hex');
+    return new NextRequest('https://vsite.in/api/webhooks/whatsapp', { method: 'POST', body: raw, headers: { 'x-hub-signature-256': sig, 'content-type': 'application/json' } });
+}
+const change = (field: string, value: Record<string, unknown>) => ({ object: 'whatsapp_business_account', entry: [{ id: 'waba', changes: [{ field, value }] }] });
+
+describe('webhook account events', () => {
+    it('a paused template opens its breaker and alerts', async () => {
+        const res = await webhookPost(signed(change('message_template_status_update', { event: 'PAUSED', message_template_name: 'vsite_welcome_qr', reason: 'LOW_QUALITY' })));
+        expect(res.status).toBe(200);
+        expect(health().find(h => h.key === 'template:vsite_welcome_qr')).toBeTruthy();
+        expect(sentry.captureMessage.mock.calls[0][1]).toMatchObject({ fingerprint: ['whatsapp', 'template_status', 'template:vsite_welcome_qr'] });
+    });
+
+    it('APPROVED closes that template breaker without an alert', async () => {
+        await webhookPost(signed(change('message_template_status_update', { event: 'DISABLED', message_template_name: 'vsite_plan_expired' })));
+        sentry.captureMessage.mockReset();
+        await webhookPost(signed(change('message_template_status_update', { event: 'APPROVED', message_template_name: 'vsite_plan_expired' })));
+        expect(health().find(h => h.key === 'template:vsite_plan_expired')?.open_until).toBeNull();
+        expect(sentry.captureMessage).not.toHaveBeenCalled();
+    });
+
+    it('a quality downgrade warns; an upgrade does not', async () => {
+        await webhookPost(signed(change('phone_number_quality_update', { event: 'DOWNGRADE', current_limit: 'TIER_250', display_phone_number: '919000000000' })));
+        await webhookPost(signed(change('phone_number_quality_update', { event: 'UPGRADE', current_limit: 'TIER_1K' })));
+        expect(sentry.captureMessage).toHaveBeenCalledTimes(1);
+        const payload = JSON.stringify(sentry.captureMessage.mock.calls[0]);
+        expect(payload).toContain('quality_drop');
+        expect(payload).not.toContain('919000000000');
+    });
+
+    it('an account restriction alerts', async () => {
+        await webhookPost(signed(change('account_update', { event: 'ACCOUNT_RESTRICTION' })));
+        expect(sentry.captureMessage.mock.calls[0][0]).toBe('WhatsApp: account_update');
+    });
+
+    it('still rejects an unsigned body before reading any field', async () => {
+        const req = new NextRequest('https://vsite.in/api/webhooks/whatsapp', { method: 'POST', body: JSON.stringify(change('account_update', { event: 'ACCOUNT_RESTRICTION' })) });
+        expect((await webhookPost(req)).status).toBe(401);
+        expect(sentry.captureMessage).not.toHaveBeenCalled();
     });
 });
