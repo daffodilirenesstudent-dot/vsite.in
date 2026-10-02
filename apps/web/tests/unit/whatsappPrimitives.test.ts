@@ -14,7 +14,7 @@ import { toWhatsAppNumber } from '@/lib/notifications/whatsapp/phone';
 import { verifyMetaSignature, tokensMatch } from '@/lib/notifications/whatsapp/signature';
 import { sweepWindows, isPaid, classifyPlanEvent, classifyTrialEvent } from '@/lib/notifications/whatsapp/windows';
 import { buildComponents, TEMPLATES, formatDateIST } from '@/lib/notifications/whatsapp/templates';
-import { isRetryable } from '@/lib/notifications/whatsapp/client';
+import { classifyMetaError, breakerKeyFor, isOpen, BREAKER_MS } from '@/lib/notifications/whatsapp/health';
 import { nextDeliveryStatus, planFailure, isStale, MAX_ATTEMPTS } from '@/lib/notifications/whatsapp/state';
 
 const HOUR = 60 * 60 * 1000;
@@ -155,16 +155,37 @@ describe('templates', () => {
     });
 });
 
-describe('isRetryable', () => {
-    it('retries throttling, unknown and server errors', () => {
-        for (const code of [4, 80007, 130429, 131000, 131056]) expect(isRetryable(code, 400)).toBe(true);
-        expect(isRetryable(null, 503)).toBe(true);
-        expect(isRetryable(null, 0)).toBe(true); // network / timeout
+describe('classifyMetaError (codes verified against Meta, 2026-10-02)', () => {
+    const cases: Array<[number | null, number, string]> = [
+        [190, 401, 'system'], [0, 401, 'system'], [10, 403, 'system'], [368, 400, 'system'],
+        [131031, 400, 'system'], [131042, 400, 'system'], [131048, 400, 'system'], [133010, 400, 'system'],
+        [132000, 400, 'template'], [132001, 404, 'template'], [132015, 400, 'template'], [132016, 400, 'template'],
+        [4, 400, 'throttle'], [80007, 400, 'throttle'], [130429, 400, 'throttle'], [131057, 400, 'throttle'],
+        [131026, 400, 'message'], [131047, 400, 'message'], [131009, 400, 'message'], [100, 400, 'message'],
+        [131000, 500, 'retry'], [131056, 400, 'retry'], [133004, 503, 'retry'], [999999, 400, 'retry'],
+        [null, 0, 'retry'], [null, 503, 'retry'], [null, 429, 'throttle'], [null, 401, 'system'], [null, 403, 'system'],
+    ];
+    for (const [code, http, cls] of cases) {
+        it(`${code ?? 'no code'} / HTTP ${http} → ${cls}`, () => expect(classifyMetaError(code, http)).toBe(cls));
+    }
+});
+
+describe('breaker keys', () => {
+    it('system and throttle share the system breaker; template errors get their own', () => {
+        expect(breakerKeyFor('system', 'vsite_x')).toBe('system');
+        expect(breakerKeyFor('throttle', 'vsite_x')).toBe('system');
+        expect(breakerKeyFor('template', 'vsite_x')).toBe('template:vsite_x');
+        expect(breakerKeyFor('retry', 'vsite_x')).toBeNull();
+        expect(breakerKeyFor('message', 'vsite_x')).toBeNull();
     });
-    it('never retries auth, template or recipient errors', () => {
-        for (const code of [0, 190, 368, 131026, 131047, 132000, 132001, 132012, 133010]) {
-            expect(isRetryable(code, 400)).toBe(false);
-        }
+    it('isOpen is true only before open_until', () => {
+        const m = new Map([['system', NOW + 1000]]);
+        expect(isOpen(m, 'system', NOW)).toBe(true);
+        expect(isOpen(m, 'system', NOW + 1000)).toBe(false);
+        expect(isOpen(m, 'template:x', NOW)).toBe(false);
+    });
+    it('durations match the spec', () => {
+        expect(BREAKER_MS).toEqual({ system: 15 * 60_000, template: 60 * 60_000, throttle: 2 * 60_000 });
     });
 });
 

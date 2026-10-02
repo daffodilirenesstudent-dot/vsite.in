@@ -4,6 +4,7 @@
  */
 
 import type { TemplateComponent } from './templates';
+import { classifyMetaError, type ErrorClass } from './health';
 
 export interface WhatsAppConfig {
     token: string;
@@ -22,21 +23,9 @@ export function whatsappConfig(): WhatsAppConfig | null {
 
 export type SendResult =
     | { ok: true; wamid: string }
-    | { ok: false; retryable: boolean; code: number | null; message: string };
+    | { ok: false; cls: ErrorClass; code: number | null; message: string };
 
-/**
- * Meta error codes worth another attempt: rate and throughput limits, the
- * explicit "unknown error", and pair-rate limiting. Everything else — expired
- * token (190), policy (368), template mismatch (132xxx), undeliverable (131026),
- * not on WhatsApp (133010) — fails the same way every time.
- * No code at all means network/timeout/5xx: retry.
- */
-const RETRYABLE_CODES = new Set([1, 2, 4, 17, 341, 80007, 130429, 131000, 131016, 131056, 133004]);
-
-export function isRetryable(code: number | null, httpStatus: number): boolean {
-    if (code !== null && code !== undefined) return RETRYABLE_CODES.has(code);
-    return httpStatus === 0 || httpStatus === 429 || httpStatus >= 500;
-}
+/** Failures are classified in health.ts; this file only reports them. */
 
 const SEND_TIMEOUT_MS = 10_000;
 
@@ -66,7 +55,7 @@ export async function sendTemplate(
             signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
         });
     } catch (err) {
-        return { ok: false, retryable: true, code: null, message: err instanceof Error ? err.name : 'network' };
+        return { ok: false, cls: 'retry', code: null, message: err instanceof Error ? err.name : 'network' };
     }
 
     let json: unknown = null;
@@ -77,11 +66,11 @@ export async function sendTemplate(
         if (typeof wamid === 'string' && wamid) return { ok: true, wamid };
         // 200 without a message id: Meta accepted nothing we can track. Treat as
         // retryable-unknown rather than claiming a send we cannot prove.
-        return { ok: false, retryable: true, code: null, message: 'missing message id' };
+        return { ok: false, cls: 'retry', code: null, message: 'missing message id' };
     }
 
     const err = (json as { error?: { code?: unknown; message?: unknown } } | null)?.error;
     const code = typeof err?.code === 'number' ? err.code : null;
     const message = typeof err?.message === 'string' ? err.message.slice(0, 200) : `HTTP ${res.status}`;
-    return { ok: false, retryable: isRetryable(code, res.status), code, message };
+    return { ok: false, cls: classifyMetaError(code, res.status), code, message };
 }

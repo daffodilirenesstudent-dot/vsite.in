@@ -160,12 +160,12 @@ describe('dispatchRow', () => {
         expect(await dispatchRow(id, NOW)).toBe('failed');
     });
 
-    it('a template error is permanent — dead on the first attempt', async () => {
+    it('a recipient error is permanent — dead on the first attempt', async () => {
         seedOwner();
         const id = await enqueue(receipt()) as string;
-        fetchMock.mockResolvedValueOnce(metaErr(132001));
+        fetchMock.mockResolvedValueOnce(metaErr(131026));
         expect(await dispatchRow(id, NOW)).toBe('dead');
-        expect(outbox()[0]).toMatchObject({ status: 'dead', error_code: 132001 });
+        expect(outbox()[0]).toMatchObject({ status: 'dead', error_code: 131026 });
     });
 
     it('two dispatchers racing on one row send it once', async () => {

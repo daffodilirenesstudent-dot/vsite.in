@@ -223,7 +223,7 @@ export async function dispatchRow(id: string, nowMs: number = Date.now()): Promi
         return 'sent';
     }
 
-    const plan = planFailure(attempts, result.retryable, nowMs);
+    const plan = planFailure(attempts, result.cls !== 'message', nowMs);
     await finish(id, {
         status: plan.status, attempts, next_attempt_at: plan.nextAttemptAt,
         last_error: result.message, error_code: result.code,
