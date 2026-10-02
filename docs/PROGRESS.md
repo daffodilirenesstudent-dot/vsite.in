@@ -2,6 +2,31 @@
 status: DONE
 ## Iteration history
 
+### 2026-10-02 — WhatsApp notification layer: rebased for go-live
+status: CODE DONE — go-live blocked on owner actions (`docs/whatsapp-setup.md`)
+
+Branch `feat/whatsapp-live` = the 2026-09-22 layer (`feat/whatsapp-notifications`)
+merged onto `7301e71`. It had never shipped, so Meta's "Verify and save" could not
+succeed: `/api/webhooks/whatsapp` was not deployed.
+
+**Changed by the merge (the rules moved under it).**
+- One free trial per account (058, 2026-09-25) made `created_at + 7 days` wrong.
+  The sweep now windows on `site_subscriptions.trial_ends_at`; a store with no
+  trial never gets "trial ending/ended".
+- The welcome said "is now live… trial until X" to every new store. It now goes
+  only to a store that opened live, with that store's own trial end. A no-trial
+  store's first message is its payment receipt.
+- Migrations renumbered: 057/058 were taken → `062_notification_outbox.sql`,
+  `063_whatsapp_cron.sql`. Neither is applied.
+
+**Verified.** WhatsApp suites 79/79; `npx vitest run` 1680 passed / 3 skipped,
+69 failed — all `tests/unit/claude-hooks/*`, the pre-existing failures (need the
+gitignored `.claude/`); `npx tsc --noEmit` exit 0; `npm run lint` 0 errors.
+
+**Known gap.** A no-trial store gets no QR image on WhatsApp when it goes live by
+paying (the receipt has no image header). Candidate v1.1: a `vsite_store_live_qr`
+template sent from the activation path.
+
 ### 2026-09-26 — Owner QA fixes (high / medium / low list)
 status: CODE DONE — new acceptance suites green: product-pricing (24), menu-freshness (20),
 owner-qa-polish (44), bulk-review (9), ordering-roadmap-copy (+6). Full suite: only the

@@ -870,3 +870,31 @@ https production. In Playwright, route `https://localhost:3000/**` back to http.
   must never be deleted (owner rule, guarded in photo-cleanup.test.ts). A new screen that replaces
   or deletes a photo should call `releaseMenuPhotos(siteId, replacedPhotos(old, new))` after its
   DB write — never before.
+
+## WhatsApp notification layer (2026-09-22)
+
+Runbook: `docs/whatsapp-setup.md`. Spec: `docs/superpowers/specs/2026-09-22-whatsapp-notifications-design.md`.
+
+- **The scheduler is Supabase pg_cron, not DigitalOcean.** Migration 063 posts
+  to `/api/cron/whatsapp` with `Bearer <vault secret 'cron_secret'>`. The Vault
+  secret is created by hand and must equal DO's `CRON_SECRET`; if they drift,
+  every run is a 401 in `net._http_response` and nothing sends. pg_net is
+  fire-and-forget — a failed call does not retry by itself, which is why the
+  outbox (not the scheduler) owns retries.
+- **Triggers never await WhatsApp.** `enqueueAndSend()` returns void and handles
+  every rejection. Do not `await` it on a request path, and do not replace its
+  `.then(undefined, handler)` with `.catch` — see the fire-and-forget note above.
+- **One receipt per order.** verify-payment and the Razorpay webhook both enqueue
+  `receipt:<order_id>`. If you change either key, both must change together, or
+  owners get two receipts (or, when the webhook wins the race, none).
+- **Template names and param counts are a contract with Meta.** `templates.ts`
+  is the source of truth; a mismatch fails with 132000/132001 and the row goes
+  `dead` (visible in `notification_outbox`), not retried.
+- **The "Try it out" token expires in 24h** (error 190). Production uses a
+  System User token with no expiry.
+- **Signature = HMAC of the RAW body.** Never verify after `JSON.parse` +
+  re-stringify. QA trap: Windows `curl --data '<non-ASCII>'` re-encodes argv, so
+  a hand-signed Tamil body fails; send it with `--data-binary @file`.
+- **Opt-in/opt-out is out of scope by owner decision** (utility templates only,
+  to the owner's own OTP-verified number). Inbound replies are counted, not
+  handled. If Meta quality drops, add a one-line disclosure at signup first.

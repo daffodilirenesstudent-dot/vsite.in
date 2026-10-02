@@ -10,6 +10,9 @@
  * components and import this directly.
  */
 
+/** Canonical public origin. Links that leave the app (WhatsApp, QR codes) use this. */
+export const SITE_URL = 'https://vsite.in';
+
 /** Bare digits with country code — the shape wa.me requires. */
 export const WHATSAPP_NUMBER = '919360706659';
 

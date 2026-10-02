@@ -35,6 +35,8 @@ import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { rateLimit } from '@/lib/platform/rateLimit';
 import { notify } from '@/lib/notifications/notify';
+import { enqueueAndSend } from '@/lib/notifications/whatsapp/outbox';
+import { formatDateIST } from '@/lib/notifications/whatsapp/templates';
 import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
 
 import { logger } from '@/lib/platform/logger';
@@ -357,6 +359,17 @@ export async function POST(request: NextRequest) {
           title: `${planLabel} plan activated`,
           body:  `Your store is live for 30 days. Valid till ${new Date(expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
           link:  '/manage/subscription',
+        });
+
+        // WhatsApp receipt. Fire-and-forget: it can never fail or slow the
+        // activation above. Keyed by order id — the Razorpay webhook uses the
+        // same key, so whichever path activates, the owner gets one receipt.
+        enqueueAndSend({
+          event:  'payment_receipt',
+          key:    `receipt:${razorpay_order_id}`,
+          userId,
+          siteId,
+          params: { amountInr: String(amountInr), validTill: formatDateIST(expiresAt) },
         });
 
         return NextResponse.json({ success: true, expiresAt });
