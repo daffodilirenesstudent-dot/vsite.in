@@ -77,17 +77,28 @@ per kind (Sentry groups repeats into one issue → one email) plus
 | `backlog` | dispatch run: oldest due row older than 30 min while configured | error |
 | `dead_spike` | ≥ 5 rows went `dead` in the last hour | error |
 | `not_configured` | production and WhatsApp env missing (checked by the daily run) | warning |
+| `daily_missed` | the daily heartbeat is older than 26 h (checked by each dispatch run) | error |
 
 Owner action: Sentry → Alerts → "issue is first seen / regresses" email rule
 (once). Runbook updated.
 
-### 4. Missed-run detection — Sentry Cron Monitors
+### 4. Missed-run detection — one Sentry Cron Monitor (free plan)
 
-The cron route wraps each task in `Sentry.captureCheckIn` (`in_progress` →
-`ok` / `error`) with monitor slugs `whatsapp-dispatch` (`*/10 * * * *`,
-check-in margin 5 min) and `whatsapp-daily` (`30 4 * * *`, margin 30 min),
-`monitorConfig` upserted from code. If pg_cron stops or every call 401s,
-Sentry emails "missed check-in". Fixes D3.
+Sentry is on the free Developer plan once the trial ends: email alerts, **one**
+cron monitor, 5,000 events/month shared with the whole app.
+
+- The single monitor is `whatsapp-dispatch` (`*/10 * * * *`, margin 5 min):
+  the cron route sends `Sentry.captureCheckIn` `in_progress` → `ok`/`error`,
+  `monitorConfig` upserted from code. pg_cron stopping, pg_net failing or every
+  call returning 401 all show up as "missed check-in" email. Fixes D3.
+- The daily run writes a heartbeat row (`notification_health` key
+  `heartbeat:daily`, `updated_at`). Each dispatch run alerts `daily_missed`
+  if it is older than 26 h — no second monitor needed.
+
+**Event budget.** Alerts are deduplicated before Sentry: a breaker alerts once
+per opening (`alerted_at`), watchdog kinds at most once per hour per kind
+(`notification_health` key `alert:<kind>`). A day-long outage costs ~30 events,
+not thousands.
 
 ### 5. Template + account webhooks
 
