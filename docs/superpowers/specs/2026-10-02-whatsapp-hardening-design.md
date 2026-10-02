@@ -33,11 +33,16 @@ templates. Any change to which events are sent or when.
 
 | Class | Codes | Effect |
 |---|---|---|
-| `message` | 131026 undeliverable, 131051, 133010 not on WhatsApp, 131009 bad param value | This row only → `dead` (unchanged) |
-| `retry` | 1, 2, 131000, 131016, 133004, network / 5xx / missing wamid | This row → `failed` with backoff (unchanged) |
-| `throttle` | 4, 80007, 130429, 131056 | Row → `failed`, attempt **not** counted; system breaker opens 2 min |
-| `template` | 132000 param count, 132001 missing/unapproved, 132005, 132007, 132012, 132015 paused, 132016 disabled | Row → `failed`, attempt not counted; **template breaker** opens 60 min; alert |
-| `system` | 190 token, 10 / 200 permission, 131031 locked, 131042 payment, 131048 spam limit, 368 policy | Row → `failed`, attempt not counted; **system breaker** opens 15 min; alert |
+| `message` | 100, 130472, 131008, 131009, 131021, 131026 undeliverable, 131047, 131051, 131052, 131053 | This row only → `dead` (unchanged) |
+| `retry` | 1, 2, 131000, 131016, 131049, 131056 pair rate (per recipient), 133004, 135000, network / 5xx / missing wamid | This row → `failed` with backoff (unchanged) |
+| `throttle` | 4, 80007, 130429, 131057 maintenance, HTTP 429 | Row → `failed`, attempt **not** counted; system breaker opens 2 min; no alert |
+| `template` | 132000, 132001, 132005, 132007, 132012, 132015 paused, 132016 disabled | Row → `failed`, attempt not counted; **template breaker** opens 60 min; alert |
+| `system` | 0, 3, 10, 190, 200, 368, 131005, 131031, 131042, 131045, 131048, 133010 (our number not registered), HTTP 401/403 | Row → `failed`, attempt not counted; **system breaker** opens 15 min; alert |
+
+Codes verified against Meta's Cloud API error-code reference on 2026-10-02.
+Correction to v1: 133010 is *our* business number not registered (system), not
+"recipient not on WhatsApp"; 131056 is a per-recipient pair limit (row retry),
+not an account throttle.
 
 Unknown codes default to `retry` (bounded by MAX_ATTEMPTS) — never silently `dead`.
 
@@ -46,7 +51,7 @@ Unknown codes default to `retry` (bounded by MAX_ATTEMPTS) — never silently `d
 ```
 key         text primary key   -- 'system' | 'template:<name>'
 open_until  timestamptz        -- null = closed
-reason      text, code integer, opened_at timestamptz, alerted_at timestamptz,
+reason      text, code integer, opened_at timestamptz,
 updated_at  timestamptz
 ```
 RLS on, no policies, service role only (same as the outbox).
@@ -70,7 +75,7 @@ per kind (Sentry groups repeats into one issue → one email) plus
 
 | Kind | Fires when | Level |
 |---|---|---|
-| `breaker_open` | a system or template breaker opens (once per opening: `alerted_at`) | error |
+| `breaker_open` | a system or template breaker opens (once per opening: `newlyOpened`) | error |
 | `template_status` | webhook says a template is PAUSED, DISABLED, REJECTED, FLAGGED | error |
 | `quality_drop` | webhook `phone_number_quality_update` to YELLOW/RED or a lower tier | warning |
 | `account_update` | webhook `account_update` with a ban/restriction event | error |
@@ -96,7 +101,7 @@ cron monitor, 5,000 events/month shared with the whole app.
   if it is older than 26 h — no second monitor needed.
 
 **Event budget.** Alerts are deduplicated before Sentry: a breaker alerts once
-per opening (`alerted_at`), watchdog kinds at most once per hour per kind
+per opening (`newlyOpened`), watchdog kinds at most once per hour per kind
 (`notification_health` key `alert:<kind>`). A day-long outage costs ~30 events,
 not thousands.
 
