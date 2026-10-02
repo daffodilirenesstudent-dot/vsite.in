@@ -18,6 +18,7 @@ const notifyMock = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/notifications/notify', () => ({ notify: notifyMock }));
 
 import { alert } from '@/lib/notifications/whatsapp/alerts';
+import { enqueue, dispatchRow, dispatchDue } from '@/lib/notifications/whatsapp/outbox';
 import { readBreakers, openBreaker, closeBreaker, beat, lastBeat, claimAlert } from '@/lib/notifications/whatsapp/healthStore';
 
 const MIN = 60_000;
@@ -27,16 +28,12 @@ const DAY = 24 * HOUR;
 const NOW = Date.parse('2026-10-02T04:30:00.000Z');
 type Row = Record<string, unknown>;
 const health = () => holder.db.tables.notification_health as Row[];
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const outbox = () => holder.db.tables.notification_outbox as Row[];
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const fetchMock = vi.fn();
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function metaOk(wamid = 'wamid.OK1') {
     return new Response(JSON.stringify({ messages: [{ id: wamid }] }), { status: 200 });
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function metaErr(code: number, http = 400) {
     return new Response(JSON.stringify({ error: { message: 'err', code } }), { status: http });
 }
@@ -123,5 +120,77 @@ describe('alert', () => {
     it('never throws when Sentry throws', () => {
         sentry.captureMessage.mockImplementationOnce(() => { throw new Error('sentry down'); });
         expect(() => alert('backlog', { oldestMinutes: 45 })).not.toThrow();
+    });
+});
+
+function seedOwner() { holder.db.tables.profiles.push({ id: 'u1', phone_number: '+919800000001' }); }
+const receipt = (key: string) => ({
+    event: 'payment_receipt' as const, key, userId: 'u1', siteId: null,
+    params: { amountInr: '299', validTill: '22 Oct 2026' },
+});
+const welcome = (key: string) => ({
+    event: 'welcome' as const, key, userId: 'u1', siteId: 's1',
+    params: { shopName: 'Anna Cafe', menuUrl: 'https://vsite.in/shop/anna', qrImageUrl: 'https://vsite.in/api/qr/anna', trialEndsOn: '9 Oct 2026' },
+});
+
+describe('dispatcher with breakers', () => {
+    it('token expired mid-run: one Meta call, one alert, nothing lost', async () => {
+        seedOwner();
+        for (let i = 0; i < 20; i++) await enqueue(receipt(`receipt:${i}`));
+        fetchMock.mockResolvedValue(metaErr(190, 401));
+        const r = await dispatchDue({ nowMs: NOW });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(sentry.captureMessage).toHaveBeenCalledTimes(1);
+        expect(sentry.captureMessage.mock.calls[0][1]).toMatchObject({ fingerprint: ['whatsapp', 'breaker_open', 'system'] });
+        expect(outbox().every(o => o.status !== 'dead')).toBe(true);
+        expect(outbox().every(o => o.attempts === 0)).toBe(true);
+        expect(r.paused).toBe(19);
+        expect(health().find(h => h.key === 'system')).toMatchObject({ code: 190, open_until: new Date(NOW + 15 * MIN).toISOString() });
+    });
+
+    it('after the breaker expires, a success closes it and the backlog drains', async () => {
+        seedOwner();
+        for (let i = 0; i < 3; i++) await enqueue(receipt(`receipt:${i}`));
+        fetchMock.mockResolvedValueOnce(metaErr(190, 401));
+        await dispatchDue({ nowMs: NOW });
+        fetchMock.mockImplementation(async () => metaOk());
+        const later = NOW + 16 * MIN;
+        const r = await dispatchDue({ nowMs: later });
+        expect(r.sent).toBe(3);
+        expect(health().find(h => h.key === 'system')?.open_until).toBeNull();
+        expect(sentry.captureMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('a paused template holds only its own rows', async () => {
+        seedOwner();
+        holder.db.tables.sites.push({ id: 's1', user_id: 'u1', name: 'Anna Cafe', slug: 'anna' });
+        await enqueue(welcome('welcome:s1'));
+        await enqueue(receipt('receipt:a'));
+        await enqueue(receipt('receipt:b'));
+        fetchMock.mockImplementation(async (_url: string, init: { body: string }) =>
+            (JSON.parse(init.body) as { template: { name: string } }).template.name === 'vsite_welcome_qr' ? metaErr(132015) : metaOk());
+        const r = await dispatchDue({ nowMs: NOW });
+        expect(r.sent).toBe(2);
+        const w = outbox().find(o => o.idempotency_key === 'welcome:s1') as Row;
+        expect(w).toMatchObject({ status: 'failed', attempts: 0, error_code: 132015 });
+        expect(health().find(h => h.key === 'template:vsite_welcome_qr')).toBeTruthy();
+        expect(health().find(h => h.key === 'system')).toBeUndefined();
+    });
+
+    it('fails open: if the health table cannot be read, sending continues', async () => {
+        seedOwner();
+        const id = await enqueue(receipt('receipt:x')) as string;
+        holder.db.failNext = { table: 'notification_health', op: 'select' };
+        fetchMock.mockImplementation(async () => metaOk());
+        expect(await dispatchRow(id, NOW)).toBe('sent');
+    });
+
+    it('a recipient error still kills only that row, with no breaker and no alert', async () => {
+        seedOwner();
+        const id = await enqueue(receipt('receipt:y')) as string;
+        fetchMock.mockResolvedValueOnce(metaErr(131026));
+        expect(await dispatchRow(id, NOW)).toBe('dead');
+        expect(health()).toHaveLength(0);
+        expect(sentry.captureMessage).not.toHaveBeenCalled();
     });
 });

@@ -5,6 +5,9 @@ import { buildComponents, DEFAULT_TEMPLATE_LANGUAGE, TEMPLATES, type TemplatePar
 import { sendTemplate, whatsappConfig } from './client';
 import { toWhatsAppNumber } from './phone';
 import { isPaid } from './windows';
+import { BREAKER_MS, breakerKeyFor, isOpen, type ErrorClass } from './health';
+import { readBreakers, openBreaker, closeBreaker } from './healthStore';
+import { alert } from './alerts';
 import { isStale, nextDeliveryStatus, planFailure, STUCK_SENDING_MS, type OutboxStatus } from './state';
 
 /**
@@ -165,12 +168,55 @@ async function finish(id: string, patch: Record<string, unknown>): Promise<void>
     if (error) logger.error('[whatsapp] could not record outcome for row', id, error.message);
 }
 
-export type DispatchOutcome = 'sent' | 'failed' | 'dead' | 'skipped' | 'not_claimed' | 'not_configured';
+export type DispatchOutcome = 'sent' | 'failed' | 'dead' | 'skipped' | 'paused' | 'not_claimed' | 'not_configured';
+
+/** Breakers for this run. Fails OPEN: a health-table outage must not stop sending. */
+async function loadBreakers(): Promise<Map<string, number>> {
+    try {
+        return await readBreakers();
+    } catch (err) {
+        logger.error('[whatsapp] breaker read failed — sending without breakers:', err instanceof Error ? err.message : 'unknown');
+        return new Map();
+    }
+}
+
+const BREAKER_DURATION: Record<'system' | 'template' | 'throttle', number> = BREAKER_MS;
+
+/** Open the breaker for an account-level error. Returns open_until, or null if the store failed. */
+async function trip(breakers: Map<string, number>, cls: ErrorClass, template: string, code: number | null, reason: string, nowMs: number): Promise<string | null> {
+    const key = breakerKeyFor(cls, template);
+    if (!key || (cls !== 'system' && cls !== 'template' && cls !== 'throttle')) return null;
+    try {
+        const r = await openBreaker(key, { code, reason, untilMs: nowMs + BREAKER_DURATION[cls], nowMs });
+        breakers.set(key, Date.parse(r.openUntil));
+        if (r.newlyOpened && cls !== 'throttle') alert('breaker_open', { key, code });
+        return r.openUntil;
+    } catch (err) {
+        logger.error('[whatsapp] breaker write failed:', err instanceof Error ? err.message : 'unknown');
+        return null;
+    }
+}
+
+/** A send succeeded: any expired breaker this row was gated by has recovered. */
+async function recover(breakers: Map<string, number>, template: string, nowMs: number): Promise<void> {
+    for (const key of ['system', `template:${template}`]) {
+        if (!breakers.has(key)) continue;
+        breakers.delete(key);
+        try {
+            await closeBreaker(key, nowMs);
+            logger.info('[whatsapp] recovered:', key);
+        } catch (err) {
+            logger.error('[whatsapp] breaker close failed:', err instanceof Error ? err.message : 'unknown');
+        }
+    }
+}
 
 /** Claim one row and send it. Safe to call concurrently for the same id. */
-export async function dispatchRow(id: string, nowMs: number = Date.now()): Promise<DispatchOutcome> {
+export async function dispatchRow(id: string, nowMs: number = Date.now(), breakers?: Map<string, number>): Promise<DispatchOutcome> {
     const config = whatsappConfig();
     if (!config) return 'not_configured';
+    const gates = breakers ?? await loadBreakers();
+    if (isOpen(gates, 'system', nowMs)) return 'paused';
 
     const { data: claimed, error: claimError } = await supabaseServer
         .from(TABLE)
@@ -181,6 +227,12 @@ export async function dispatchRow(id: string, nowMs: number = Date.now()): Promi
     if (claimError) throw new Error(`outbox claim failed: ${claimError.message}`);
     const row = ((claimed ?? []) as OutboxRow[])[0];
     if (!row) return 'not_claimed';
+
+    const templateKey = `template:${row.template}`;
+    if (isOpen(gates, templateKey, nowMs)) {
+        await finish(id, { status: 'failed', next_attempt_at: new Date(gates.get(templateKey) as number).toISOString(), last_error: 'paused' });
+        return 'paused';
+    }
 
     const attempts = (row.attempts ?? 0) + 1;
 
@@ -220,9 +272,18 @@ export async function dispatchRow(id: string, nowMs: number = Date.now()): Promi
             status: 'sent', wamid: result.wamid, attempts,
             sent_at: new Date().toISOString(), last_error: null, error_code: null, next_attempt_at: null,
         });
+        await recover(gates, row.template, nowMs);
         return 'sent';
     }
 
+    if (result.cls === 'system' || result.cls === 'template' || result.cls === 'throttle') {
+        const until = await trip(gates, result.cls, row.template, result.code, result.message, nowMs);
+        if (until) {
+            // Not this row's fault: keep its attempts, retry when the breaker closes.
+            await finish(id, { status: 'failed', next_attempt_at: until, last_error: result.message, error_code: result.code });
+            return 'failed';
+        }
+    }
     const plan = planFailure(attempts, result.cls !== 'message', nowMs);
     await finish(id, {
         status: plan.status, attempts, next_attempt_at: plan.nextAttemptAt,
@@ -241,6 +302,7 @@ export interface DispatchSummary {
     failed: number;
     dead: number;
     skipped: number;
+    paused: number;
     reclaimed: number;
 }
 
@@ -255,8 +317,9 @@ export async function dispatchDue(opts: { nowMs?: number; limit?: number; deadli
     const limit = opts.limit ?? 50;
     const deadline = Date.now() + (opts.deadlineMs ?? 45_000);
     const nowIso = new Date(nowMs).toISOString();
-    const summary: DispatchSummary = { configured: !!whatsappConfig(), attempted: 0, sent: 0, failed: 0, dead: 0, skipped: 0, reclaimed: 0 };
+    const summary: DispatchSummary = { configured: !!whatsappConfig(), attempted: 0, sent: 0, failed: 0, dead: 0, skipped: 0, paused: 0, reclaimed: 0 };
     if (!summary.configured) return summary;
+    const breakers = await loadBreakers();
 
     const { data: reclaimed, error: reclaimError } = await supabaseServer
         .from(TABLE)
@@ -281,7 +344,7 @@ export async function dispatchDue(opts: { nowMs?: number; limit?: number; deadli
         summary.attempted++;
         let outcome: DispatchOutcome;
         try {
-            outcome = await dispatchRow(id, nowMs);
+            outcome = await dispatchRow(id, nowMs, breakers);
         } catch (err) {
             logger.error('[whatsapp] dispatch error for row', id, err instanceof Error ? err.message : 'unknown');
             continue;
@@ -290,6 +353,7 @@ export async function dispatchDue(opts: { nowMs?: number; limit?: number; deadli
         else if (outcome === 'failed') summary.failed++;
         else if (outcome === 'dead') summary.dead++;
         else if (outcome === 'skipped') summary.skipped++;
+        else if (outcome === 'paused') summary.paused++;
     }
     return summary;
 }

@@ -25,6 +25,7 @@ vi.mock('@/lib/platform/db/supabase-server', () => ({
 }));
 const notifyMock = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/notifications/notify', () => ({ notify: notifyMock }));
+vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureCheckIn: vi.fn() }));
 
 import { enqueue, dispatchRow, dispatchDue, applyStatuses } from '@/lib/notifications/whatsapp/outbox';
 import { runSweep } from '@/lib/notifications/whatsapp/sweep';
@@ -58,8 +59,8 @@ const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
     holder.db = createFakeDb({
-        tables: { notification_outbox: [], sites: [], site_subscriptions: [], profiles: [] },
-        unique: { notification_outbox: ['idempotency_key'] },
+        tables: { notification_outbox: [], notification_health: [], sites: [], site_subscriptions: [], profiles: [] },
+        unique: { notification_outbox: ['idempotency_key'], notification_health: ['key'] },
         relations: {
             site_subscriptions: { table: 'site_subscriptions', local: 'id', foreign: 'site_id', many: true },
             sites: { table: 'sites', local: 'site_id', foreign: 'id' },
@@ -144,13 +145,13 @@ describe('dispatchRow', () => {
         expect(outbox()[0]).toMatchObject({ status: 'queued', attempts: 0 });
     });
 
-    it('a throttling error backs off; the next attempt is scheduled', async () => {
+    it('a throttling error pauses briefly without spending an attempt', async () => {
         seedOwner();
         const id = await enqueue(receipt()) as string;
         fetchMock.mockResolvedValueOnce(metaErr(130429));
         expect(await dispatchRow(id, NOW)).toBe('failed');
-        expect(outbox()[0]).toMatchObject({ status: 'failed', attempts: 1, error_code: 130429 });
-        expect(outbox()[0].next_attempt_at).toBe(new Date(NOW + 5 * 60_000).toISOString());
+        expect(outbox()[0]).toMatchObject({ status: 'failed', attempts: 0, error_code: 130429 });
+        expect(outbox()[0].next_attempt_at).toBe(new Date(NOW + 2 * 60_000).toISOString());
     });
 
     it('a network failure is retryable', async () => {
