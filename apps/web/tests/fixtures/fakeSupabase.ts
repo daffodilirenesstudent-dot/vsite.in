@@ -2,8 +2,8 @@
  * A small in-memory stand-in for the supabase-js query builder.
  *
  * Supports exactly the subset the WhatsApp outbox and sweep use: select (with
- * one level of embedded relation), insert, upsert(ignoreDuplicates), update,
- * the eq/in/is/gt/gte/lt/lte filters, order, limit, maybeSingle and single.
+ * one level of embedded relation), insert, upsert(merge or ignoreDuplicates), update,
+ * the eq/in/is/gt/gte/lt/lte filters, order, limit, range, maybeSingle and single.
  * Filters apply to update just as they do to select, which is what makes the
  * conditional "claim" UPDATE testable: two claims on one row, one wins.
  *
@@ -72,6 +72,7 @@ export function fakeClient(db: FakeDb) {
             let returning = false;
             let upsertOpts: { onConflict?: string; ignoreDuplicates?: boolean } = {};
             let limitN: number | null = null;
+            let rangeN: [number, number] | null = null;
             let orderBy: { col: string; asc: boolean } | null = null;
             let single: 'maybe' | 'one' | null = null;
             let innerRel: string | null = null;
@@ -92,6 +93,12 @@ export function fakeClient(db: FakeDb) {
                         const clash = uniq.find(col => p[col] !== undefined && rows.some(r => r[col] === p[col]));
                         if (clash) {
                             if (op === 'upsert' && upsertOpts.ignoreDuplicates) continue;
+                            if (op === 'upsert') {
+                                const existing = rows.find(r => r[clash] === p[clash]) as Row;
+                                Object.assign(existing, p);
+                                inserted.push(existing);
+                                continue;
+                            }
                             return { data: null, error: { message: 'duplicate key', code: '23505' } };
                         }
                         const row = { id: `row-${++seq}`, created_at: new Date().toISOString(), ...p };
@@ -123,6 +130,7 @@ export function fakeClient(db: FakeDb) {
                     out.sort((a, b) => (asc ? 1 : -1) * cmp(a[col], b[col]));
                 }
                 if (limitN !== null) out = out.slice(0, limitN);
+                if (rangeN) out = out.slice(rangeN[0], rangeN[1] + 1);
                 if (single === 'maybe') return { data: out[0] ?? null, error: null };
                 if (single === 'one') {
                     return out.length === 1 ? { data: out[0], error: null } : { data: null, error: { message: 'not single', code: 'PGRST116' } };
@@ -152,6 +160,7 @@ export function fakeClient(db: FakeDb) {
                 lte(c: string, v: unknown) { filters.push(r => r[c] != null && cmp(r[c], v) <= 0); return b; },
                 order(col: string, o: { ascending?: boolean } = {}) { orderBy = { col, asc: o.ascending !== false }; return b; },
                 limit(n: number) { limitN = n; return b; },
+                range(from: number, to: number) { rangeN = [from, to]; return b; },
                 maybeSingle() { single = 'maybe'; return b; },
                 single() { single = 'one'; return b; },
                 then<T>(onF: (v: ReturnType<typeof run>) => T, onR?: (e: unknown) => T) {
