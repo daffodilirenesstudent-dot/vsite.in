@@ -277,6 +277,19 @@ describe('sweep pagination', () => {
     });
 });
 
+describe('sweep profile chunking', () => {
+    it('looks up owners in chunks and still enqueues all 250', async () => {
+        for (let i = 0; i < 250; i++) {
+            holder.db.tables.profiles.push({ id: `u${i}`, phone_number: '+919800000001' });
+            holder.db.tables.sites.push({ id: `s${i}`, user_id: `u${i}`, name: `Shop ${i}`, slug: `shop-${i}` });
+            holder.db.tables.site_subscriptions.push({ site_id: `s${i}`, user_id: `u${i}`, store_expires_at: null, trial_ends_at: new Date(NOW + 24 * HOUR).toISOString() });
+        }
+        const r = await runSweep(NOW);
+        expect(r.enqueued).toBe(250);
+        expect(outbox().every(o => typeof o.to_phone === 'string')).toBe(true);
+    });
+});
+
 describe('housekeeping', () => {
     it('deletes outbox rows older than 90 days and keeps newer ones', async () => {
         outbox().push({ id: 'old', idempotency_key: 'a', status: 'read', created_at: new Date(NOW - 91 * DAY).toISOString() });
@@ -302,7 +315,7 @@ describe('housekeeping', () => {
     });
 
     it('never throws when the database fails', async () => {
-        holder.db.failNext = { table: 'notification_outbox', op: 'select' };
+        holder.db.failNext = { table: 'notification_outbox', op: 'delete' };
         await expect(runHousekeeping(NOW)).resolves.toEqual({ purged: 0 });
     });
 });

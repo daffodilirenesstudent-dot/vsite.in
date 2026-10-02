@@ -19,7 +19,7 @@ export interface FakeDb {
     unique: Record<string, string[]>;
     /** Relation name → how to resolve it from a parent row. */
     relations: Record<string, { table: string; local: string; foreign: string; many?: boolean }>;
-    failNext?: { table: string; op: 'select' | 'insert' | 'update' | 'upsert' };
+    failNext?: { table: string; op: 'select' | 'insert' | 'update' | 'upsert' | 'delete' };
 }
 
 let seq = 0;
@@ -119,8 +119,9 @@ export function fakeClient(db: FakeDb) {
                 }
 
                 if (op === 'delete') {
+                    const gone = rows.filter(match);
                     db.tables[table] = rows.filter(r => !match(r));
-                    return { data: null, error: null };
+                    return { data: returning ? gone.map(r => project(db, r, columns)) : null, error: null };
                 }
 
                 let out = rows.filter(match).map(r => project(db, r, columns));

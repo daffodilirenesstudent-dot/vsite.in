@@ -7,28 +7,19 @@ import { whatsappConfig } from './client';
 
 /**
  * Daily duties after the sweep: drop message history older than 90 days (it
- * holds phone numbers - DPDP Act), record the daily heartbeat the watchdog
+ * holds phone numbers - DPDP Act; one delete by cutoff, volume is small), record the daily heartbeat the watchdog
  * checks, and warn if production has no WhatsApp config. Never throws.
  */
 
 export const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-const BATCH = 1000;
-const MAX_BATCHES = 10;
 
 export async function runHousekeeping(nowMs: number): Promise<{ purged: number }> {
     let purged = 0;
     try {
         const cutoff = new Date(nowMs - RETENTION_MS).toISOString();
-        for (let i = 0; i < MAX_BATCHES; i++) {
-            const { data, error } = await supabaseServer.from('notification_outbox').select('id').lt('created_at', cutoff).limit(BATCH);
-            if (error) throw new Error(error.message);
-            const ids = ((data ?? []) as Array<{ id: string }>).map(r => r.id);
-            if (ids.length === 0) break;
-            const { error: delErr } = await supabaseServer.from('notification_outbox').delete().in('id', ids);
-            if (delErr) throw new Error(delErr.message);
-            purged += ids.length;
-            if (ids.length < BATCH) break;
-        }
+        const { data, error } = await supabaseServer.from('notification_outbox').delete().lt('created_at', cutoff).select('id');
+        if (error) throw new Error(error.message);
+        purged = (data ?? []).length;
     } catch (err) {
         logger.error('[whatsapp] retention purge failed:', err instanceof Error ? err.message : 'unknown');
     }

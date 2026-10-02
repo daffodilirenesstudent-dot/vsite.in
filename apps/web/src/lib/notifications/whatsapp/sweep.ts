@@ -27,6 +27,8 @@ import { classifyPlanEvent, classifyTrialEvent, isPaid, sweepWindows, type PlanE
  */
 
 const PAGE = 500;
+// Keeps the PostgREST .in() URL well under proxy limits (~100 UUIDs = ~4 KB).
+const PROFILE_CHUNK = 100;
 
 /** Pages a window query until a short page. Bounded windows keep this small. */
 async function pageAll<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, label: string): Promise<T[]> {
@@ -127,14 +129,14 @@ export async function runSweep(nowMs: number = Date.now()): Promise<{ considered
     }
     if (candidates.length === 0) return { considered: 0, enqueued: 0 };
 
-    // One query per 500 owners instead of one per store.
+    // One query per 100 owners instead of one per store.
     const userIds = Array.from(new Set(candidates.map(c => c.userId)));
     const phones = new Map<string, string | null>();
-    for (let i = 0; i < userIds.length; i += PAGE) {
+    for (let i = 0; i < userIds.length; i += PROFILE_CHUNK) {
         const { data: profiles, error: profErr } = await supabaseServer
             .from('profiles')
             .select('id, phone_number')
-            .in('id', userIds.slice(i, i + PAGE));
+            .in('id', userIds.slice(i, i + PROFILE_CHUNK));
         if (profErr) throw new Error(`sweep profiles query failed: ${profErr.message}`);
         for (const p of profiles ?? []) {
             const r = p as { id: string; phone_number: string | null };
