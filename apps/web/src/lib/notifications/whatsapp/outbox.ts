@@ -5,6 +5,7 @@ import { buildComponents, DEFAULT_TEMPLATE_LANGUAGE, TEMPLATES, type TemplatePar
 import { sendTemplate, whatsappConfig } from './client';
 import { toWhatsAppNumber } from './phone';
 import { isPaid } from './windows';
+import { runWatchdog } from './watchdog';
 import { BREAKER_MS, breakerKeyFor, isOpen, type ErrorClass } from './health';
 import { readBreakers, openBreaker, closeBreaker } from './healthStore';
 import { alert } from './alerts';
@@ -186,6 +187,11 @@ const BREAKER_DURATION: Record<'system' | 'template' | 'throttle', number> = BRE
 async function trip(breakers: Map<string, number>, cls: ErrorClass, template: string, code: number | null, reason: string, nowMs: number): Promise<string | null> {
     const key = breakerKeyFor(cls, template);
     if (!key || (cls !== 'system' && cls !== 'template' && cls !== 'throttle')) return null;
+    // Another worker in this run already opened it: do not alert twice.
+    const existing = breakers.get(key);
+    if (existing !== undefined && existing > nowMs) return new Date(existing).toISOString();
+    // Claim the key in memory before awaiting the store, so concurrent workers see it.
+    breakers.set(key, nowMs + BREAKER_DURATION[cls]);
     try {
         const r = await openBreaker(key, { code, reason, untilMs: nowMs + BREAKER_DURATION[cls], nowMs });
         breakers.set(key, Date.parse(r.openUntil));
@@ -307,6 +313,7 @@ export interface DispatchSummary {
     skipped: number;
     paused: number;
     reclaimed: number;
+    alerts: string[];
 }
 
 /**
@@ -317,10 +324,10 @@ export interface DispatchSummary {
  */
 export async function dispatchDue(opts: { nowMs?: number; limit?: number; deadlineMs?: number } = {}): Promise<DispatchSummary> {
     const nowMs = opts.nowMs ?? Date.now();
-    const limit = opts.limit ?? 50;
+    const limit = opts.limit ?? 200;
     const deadline = Date.now() + (opts.deadlineMs ?? 45_000);
     const nowIso = new Date(nowMs).toISOString();
-    const summary: DispatchSummary = { configured: !!whatsappConfig(), attempted: 0, sent: 0, failed: 0, dead: 0, skipped: 0, paused: 0, reclaimed: 0 };
+    const summary: DispatchSummary = { configured: !!whatsappConfig(), attempted: 0, sent: 0, failed: 0, dead: 0, skipped: 0, paused: 0, reclaimed: 0, alerts: [] };
     if (!summary.configured) return summary;
     const breakers = await loadBreakers();
 
@@ -342,22 +349,35 @@ export async function dispatchDue(opts: { nowMs?: number; limit?: number; deadli
 
     const ids = [...(queued.data ?? []), ...(retry.data ?? [])].map(r => (r as { id: string }).id).slice(0, limit);
 
-    for (const id of ids) {
-        if (Date.now() > deadline) break;
-        summary.attempted++;
-        let outcome: DispatchOutcome;
-        try {
-            outcome = await dispatchRow(id, nowMs, breakers);
-        } catch (err) {
-            logger.error('[whatsapp] dispatch error for row', id, err instanceof Error ? err.message : 'unknown');
-            continue;
-        }
-        if (outcome === 'sent') summary.sent++;
-        else if (outcome === 'failed') summary.failed++;
-        else if (outcome === 'dead') summary.dead++;
-        else if (outcome === 'skipped') summary.skipped++;
-        else if (outcome === 'paused') summary.paused++;
+    if (isOpen(breakers, 'system', nowMs)) {
+        // Account-wide pause: send nothing, leave every row as it is.
+        summary.paused = ids.length;
+        summary.alerts = await runWatchdog(nowMs, breakers);
+        return summary;
     }
+
+    const CONCURRENCY = 5;
+    let next = 0;
+    const worker = async () => {
+        while (next < ids.length && Date.now() <= deadline) {
+            const id = ids[next++];
+            summary.attempted++;
+            let outcome: DispatchOutcome;
+            try {
+                outcome = await dispatchRow(id, nowMs, breakers);
+            } catch (err) {
+                logger.error('[whatsapp] dispatch error for row', id, err instanceof Error ? err.message : 'unknown');
+                continue;
+            }
+            if (outcome === 'sent') summary.sent++;
+            else if (outcome === 'failed') summary.failed++;
+            else if (outcome === 'dead') summary.dead++;
+            else if (outcome === 'skipped') summary.skipped++;
+            else if (outcome === 'paused') summary.paused++;
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
+    summary.alerts = await runWatchdog(nowMs, breakers);
     return summary;
 }
 

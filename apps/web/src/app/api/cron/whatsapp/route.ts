@@ -32,7 +32,7 @@ async function handle(req: NextRequest) {
     try {
         const sweep = task === 'dispatch' ? { considered: 0, enqueued: 0 } : await runSweep();
         const dispatch = task === 'sweep'
-            ? { configured: true, attempted: 0, sent: 0, failed: 0, dead: 0, skipped: 0, paused: 0, reclaimed: 0 }
+            ? { configured: true, attempted: 0, sent: 0, failed: 0, dead: 0, skipped: 0, paused: 0, reclaimed: 0, alerts: [] }
             : await dispatchDue({ deadlineMs: 45_000 });
         const summary = { ...sweep, ...dispatch };
         logger.info('[cron/whatsapp]', task ?? 'all', JSON.stringify(summary));

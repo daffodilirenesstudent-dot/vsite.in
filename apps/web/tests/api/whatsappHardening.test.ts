@@ -18,6 +18,7 @@ const notifyMock = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/notifications/notify', () => ({ notify: notifyMock }));
 
 import { alert } from '@/lib/notifications/whatsapp/alerts';
+import { runWatchdog } from '@/lib/notifications/whatsapp/watchdog';
 import { enqueue, dispatchRow, dispatchDue } from '@/lib/notifications/whatsapp/outbox';
 import { readBreakers, openBreaker, closeBreaker, beat, lastBeat, claimAlert } from '@/lib/notifications/whatsapp/healthStore';
 
@@ -137,14 +138,14 @@ describe('dispatcher with breakers', () => {
     it('token expired mid-run: one Meta call, one alert, nothing lost', async () => {
         seedOwner();
         for (let i = 0; i < 20; i++) await enqueue(receipt(`receipt:${i}`));
-        fetchMock.mockResolvedValue(metaErr(190, 401));
+        fetchMock.mockImplementation(async () => metaErr(190, 401));
         const r = await dispatchDue({ nowMs: NOW });
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(5);
         expect(sentry.captureMessage).toHaveBeenCalledTimes(1);
         expect(sentry.captureMessage.mock.calls[0][1]).toMatchObject({ fingerprint: ['whatsapp', 'breaker_open', 'system'] });
         expect(outbox().every(o => o.status !== 'dead')).toBe(true);
         expect(outbox().every(o => o.attempts === 0)).toBe(true);
-        expect(r.paused).toBe(19);
+        expect(r.paused + r.failed).toBe(20);
         expect(health().find(h => h.key === 'system')).toMatchObject({ code: 190, open_until: new Date(NOW + 15 * MIN).toISOString() });
     });
 
@@ -200,8 +201,65 @@ describe('dispatcher with breakers', () => {
         holder.db.failNext = { table: 'notification_health', op: 'upsert' };
         fetchMock.mockImplementation(async () => metaErr(190, 401));
         await dispatchDue({ nowMs: NOW });
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(5);
         expect(outbox().every(o => o.status !== 'dead')).toBe(true);
         expect(outbox().every(o => o.attempts === 0)).toBe(true);
+    });
+});
+
+describe('throughput', () => {
+    it('sends up to 200 rows per run, 5 at a time, each row once', async () => {
+        seedOwner();
+        for (let i = 0; i < 230; i++) await enqueue(receipt(`receipt:${i}`));
+        let inFlight = 0, peak = 0;
+        fetchMock.mockImplementation(async () => {
+            inFlight++; peak = Math.max(peak, inFlight);
+            await new Promise(r => setTimeout(r, 1));
+            inFlight--;
+            return metaOk(`wamid.${Math.random()}`);
+        });
+        const r = await dispatchDue({ nowMs: NOW });
+        expect(r.sent).toBe(200);
+        expect(fetchMock).toHaveBeenCalledTimes(200);
+        expect(peak).toBe(5);
+        expect(outbox().filter(o => o.status === 'queued')).toHaveLength(30);
+    });
+});
+
+describe('watchdog', () => {
+    it('alerts on a backlog older than 30 minutes, once per hour', async () => {
+        seedOwner();
+        await enqueue(receipt('receipt:old'));
+        outbox()[0].next_attempt_at = new Date(NOW - 45 * MIN).toISOString();
+        expect(await runWatchdog(NOW, new Map())).toEqual(['backlog']);
+        expect(await runWatchdog(NOW + 10 * MIN, new Map())).toEqual([]);
+    });
+
+    it('stays quiet about the backlog while the system breaker is open (already alerted)', async () => {
+        seedOwner();
+        await enqueue(receipt('receipt:old'));
+        outbox()[0].next_attempt_at = new Date(NOW - 45 * MIN).toISOString();
+        expect(await runWatchdog(NOW, new Map([['system', NOW + MIN]]))).toEqual([]);
+    });
+
+    it('alerts when 5 or more rows died in the last hour', async () => {
+        for (let i = 0; i < 5; i++) {
+            outbox().push({ id: `d${i}`, idempotency_key: `k${i}`, status: 'dead', updated_at: new Date(NOW - 10 * MIN).toISOString(), created_at: new Date(NOW - 20 * MIN).toISOString() });
+        }
+        expect(await runWatchdog(NOW, new Map())).toEqual(['dead_spike']);
+    });
+
+    it('alerts when the daily heartbeat is older than 26 hours', async () => {
+        health().push({ key: 'heartbeat:daily', updated_at: new Date(NOW - 27 * HOUR).toISOString(), open_until: null });
+        expect(await runWatchdog(NOW, new Map())).toEqual(['daily_missed']);
+    });
+
+    it('does not alert before the first daily run ever happened', async () => {
+        expect(await runWatchdog(NOW, new Map())).toEqual([]);
+    });
+
+    it('never throws when the database fails', async () => {
+        holder.db.failNext = { table: 'notification_outbox', op: 'select' };
+        await expect(runWatchdog(NOW, new Map())).resolves.toEqual([]);
     });
 });
