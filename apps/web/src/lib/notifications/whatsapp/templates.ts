@@ -4,7 +4,7 @@
  * Each entry is the contract with a template approved in WhatsApp Manager:
  * its name, its category, the exact copy that was submitted, and which of our
  * params fill {{1}}, {{2}}, … in order. `copy` is the source of truth for what
- * to submit (see docs/whatsapp-templates.md); if Meta's version drifts from it,
+ * to submit (see docs/whatsapp-setup.md); if Meta's version drifts from it,
  * sends fail with 132000 (param count) and the row goes `dead`, visibly.
  *
  * Every template is UTILITY: it is about the owner's own store and plan and
@@ -28,15 +28,35 @@ interface TemplateDef {
     category: 'UTILITY';
     /** Param key whose value is a public image URL for an IMAGE header. */
     headerImage?: string;
+    /**
+     * Static TEXT header submitted to Meta — the one line an owner reads in
+     * under a second. Never sent by the code (no variables), so it can be
+     * reworded in WhatsApp Manager without a deploy. Plain text: no emoji.
+     */
+    headerText?: string;
     /** Param keys for {{1}}, {{2}}, … in the body, in order. */
     body: readonly string[];
     /** The exact body submitted to Meta. */
     copy: string;
     /** Footer submitted to Meta (static, no params). */
     footer?: string;
+    /** Static URL button submitted to Meta. Not sent by the code. */
+    button?: { text: string; url: string };
 }
 
-const FOOTER = 'vsite.in · Smart QR Menu';
+/*
+ * House style (research 2026-10-02 — Meta utility rules + scannability):
+ *   - Header says what happened; the body gives the facts. Read in < 1 s.
+ *   - The fact that matters (shop, date, amount) is *bold*.
+ *   - One emoji, first, as a status icon: 🎉 live · ⏳ ending · ⚠️ offline · ✅ paid.
+ *   - Facts, not persuasion. "Renew now", "!" and urgency get a template
+ *     re-filed as MARKETING (Meta's own example of marketing is "Your
+ *     subscription will expire on {{date}}! Renew today…").
+ *   - The action is the button, so the body carries no URL to read.
+ */
+const FOOTER = 'vsite · Smart QR Menu';
+const DASHBOARD = { text: 'Manage menu', url: 'https://vsite.in/manage/dashboard' };
+const PLAN = { text: 'View plan', url: 'https://vsite.in/manage/subscription' };
 
 export const TEMPLATES: Record<WhatsAppEvent, TemplateDef> = {
     welcome: {
@@ -45,66 +65,79 @@ export const TEMPLATES: Record<WhatsAppEvent, TemplateDef> = {
         headerImage: 'qrImageUrl',
         body: ['shopName', 'menuUrl', 'trialEndsOn'],
         copy:
-            'Congratulations! {{1}} is now live on vsite.\n\n' +
-            'Your QR code is attached. Print it and place it on your tables or counter — customers scan it to see your menu.\n\n' +
-            'Menu link: {{2}}\n\n' +
-            'Your free trial is active until {{3}}. You can edit your menu anytime from your dashboard.',
+            '🎉 *{{1}}* is now live on vsite.\n\n' +
+            'Your QR code is above. Print it and place it on your tables or counter — customers scan it to see your menu.\n\n' +
+            'Menu link: {{2}}\n' +
+            'Free trial until: *{{3}}*\n\n' +
+            'Tap below to edit your menu anytime.',
         footer: FOOTER,
+        button: DASHBOARD,
     },
     trial_ending: {
         name: 'vsite_trial_ending',
         category: 'UTILITY',
+        headerText: 'Free trial ending soon',
         body: ['shopName', 'trialEndsOn', 'priceInr'],
         copy:
-            'Your free trial for {{1}} ends on {{2}}.\n\n' +
-            'After that, customers who scan your QR code will not see your menu. ' +
-            'To keep it live, activate your plan (₹{{3}}/month) at vsite.in/manage/subscription.',
+            '⏳ The free trial for *{{1}}* ends on *{{2}}*.\n\n' +
+            'After that date, customers who scan your QR code will not see your menu. The Smart QR Menu plan is ₹{{3}}/month.',
         footer: FOOTER,
+        button: PLAN,
     },
     trial_ended: {
         name: 'vsite_trial_ended',
         category: 'UTILITY',
+        headerText: 'Free trial ended',
         body: ['shopName', 'priceInr'],
         copy:
-            'The free trial for {{1}} has ended, so your QR menu is now offline.\n\n' +
-            'Your menu and photos are saved. Activate your plan (₹{{2}}/month) at vsite.in/manage/subscription to bring it back instantly.',
+            '⚠️ The free trial for *{{1}}* has ended. Your QR menu is now offline for customers.\n\n' +
+            'Your menu and photos are saved. It goes live again as soon as the plan (₹{{2}}/month) is active.',
         footer: FOOTER,
+        button: PLAN,
     },
     payment_receipt: {
         name: 'vsite_payment_receipt',
         category: 'UTILITY',
+        headerText: 'Payment received',
         body: ['amountInr', 'validTill'],
         copy:
-            'Payment received: ₹{{1}} for your vsite Smart QR Menu plan.\n\n' +
-            'Your menu is live until {{2}}. Your invoice is available at vsite.in/manage/subscription.',
+            '✅ We received *₹{{1}}* for your Smart QR Menu plan.\n\n' +
+            'Your menu is live until *{{2}}*. Your invoice is in the dashboard.',
         footer: FOOTER,
+        button: { text: 'View invoice', url: 'https://vsite.in/manage/subscription' },
     },
     plan_expiring: {
         name: 'vsite_plan_expiring',
         category: 'UTILITY',
+        headerText: 'Plan ending soon',
         body: ['shopName', 'expiresOn'],
         copy:
-            'Your vsite plan for {{1}} expires on {{2}}.\n\n' +
-            'Renew at vsite.in/manage/subscription to keep your QR menu live without interruption.',
+            '⏳ The vsite plan for *{{1}}* ends on *{{2}}*.\n\n' +
+            'After that date, customers who scan your QR code will not see your menu.',
         footer: FOOTER,
+        button: PLAN,
     },
     plan_expires_today: {
         name: 'vsite_plan_expires_today',
         category: 'UTILITY',
+        headerText: 'Plan ends within 24 hours',
         body: ['shopName'],
         copy:
-            'Your vsite plan for {{1}} expires today.\n\n' +
-            'Renew at vsite.in/manage/subscription so customers can keep scanning your QR menu.',
+            '⏳ The vsite plan for *{{1}}* ends within the next 24 hours.\n\n' +
+            'After that, customers who scan your QR code will not see your menu.',
         footer: FOOTER,
+        button: PLAN,
     },
     plan_expired: {
         name: 'vsite_plan_expired',
         category: 'UTILITY',
+        headerText: 'Plan ended',
         body: ['shopName'],
         copy:
-            'Your vsite plan for {{1}} has expired, so your QR menu is now offline.\n\n' +
-            'Your menu is saved. Renew at vsite.in/manage/subscription to bring it back instantly.',
+            '⚠️ The vsite plan for *{{1}}* has ended. Your QR menu is now offline for customers.\n\n' +
+            'Your menu is saved. It goes live again as soon as the plan is active.',
         footer: FOOTER,
+        button: PLAN,
     },
 };
 

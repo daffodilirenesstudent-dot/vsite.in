@@ -18,8 +18,6 @@ import { isRetryable } from '@/lib/notifications/whatsapp/client';
 import { nextDeliveryStatus, planFailure, isStale, MAX_ATTEMPTS } from '@/lib/notifications/whatsapp/state';
 
 const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
-const TRIAL = 7 * DAY;
 const NOW = Date.parse('2026-09-22T04:30:00.000Z'); // 10:00 IST, the cron's slot
 
 describe('toWhatsAppNumber', () => {
@@ -202,4 +200,26 @@ describe('outbox state machine', () => {
         expect(isStale(new Date(NOW - 47 * HOUR).toISOString(), NOW)).toBe(false);
         expect(isStale(new Date(NOW - 49 * HOUR).toISOString(), NOW)).toBe(true);
     });
+});
+
+describe('template copy — the contract submitted to Meta', () => {
+    for (const [event, def] of Object.entries(TEMPLATES)) {
+        it(`${event}: {{n}} in the copy match the params the code sends, in order`, () => {
+            const nums = Array.from(def.copy.matchAll(/\{\{(\d+)\}\}/g), m => Number(m[1]));
+            expect(nums).toEqual(def.body.map((_, i) => i + 1));
+        });
+        it(`${event}: obeys Meta's rejection rules`, () => {
+            const text = def.copy.replace(/[*_~]/g, '').trim();
+            expect(text.startsWith('{{')).toBe(false);          // cannot start with a variable
+            expect(text.endsWith('}}')).toBe(false);            // cannot end with a variable
+            expect(def.copy).not.toMatch(/\n{3,}/);            // at most one blank line in a row
+            expect(def.copy.length).toBeLessThanOrEqual(1024);
+            expect((def.footer ?? '').length).toBeLessThanOrEqual(60);
+            expect((def.headerText ?? '').length).toBeLessThanOrEqual(60);
+            expect(def.headerText ?? '').not.toMatch(/\{\{|[*_~]|\p{Extended_Pictographic}/u); // static, plain
+            const emojis = def.copy.match(/\p{Extended_Pictographic}/gu) ?? [];
+            expect(emojis.length).toBeLessThanOrEqual(1);       // one status icon, no more
+            expect(def.copy).not.toMatch(/\brenew (now|today)\b|!/i); // persuasion → Meta re-files as MARKETING
+        });
+    }
 });

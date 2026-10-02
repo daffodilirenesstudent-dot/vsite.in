@@ -70,74 +70,34 @@ After the deploy is live:
 
 ## 5. Create the 7 templates
 
-WhatsApp Manager → Message templates → Create. **Category: Utility.
-Language: English (`en`).** Name, header, body and footer must match exactly —
-the code sends these names with these parameter counts
-(`templates.ts` is the source of truth). Add the sample values Meta asks for.
+WhatsApp Manager → Message templates → Create. **Category: Utility. Language:
+English (`en` — not "English (US)").** `templates.ts` is the source of truth
+(rewritten 2026-10-02); `tests/unit/whatsappPrimitives.test.ts` enforces Meta's
+rejection rules on it. Names and the {{n}} variables must match exactly; headers,
+footers and the static buttons are never sent by the code, so wording there can
+change in WhatsApp Manager alone (keep `templates.ts` in step anyway).
 
-### `vsite_welcome_qr`
-- Header: **Image** (sample: any QR PNG)
-- Body:
-  ```
-  Congratulations! {{1}} is now live on vsite.
+House style: the header says what happened; the fact that matters is *bold*;
+one emoji as a status icon; facts, never persuasion ("renew now", "!" get a
+template re-filed as Marketing); the action is the button.
 
-  Your QR code is attached. Print it and place it on your tables or counter — customers scan it to see your menu.
+All seven: **Footer** `vsite · Smart QR Menu` · variable type **Number**.
+Button = **Visit website**, URL type **Static**.
 
-  Menu link: {{2}}
+| Name | Header | Button → URL |
+|---|---|---|
+| `vsite_welcome_qr` | Image (QR) | Manage menu → `https://vsite.in/manage/dashboard` |
+| `vsite_trial_ending` | Free trial ending soon | View plan → `https://vsite.in/manage/subscription` |
+| `vsite_trial_ended` | Free trial ended | View plan → same |
+| `vsite_payment_receipt` | Payment received | View invoice → same |
+| `vsite_plan_expiring` | Plan ending soon | View plan → same |
+| `vsite_plan_expires_today` | Plan ends within 24 hours | View plan → same |
+| `vsite_plan_expired` | Plan ended | View plan → same |
 
-  Your free trial is active until {{3}}. You can edit your menu anytime from your dashboard.
-  ```
-  Samples: `Anna Cafe`, `https://vsite.in/shop/anna-cafe`, `29 Sept 2026`
-
-### `vsite_trial_ending`
-```
-Your free trial for {{1}} ends on {{2}}.
-
-After that, customers who scan your QR code will not see your menu. To keep it live, activate your plan (₹{{3}}/month) at vsite.in/manage/subscription.
-```
-Samples: `Anna Cafe`, `29 Sept 2026`, `299`
-
-### `vsite_trial_ended`
-```
-The free trial for {{1}} has ended, so your QR menu is now offline.
-
-Your menu and photos are saved. Activate your plan (₹{{2}}/month) at vsite.in/manage/subscription to bring it back instantly.
-```
-Samples: `Anna Cafe`, `299`
-
-### `vsite_payment_receipt`
-```
-Payment received: ₹{{1}} for your vsite Smart QR Menu plan.
-
-Your menu is live until {{2}}. Your invoice is available at vsite.in/manage/subscription.
-```
-Samples: `299`, `22 Oct 2026`
-
-### `vsite_plan_expiring`
-```
-Your vsite plan for {{1}} expires on {{2}}.
-
-Renew at vsite.in/manage/subscription to keep your QR menu live without interruption.
-```
-Samples: `Anna Cafe`, `25 Sept 2026`
-
-### `vsite_plan_expires_today`
-```
-Your vsite plan for {{1}} expires today.
-
-Renew at vsite.in/manage/subscription so customers can keep scanning your QR menu.
-```
-Sample: `Anna Cafe`
-
-### `vsite_plan_expired`
-```
-Your vsite plan for {{1}} has expired, so your QR menu is now offline.
-
-Your menu is saved. Renew at vsite.in/manage/subscription to bring it back instantly.
-```
-Sample: `Anna Cafe`
-
-**Footer for all seven:** `vsite.in · Smart QR Menu`
+Bodies: copy the `copy` string of each entry in `templates.ts` (a `
+` is a new
+line). Samples: shop `Anna Cafe`, link `https://vsite.in/shop/anna-cafe`, dates
+`29 Sept 2026`, amount/price `299`.
 
 If Meta re-categorises one as Marketing, reword it to be more strictly
 informational — do not accept Marketing (≈6× price, frequency-capped).
