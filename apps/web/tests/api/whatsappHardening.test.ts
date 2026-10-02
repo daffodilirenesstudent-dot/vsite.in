@@ -17,6 +17,7 @@ vi.mock('@sentry/nextjs', () => sentry);
 const notifyMock = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/notifications/notify', () => ({ notify: notifyMock }));
 
+import { alert } from '@/lib/notifications/whatsapp/alerts';
 import { readBreakers, openBreaker, closeBreaker, beat, lastBeat, claimAlert } from '@/lib/notifications/whatsapp/healthStore';
 
 const MIN = 60_000;
@@ -102,5 +103,25 @@ describe('healthStore', () => {
         expect(await claimAlert('backlog', HOUR, NOW + 10 * MIN)).toBe(false);
         expect(await claimAlert('dead_spike', HOUR, NOW + 10 * MIN)).toBe(true);
         expect(await claimAlert('backlog', HOUR, NOW + HOUR + 1)).toBe(true);
+    });
+});
+
+describe('alert', () => {
+    it('reports to Sentry with a stable fingerprint per kind and key', () => {
+        alert('breaker_open', { key: 'system', code: 190 });
+        expect(sentry.captureMessage).toHaveBeenCalledWith('WhatsApp: breaker_open', expect.objectContaining({
+            level: 'error',
+            fingerprint: ['whatsapp', 'breaker_open', 'system'],
+            tags: { area: 'whatsapp', kind: 'breaker_open' },
+            extra: { key: 'system', code: 190 },
+        }));
+    });
+    it('passes the level through', () => {
+        alert('quality_drop', { event: 'DOWNGRADE' }, 'warning');
+        expect(sentry.captureMessage.mock.calls[0][1]).toMatchObject({ level: 'warning', fingerprint: ['whatsapp', 'quality_drop', ''] });
+    });
+    it('never throws when Sentry throws', () => {
+        sentry.captureMessage.mockImplementationOnce(() => { throw new Error('sentry down'); });
+        expect(() => alert('backlog', { oldestMinutes: 45 })).not.toThrow();
     });
 });
