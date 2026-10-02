@@ -193,4 +193,15 @@ describe('dispatcher with breakers', () => {
         expect(health()).toHaveLength(0);
         expect(sentry.captureMessage).not.toHaveBeenCalled();
     });
+
+    it('health store down plus an account error: still one Meta call, no attempts burned', async () => {
+        seedOwner();
+        for (let i = 0; i < 5; i++) await enqueue(receipt(`receipt:d${i}`));
+        holder.db.failNext = { table: 'notification_health', op: 'upsert' };
+        fetchMock.mockImplementation(async () => metaErr(190, 401));
+        await dispatchDue({ nowMs: NOW });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(outbox().every(o => o.status !== 'dead')).toBe(true);
+        expect(outbox().every(o => o.attempts === 0)).toBe(true);
+    });
 });

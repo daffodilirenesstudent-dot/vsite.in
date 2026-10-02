@@ -175,7 +175,7 @@ async function loadBreakers(): Promise<Map<string, number>> {
     try {
         return await readBreakers();
     } catch (err) {
-        logger.error('[whatsapp] breaker read failed — sending without breakers:', err instanceof Error ? err.message : 'unknown');
+        logger.error('[whatsapp] breaker read failed - sending without breakers:', err instanceof Error ? err.message : 'unknown');
         return new Map();
     }
 }
@@ -193,7 +193,10 @@ async function trip(breakers: Map<string, number>, cls: ErrorClass, template: st
         return r.openUntil;
     } catch (err) {
         logger.error('[whatsapp] breaker write failed:', err instanceof Error ? err.message : 'unknown');
-        return null;
+        // Fail open but still pause this run, so a health-store outage cannot burn attempts.
+        const untilMs = nowMs + BREAKER_DURATION[cls];
+        breakers.set(key, untilMs);
+        return new Date(untilMs).toISOString();
     }
 }
 
