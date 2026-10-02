@@ -13,11 +13,13 @@
 // The response carries counts only — never phone numbers or message content.
 
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { authorizeCron } from '@/lib/platform/cronAuth';
 import { runSweep } from '@/lib/notifications/whatsapp/sweep';
 import { runHousekeeping } from '@/lib/notifications/whatsapp/housekeeping';
 import { dispatchDue } from '@/lib/notifications/whatsapp/outbox';
 import { logger } from '@/lib/platform/logger';
+import { DISPATCH_MONITOR } from '@/lib/notifications/whatsapp/monitor';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +31,17 @@ async function handle(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const task = req.nextUrl.searchParams.get('task');
+    const monitored = task === 'dispatch';
+    let checkInId: string | undefined;
+    if (monitored) {
+        try {
+            checkInId = Sentry.captureCheckIn({ monitorSlug: DISPATCH_MONITOR.slug, status: 'in_progress' }, DISPATCH_MONITOR.config);
+        } catch { /* monitoring must never block sending */ }
+    }
+    const checkOut = (status: 'ok' | 'error') => {
+        if (!monitored || !checkInId) return;
+        try { Sentry.captureCheckIn({ checkInId, monitorSlug: DISPATCH_MONITOR.slug, status }); } catch { /* ignore */ }
+    };
 
     try {
         const sweep = task === 'dispatch' ? { considered: 0, enqueued: 0 } : await runSweep();
@@ -39,9 +52,11 @@ async function handle(req: NextRequest) {
         const summary = { ...sweep, ...housekeeping, ...dispatch };
         logger.info('[cron/whatsapp]', task ?? 'all', JSON.stringify(summary));
         if (!dispatch.configured) logger.warn('[cron/whatsapp] WhatsApp is not configured — rows stay queued');
+        checkOut('ok');
         return NextResponse.json({ success: true, ...summary });
     } catch (err) {
-        console.error('[cron/whatsapp] failed:', err instanceof Error ? err.message : 'unknown');
+        logger.error('[cron/whatsapp] failed:', err instanceof Error ? err.message : 'unknown');
+        checkOut('error');
         return NextResponse.json({ error: 'WhatsApp job failed', code: 'WHATSAPP_CRON_FAILED' }, { status: 500 });
     }
 }

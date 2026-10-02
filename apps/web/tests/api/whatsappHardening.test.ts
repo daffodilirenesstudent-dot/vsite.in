@@ -319,3 +319,38 @@ describe('housekeeping', () => {
         await expect(runHousekeeping(NOW)).resolves.toEqual({ purged: 0 });
     });
 });
+
+import { NextRequest } from 'next/server';
+import { POST as cronPost } from '@/app/api/cron/whatsapp/route';
+
+describe('cron check-in (one monitor: whatsapp-dispatch)', () => {
+    const url = 'https://vsite.in/api/cron/whatsapp?task=dispatch';
+    const auth = { authorization: `Bearer ${ENV.CRON_SECRET}` };
+
+    it('checks in in_progress then ok around a dispatch run', async () => {
+        const res = await cronPost(new NextRequest(url, { method: 'POST', headers: auth }));
+        expect(res.status).toBe(200);
+        expect(sentry.captureCheckIn).toHaveBeenNthCalledWith(1,
+            { monitorSlug: 'whatsapp-dispatch', status: 'in_progress' },
+            expect.objectContaining({ schedule: { type: 'crontab', value: '*/10 * * * *' }, checkinMargin: 5 }));
+        expect(sentry.captureCheckIn).toHaveBeenNthCalledWith(2,
+            { checkInId: 'checkin-1', monitorSlug: 'whatsapp-dispatch', status: 'ok' });
+    });
+
+    it('checks in error when the run fails', async () => {
+        holder.db.failNext = { table: 'notification_outbox', op: 'update' }; // reclaim step throws
+        const res = await cronPost(new NextRequest(url, { method: 'POST', headers: auth }));
+        expect(res.status).toBe(500);
+        expect(sentry.captureCheckIn).toHaveBeenLastCalledWith({ checkInId: 'checkin-1', monitorSlug: 'whatsapp-dispatch', status: 'error' });
+    });
+
+    it('the daily run does not use a monitor (free plan has one)', async () => {
+        await cronPost(new NextRequest('https://vsite.in/api/cron/whatsapp', { method: 'POST', headers: auth }));
+        expect(sentry.captureCheckIn).not.toHaveBeenCalled();
+    });
+
+    it('an unauthorised call never checks in', async () => {
+        await cronPost(new NextRequest(url, { method: 'POST' }));
+        expect(sentry.captureCheckIn).not.toHaveBeenCalled();
+    });
+});
