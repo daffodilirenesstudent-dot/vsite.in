@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeCron } from '@/lib/platform/cronAuth';
 import { runSweep } from '@/lib/notifications/whatsapp/sweep';
+import { runHousekeeping } from '@/lib/notifications/whatsapp/housekeeping';
 import { dispatchDue } from '@/lib/notifications/whatsapp/outbox';
 import { logger } from '@/lib/platform/logger';
 
@@ -31,10 +32,11 @@ async function handle(req: NextRequest) {
 
     try {
         const sweep = task === 'dispatch' ? { considered: 0, enqueued: 0 } : await runSweep();
+        const housekeeping = task ? { purged: 0 } : await runHousekeeping(Date.now());
         const dispatch = task === 'sweep'
             ? { configured: true, attempted: 0, sent: 0, failed: 0, dead: 0, skipped: 0, paused: 0, reclaimed: 0, alerts: [] }
             : await dispatchDue({ deadlineMs: 45_000 });
-        const summary = { ...sweep, ...dispatch };
+        const summary = { ...sweep, ...housekeeping, ...dispatch };
         logger.info('[cron/whatsapp]', task ?? 'all', JSON.stringify(summary));
         if (!dispatch.configured) logger.warn('[cron/whatsapp] WhatsApp is not configured — rows stay queued');
         return NextResponse.json({ success: true, ...summary });

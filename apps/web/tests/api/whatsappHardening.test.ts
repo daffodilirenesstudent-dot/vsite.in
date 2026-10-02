@@ -20,11 +20,12 @@ vi.mock('@/lib/notifications/notify', () => ({ notify: notifyMock }));
 import { alert } from '@/lib/notifications/whatsapp/alerts';
 import { runWatchdog } from '@/lib/notifications/whatsapp/watchdog';
 import { enqueue, dispatchRow, dispatchDue } from '@/lib/notifications/whatsapp/outbox';
+import { runSweep } from '@/lib/notifications/whatsapp/sweep';
+import { runHousekeeping } from '@/lib/notifications/whatsapp/housekeeping';
 import { readBreakers, openBreaker, closeBreaker, beat, lastBeat, claimAlert } from '@/lib/notifications/whatsapp/healthStore';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DAY = 24 * HOUR;
 const NOW = Date.parse('2026-10-02T04:30:00.000Z');
 type Row = Record<string, unknown>;
@@ -261,5 +262,47 @@ describe('watchdog', () => {
     it('never throws when the database fails', async () => {
         holder.db.failNext = { table: 'notification_outbox', op: 'select' };
         await expect(runWatchdog(NOW, new Map())).resolves.toEqual([]);
+    });
+});
+
+describe('sweep pagination', () => {
+    it('enqueues every due store, beyond one page', async () => {
+        for (let i = 0; i < 1200; i++) {
+            holder.db.tables.profiles.push({ id: `u${i}`, phone_number: '+919800000001' });
+            holder.db.tables.sites.push({ id: `s${i}`, user_id: `u${i}`, name: `Shop ${i}`, slug: `shop-${i}` });
+            holder.db.tables.site_subscriptions.push({ site_id: `s${i}`, user_id: `u${i}`, store_expires_at: null, trial_ends_at: new Date(NOW + 24 * HOUR).toISOString() });
+        }
+        const r = await runSweep(NOW);
+        expect(r.enqueued).toBe(1200);
+    });
+});
+
+describe('housekeeping', () => {
+    it('deletes outbox rows older than 90 days and keeps newer ones', async () => {
+        outbox().push({ id: 'old', idempotency_key: 'a', status: 'read', created_at: new Date(NOW - 91 * DAY).toISOString() });
+        outbox().push({ id: 'new', idempotency_key: 'b', status: 'read', created_at: new Date(NOW - 89 * DAY).toISOString() });
+        const r = await runHousekeeping(NOW);
+        expect(r.purged).toBe(1);
+        expect(outbox().map(o => o.id)).toEqual(['new']);
+    });
+
+    it('writes the daily heartbeat', async () => {
+        await runHousekeeping(NOW);
+        expect(health().find(h => h.key === 'heartbeat:daily')?.updated_at).toBe(new Date(NOW).toISOString());
+    });
+
+    it('warns once a day when production has no WhatsApp config', async () => {
+        delete process.env.WHATSAPP_ACCESS_TOKEN;
+        vi.stubEnv('NODE_ENV', 'production');
+        await runHousekeeping(NOW);
+        await runHousekeeping(NOW + HOUR);
+        vi.unstubAllEnvs();
+        expect(sentry.captureMessage).toHaveBeenCalledTimes(1);
+        expect(sentry.captureMessage.mock.calls[0][1]).toMatchObject({ level: 'warning', fingerprint: ['whatsapp', 'not_configured', ''] });
+    });
+
+    it('never throws when the database fails', async () => {
+        holder.db.failNext = { table: 'notification_outbox', op: 'select' };
+        await expect(runHousekeeping(NOW)).resolves.toEqual({ purged: 0 });
     });
 });

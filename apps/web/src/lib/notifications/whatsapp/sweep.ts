@@ -26,7 +26,19 @@ import { classifyPlanEvent, classifyTrialEvent, isPaid, sweepWindows, type PlanE
  * is a no-op and a renewal naturally starts a fresh set of reminders.
  */
 
-const QUERY_CAP = 1000;
+const PAGE = 500;
+
+/** Pages a window query until a short page. Bounded windows keep this small. */
+async function pageAll<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, label: string): Promise<T[]> {
+    const out: T[] = [];
+    for (let from = 0; ; from += PAGE) {
+        const { data, error } = await query(from, from + PAGE - 1);
+        if (error) throw new Error(`sweep ${label} query failed: ${error.message}`);
+        const rows = (data ?? []) as T[];
+        out.push(...rows);
+        if (rows.length < PAGE) return out;
+    }
+}
 const PRICE = String(PLAN_PRICES_INR.qr_menu);
 const LINK = '/manage/subscription';
 
@@ -86,28 +98,22 @@ function planCandidate(sub: PlanSub, event: PlanEvent): Candidate {
 export async function runSweep(nowMs: number = Date.now()): Promise<{ considered: number; enqueued: number }> {
     const w = sweepWindows(nowMs);
 
-    const [trialRes, planRes] = await Promise.all([
-        supabaseServer
+    const [trialSubs, planSubs] = await Promise.all([
+        pageAll<TrialSub>((from, to) => supabaseServer
             .from('site_subscriptions')
             .select('site_id, user_id, store_expires_at, trial_ends_at, sites!inner(name)')
             .gt('trial_ends_at', w.trialEnds.gt)
             .lte('trial_ends_at', w.trialEnds.lte)
-            .limit(QUERY_CAP),
-        supabaseServer
+            .order('site_id', { ascending: true })
+            .range(from, to), 'trial'),
+        pageAll<PlanSub>((from, to) => supabaseServer
             .from('site_subscriptions')
             .select('site_id, user_id, store_expires_at, sites!inner(name)')
             .gt('store_expires_at', w.planExpires.gt)
             .lte('store_expires_at', w.planExpires.lte)
-            .limit(QUERY_CAP),
+            .order('site_id', { ascending: true })
+            .range(from, to), 'plan'),
     ]);
-    if (trialRes.error) throw new Error(`sweep trial query failed: ${trialRes.error.message}`);
-    if (planRes.error) throw new Error(`sweep plan query failed: ${planRes.error.message}`);
-
-    const trialSubs = (trialRes.data ?? []) as unknown as TrialSub[];
-    const planSubs = (planRes.data ?? []) as unknown as PlanSub[];
-    if (trialSubs.length >= QUERY_CAP || planSubs.length >= QUERY_CAP) {
-        logger.warn('[whatsapp/sweep] query cap reached — some stores wait for the next run');
-    }
 
     const candidates: Candidate[] = [];
     for (const sub of trialSubs) {
@@ -121,17 +127,20 @@ export async function runSweep(nowMs: number = Date.now()): Promise<{ considered
     }
     if (candidates.length === 0) return { considered: 0, enqueued: 0 };
 
-    // One query for every owner's number instead of one per store.
+    // One query per 500 owners instead of one per store.
     const userIds = Array.from(new Set(candidates.map(c => c.userId)));
-    const { data: profiles, error: profErr } = await supabaseServer
-        .from('profiles')
-        .select('id, phone_number')
-        .in('id', userIds);
-    if (profErr) throw new Error(`sweep profiles query failed: ${profErr.message}`);
-    const phones = new Map((profiles ?? []).map(p => {
-        const r = p as { id: string; phone_number: string | null };
-        return [r.id, r.phone_number] as const;
-    }));
+    const phones = new Map<string, string | null>();
+    for (let i = 0; i < userIds.length; i += PAGE) {
+        const { data: profiles, error: profErr } = await supabaseServer
+            .from('profiles')
+            .select('id, phone_number')
+            .in('id', userIds.slice(i, i + PAGE));
+        if (profErr) throw new Error(`sweep profiles query failed: ${profErr.message}`);
+        for (const p of profiles ?? []) {
+            const r = p as { id: string; phone_number: string | null };
+            phones.set(r.id, r.phone_number);
+        }
+    }
 
     let enqueued = 0;
     for (const { bell, ...input } of candidates) {
