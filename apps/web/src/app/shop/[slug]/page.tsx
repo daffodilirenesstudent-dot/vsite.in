@@ -7,6 +7,8 @@ import type { MenuProduct, ShopBanner } from './ShopPageClient';
 import { normalizePlan } from '@/lib/platform/productFlags';
 import { trialEndsMs as trialEndOf } from '@/lib/store/trialRules';
 import { buildMenuDescription } from '@/lib/store/businessTypes';
+import { buildShopSchema } from '@/lib/seo/shopSchema';
+import { serializeJsonLd } from '@/lib/seo/jsonld';
 
 // ISR: Cache pages for 10 seconds so toggle/live changes reflect quickly.
 export const revalidate = 10;
@@ -241,5 +243,23 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
     // pay_eat = common QR only — ignore any ?table= param that may appear in the URL
     const effectiveTableNumber = tier === 'order' ? undefined : validTableNumber;
 
-    return <ShopPageClient shop={shop} menuProducts={menuProducts} banners={banners} tier={tier} tableNumber={effectiveTableNumber} gstRatePct={gstRatePct} whatsappOrderTaking={whatsappOrderTaking} currencyCode={currencyCode} />;
+    // Restaurant + Menu JSON-LD from the data already loaded above. Additive:
+    // no new query, and it does not change what the client renders.
+    const shopSchema = buildShopSchema({
+        slug: shop.slug,
+        name: shop.name,
+        type: shop.type,
+        currency: currencyCode,
+        products: menuProducts,
+    });
+
+    return (
+        <>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: serializeJsonLd(shopSchema) }}
+            />
+            <ShopPageClient shop={shop} menuProducts={menuProducts} banners={banners} tier={tier} tableNumber={effectiveTableNumber} gstRatePct={gstRatePct} whatsappOrderTaking={whatsappOrderTaking} currencyCode={currencyCode} />
+        </>
+    );
 }

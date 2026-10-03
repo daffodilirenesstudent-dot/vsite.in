@@ -60,13 +60,13 @@ const STATS = [
         Icon: MapPin,
         value: PROOF_STATS.languages,
         label: 'on every menu',
-        note: 'One tap to switch. Long Tamil dish names render properly.',
+        note: 'Dish names in Tamil, English or both, in Tamil fonts. Long Tamil names render properly.',
     },
     {
         Icon: Timer,
-        value: `${PROOF_STATS.setupMinutes} min`,
-        label: 'from photo to live menu',
-        note: 'The same three steps, whatever your menu looks like.',
+        value: `~${PROOF_STATS.setupMinutes} min`,
+        label: 'from sign-up to a live menu link',
+        note: 'For a typical menu. A complete setup with the QR poster takes about 10 to 15 minutes.',
     },
 ];
 

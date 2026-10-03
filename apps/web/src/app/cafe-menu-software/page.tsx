@@ -3,9 +3,9 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { cafeMenuPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Digital Menu Software for Cafés in India | QR Menu | vsite';
+const TITLE = 'Digital Menu Software for Cafés in India | QR Menu';
 const DESCRIPTION =
-    'QR menu software for cafés in India — AI food photos, real-time daily specials, Tamil + English. Live in 3 minutes. ₹299/month, no commission.';
+    'QR menu software for cafés in India — AI food photos, real-time daily specials, Tamil + English. Live menu link in about 3 minutes. ₹299/month, no commission.';
 
 export const metadata: Metadata = {
     title: TITLE,

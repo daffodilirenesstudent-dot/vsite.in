@@ -3,9 +3,9 @@ import SeoLanding, { buildLandingSchemas } from '@/components/home/SeoLanding';
 import { bakeryMenuPage } from '@/content/seo-pages/data';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = 'Digital Menu Software for Bakeries in India | vsite';
+const TITLE = 'Digital Menu Software for Bakeries in India';
 const DESCRIPTION =
-    'QR menu software for bakeries — AI photos for cakes, breads, pastries; custom-order requests; UPI checkout. Live in 3 minutes. ₹299/month with vsite.';
+    'QR menu software for bakeries — AI photos for cakes, breads, pastries; custom-order requests; UPI checkout. Live menu link in about 3 minutes. ₹299/month with vsite.';
 
 export const metadata: Metadata = {
     title: TITLE,

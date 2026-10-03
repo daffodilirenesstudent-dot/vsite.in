@@ -6,6 +6,7 @@ import Reveal from './Reveal';
 import Logo from '@/components/Logo';
 import { SUPPORT_EMAIL, whatsappUrl } from '@/lib/platform/brand';
 import { PROOF_STATS } from './Proof';
+import { INSTAGRAM_URL } from '@/lib/seo/entity';
 
 const COLUMNS = [
     {
@@ -36,6 +37,8 @@ const COLUMNS = [
             { label: 'AI menu builder', href: '/ai-menu-builder' },
             { label: 'AI food photos', href: '/ai-food-photo-generator' },
             { label: 'Digital menu in India', href: '/digital-menu-india' },
+            { label: 'Digital menu by city', href: '/digital-menu' },
+            { label: 'Digital menu setup guide', href: '/guide/digital-menu-setup' },
             { label: 'Blog', href: '/blog' },
         ],
     },
@@ -96,7 +99,7 @@ export default function FooterCTA() {
 
                     <p className="mt-6 text-[15px] text-on-night-45">
                         Serving Tamil Nadu since {PROOF_STATS.liveSince}. Menus in {PROOF_STATS.languages},
-                        live in {PROOF_STATS.setupMinutes} minutes.
+                        a live menu link in about {PROOF_STATS.setupMinutes} minutes.
                     </p>
                 </Reveal>
             </section>
@@ -132,7 +135,7 @@ export default function FooterCTA() {
                                     {SUPPORT_EMAIL}
                                 </a>
                                 <a
-                                    href="https://www.instagram.com/vsite.in"
+                                    href={INSTAGRAM_URL}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     aria-label="vsite on Instagram"

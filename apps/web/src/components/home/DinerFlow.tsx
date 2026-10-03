@@ -128,7 +128,7 @@ export default function DinerFlow() {
                         </p>
                         <p className="mt-4 rounded-card border border-dashed border-[#B8B0A3] px-4 py-3 text-[15px] text-ink-70">
                             <strong className="font-semibold text-ink">Nothing changes for your staff.</strong>{' '}
-                            Your server still takes the order at the table, exactly as they do now.
+                            Ordering inside the menu is coming soon. Until then, your server still takes the order at the table, exactly as they do now.
                         </p>
                     </div>
                 </Reveal>

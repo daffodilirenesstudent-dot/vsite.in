@@ -2,38 +2,31 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Navbar from '@/components/home/Navbar';
 import FooterCTA from '@/components/home/FooterCTA';
+import { orgRef } from '@/lib/seo/entity';
 
 export const metadata: Metadata = {
-  title: "About vsite — India's Fastest-Growing Digital Menu Software",
+  title: "About vsite: Built in Tamil Nadu, Live Since March 2026",
   description:
-    "vsite is India's fastest-growing digital menu software — AI-powered QR menus built for South Indian restaurants. Learn about our mission and story.",
+    "vsite is a Smart QR Menu built in Tamil Nadu and live since March 2026 — Tamil and English menus, ₹299/month flat, no commission. Learn about our mission and story.",
   alternates: {
     canonical: 'https://vsite.in/about',
   },
 };
 
+// The Organization is defined once in the root layout; this page only says it
+// is the organisation's about page.
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: 'vsite',
-  url: 'https://vsite.in',
-  email: 'official@vsite.in',
-  description:
-    "India's fastest-growing digital menu software — AI-powered QR menus for restaurants across South India.",
-  foundingLocation: { '@type': 'Place', name: 'Tamil Nadu, India' },
-  areaServed: [
-    { '@type': 'City', name: 'Chennai' },
-    { '@type': 'City', name: 'Coimbatore' },
-    { '@type': 'City', name: 'Madurai' },
-    { '@type': 'City', name: 'Salem' },
-    { '@type': 'City', name: 'Trichy' },
-  ],
-  knowsLanguage: ['en', 'ta'],
+  '@type': 'AboutPage',
+  name: 'About vsite',
+  url: 'https://vsite.in/about',
+  about: orgRef(),
+  mainEntity: orgRef(),
 };
 
 const stats = [
-  { value: '400,000+', label: 'Restaurants in Tamil Nadu' },
-  { value: '3 min', label: 'Average setup time' },
+  { value: 'Mar 2026', label: 'Live since' },
+  { value: '~3 min', label: 'Sign-up to a live menu link' },
   { value: '₹299', label: 'Starting monthly price' },
   { value: '7 days', label: 'Free to try' },
 ];
@@ -49,7 +42,7 @@ const values = [
     icon: 'bolt',
     title: 'Built for Speed',
     description:
-      '3 minutes from photo to live digital menu. We respect your time. Complex setup is our problem, not yours.',
+      'About 3 minutes from sign-up to a live menu link for a typical menu. We respect your time. Complex setup is our problem, not yours.',
   },
   {
     icon: 'translate',
@@ -75,7 +68,7 @@ export default function AboutPage() {
               Made in Tamil Nadu 🇮🇳
             </span>
             <p className="text-xs font-bold uppercase tracking-widest text-primary/60 mb-6">
-              India&apos;s Fastest-Growing Digital Menu Software
+              Built in Tamil Nadu, live since March 2026
             </p>
             <h1 className="text-4xl sm:text-5xl font-extrabold font-display text-slate-900 leading-tight mb-6">
               We Build for the Restaurant Owner, Not the Enterprise
@@ -83,11 +76,11 @@ export default function AboutPage() {
             <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
               vsite started with one observation — every restaurant owner in
               Tamil Nadu was still printing paper menus that cost money, went
-              outdated, and couldn&apos;t accept digital orders. We built the tool
-              we wish existed: AI-powered, live in 3 minutes, priced for a
-              small business owner, made for South India. Today, vsite is
-              India&apos;s fastest-growing digital menu software — trusted by
-              restaurants across Tamil Nadu.
+              outdated, and had to be reprinted for every price change. We built the tool
+              we wish existed: AI-powered, a live menu link in about 3 minutes, priced for a
+              small business owner, made for South India. vsite has
+              been live since March 2026 and is used by restaurants in Tamil
+              Nadu. It works anywhere in India.
             </p>
           </div>
         </section>
@@ -128,13 +121,13 @@ export default function AboutPage() {
                 tools that restaurant chains in Mumbai and Delhi had — without
                 the enterprise price tag, without the Zomato commission, and
                 without needing a tech team to set it up. So we built vsite.
-                Upload a photo of your existing menu. Our AI reads it, generates
-                professional food photos, writes item descriptions, and creates
-                your complete digital storefront — in under 3 minutes.
+                Upload a photo of your existing menu. Our AI reads it, matches
+                professional food photos from a curated library, and builds
+                your digital menu for you to review and publish.
               </p>
               <p>
-                Today vsite powers restaurants across Tamil Nadu — from tiffin
-                centres in Coimbatore to cafés in Chennai. We are a small team
+                vsite has been live since March 2026 and is used by restaurants in
+                Tamil Nadu. We are a small team
                 with a clear mission: make professional digital menus accessible
                 to every restaurant owner in South India, at a price that makes
                 sense.

@@ -1,4 +1,5 @@
 import { TRIAL_RULE } from '@/content/policy';
+import { QR_STICKER_PRICE_INR } from '@/lib/platform/hardware';
 
 export const FAQ_GROUPS = [
   {
@@ -8,17 +9,17 @@ export const FAQ_GROUPS = [
       {
         id: 'q1',
         q: 'How long does it take to set up my digital menu?',
-        a: 'About 3 minutes. Take a photo of your existing paper menu, upload it to vsite, and our AI reads it, matches professional food photos, writes item descriptions, and builds your complete digital storefront automatically. No design skills needed.',
+        a: 'About 3 minutes from sign-up to a live menu link for a typical menu: sign up, add a photo of your paper menu, the AI reads it, then launch. A complete setup with design, banners, fixing any misread dish and downloading and printing the QR poster takes about 10 to 15 minutes. No design skills needed.',
       },
       {
         id: 'q2',
         q: 'Do my customers need to download an app?',
-        a: 'No. Customers simply tap the NFC card or scan the QR sticker with their phone camera. The menu opens instantly in their browser — no app download, no sign-up, no friction of any kind.',
+        a: 'No. Customers scan the QR code with their phone camera, or tap an NFC sticker if you order one. The menu opens in their browser — no app download and no sign-up.',
       },
       {
         id: 'q3',
         q: 'Is there a setup fee?',
-        a: 'There is no setup fee. Your ₹299/month covers store creation, AI menu scanning, professional food photo matching, NFC card, QR stickers, and onboarding support.',
+        a: `There is no setup fee. Your ₹299/month covers store creation, AI menu scanning, food photo matching, the QR code to print, and onboarding support. The optional NFC + QR sticker is ₹${QR_STICKER_PRICE_INR} each and is not part of the monthly price.`,
       },
     ],
   },
@@ -34,7 +35,7 @@ export const FAQ_GROUPS = [
       {
         id: 'q5',
         q: 'Can I add photos to my menu items?',
-        a: 'Yes. vsite automatically generates professional food photos using AI when you set up your menu. You can also upload your own photos for any item from the dashboard at any time.',
+        a: 'Yes. vsite automatically matches a professional food photo from a curated library to each item when you set up your menu. You can also upload your own photo for any item from the dashboard at any time.',
       },
     ],
   },
@@ -76,7 +77,7 @@ export const FAQ_GROUPS = [
       {
         id: 'q10',
         q: 'Is vsite available outside Tamil Nadu?',
-        a: 'vsite is built for restaurants across South India, starting with Tamil Nadu. The platform supports English and Tamil and is designed for the local F&B context — tiffin centres, cafés, hotels, food trucks, and more. We are expanding to other South Indian cities soon.',
+        a: 'vsite is built in Tamil Nadu and works for restaurants anywhere in India. Menus are in Tamil and English today, so it suits best where those two languages are what your customers read — tiffin centres, cafés, hotels, food trucks, and more.',
       },
     ],
   },

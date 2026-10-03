@@ -10,14 +10,15 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import Navbar from '@/components/home/Navbar';
+import { STICKER_PRICE_INR } from '@/content/facts';
 import FooterCTA from '@/components/home/FooterCTA';
 import Reveal from '@/components/home/Reveal';
 import { SMART_QR_MENU_LIVE_SINCE } from '@/content/roadmap';
 
 const BASE_URL = 'https://vsite.in';
-const TITLE = "Features — India's Fastest-Growing Digital Menu Software | vsite";
+const TITLE = "Smart QR Menu Features: Tamil + English, AI Photos";
 const DESCRIPTION =
-    "Explore every feature of vsite — India's fastest-growing digital menu software. AI menu builder, QR code menu, real-time updates, Tamil support, and more.";
+    "Explore every feature of vsite, the Smart QR Menu built in Tamil Nadu and live since March 2026. AI menu builder, QR code menu, real-time updates, Tamil support, and more.";
 
 export const metadata: Metadata = {
     title: TITLE,
@@ -61,8 +62,8 @@ const featureGroups: FeatureGroup[] = [
         items: [
             { title: 'AI menu extraction', description: 'Photograph your paper menu — the AI reads every item, price, and category, Tamil script included.' },
             { title: 'AI food photos', description: 'Every dish is matched to a professional food photo automatically. No photographer, no shoot day.' },
-            { title: 'Three-minute setup', description: 'Signup to a live QR code, end to end, in under three minutes.' },
-            { title: 'Tamil and English', description: 'Both languages on one menu, switched with a tap. Still unusual in India.' },
+            { title: 'About 3 minutes to a live menu', description: 'Sign up, add a menu photo, let the AI read it and launch: about 3 minutes to a live menu link for a typical menu. A complete setup with the QR poster takes about 10 to 15 minutes.' },
+            { title: 'Tamil and English', description: 'Dish names in Tamil, English or both on the same menu, shown in proper Tamil fonts. The AI reads Tamil and English text from your paper menu.' },
         ],
     },
     {
@@ -71,7 +72,7 @@ const featureGroups: FeatureGroup[] = [
         icon: QrCode,
         items: [
             { title: 'QR code menu', description: 'A QR code per table. Customers scan and the menu opens in about two seconds. No app to install.' },
-            { title: 'NFC tap-to-open', description: 'A physical NFC card ships to you. Customers tap their phone to it and the menu opens.' },
+            { title: 'NFC tap-to-open (optional)', description: `An optional NFC + QR sticker, ₹${STICKER_PRICE_INR} each, lets customers tap their phone to open the menu. The QR code itself is free to download and print.` },
             { title: 'Built for the phone first', description: 'Designed for a phone, not shrunk down from a desktop page. Works on basic 4G and older Android.' },
             { title: 'Pay at the counter, as always', description: 'vsite shows the menu; your staff take the order and the payment exactly as they do today.' },
         ],

@@ -68,7 +68,7 @@ const walkthrough: { minutes: string; title: string; desc: string; icon: LucideI
     {
         minutes: '8–12 min',
         title: 'The QR code, scanned on a real phone',
-        desc: 'We put the code on screen, scan it, and walk your customer’s side of it end to end — including the Tamil toggle.',
+        desc: 'We put the code on screen, scan it, and walk your customer’s side of it end to end — including how Tamil dish names look.',
         icon: QrCode,
     },
     {
@@ -150,8 +150,8 @@ export default function DemoPage() {
                             </div>
                             <h2 className="font-display text-h3 font-bold text-ink">I’d rather just try it</h2>
                             <p className="mt-2 flex-1 text-caption leading-relaxed text-ink-70">
-                                Skip the call. Start the 7-day trial and have your menu live in
-                                three minutes. No card, no pressure, no salesperson.
+                                Skip the call. Start the 7-day trial and have a live menu link in
+                                about three minutes. No card, no pressure, no salesperson.
                             </p>
                             <Link
                                 href="/signup"

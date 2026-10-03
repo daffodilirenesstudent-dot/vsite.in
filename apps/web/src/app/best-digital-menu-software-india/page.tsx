@@ -119,7 +119,7 @@ export default function BestDigitalMenuSoftwarePage() {
                 acceptedAnswer: {
                     '@type': 'Answer',
                     text:
-                        `It depends on what you need. vsite (₹${PRICE}/month) is the strongest choice if you want a food photo on every dish and menu engineering that tells you which items make money. DineCard (₹99/month) is the cheapest way to get a text menu online. MenuScan (₹250–₹750/month) is the one to pick if you need customers to order and pay inside the menu today.`,
+                        `It depends on what you need. vsite (₹${PRICE}/month) is the strongest choice if you want a food photo on every dish and menu engineering that tells you which items make money. DineCard (₹99/month) is the cheapest way to get a text menu online. MenuScan (₹250–₹750/month) is the one to pick if you need customers to order and pay inside the menu today (vsite's ordering is coming soon, not live yet).`,
                 },
             },
             {
@@ -128,7 +128,7 @@ export default function BestDigitalMenuSoftwarePage() {
                 acceptedAnswer: {
                     '@type': 'Answer',
                     text:
-                        `vsite is built in Tamil Nadu and every menu carries Tamil and English, switched with one tap, with support answered in Tamil on WhatsApp. DineCard supports 15+ Indian languages including Tamil. vsite has been live since ${SMART_QR_MENU_LIVE_SINCE}.`,
+                        `vsite is built in Tamil Nadu and a menu can show Tamil and English together, with dish names as you type them and no automatic translation, with support answered in Tamil on WhatsApp. DineCard supports 15+ Indian languages including Tamil. vsite has been live since ${SMART_QR_MENU_LIVE_SINCE}.`,
                 },
             },
             {

@@ -22,7 +22,7 @@ import {
 } from '@/content/policy';
 
 export const metadata: Metadata = {
-    title: 'Terms of Service — vsite',
+    title: 'Terms of Service',
     description:
         `What you agree to when you use vsite: one plan at ₹${PLAN_PRICE_INR} a month, paid ` +
         `${BILLING_CYCLE_DAYS} days at a time, no auto-renewal, no refunds.`,
@@ -194,7 +194,7 @@ export default function TermsPage() {
                                 Your menu content stays yours — item names, prices, descriptions and
                                 any photographs you upload. You give us permission to store, process
                                 and display that content for the purpose of running your menu, and to
-                                pass it to the AI services that generate photos and translations.
+                                pass it to the AI services that translate menus and match photos.
                             </p>
                             <p>
                                 Food images that vsite generates for you may be used on your menu for

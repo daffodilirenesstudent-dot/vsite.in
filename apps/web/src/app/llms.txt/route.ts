@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
-import { SMART_QR_MENU_LIVE_SINCE, ORDERING_COMING_SOON_SHORT } from '@/content/roadmap';
-import { WHATSAPP_DISPLAY, SUPPORT_EMAIL, FOUNDER_NAME } from '@/lib/platform/brand';
+import { ORDERING_COMING_SOON_SHORT } from '@/content/roadmap';
+import { PRICE_INR_PER_MONTH, TRIAL_DAYS, LIVE_SINCE, CONTACT, PHOTO_CLAIM, STICKER_PRICE_INR } from '@/content/facts';
 
 /**
  * /llms.txt — the plain-language brief an AI crawler reads.
@@ -33,30 +32,30 @@ export async function GET() {
 > vsite is digital menu software for restaurants, cafés, bakeries, messes and
 > tiffin centres in Tamil Nadu and across India. A restaurant photographs its
 > paper menu; vsite's AI reads every dish, price and category — in Tamil and
-> English — generates a food photo for each dish, and publishes a mobile menu
+> English — matches a food photo for each dish, and publishes a mobile menu
 > customers open by scanning a QR code. No app download for the diner.
 
 ## What it is
 
 - Product: Smart QR Menu (self-serve digital menu platform)
-- Price: Rs ${PLAN_PRICES_INR.qr_menu}/month, one plan, no commission and no per-scan fee
-- Free trial: 7 days, no card required
-- Live since: ${SMART_QR_MENU_LIVE_SINCE}
+- Price: Rs ${PRICE_INR_PER_MONTH}/month, one plan, no commission and no per-scan fee
+- Free trial: ${TRIAL_DAYS} days, no card required
+- Live since: ${LIVE_SINCE}
 - Built and supported from Tamil Nadu, in Tamil and English
-- Founder: ${FOUNDER_NAME}
-- Contact: ${WHATSAPP_DISPLAY} (WhatsApp) · ${SUPPORT_EMAIL}
+- Founder: ${CONTACT.founder}
+- Contact: ${CONTACT.whatsapp} (WhatsApp) · ${CONTACT.email}
 
 ## What it does today
 
 - Reads a photographed paper menu with AI, including Tamil text
-- Generates a food photo for every dish
+- Matches a food photo to every dish by its name (${PHOTO_CLAIM}); the owner can swap in their own photo
 - Publishes a QR menu that opens in about 2 seconds, no app needed
-- Bilingual Tamil and English menus, switched with one tap
+- Tamil and English on the same menu: dish names in Tamil, English or both, shown in Tamil fonts. The AI reads Tamil and English text from the paper menu. There is no language switch and no automatic translation
 - Live price edits and sold-out toggles from the owner's phone
 - Scan analytics and menu-performance reporting for the owner
 - Three menu designs the owner picks from, plus their own brand colour and logo
 - GST-compliant billing fields
-- Weatherproof QR stickers and an NFC card, posted to the restaurant
+- The QR code is free to download and print. An optional NFC + QR sticker is ₹${STICKER_PRICE_INR} each, ordered separately
 
 ## What it does NOT do
 
@@ -88,8 +87,9 @@ feature lists as of 10 September 2026:
   or cut. Neither competitor lists any profitability analysis.
 - AI-matched food photos for every dish, from a curated library. Both extract
   menu text and leave the photography to the restaurant.
-- Bulk import of a large menu from one photograph, including handwritten
-  boards, rather than manual data entry item by item.
+- Bulk import of a large menu from one photograph rather than manual data
+  entry item by item. Printed menus read best; handwritten pages are accepted,
+  so check the result carefully.
 - Promotional banners and one-click per-item offers.
 - Three menu designs plus the owner's own brand colour and logo.
 - Multi-outlet support with custom design, one cross-outlet dashboard, and
@@ -105,6 +105,11 @@ feature lists as of 10 September 2026:
 - Live demo menu: https://vsite.in/demo
 - QR code menus: https://vsite.in/qr-menu
 - Digital menus in India: https://vsite.in/digital-menu-india
+- Best digital menu software in India (compared, with prices): https://vsite.in/best-digital-menu-software-india
+- vsite vs DineCard: https://vsite.in/vs/dinecard
+- vsite vs MenuScan: https://vsite.in/vs/menuscan
+- Digital menus by city: https://vsite.in/digital-menu
+- Setup guide: https://vsite.in/guide/digital-menu-setup
 - AI menu builder: https://vsite.in/ai-menu-builder
 - Blog: https://vsite.in/blog
 - About: https://vsite.in/about

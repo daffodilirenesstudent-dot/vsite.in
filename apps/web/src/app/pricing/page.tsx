@@ -11,14 +11,14 @@ import PricingFAQ from './PricingFAQ';
 const BASE_URL = 'https://vsite.in';
 
 export const metadata: Metadata = {
-  title: "vsite Pricing — India's Fastest-Growing Digital Menu Software | From ₹299/month",
+  title: "Pricing: ₹299/month Flat, No Commission, 7-Day Trial",
   description:
-    "India's fastest-growing digital menu software. Smart QR Menu at ₹299/mo with a 7-day free trial. No setup fee. No hidden fees. No commission.",
+    "Smart QR Menu at ₹299/mo, flat, built in Tamil Nadu and live since March 2026 with a 7-day free trial. No setup fee. No hidden fees. No commission.",
   alternates: { canonical: `${BASE_URL}/pricing` },
   openGraph: {
     url: `${BASE_URL}/pricing`,
-    title: "vsite Pricing — India's Fastest-Growing Digital Menu Software | From ₹299/month",
-    description: "India's fastest-growing digital menu software. Honest pricing for restaurants. 7-day free trial. No hidden fees. No commission.",
+    title: "Pricing: ₹299/month Flat, No Commission, 7-Day Trial",
+    description: "Honest pricing for restaurants: ₹299/month flat. 7-day free trial. No hidden fees. No commission.",
   },
 };
 
@@ -26,7 +26,7 @@ const schema = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
   name: 'vsite',
-  description: "India's fastest-growing digital menu software for restaurants, cafés, bakeries, and cloud kitchens. AI-powered QR menus live in 3 minutes.",
+  description: "Smart QR Menu for restaurants, cafés, bakeries, and cloud kitchens, built in Tamil Nadu and live since March 2026. Tamil and English menus from a photo of your paper menu.",
   applicationCategory: 'BusinessApplication',
   offers: [
     {
@@ -34,7 +34,7 @@ const schema = {
       name: 'Smart QR Menu',
       price: '299',
       priceCurrency: 'INR',
-      description: 'Digital QR menu for restaurants. View-only. India\'s fastest-growing digital menu software — ₹299/month.',
+      description: 'Digital QR menu for restaurants. View-only menu, ₹299/month flat, no commission. Ordering with UPI payment is coming soon.',
       priceSpecification: {
         '@type': 'UnitPriceSpecification',
         price: '299',
@@ -47,11 +47,11 @@ const schema = {
 
 const qrFeatures = [
   'Clean digital menu (no printing needed)',
-  'AI-generated food images & descriptions',
+  'AI-matched food images & descriptions',
   'Edit menu anytime (add/remove/update)',
   'Highlight offers & sold-out items live',
   'Works for dine-in & takeaway',
-  'NFC card + QR stickers included',
+  'QR code to print, free. NFC + QR sticker optional, paid separately',
 ];
 
 /**
@@ -66,43 +66,6 @@ const printingCosts = [
   { label: 'Reprinting menus when a price moves', amount: '₹1,200' },
   { label: 'Lamination and replacing torn cards', amount: '₹400' },
   { label: 'Running to the press and back', amount: 'half a day' },
-];
-
-// Kept for unfreeze — see @/lib/productFlags.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const qrOrderFeatures = [
-  'No payment step — pay at counter when done',
-  'Kitchen gets instant order notifications',
-  'Orders accumulate per table until bill requested',
-  'One-tap "Request Bill" button for customers',
-  'Table-specific QR codes only',
-];
-
-// Kept for unfreeze — see @/lib/productFlags.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const payEatFeatures = [
-  'Customers place orders directly from phone',
-  'Accept UPI, GPay, PhonePe & cash',
-  'Instant order to kitchen (live)',
-  'Automatic billing (no manual work)',
-  'Smart queue (handles rush smoothly)',
-  'Sell more with faster table turnover',
-];
-
-// Kept for unfreeze — see @/lib/productFlags.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const comparisonRows = [
-  { feature: 'Digital QR Menu',              qr: true,  order: true,  pay: true  },
-  { feature: 'AI food photos & descriptions', qr: true,  order: true,  pay: true  },
-  { feature: 'Real-time menu updates',        qr: true,  order: true,  pay: true  },
-  { feature: 'NFC card + QR stickers',        qr: true,  order: true,  pay: true  },
-  { feature: 'Tamil language support',        qr: true,  order: true,  pay: true  },
-  { feature: 'No per-order commission',       qr: true,  order: true,  pay: true  },
-  { feature: '7-day free trial',             qr: true,  order: true,  pay: true  },
-  { feature: 'Customer ordering from phone',  qr: false, order: true,  pay: true  },
-  { feature: 'Live kitchen notifications',    qr: false, order: true,  pay: true  },
-  { feature: 'UPI / GPay / PhonePe payments', qr: false, order: false, pay: true  },
-  { feature: 'Automatic billing',             qr: false, order: false, pay: true  },
 ];
 
 const trialBadges = ['7-day free trial', 'No credit card needed', 'Zero commission'];
