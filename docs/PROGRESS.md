@@ -2,6 +2,26 @@
 status: DONE
 ## Iteration history
 
+### 2026-10-03 — Production incidents: raw RSC page and QR poster on phones
+status: CODE DONE — awaiting `git push vsite master`
+
+1. **Raw "2:I[…ClientPageRoot" text** for owners with an expired session
+   (`/auth/refresh`). Cause proven: CDN ignores `Vary: RSC`, static pages carry
+   s-maxage=1y, middleware redirects drop `_rsc`. Probe: 82/87 public pages
+   poisonable. Fixed for every page (middleware RSC matcher → private,no-store),
+   hourly `edge-cache-guard` workflow. `docs/incidents/2026-10-03-rsc-cdn-cache-poisoning.md`.
+2. **QR poster "could not load" on phones** (second time). Proven triggers: one
+   failed dish photo, no `roundRect` on older browsers, stalled fonts (hang), all
+   swallowed by bare catches. Fixed: one pre-rendered food plate per design
+   (owner's idea), retries, fonts cosmetic, roundRectPath, Sentry reporting,
+   honest Try again. Fixed 28/28 posters across 7 phone conditions vs 4 failing
+   conditions before. `docs/incidents/2026-10-03-qr-poster-mobile.md`.
+
+Verification: full `npx vitest run` — only the pre-existing claude-hooks (69),
+the uncommitted 065 test (5) and the known-flaky aiCostAbuse (passes alone)
+fail; tsc clean; lint 0 errors; `npm run posters:check` 28/28.
+
+
 ### 2026-10-03 — WhatsApp: gaps closed before go-live
 status: CODE DONE — owner actions pending (the 2026-10-02 list; no template changes)
 

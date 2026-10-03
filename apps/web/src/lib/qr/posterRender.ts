@@ -5,6 +5,7 @@
  * box is found by scanning the artwork's pixels, so a new template needs no
  * coordinates typed in.
  */
+import { roundRectPath } from '@/lib/qr/canvasShapes';
 
 export function blobToImage(blob: Blob): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
@@ -142,13 +143,13 @@ export async function renderStoryImage(poster: HTMLCanvasElement): Promise<Blob>
     ctx.shadowBlur = 48;
     ctx.shadowOffsetY = 16;
     ctx.beginPath();
-    ctx.roundRect(px, py, pw, ph, r);
+    roundRectPath(ctx, px, py, pw, ph, r);
     ctx.fillStyle = '#FFFFFF';
     ctx.fill();
     ctx.restore();
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(px, py, pw, ph, r);
+    roundRectPath(ctx, px, py, pw, ph, r);
     ctx.clip();
     ctx.drawImage(poster, px, py, pw, ph);
     ctx.restore();

@@ -8,7 +8,9 @@
     "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "posters:plates": "node scripts/poster-plates/generate.mjs",
+    "posters:check": "node scripts/poster-plates/mobile-check.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.53.1",

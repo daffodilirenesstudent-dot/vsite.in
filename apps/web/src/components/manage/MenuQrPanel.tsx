@@ -18,6 +18,7 @@ import {
     type PosterFamily,
 } from '@/lib/qr/posterDesigns';
 import { renderDesignPoster, posterFontsFrom } from '@/lib/qr/designRender';
+import { reportPosterIssue } from '@/lib/qr/posterTelemetry';
 import { supabase } from '@/lib/platform/db/supabase';
 
 /**
@@ -73,6 +74,8 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
     const [qrFraction, setQrFraction] = useState(DEFAULT_QR_FRACTION);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewFailed, setPreviewFailed] = useState(false);
+    // Bumped by "Try again" to re-run the preview.
+    const [previewAttempt, setPreviewAttempt] = useState(0);
     const templateRef = useRef<HTMLImageElement | null>(null);
     const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -158,13 +161,14 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
                 if (cancelled) return;
                 url = URL.createObjectURL(blob);
                 setPreviewUrl(url);
-            } catch {
+            } catch (err) {
+                reportPosterIssue('preview', err, { design: designId });
                 if (!cancelled) setPreviewFailed(true);
             }
         })();
         return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [menuUrl, posterTemplate, designId, accentNow, storeName]);
+    }, [menuUrl, posterTemplate, designId, accentNow, storeName, previewAttempt]);
 
     // Small pictures for the design choices of the current family.
     useEffect(() => {
@@ -181,7 +185,10 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
                     made.push(u);
                     if (cancelled) return;
                     setThumbs(t => ({ ...t, [id]: u }));
-                } catch { /* the tile shows its name without a picture */ }
+                } catch (err) {
+                    // The tile shows its name without a picture.
+                    reportPosterIssue('thumbnail', err, { design: id });
+                }
             }
         })();
         return () => { cancelled = true; made.forEach(u => URL.revokeObjectURL(u)); setThumbs({}); };
@@ -199,10 +206,14 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
         try {
             const c = layout.cards[0];
             const canvas = await renderCard(mmToPx(c.w), mmToPx(c.h));
-            const pdf = await buildPrintPdf(layout, canvas.toDataURL('image/png'));
+            // Bytes from an async encode, not a data-URL string: at A4 with bleed
+            // the PNG is several MB, and a phone would hold it twice as text.
+            const png = new Uint8Array(await (await canvasToBlob(canvas)).arrayBuffer());
+            const pdf = await buildPrintPdf(layout, png);
             downloadBlob(new Blob([pdf], { type: 'application/pdf' }), pdfFileName(slug, placement, method));
             toast.success('PDF downloaded');
-        } catch {
+        } catch (err) {
+            reportPosterIssue('pdf', err, { design: designId, placement, method });
             toast.error('Could not make the PDF. Please try again.');
         } finally { setBusy(null); }
     }
@@ -213,7 +224,8 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
             const blob = format === 'png' ? await getStyledQRBlob(menuUrl, undefined, 1000) : await getStyledQRSvgBlob(menuUrl, 1000);
             if (!blob) throw new Error('empty');
             downloadBlob(blob, `${slug}-qr.${format}`);
-        } catch {
+        } catch (err) {
+            reportPosterIssue('qr-download', err, { format });
             toast.error('Could not make the QR image. Please try again.');
         } finally { setBusy(null); }
     }
@@ -234,7 +246,8 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
             } else {
                 downloadBlob(blob, file.name);
             }
-        } catch {
+        } catch (err) {
+            reportPosterIssue('status', err, { design: designId });
             toast.error('Could not make the Status image. Please try again.');
         } finally { setBusy(null); }
     }
@@ -303,7 +316,12 @@ export default function MenuQrPanel({ menuUrl, siteId, slug, storeName, posterTe
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img className="qrk-poster-img" src={previewUrl} alt={`QR poster for ${storeName}`} />
                                 ) : previewFailed ? (
-                                    <p style={{ margin: 0, padding: 24, fontSize: 13, color: A.muted, textAlign: 'center' }}>The preview could not load. Downloads still work.</p>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 24, textAlign: 'center' }}>
+                                        <p style={{ margin: 0, fontSize: 13, color: A.muted }}>The poster could not load. Check your internet connection.</p>
+                                        <button type="button" onClick={() => setPreviewAttempt(n => n + 1)} style={{ ...ghostBtn, minHeight: 40, padding: '8px 16px', fontSize: 13 }}>
+                                            Try again
+                                        </button>
+                                    </div>
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '40px 0' }}>
                                         <Spinner size="md" tone="brand" />

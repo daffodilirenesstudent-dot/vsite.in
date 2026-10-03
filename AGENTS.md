@@ -966,3 +966,23 @@ Full write-up: `docs/incidents/2026-10-03-rsc-cdn-cache-poisoning.md`.
   `layout.tsx` beside it (as `src/app/auth/refresh/layout.tsx` does).
 - **Never probe production with plain URLs.** Sending `RSC: 1` to a real URL
   poisons it for a year. Always add a throwaway query param (the guard does).
+
+## QR poster on phones, round two (2026-10-03)
+
+Write-up: `docs/incidents/2026-10-03-qr-poster-mobile.md`.
+
+- **The food is a pre-rendered plate.** Dish photos are drawn once into
+  `public/poster-art/plates/<design>@<scale>x-<hash>.webp`. After changing
+  `posterDesignData.ts` or anything in `public/poster-art/`, run
+  `npm run posters:plates` (CI fails on a stale plate). After changing
+  `drawImageElement`, bump `PLATE_RENDER_VERSION` first.
+- **Never `ctx.roundRect`** — Chrome 99+/Safari 16+ only. Use `roundRectPath`
+  from `lib/qr/canvasShapes.ts`. Same rule for any canvas API newer than ~2020.
+- **Never a bare `catch {}` on the poster page.** Report with
+  `reportPosterIssue(stage, err)`; a silent catch is how this came back unseen.
+- **Only the QR is essential.** Fonts are settled with a timeout and art is
+  retried — do not reintroduce a `Promise.all` that lets a font or a picture
+  fail the whole poster.
+- **Proof tool:** `npm run build && npm run posters:check` runs every design in
+  Chromium (Pixel 7) and WebKit (iPhone 13) under 7 phone conditions.
+

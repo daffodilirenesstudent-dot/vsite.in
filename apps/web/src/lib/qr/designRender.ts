@@ -6,12 +6,23 @@
  * cover-fit transform, so the same design fills an A6 table stand, an A4 wall
  * poster or a print shop's bleed. The QR is drawn last in device pixels,
  * generated at exactly the size it prints, so its edges stay sharp.
+ *
+ * Built to survive a phone (incident 2026-10-03, docs/incidents/2026-10-03-qr-poster-mobile.md):
+ *   - the food is ONE pre-rendered plate per design (posterPlates.ts), not up
+ *     to 17 photos that must all download;
+ *   - loads retry; only the QR is essential, and it retries too;
+ *   - fonts change how text looks, never whether the poster is made;
+ *   - shapes use roundRectPath, not ctx.roundRect (Chrome 99+/Safari 16+).
  */
 import {
-    DESIGN_W, designCover, fitFontSize, headlineText, qrCardOf,
+    DESIGN_W, DESIGN_H, designCover, fitFontSize, headlineText, qrCardOf,
     type DesignElement, type FontRole, type PosterDesign,
 } from '@/lib/qr/posterDesigns';
 import { blobToImage, loadImage } from '@/lib/qr/posterRender';
+import { roundRectPath } from '@/lib/qr/canvasShapes';
+import { plateFor } from '@/lib/qr/posterPlates';
+import { settleWithin, withRetry } from '@/lib/qr/posterResilience';
+import { reportPosterIssue } from '@/lib/qr/posterTelemetry';
 
 /** CSS font-family strings for each font role (next/font's hashed families). */
 export type PosterFonts = Record<FontRole, string>;
@@ -26,6 +37,9 @@ export function posterFontsFrom(el: Element): PosterFonts {
     };
 }
 
+/** How long a poster waits for its web fonts before drawing with what it has. */
+const FONT_WAIT_MS = 5000;
+
 const artCache = new Map<string, Promise<HTMLImageElement>>();
 function art(src: string): Promise<HTMLImageElement> {
     let p = artCache.get(src);
@@ -37,8 +51,12 @@ function art(src: string): Promise<HTMLImageElement> {
     return p;
 }
 
+/** An image a phone may fail to fetch once: retried, so a blip is not a failure. */
+const artWithRetry = (src: string) => withRetry(() => art(src), { attempts: 3, delayMs: 500 });
+
 type TextEl = Extract<DesignElement, { kind: 'text' }>;
 type QrEl = Extract<DesignElement, { kind: 'qr' }>;
+export type ImageEl = Extract<DesignElement, { kind: 'image' }>;
 
 function fontString(e: TextEl, size: number, family: string): string {
     return `${e.italic ? 'italic ' : ''}${e.weight} ${size}px ${family}`;
@@ -53,6 +71,30 @@ export async function waitForPosterFonts(design: PosterDesign, fonts: PosterFont
 function setLetterSpacing(ctx: CanvasRenderingContext2D, px: number) {
     // Chrome/Edge 99+, Safari 17+; elsewhere the headline is simply a touch wider.
     if ('letterSpacing' in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${px}px`;
+}
+
+/**
+ * One food photo, in design space, with its shadow. `scale` is device pixels
+ * per design unit: canvas shadows ignore the transform, so they are scaled by
+ * hand. Shared with the plate generator (scripts/poster-plates), so a plate is
+ * pixel-for-pixel what the renderer drew photo by photo.
+ */
+export function drawImageElement(ctx: CanvasRenderingContext2D, e: ImageEl, img: CanvasImageSource, scale: number): void {
+    ctx.save();
+    if (e.shadow) {
+        ctx.shadowColor = e.shadow.color;
+        ctx.shadowBlur = e.shadow.blur * scale;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = e.shadow.dy * scale;
+    }
+    if (e.rotate) {
+        ctx.translate(e.x + e.w / 2, e.y + e.h / 2);
+        ctx.rotate((e.rotate * Math.PI) / 180);
+        ctx.drawImage(img, -e.w / 2, -e.h / 2, e.w, e.h);
+    } else {
+        ctx.drawImage(img, e.x, e.y, e.w, e.h);
+    }
+    ctx.restore();
 }
 
 function drawBursts(ctx: CanvasRenderingContext2D, cx: number, cy: number, halfWidth: number, color: string) {
@@ -112,19 +154,31 @@ export async function renderDesignPoster({ design, accent, storeName, qrBlobFor,
     const q = qrCardOf(design);
     const qrInnerDesign = q.size - 2 * q.pad - 2 * q.border;
     const qrPx = Math.round(qrInnerDesign * scale);
+    const plate = plateFor(design, scale);
 
-    const [images, qrImg] = await Promise.all([
-        Promise.all(design.elements.map(e => (e.kind === 'image' ? art(e.src) : Promise.resolve(null)))),
-        qrBlobFor(qrPx).then(b => {
+    // Fonts are cosmetic: started now, waited for below, never allowed to fail the poster.
+    const fontsReady = settleWithin(waitForPosterFonts(design, fonts, document.fonts), FONT_WAIT_MS);
+
+    const [plateImg, photos, qrImg] = await Promise.all([
+        plate ? artWithRetry(plate.src) : Promise.resolve(null),
+        // Only a design without a plate fetches its photos one by one.
+        plate ? Promise.resolve([]) : Promise.all(design.elements.map(e => (e.kind === 'image' ? artWithRetry(e.src) : Promise.resolve(null)))),
+        withRetry(async () => {
+            const b = await qrBlobFor(qrPx);
             if (!b) throw new Error('QR could not be generated');
             return blobToImage(b);
-        }),
-        waitForPosterFonts(design, fonts, document.fonts),
+        }, { attempts: 2, delayMs: 300 }),
     ]);
+
+    const fontWait = await fontsReady;
+    if (!fontWait.ok) {
+        reportPosterIssue('fonts', fontWait.reason === 'timeout' ? new Error(`web fonts not ready after ${FONT_WAIT_MS} ms`) : fontWait.error, { design: design.id });
+    }
 
     const c = document.createElement('canvas');
     c.width = widthPx; c.height = heightPx;
-    const ctx = c.getContext('2d')!;
+    const ctx = c.getContext('2d');
+    if (!ctx) throw new Error(`no 2D canvas context at ${widthPx}x${heightPx}`);
     ctx.imageSmoothingQuality = 'high';
     ctx.fillStyle = design.background;
     ctx.fillRect(0, 0, widthPx, heightPx);
@@ -137,25 +191,21 @@ export async function renderDesignPoster({ design, accent, storeName, qrBlobFor,
         ctx.shadowColor = color; ctx.shadowBlur = blur * scale; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = offY * scale;
     };
 
+    let platePainted = false;
     design.elements.forEach((e, i) => {
         if (e.kind === 'rect') {
             ctx.fillStyle = paint(e.fill);
             ctx.beginPath();
-            ctx.roundRect(e.x, e.y, e.w, e.h, e.radius ?? 0);
+            roundRectPath(ctx, e.x, e.y, e.w, e.h, e.radius ?? 0);
             ctx.fill();
         } else if (e.kind === 'image') {
-            const img = images[i];
-            if (!img) return;
-            ctx.save();
-            if (e.shadow) shadow(e.shadow.color, e.shadow.blur, e.shadow.dy);
-            if (e.rotate) {
-                ctx.translate(e.x + e.w / 2, e.y + e.h / 2);
-                ctx.rotate((e.rotate * Math.PI) / 180);
-                ctx.drawImage(img, -e.w / 2, -e.h / 2, e.w, e.h);
-            } else {
-                ctx.drawImage(img, e.x, e.y, e.w, e.h);
+            // The food is one contiguous layer (tested), so the plate goes where its first photo would.
+            if (plateImg) {
+                if (!platePainted) { ctx.drawImage(plateImg, 0, 0, DESIGN_W, DESIGN_H); platePainted = true; }
+                return;
             }
-            ctx.restore();
+            const img = photos[i];
+            if (img) drawImageElement(ctx, e, img, scale);
         } else if (e.kind === 'text') {
             const text = headlineText(e.role, storeName).trim();
             if (!text) return;
@@ -175,7 +225,7 @@ export async function renderDesignPoster({ design, accent, storeName, qrBlobFor,
                 if (e.pill.shadow) shadow('rgba(60, 30, 10, 0.14)', 14, 4);
                 ctx.fillStyle = '#FFFFFF';
                 ctx.beginPath();
-                ctx.roundRect(cx - width / 2 - e.pill.padX, e.cy - h / 2, width + 2 * e.pill.padX, h, h / 2);
+                roundRectPath(ctx, cx - width / 2 - e.pill.padX, e.cy - h / 2, width + 2 * e.pill.padX, h, h / 2);
                 ctx.fill();
                 ctx.restore();
             }
@@ -188,14 +238,14 @@ export async function renderDesignPoster({ design, accent, storeName, qrBlobFor,
             shadow('rgba(60, 30, 10, 0.12)', 28, 10);
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
-            ctx.roundRect(q.x, q.y, q.size, q.size, q.radius);
+            roundRectPath(ctx, q.x, q.y, q.size, q.size, q.radius);
             ctx.fill();
             ctx.restore();
             ctx.save();
             ctx.strokeStyle = paint(q.borderColor);
             ctx.lineWidth = q.border;
             ctx.beginPath();
-            ctx.roundRect(q.x + q.border / 2, q.y + q.border / 2, q.size - q.border, q.size - q.border, Math.max(0, q.radius - q.border / 2));
+            roundRectPath(ctx, q.x + q.border / 2, q.y + q.border / 2, q.size - q.border, q.size - q.border, Math.max(0, q.radius - q.border / 2));
             ctx.stroke();
             ctx.restore();
             if (q.corners) drawBrackets(ctx, q, paint(q.borderColor));
@@ -210,3 +260,4 @@ export async function renderDesignPoster({ design, accent, storeName, qrBlobFor,
     ctx.drawImage(qrImg, qx, qy, qrPx, qrPx);
     return c;
 }
+

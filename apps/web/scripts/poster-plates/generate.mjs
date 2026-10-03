@@ -1,0 +1,104 @@
+#!/usr/bin/env node
+// Pre-renders each QR-poster design's food layer into transparent WebP plates.
+//
+//   npm run posters:plates
+//
+// Run after changing src/lib/qr/posterDesignData.ts, any file in
+// public/poster-art/, or drawImageElement (then bump PLATE_RENDER_VERSION).
+// tests/acceptance/poster-resilience.test.ts fails until you do.
+//
+// Writes public/poster-art/plates/<design>@<scale>x.webp and
+// src/lib/qr/posterPlateData.ts. Uses Vite and Playwright's Chromium, both
+// already dev dependencies. Why plates: docs/incidents/2026-10-03-qr-poster-mobile.md
+import http from 'node:http';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const web = path.resolve(here, '..', '..');
+const require = createRequire(path.join(web, 'package.json'));
+const { build } = await import(pathToFileURL(require.resolve('vite')).href);
+const { chromium } = require('@playwright/test');
+
+/** 2× is plenty for the 720 px preview, thumbnails and Status image; 4× matches A4 print with bleed at 300 dpi. */
+const SCALES = [2, 4];
+const QUALITY = 0.9;
+
+// 1. Bundle the browser side with the app's own modules.
+const out = path.join(tmpdir(), `vsite-poster-plates-${process.pid}`);
+const stub = path.join(out, 'sentry-stub.js');
+mkdirSync(out, { recursive: true });
+writeFileSync(stub, 'export function captureException() {}\n');
+await build({
+    configFile: false,
+    logLevel: 'warn',
+    root: here,
+    resolve: { alias: [{ find: /^@sentry\/nextjs$/, replacement: stub }, { find: /^@\//, replacement: path.join(web, 'src') + '/' }] },
+    define: { 'process.env.NEXT_PUBLIC_FOOD_POSTERS': '"true"', 'process.env.NODE_ENV': '"production"' },
+    build: {
+        outDir: out, emptyOutDir: false, minify: false,
+        lib: { entry: path.join(here, 'entry.ts'), formats: ['iife'], name: 'PosterPlates', fileName: () => 'plates.js' },
+    },
+});
+
+// 2. Serve the bundle and public/ (the art) on localhost.
+const server = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    if (url.pathname === '/') {
+        res.writeHead(200, { 'content-type': 'text/html' });
+        return res.end('<!doctype html><html><body><script src="/__plates.js"></script></body></html>');
+    }
+    const file = url.pathname === '/__plates.js' ? path.join(out, 'plates.js') : path.join(web, 'public', decodeURIComponent(url.pathname));
+    if (!existsSync(file)) { res.writeHead(404); return res.end(); }
+    const type = file.endsWith('.js') ? 'text/javascript' : file.endsWith('.webp') ? 'image/webp' : 'application/octet-stream';
+    res.writeHead(200, { 'content-type': type });
+    res.end(readFileSync(file));
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r));
+
+// 3. Draw each plate in Chromium, write it, hash its inputs.
+const designData = readFileSync(path.join(web, 'src', 'lib', 'qr', 'posterDesignData.ts'), 'utf8');
+const ids = [...designData.matchAll(/^ {4}"([a-z0-9-]+)": \{$/gm)].map(m => m[1]);
+const srcs = [...new Set([...designData.matchAll(/"src":\s*"([^"]+)"/g)].map(m => m[1]))];
+const art = Object.fromEntries(srcs.map(s => [s, createHash('sha256').update(readFileSync(path.join(web, 'public', s))).digest('hex')]));
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto(`http://127.0.0.1:${server.address().port}/`);
+await page.waitForFunction(() => typeof window.renderPlate === 'function');
+
+const platesDir = path.join(web, 'public', 'poster-art', 'plates');
+mkdirSync(platesDir, { recursive: true });
+const data = {};
+const written = new Set();
+for (const id of ids) {
+    const hash = await page.evaluate(([i, a]) => window.plateHashFor(i, a), [id, art]);
+    const files = [];
+    for (const scale of SCALES) {
+        const { base64, width, height } = await page.evaluate(([i, s, q]) => window.renderPlate(i, s, q), [id, scale, QUALITY]);
+        // The hash is in the name: a regenerated plate gets a new URL, so no
+        // phone or CDN can keep serving the old one.
+        const name = `${id}@${scale}x-${hash.slice(0, 10)}.webp`;
+        const buf = Buffer.from(base64, 'base64');
+        writeFileSync(path.join(platesDir, name), buf);
+        written.add(name);
+        files.push({ scale, src: `/poster-art/plates/${name}` });
+        console.log(`  ${name.padEnd(36)} ${width}x${height}  ${Math.round(buf.length / 1024)} KB`);
+    }
+    data[id] = { hash, files };
+}
+for (const f of readdirSync(platesDir)) if (!written.has(f)) rmSync(path.join(platesDir, f));
+await browser.close();
+server.close();
+rmSync(out, { recursive: true, force: true });
+
+writeFileSync(path.join(web, 'src', 'lib', 'qr', 'posterPlateData.ts'),
+    '// GENERATED by scripts/poster-plates/generate.mjs — run `npm run posters:plates`.\n' +
+    '// Do not edit by hand.\n' +
+    "import type { Plate } from '@/lib/qr/posterPlates';\n\n" +
+    `export const PLATE_DATA: Record<string, Plate> = ${JSON.stringify(data, null, 4)};\n`);
+console.log(`wrote ${ids.length} designs × ${SCALES.length} plates`);

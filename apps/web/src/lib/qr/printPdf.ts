@@ -1,11 +1,11 @@
 import type { PrintLayout } from '@/lib/qr/printKit';
 
 /**
- * A print-ready PDF from a layout and one rendered poster (PNG data URL,
- * already at print resolution). Every card on the sheet is the same image;
- * jsPDF stores it once and draws it per card.
+ * A print-ready PDF from a layout and one rendered poster (PNG bytes or a PNG
+ * data URL, already at print resolution). Every card on the sheet is the same
+ * image; jsPDF stores it once and draws it per card.
  */
-export async function buildPrintPdf(layout: PrintLayout, cardPng: string): Promise<ArrayBuffer> {
+export async function buildPrintPdf(layout: PrintLayout, cardPng: Uint8Array | string): Promise<ArrayBuffer> {
     const { jsPDF } = await import('jspdf');
     const { w, h } = layout.pageMm;
     // No stream compression: the page holds a handful of drawing instructions,
