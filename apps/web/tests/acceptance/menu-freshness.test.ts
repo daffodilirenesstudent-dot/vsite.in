@@ -194,6 +194,14 @@ describe('3. no printer polling while ordering is frozen', () => {
         const effect = ctx.slice(ctx.indexOf('useEffect('), ctx.indexOf('fetchStatus();'));
         expect(effect).toMatch(/if\s*\(\s*ORDERING_FROZEN\s*\)\s*return/);
     });
+
+    it('settings runs its own bridge poll — gated on ORDERING_FROZEN too', () => {
+        const page = shipped('app/manage/settings/page.tsx');
+        const start = page.indexOf('fetch(`${BRIDGE_URL}/printers`');
+        expect(start, 'settings page no longer polls the bridge — drop this test').toBeGreaterThan(-1);
+        const effect = page.slice(page.lastIndexOf('useEffect(', start), start);
+        expect(effect).toMatch(/if\s*\(\s*ORDERING_FROZEN\b[^)]*\)\s*return/);
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
