@@ -1,0 +1,32 @@
+# Hourly proof that vsite.in cannot serve a raw RSC payload as a page.
+#
+# Why: on 2026-10-03 the CDN served the React flight payload as plain text to
+# owners whose session expired, and a probe showed 82 of 87 public pages could
+# be broken the same way by a single request. The fix is in middleware
+# (RSC responses are private, no-store). This job proves the fix holds in
+# production — it fails, and GitHub emails, if any page is served poisoned or
+# becomes poisonable again (a Next.js upgrade, a middleware edit, a CDN change).
+#
+# Script and runbook: .github/scripts/edge-cache-guard.mjs,
+# docs/incidents/2026-10-03-rsc-cdn-cache-poisoning.md
+name: Edge cache guard
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probe production
+        run: node .github/scripts/edge-cache-guard.mjs https://vsite.in

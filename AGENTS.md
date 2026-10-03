@@ -942,3 +942,27 @@ Runbook: `docs/whatsapp-setup.md`. Spec: `docs/superpowers/specs/2026-09-22-what
   store must still belong to the row's `user_id`, and the menu/QR links in the
   params must equal `storeLinks(currentSlug)` — otherwise skipped, never sent.
   Build QR links with `storeLinks()` only.
+
+## RSC cache poisoning, round two — and the class closed (2026-10-03)
+
+Full write-up: `docs/incidents/2026-10-03-rsc-cdn-cache-poisoning.md`.
+
+- **The August note above was wrong to call public pages "cosmetic".** A probe on
+  2026-10-03 poisoned 82 of 87 prerendered pages with one `RSC: 1` request each
+  (pricing, city pages, blog, guides, legal) and `/auth/refresh` was poisoned by
+  real traffic, locking owners out.
+- **Middleware redirects drop `_rsc`.** `new URL('/x', request.url)` starts a fresh
+  query, and `fetch` follows the 307 with the RSC headers attached, so the CDN
+  sees an RSC request for the plain URL. Any page a middleware redirect points at
+  must be uncacheable.
+- **The fix is the conditional matcher entry**
+  `{ source: '/((?!api/|_next/|.*\..*).*)', has: [{ type: 'header', key: 'rsc' }] }`:
+  every RSC page response goes through middleware and gets `private, no-store`;
+  document loads do not run middleware. Do not remove it or narrow it — CI
+  (`tests/unit/rscNoSharedCache.test.ts`) and the hourly
+  `edge-cache-guard` workflow will fail.
+- **Route segment config is ignored in a `'use client'` page.** To force a client
+  page dynamic, put `export const dynamic = 'force-dynamic'` in a server
+  `layout.tsx` beside it (as `src/app/auth/refresh/layout.tsx` does).
+- **Never probe production with plain URLs.** Sending `RSC: 1` to a real URL
+  poisons it for a year. Always add a throwaway query param (the guard does).

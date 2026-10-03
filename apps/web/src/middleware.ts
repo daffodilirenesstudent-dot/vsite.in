@@ -54,6 +54,15 @@ async function classifyToken(token: string | undefined): Promise<TokenState> {
 async function route(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
+    // Public pages reach middleware only for RSC requests (see `config`), and
+    // only so the response gets the no-store header below. They have no auth
+    // decision to make, so skip token verification entirely.
+    const isProtected = PROTECTED_PATHS.some(
+        (p) => pathname === p || pathname.startsWith(p + '/')
+    );
+    const isAuthRoute = isProtected || pathname === '/' || AUTH_PATHS.includes(pathname);
+    if (!isAuthRoute) return NextResponse.next();
+
     const token = request.cookies.get('sb-access-token')?.value;
     const state = await classifyToken(token);
 
@@ -86,10 +95,6 @@ async function route(request: NextRequest) {
     }
 
     // ── PROTECTED PAGES ──────────────────────────────────────────
-    const isProtected = PROTECTED_PATHS.some(
-        (p) => pathname === p || pathname.startsWith(p + '/')
-    );
-
     if (!isProtected) return NextResponse.next();
 
     if (state === 'valid') return NextResponse.next();
@@ -145,5 +150,17 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/', '/login', '/signup', '/onboarding', '/manage/:path*'],
+    matcher: [
+        '/', '/login', '/signup', '/onboarding', '/manage/:path*',
+        // Every other page, but ONLY when the request carries the `RSC` header
+        // (a client navigation, a prefetch, a followed redirect — or anyone
+        // sending it on purpose). Without this, one such request to a static
+        // page made the CDN serve the raw flight payload to every visitor for a
+        // year: /auth/refresh on 2026-10-03, and /pricing, /guide/… when probed
+        // the same day. Document loads skip middleware, so the /shop QR-menu
+        // hot path and the CDN-cached marketing HTML are untouched.
+        // Excludes API routes, Next internals and files (robots.txt, images).
+        // Guarded by tests/unit/rscNoSharedCache.test.ts.
+        { source: '/((?!api/|_next/|.*\\..*).*)', has: [{ type: 'header', key: 'rsc' }] },
+    ],
 };
