@@ -70,7 +70,28 @@ After the deploy is live:
    (needs a privacy policy URL — use `https://vsite.in/privacy`) and business
    verification (Step 3 in the left menu).
 
-## 5. Create the 7 templates
+## 5. Create the 8 templates
+
+The first 7 are approved (2026-10-02). **Meta filed `vsite_trial_ending` and
+`vsite_trial_ended` as Marketing; the owner accepted that on 2026-10-03** —
+`templates.ts` records it. Marketing sends cost more, can be held back by Meta's
+per-user marketing cap (131049: the row waits 24h and tries once more) and are
+never delivered to an owner who turned marketing messages off (131050: dead).
+
+**Still to create: `vsite_store_live_qr`** (2026-10-03) — the QR for a store that
+opened without a trial and went live by paying. Until it is approved, those
+sends fail with 132001 and pause that one template (alert); nothing else is
+affected. Create it before the deploy:
+
+| Field | Value |
+|---|---|
+| Name | `vsite_store_live_qr` |
+| Category | Utility |
+| Language | English (`en`) |
+| Header | Image — sample: any QR PNG |
+| Body | the `store_live.copy` string in `templates.ts` — 2 variables, type Number; samples `Anna Cafe`, `https://vsite.in/shop/anna-cafe` |
+| Footer | `vsite · Smart QR Menu` |
+| Button | Visit website · Static · `Manage menu` → `https://vsite.in/manage/dashboard` |
 
 WhatsApp Manager → Message templates → Create. **Category: Utility. Language:
 English (`en` — not "English (US)").** `templates.ts` is the source of truth
@@ -89,6 +110,7 @@ Button = **Visit website**, URL type **Static**.
 | Name | Header | Button → URL |
 |---|---|---|
 | `vsite_welcome_qr` | Image (QR) | Manage menu → `https://vsite.in/manage/dashboard` |
+| `vsite_store_live_qr` | Image (QR) | Manage menu → same |
 | `vsite_trial_ending` | Free trial ending soon | View plan → `https://vsite.in/manage/subscription` |
 | `vsite_trial_ended` | Free trial ended | View plan → same |
 | `vsite_payment_receipt` | Payment received | View invoice → same |
@@ -115,6 +137,8 @@ curl -sI https://vsite.in/api/qr/<a-real-slug>
 curl -X POST -H "authorization: Bearer $CRON_SECRET" "https://vsite.in/api/cron/whatsapp?task=dispatch"
 ```
 Then complete one onboarding with your own number → welcome with QR arrives.
+Second store on the same account (no trial) → pay → receipt **and**
+`vsite_store_live_qr` with that store's own QR arrive.
 Only a store that opens **on its trial** gets the welcome (one trial per account):
 test with a phone number that has never had a store, or the first message you see
 will be the payment receipt.
@@ -147,6 +171,8 @@ select id, status_code, left(content::text, 200) from net._http_response order b
 | 131048 / 368 | quality / policy restriction | check WhatsApp Manager quality rating |
 | 130429 (also 4, 80007, 131057) | throughput / rate limit | all sending pauses about 2 minutes, then resumes by itself |
 | 131056 | pair rate limit | only that one message is retried later |
+| 131049 | Meta's per-user marketing cap (trial templates) | that row waits 24h and tries once more, then goes stale; the owner still has the in-app bell |
+| 131050 | owner turned off marketing messages from us | dead, never retried; utility messages still reach them |
 
 Alerts such as `breaker_open` and `template_status` arrive as Sentry email alerts
 titled "WhatsApp: <kind>". Current pause state is in the database:

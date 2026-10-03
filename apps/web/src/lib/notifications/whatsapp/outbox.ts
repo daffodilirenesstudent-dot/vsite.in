@@ -1,12 +1,12 @@
 import 'server-only';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { logger } from '@/lib/platform/logger';
-import { buildComponents, DEFAULT_TEMPLATE_LANGUAGE, TEMPLATES, type TemplateParams, type WhatsAppEvent } from './templates';
+import { buildComponents, DEFAULT_TEMPLATE_LANGUAGE, storeLinks, TEMPLATES, type TemplateParams, type WhatsAppEvent } from './templates';
 import { sendTemplate, whatsappConfig } from './client';
 import { toWhatsAppNumber } from './phone';
 import { isPaid } from './windows';
 import { runWatchdog } from './watchdog';
-import { BREAKER_MS, breakerKeyFor, isOpen, type ErrorClass } from './health';
+import { BREAKER_MS, breakerKeyFor, DEFER_MS, isOpen, type ErrorClass } from './health';
 import { readBreakers, openBreaker, closeBreaker } from './healthStore';
 import { alert } from './alerts';
 import { isStale, nextDeliveryStatus, planFailure, STUCK_SENDING_MS, type OutboxStatus } from './state';
@@ -52,6 +52,7 @@ export interface EnqueueInput {
 interface OutboxRow {
     id: string;
     event: WhatsAppEvent;
+    user_id: string;
     site_id: string | null;
     to_phone: string | null;
     template: string;
@@ -127,15 +128,37 @@ export function enqueueAndSend(input: EnqueueInput): void {
         });
 }
 
+/**
+ * A QR message must show THIS owner THIS store's QR. Re-read the store at send
+ * time and fail closed unless it still belongs to the row's owner and the menu
+ * link and QR image in the params are exactly the ones its slug produces.
+ * (Owners cannot change a slug since migration 061; this does not rely on it.)
+ */
+async function qrStillBelongs(row: OutboxRow): Promise<boolean> {
+    if (!row.site_id || !row.user_id) return false;
+    const { data, error } = await supabaseServer.from('sites').select('user_id, slug').eq('id', row.site_id).maybeSingle();
+    if (error) throw new Error(`recheck sites failed: ${error.message}`);
+    const site = data as { user_id: string | null; slug: string | null } | null;
+    if (!site?.slug || site.user_id !== row.user_id) return false;
+    const links = storeLinks(site.slug);
+    return row.params?.qrImageUrl === links.qrImageUrl && row.params?.menuUrl === links.menuUrl;
+}
+
 async function recheck(row: OutboxRow, nowMs: number): Promise<boolean> {
     switch (row.event) {
         case 'payment_receipt':
             return true;
-        case 'welcome': {
-            if (!row.site_id) return false;
-            const { data, error } = await supabaseServer.from('sites').select('id').eq('id', row.site_id).maybeSingle();
-            if (error) throw new Error(`recheck sites failed: ${error.message}`);
-            return !!data;
+        case 'welcome':
+            return qrStillBelongs(row);
+        case 'store_live': {
+            if (!(await qrStillBelongs(row))) return false;
+            const { data, error } = await supabaseServer
+                .from('site_subscriptions')
+                .select('store_expires_at')
+                .eq('site_id', row.site_id as string)
+                .maybeSingle();
+            if (error) throw new Error(`recheck subscription failed: ${error.message}`);
+            return isPaid((data as { store_expires_at: string | null } | null)?.store_expires_at, nowMs);
         }
         default: {
             if (!row.site_id) return false;
@@ -232,7 +255,7 @@ export async function dispatchRow(id: string, nowMs: number = Date.now(), breake
         .update({ status: 'sending', updated_at: new Date(nowMs).toISOString() })
         .eq('id', id)
         .in('status', ['queued', 'failed'])
-        .select('id, event, site_id, to_phone, template, language, params, status, attempts, created_at');
+        .select('id, event, user_id, site_id, to_phone, template, language, params, status, attempts, created_at');
     if (claimError) throw new Error(`outbox claim failed: ${claimError.message}`);
     const row = ((claimed ?? []) as OutboxRow[])[0];
     if (!row) return 'not_claimed';
@@ -294,6 +317,15 @@ export async function dispatchRow(id: string, nowMs: number = Date.now(), breake
         }
     }
     const plan = planFailure(attempts, result.cls !== 'message', nowMs);
+    if (result.cls === 'defer' && plan.status === 'failed') {
+        // Meta's per-user marketing cap: "wait at least 24 hours". Retrying
+        // sooner only fails again; the 48h staleness rule bounds it to one retry.
+        await finish(id, {
+            status: 'failed', attempts, next_attempt_at: new Date(nowMs + DEFER_MS).toISOString(),
+            last_error: result.message, error_code: result.code,
+        });
+        return 'failed';
+    }
     await finish(id, {
         status: plan.status, attempts, next_attempt_at: plan.nextAttemptAt,
         last_error: result.message, error_code: result.code,

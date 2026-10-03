@@ -14,7 +14,7 @@ import { toWhatsAppNumber } from '@/lib/notifications/whatsapp/phone';
 import { verifyMetaSignature, tokensMatch } from '@/lib/notifications/whatsapp/signature';
 import { sweepWindows, isPaid, classifyPlanEvent, classifyTrialEvent } from '@/lib/notifications/whatsapp/windows';
 import { buildComponents, TEMPLATES, formatDateIST } from '@/lib/notifications/whatsapp/templates';
-import { classifyMetaError, breakerKeyFor, isOpen, BREAKER_MS } from '@/lib/notifications/whatsapp/health';
+import { classifyMetaError, breakerKeyFor, isOpen, BREAKER_MS, DEFER_MS } from '@/lib/notifications/whatsapp/health';
 import { nextDeliveryStatus, planFailure, isStale, MAX_ATTEMPTS } from '@/lib/notifications/whatsapp/state';
 
 const HOUR = 60 * 60 * 1000;
@@ -145,7 +145,7 @@ describe('templates', () => {
     it('every v1 event has a registered template name', () => {
         expect(Object.keys(TEMPLATES).sort()).toEqual([
             'payment_receipt', 'plan_expired', 'plan_expires_today', 'plan_expiring',
-            'trial_ended', 'trial_ending', 'welcome',
+            'store_live', 'trial_ended', 'trial_ending', 'welcome',
         ]);
     });
 
@@ -163,6 +163,10 @@ describe('classifyMetaError (codes verified against Meta, 2026-10-02)', () => {
         [4, 400, 'throttle'], [80007, 400, 'throttle'], [130429, 400, 'throttle'], [131057, 400, 'throttle'],
         [131026, 400, 'message'], [131047, 400, 'message'], [131009, 400, 'message'], [100, 400, 'message'],
         [131000, 500, 'retry'], [131056, 400, 'retry'], [133004, 503, 'retry'], [999999, 400, 'retry'],
+        // Marketing limits (verified 2026-10-03): 131049 = Meta's per-user marketing
+        // cap, "wait at least 24 hours" before resending; 131050 = the owner stopped
+        // marketing messages from us, "do not retry".
+        [131049, 400, 'defer'], [131050, 400, 'message'],
         [null, 0, 'retry'], [null, 503, 'retry'], [null, 429, 'throttle'], [null, 401, 'system'], [null, 403, 'system'],
     ];
     for (const [code, http, cls] of cases) {
@@ -177,6 +181,10 @@ describe('breaker keys', () => {
         expect(breakerKeyFor('template', 'vsite_x')).toBe('template:vsite_x');
         expect(breakerKeyFor('retry', 'vsite_x')).toBeNull();
         expect(breakerKeyFor('message', 'vsite_x')).toBeNull();
+        expect(breakerKeyFor('defer', 'vsite_x')).toBeNull();
+    });
+    it('a deferred send waits the 24 hours Meta asks for', () => {
+        expect(DEFER_MS).toBe(24 * HOUR);
     });
     it('isOpen is true only before open_until', () => {
         const m = new Map([['system', NOW + 1000]]);

@@ -7,13 +7,20 @@
  * to submit (see docs/whatsapp-setup.md); if Meta's version drifts from it,
  * sends fail with 132000 (param count) and the row goes `dead`, visibly.
  *
- * Every template is UTILITY: it is about the owner's own store and plan and
- * contains no offer. Promotional wording gets a template re-categorised as
- * MARKETING, which is ~6× the price and frequency-capped.
+ * `category` is what Meta APPROVED, not what we asked for. Everything is about
+ * the owner's own store and plan, and was submitted as UTILITY; Meta filed the
+ * two trial templates as MARKETING (they name the plan price) and the owner
+ * accepted that on 2026-10-03. Marketing sends cost more and are subject to
+ * Meta's per-user marketing cap (131049, deferred a day — see health.ts) and to
+ * the owner turning marketing messages off (131050, dead). The category is not
+ * sent with a message; it documents the contract and is guarded by tests.
  */
+
+import { SITE_URL } from '@/lib/platform/brand';
 
 export type WhatsAppEvent =
     | 'welcome'
+    | 'store_live'
     | 'trial_ending'
     | 'trial_ended'
     | 'payment_receipt'
@@ -23,9 +30,11 @@ export type WhatsAppEvent =
 
 export type TemplateParams = Record<string, string>;
 
+export type TemplateCategory = 'UTILITY' | 'MARKETING';
+
 interface TemplateDef {
     name: string;
-    category: 'UTILITY';
+    category: TemplateCategory;
     /** Param key whose value is a public image URL for an IMAGE header. */
     headerImage?: string;
     /**
@@ -73,9 +82,28 @@ export const TEMPLATES: Record<WhatsAppEvent, TemplateDef> = {
         footer: FOOTER,
         button: DASHBOARD,
     },
+    /*
+     * The QR for a store that opened WITHOUT a trial (one free trial per
+     * account) and went live by paying — it never got the welcome. Shares the
+     * welcome's idempotency key (`welcome:<siteId>`, storeLive.ts), so a store
+     * gets exactly one QR message, whichever way it went live.
+     */
+    store_live: {
+        name: 'vsite_store_live_qr',
+        category: 'UTILITY',
+        headerImage: 'qrImageUrl',
+        body: ['shopName', 'menuUrl'],
+        copy:
+            '🎉 *{{1}}* is now live on vsite.\n\n' +
+            'Your QR code is above. Print it and place it on your tables or counter — customers scan it to see your menu.\n\n' +
+            'Menu link: {{2}}\n\n' +
+            'Tap below to edit your menu anytime.',
+        footer: FOOTER,
+        button: DASHBOARD,
+    },
     trial_ending: {
         name: 'vsite_trial_ending',
-        category: 'UTILITY',
+        category: 'MARKETING',
         headerText: 'Free trial ending soon',
         body: ['shopName', 'trialEndsOn', 'priceInr'],
         copy:
@@ -86,7 +114,7 @@ export const TEMPLATES: Record<WhatsAppEvent, TemplateDef> = {
     },
     trial_ended: {
         name: 'vsite_trial_ended',
-        category: 'UTILITY',
+        category: 'MARKETING',
         headerText: 'Free trial ended',
         body: ['shopName', 'priceInr'],
         copy:
@@ -140,6 +168,15 @@ export const TEMPLATES: Record<WhatsAppEvent, TemplateDef> = {
         button: PLAN,
     },
 };
+
+/**
+ * The two public links a QR message carries, derived from the store's slug
+ * only. The enqueue side and the send-time check both use this, so "is this
+ * the QR of this store?" is one string comparison, never a guess.
+ */
+export function storeLinks(slug: string): { menuUrl: string; qrImageUrl: string } {
+    return { menuUrl: `${SITE_URL}/shop/${slug}`, qrImageUrl: `${SITE_URL}/api/qr/${slug}` };
+}
 
 /** Language every v1 template is approved in. Stored per outbox row. */
 export const DEFAULT_TEMPLATE_LANGUAGE = 'en';

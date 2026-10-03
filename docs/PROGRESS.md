@@ -2,6 +2,37 @@
 status: DONE
 ## Iteration history
 
+### 2026-10-03 — WhatsApp: gaps closed before go-live
+status: CODE DONE — owner actions pending (create `vsite_store_live_qr`, then the 2026-10-02 list)
+
+Gap analysis of the notification layer against the live DB and Meta's docs (error
+codes, media limits verified 2026-10-03). Fixed:
+1. **No phones.** 27 of 33 profiles had no phone_number (every signup since
+   2026-08-30) → WhatsApp would skip them silently. Server now fills a blank phone
+   from the verified Firebase token on every login (`/auth/continue`), onboarding and
+   payment (`lib/auth/profilePhone.ts`). Owner approved the auth change.
+2. **No-trial store never got its QR.** New `store_live` event / `vsite_store_live_qr`
+   template, sent on activation (verify-payment + Razorpay webhook) only for a store
+   with no trial; shares `welcome:<siteId>` so one QR message per store ever.
+3. **QR goes only to its owner.** Send-time check `qrStillBelongs` (welcome and
+   store_live): store still owned by the row's user and links == `storeLinks(slug)`,
+   else skipped.
+4. **Marketing accepted** for the two trial templates (owner, 2026-10-03). 131049 →
+   `defer` (one retry after 24h, Meta's guidance); 131050 → dead.
+
+Test-file note: `tests/unit/whatsappPrimitives.test.ts` pins the event list; it now
+includes `store_live` (spec change, not a weakened assertion).
+
+Verification: WhatsApp + auth-handoff suites 207/207; `npx vitest run` = 69 failed |
+1804 passed | 3 skipped — the 69 are the pre-existing tests/unit/claude-hooks/*
+(hook scripts absent from .claude/hooks). `npx tsc --noEmit` exit 0. `npm run lint`
+exit 0, 0 errors, no warnings in touched files.
+
+Left as known gaps (owner decisions 2026-10-03): no inbound handling / STOP (one-way
+by design); signup consent does not mention WhatsApp; payment receipt does not name
+the store (multi-store owners); English only (no Tamil templates); QR sticker
+ordering out of scope.
+
 ### 2026-10-02 — WhatsApp hardening (Tasks 1-9)
 status: CODE DONE — owner actions pending
 

@@ -17,6 +17,7 @@ import { supabaseServer } from '@/lib/platform/db/supabase-server';
 
 import { logger } from '@/lib/platform/logger';
 import { enqueueAndSend } from '@/lib/notifications/whatsapp/outbox';
+import { sendStoreLiveQr } from '@/lib/notifications/whatsapp/storeLive';
 import { formatDateIST } from '@/lib/notifications/whatsapp/templates';
 export const maxDuration = 15;
 export const runtime = 'nodejs';
@@ -169,6 +170,9 @@ async function handlePaymentSuccess(orderId: string, payment?: PaymentEntity) {
                     params: { amountInr: String(Math.round(payment.amount / 100)), validTill: formatDateIST(expiresAt) },
                 });
             }
+            // Same as verify-payment: the QR for a store that never had a trial.
+            // Shares the welcome key, so whichever path activates sends it once.
+            sendStoreLiveQr({ userId: siteRow.user_id, siteId: siteRow.site_id });
         }
     }
 

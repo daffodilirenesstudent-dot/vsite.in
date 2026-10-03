@@ -29,6 +29,7 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureCheckIn: vi.f
 
 import { enqueue, dispatchRow, dispatchDue, applyStatuses } from '@/lib/notifications/whatsapp/outbox';
 import { runSweep } from '@/lib/notifications/whatsapp/sweep';
+import { enqueueStoreLiveQr } from '@/lib/notifications/whatsapp/storeLive';
 import { GET as webhookGet, POST as webhookPost } from '@/app/api/webhooks/whatsapp/route';
 import { GET as cronGet, POST as cronPost } from '@/app/api/cron/whatsapp/route';
 
@@ -208,6 +209,125 @@ describe('dispatchRow', () => {
             params: { shopName: 'Anna Cafe', priceInr: '299' },
         }) as string;
         expect(await dispatchRow(id, NOW)).toBe('skipped');
+    });
+});
+
+describe('Marketing limits (trial templates are MARKETING since 2026-10-03)', () => {
+    const trialEnding = () => {
+        holder.db.tables.site_subscriptions.push({ site_id: 's1', user_id: 'u1', store_expires_at: null, trial_ends_at: new Date(NOW + DAY).toISOString() });
+        return enqueue({
+            event: 'trial_ending', key: 'trial_ending:s1', userId: 'u1', siteId: 's1',
+            params: { shopName: 'Anna Cafe', trialEndsOn: '23 Sept 2026', priceInr: '299' },
+        });
+    };
+
+    it("131049 (Meta's per-user marketing cap) waits 24h, then tries again", async () => {
+        seedOwner();
+        const id = await trialEnding() as string;
+        fetchMock.mockResolvedValueOnce(metaErr(131049));
+        expect(await dispatchRow(id, NOW)).toBe('failed');
+        expect(outbox()[0]).toMatchObject({ status: 'failed', attempts: 1, error_code: 131049 });
+        expect(outbox()[0].next_attempt_at).toBe(new Date(NOW + DAY).toISOString());
+    });
+
+    it('131050 (owner stopped marketing messages) is never retried', async () => {
+        seedOwner();
+        const id = await trialEnding() as string;
+        fetchMock.mockResolvedValueOnce(metaErr(131050));
+        expect(await dispatchRow(id, NOW)).toBe('dead');
+        expect(outbox()[0]).toMatchObject({ status: 'dead', error_code: 131050 });
+    });
+});
+
+describe('store live QR (a store opened without a trial, live by paying)', () => {
+    function seedStore(sub: Record<string, unknown>) {
+        seedOwner();
+        holder.db.tables.sites.push({ id: 's1', user_id: 'u1', name: 'Anna Cafe', slug: 'anna-cafe' });
+        holder.db.tables.site_subscriptions.push({ site_id: 's1', user_id: 'u1', ...sub });
+    }
+    const paid = { trial_ends_at: null, store_expires_at: new Date(NOW + 30 * DAY).toISOString() };
+
+    it('enqueues the QR message under the welcome key', async () => {
+        seedStore(paid);
+        expect(await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' })).toBeTruthy();
+        expect(outbox()).toHaveLength(1);
+        expect(outbox()[0]).toMatchObject({
+            event: 'store_live', idempotency_key: 'welcome:s1', template: 'vsite_store_live_qr', status: 'queued',
+            params: { shopName: 'Anna Cafe', menuUrl: 'https://vsite.in/shop/anna-cafe', qrImageUrl: 'https://vsite.in/api/qr/anna-cafe' },
+        });
+    });
+
+    it('a store that had a trial got the welcome QR already: nothing is enqueued', async () => {
+        seedStore({ ...paid, trial_ends_at: new Date(NOW - 2 * DAY).toISOString() });
+        expect(await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' })).toBeNull();
+        expect(outbox()).toHaveLength(0);
+    });
+
+    it('renewals never repeat it: one QR message per store, ever', async () => {
+        seedStore(paid);
+        await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' });
+        expect(await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' })).toBeNull();
+        expect(outbox()).toHaveLength(1);
+    });
+
+    it('sends the QR as the image header', async () => {
+        seedStore(paid);
+        const id = await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' }) as string;
+        fetchMock.mockResolvedValueOnce(metaOk('wamid.QR'));
+        expect(await dispatchRow(id, NOW)).toBe('sent');
+        const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+        expect(body.template.name).toBe('vsite_store_live_qr');
+        expect(body.template.components[0]).toEqual({
+            type: 'header', parameters: [{ type: 'image', image: { link: 'https://vsite.in/api/qr/anna-cafe' } }],
+        });
+    });
+
+    it('is not sent if the store is no longer paid when the row is dispatched', async () => {
+        seedStore(paid);
+        const id = await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' }) as string;
+        holder.db.tables.site_subscriptions[0].store_expires_at = new Date(NOW - DAY).toISOString();
+        expect(await dispatchRow(id, NOW)).toBe('skipped');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("never enqueues for a store that belongs to someone else", async () => {
+        seedStore(paid);
+        holder.db.tables.sites[0].user_id = 'someone-else';
+        expect(await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' })).toBeNull();
+        expect(outbox()).toHaveLength(0);
+    });
+
+    it("fails closed at send time if the store no longer belongs to this owner", async () => {
+        seedStore(paid);
+        const id = await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' }) as string;
+        holder.db.tables.sites[0].user_id = 'someone-else';
+        expect(await dispatchRow(id, NOW)).toBe('skipped');
+        expect(outbox()[0]).toMatchObject({ status: 'skipped', last_error: 'precondition' });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("fails closed if the QR in the message is not this store's current QR", async () => {
+        seedStore(paid);
+        const id = await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' }) as string;
+        holder.db.tables.sites[0].slug = 'renamed-cafe';
+        expect(await dispatchRow(id, NOW)).toBe('skipped');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('the onboarding welcome gets the same ownership and QR check', async () => {
+        seedStore(paid);
+        const id = await enqueue({
+            event: 'welcome', key: 'welcome:s1', userId: 'u1', siteId: 's1',
+            params: { shopName: 'Anna Cafe', menuUrl: 'https://vsite.in/shop/other-cafe', qrImageUrl: 'https://vsite.in/api/qr/other-cafe', trialEndsOn: '29 Sept 2026' },
+        }) as string;
+        expect(await dispatchRow(id, NOW)).toBe('skipped');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('a missing store enqueues nothing and does not throw', async () => {
+        seedOwner();
+        expect(await enqueueStoreLiveQr({ userId: 'u1', siteId: 'nope' })).toBeNull();
+        expect(outbox()).toHaveLength(0);
     });
 });
 

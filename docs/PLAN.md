@@ -1,3 +1,15 @@
+# PLAN — WhatsApp gaps before go-live (status: DONE 2026-10-03, owner actions pending)
+
+1. Failing acceptance AC11-AC13 in `tests/acceptance/whatsapp-notifications.test.ts` (committed RED).
+2. `health.ts`: 131049 → `defer` (24h, `DEFER_MS`), 131050 → `message`; `outbox.ts` honours `defer`.
+3. `templates.ts`: real categories (trial = MARKETING), `store_live` template, `storeLinks()`.
+4. `storeLive.ts`: `enqueueStoreLiveQr` / `sendStoreLiveQr`; wired in verify-payment and the Razorpay webhook.
+5. `outbox.ts`: `qrStillBelongs` send-time ownership + link check for welcome and store_live.
+6. `lib/auth/profilePhone.ts`; wired in `/auth/continue`, onboarding/complete, verify-payment.
+7. Runbook (`docs/whatsapp-setup.md`), PROGRESS, AGENTS.
+
+---
+
 # PLAN — WhatsApp hardening (status: DONE 2026-10-02, owner actions pending)
 
 Plan: `docs/superpowers/plans/2026-10-02-whatsapp-hardening.md`. Spec: `docs/superpowers/specs/2026-10-02-whatsapp-hardening-design.md`. 9 tasks, all committed on `feat/whatsapp-live`.

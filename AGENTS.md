@@ -908,3 +908,25 @@ Runbook: `docs/whatsapp-setup.md`. Spec: `docs/superpowers/specs/2026-09-22-what
   is watched through `heartbeat:daily` by the watchdog, not a second monitor.
 - **Bulk reads are paged/chunked.** Sweep pages of 500; profiles lookups chunk
   at 100 (URL length); retention is one delete by 90-day cutoff, not batches.
+
+## WhatsApp gaps closed before go-live (2026-10-03)
+
+- **profiles.phone_number was blank for every owner since 2026-08-30** (6 of 33
+  had one). `/auth/continue` provisioned with `phone: null`, usually beating the
+  browser's provisioning, and the `ignoreDuplicates` upsert never fills a column
+  later. WhatsApp looks owners up by that column, so they were skipped as
+  `no_phone`, silently. Fix: `lib/auth/profilePhone.ts` reads the verified
+  token's `phone_number` claim and fills a BLANK phone (`.is('phone_number', null)`
+  in the UPDATE — never overwrites) on every login, at onboarding and at payment.
+  Only call it with a token `verifyFirebaseToken` already verified in the same request.
+- **Meta's category is the contract, not ours.** Meta re-filed `vsite_trial_ending`
+  / `vsite_trial_ended` as MARKETING; the owner accepted. `templates.ts` records
+  the approved category and AC12 guards it. 131049 (per-user marketing cap) is
+  class `defer` — retry once after 24h as Meta's error reference says, never
+  sooner. 131050 (owner stopped marketing) is `message` — dead.
+- **One QR message per store, ever.** `welcome` (trial store, onboarding) and
+  `store_live` (no-trial store, first payment — `storeLive.ts`) share the key
+  `welcome:<siteId>`. Both are re-checked at send time by `qrStillBelongs`: the
+  store must still belong to the row's `user_id`, and the menu/QR links in the
+  params must equal `storeLinks(currentSlug)` — otherwise skipped, never sent.
+  Build QR links with `storeLinks()` only.
