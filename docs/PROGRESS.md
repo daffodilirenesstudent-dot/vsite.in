@@ -353,6 +353,13 @@ WebKit, cold and warm cache.
 `NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` in DigitalOcean (build-time; redeploy).
 Rollback: unset and redeploy.
 
+**Backfill applied 2026-10-02.** The flag had gone live without the backfill:
+only 4 of 577 originals had a thumbnail, so every menu photo 404'd on its
+thumbnail and fell back to the full original. `--apply` made 573, failed 0
+(product-images 99.6 MB → 5.2 MB, default-images 58.2 MB → 12.5 MB). Re-run dry
+run reports 0 missing. Live check on `/shop/cream-story-1`: 12/12 thumbnails
+200, ~28 KB each, `Cache-Control: public, max-age=31536000`, CDN HIT.
+
 ### 2026-09-19 — Feature: resilient menu extraction + PDF upload
 status: DONE — all acceptance criteria green (docs/GOAL.md AC1–AC14)
 
