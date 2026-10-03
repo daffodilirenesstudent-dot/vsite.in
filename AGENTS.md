@@ -926,7 +926,9 @@ Runbook: `docs/whatsapp-setup.md`. Spec: `docs/superpowers/specs/2026-09-22-what
   sooner. 131050 (owner stopped marketing) is `message` — dead.
 - **One QR message per store, ever.** `welcome` (trial store, onboarding) and
   `store_live` (no-trial store, first payment — `storeLive.ts`) share the key
-  `welcome:<siteId>`. Both are re-checked at send time by `qrStillBelongs`: the
+  `welcome:<siteId>` AND the template `vsite_welcome_qr` (owner: no new template).
+  So its copy must stay true for both: {{3}} is "Live until", never "Free trial"
+  (AC11 fails if the copy says "trial"). Both are re-checked at send time by `qrStillBelongs`: the
   store must still belong to the row's `user_id`, and the menu/QR links in the
   params must equal `storeLinks(currentSlug)` — otherwise skipped, never sent.
   Build QR links with `storeLinks()` only.

@@ -70,28 +70,29 @@ After the deploy is live:
    (needs a privacy policy URL — use `https://vsite.in/privacy`) and business
    verification (Step 3 in the left menu).
 
-## 5. Create the 8 templates
+## 5. Create the 7 templates
 
-The first 7 are approved (2026-10-02). **Meta filed `vsite_trial_ending` and
+All 7 are approved (2026-10-02). **Meta filed `vsite_trial_ending` and
 `vsite_trial_ended` as Marketing; the owner accepted that on 2026-10-03** —
 `templates.ts` records it. Marketing sends cost more, can be held back by Meta's
 per-user marketing cap (131049: the row waits 24h and tries once more) and are
 never delivered to an owner who turned marketing messages off (131050: dead).
 
-**Still to create: `vsite_store_live_qr`** (2026-10-03) — the QR for a store that
-opened without a trial and went live by paying. Until it is approved, those
-sends fail with 132001 and pause that one template (alert); nothing else is
-affected. Create it before the deploy:
+**One edit before the deploy (2026-10-03): `vsite_welcome_qr` line 4.** The same
+template now also carries the QR for a store that opened without a trial and went
+live by paying (an owner's second store). Its {{3}} is then the paid plan's end,
+not a trial end, so the line must not say "Free trial":
 
-| Field | Value |
+| | Body line |
 |---|---|
-| Name | `vsite_store_live_qr` |
-| Category | Utility |
-| Language | English (`en`) |
-| Header | Image — sample: any QR PNG |
-| Body | the `store_live.copy` string in `templates.ts` — 2 variables, type Number; samples `Anna Cafe`, `https://vsite.in/shop/anna-cafe` |
-| Footer | `vsite · Smart QR Menu` |
-| Button | Visit website · Static · `Manage menu` → `https://vsite.in/manage/dashboard` |
+| Was | `Free trial until: *{{3}}*` |
+| Now | `Live until: *{{3}}*` |
+
+WhatsApp Manager → Message templates → `vsite_welcome_qr` → Edit → change that one
+line only (same 3 variables) → Submit. Meta allows 1 edit per 24 hours (10 per 30
+days) on an approved template and re-reviews it; name, category and language do
+not change. Check it shows **Active** again before deploying. Until the edit is
+approved, a paid second store would read "Free trial until <its paid date>".
 
 WhatsApp Manager → Message templates → Create. **Category: Utility. Language:
 English (`en` — not "English (US)").** `templates.ts` is the source of truth
@@ -110,7 +111,6 @@ Button = **Visit website**, URL type **Static**.
 | Name | Header | Button → URL |
 |---|---|---|
 | `vsite_welcome_qr` | Image (QR) | Manage menu → `https://vsite.in/manage/dashboard` |
-| `vsite_store_live_qr` | Image (QR) | Manage menu → same |
 | `vsite_trial_ending` | Free trial ending soon | View plan → `https://vsite.in/manage/subscription` |
 | `vsite_trial_ended` | Free trial ended | View plan → same |
 | `vsite_payment_receipt` | Payment received | View invoice → same |
@@ -138,7 +138,7 @@ curl -X POST -H "authorization: Bearer $CRON_SECRET" "https://vsite.in/api/cron/
 ```
 Then complete one onboarding with your own number → welcome with QR arrives.
 Second store on the same account (no trial) → pay → receipt **and**
-`vsite_store_live_qr` with that store's own QR arrive.
+`vsite_welcome_qr` with that store's own QR and "Live until <paid end>" arrive.
 Only a store that opens **on its trial** gets the welcome (one trial per account):
 test with a phone number that has never had a store, or the first message you see
 will be the payment receipt.

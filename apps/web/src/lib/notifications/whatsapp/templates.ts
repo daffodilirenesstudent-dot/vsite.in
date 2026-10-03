@@ -67,40 +67,33 @@ const FOOTER = 'vsite · Smart QR Menu';
 const DASHBOARD = { text: 'Manage menu', url: 'https://vsite.in/manage/dashboard' };
 const PLAN = { text: 'View plan', url: 'https://vsite.in/manage/subscription' };
 
+/*
+ * The one QR message, `vsite_welcome_qr`, sent two ways:
+ *   welcome    — a store that opened live on its trial (onboarding);
+ *   store_live — a store that opened WITHOUT a trial (one free trial per
+ *                account) and went live by paying (storeLive.ts).
+ * Same template, same key (`welcome:<siteId>`), so a store gets exactly one QR
+ * message whichever way it went live. {{3}} is the date the menu is live until
+ * — the trial end, or the paid plan's end — so the line says "Live until",
+ * never "Free trial" (edited in WhatsApp Manager 2026-10-03; AC11 guards it).
+ */
+const WELCOME_QR = {
+    name: 'vsite_welcome_qr',
+    category: 'UTILITY',
+    headerImage: 'qrImageUrl',
+    copy:
+        '🎉 *{{1}}* is now live on vsite.\n\n' +
+        'Your QR code is above. Print it and place it on your tables or counter — customers scan it to see your menu.\n\n' +
+        'Menu link: {{2}}\n' +
+        'Live until: *{{3}}*\n\n' +
+        'Tap below to edit your menu anytime.',
+    footer: FOOTER,
+    button: DASHBOARD,
+} as const;
+
 export const TEMPLATES: Record<WhatsAppEvent, TemplateDef> = {
-    welcome: {
-        name: 'vsite_welcome_qr',
-        category: 'UTILITY',
-        headerImage: 'qrImageUrl',
-        body: ['shopName', 'menuUrl', 'trialEndsOn'],
-        copy:
-            '🎉 *{{1}}* is now live on vsite.\n\n' +
-            'Your QR code is above. Print it and place it on your tables or counter — customers scan it to see your menu.\n\n' +
-            'Menu link: {{2}}\n' +
-            'Free trial until: *{{3}}*\n\n' +
-            'Tap below to edit your menu anytime.',
-        footer: FOOTER,
-        button: DASHBOARD,
-    },
-    /*
-     * The QR for a store that opened WITHOUT a trial (one free trial per
-     * account) and went live by paying — it never got the welcome. Shares the
-     * welcome's idempotency key (`welcome:<siteId>`, storeLive.ts), so a store
-     * gets exactly one QR message, whichever way it went live.
-     */
-    store_live: {
-        name: 'vsite_store_live_qr',
-        category: 'UTILITY',
-        headerImage: 'qrImageUrl',
-        body: ['shopName', 'menuUrl'],
-        copy:
-            '🎉 *{{1}}* is now live on vsite.\n\n' +
-            'Your QR code is above. Print it and place it on your tables or counter — customers scan it to see your menu.\n\n' +
-            'Menu link: {{2}}\n\n' +
-            'Tap below to edit your menu anytime.',
-        footer: FOOTER,
-        button: DASHBOARD,
-    },
+    welcome: { ...WELCOME_QR, body: ['shopName', 'menuUrl', 'trialEndsOn'] },
+    store_live: { ...WELCOME_QR, body: ['shopName', 'menuUrl', 'liveUntil'] },
     trial_ending: {
         name: 'vsite_trial_ending',
         category: 'MARKETING',

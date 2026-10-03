@@ -3,7 +3,7 @@ status: DONE
 ## Iteration history
 
 ### 2026-10-03 — WhatsApp: gaps closed before go-live
-status: CODE DONE — owner actions pending (create `vsite_store_live_qr`, then the 2026-10-02 list)
+status: CODE DONE — owner actions pending (edit `vsite_welcome_qr` line 4 to "Live until", then the 2026-10-02 list)
 
 Gap analysis of the notification layer against the live DB and Meta's docs (error
 codes, media limits verified 2026-10-03). Fixed:
@@ -11,9 +11,11 @@ codes, media limits verified 2026-10-03). Fixed:
    2026-08-30) → WhatsApp would skip them silently. Server now fills a blank phone
    from the verified Firebase token on every login (`/auth/continue`), onboarding and
    payment (`lib/auth/profilePhone.ts`). Owner approved the auth change.
-2. **No-trial store never got its QR.** New `store_live` event / `vsite_store_live_qr`
-   template, sent on activation (verify-payment + Razorpay webhook) only for a store
-   with no trial; shares `welcome:<siteId>` so one QR message per store ever.
+2. **No-trial store never got its QR.** New `store_live` event, sent on activation
+   (verify-payment + Razorpay webhook) only for a store with no trial. Owner chose to
+   reuse the approved `vsite_welcome_qr` (no new template): its {{3}} line becomes
+   "Live until" (trial end or paid end), one edit in WhatsApp Manager. Shares
+   `welcome:<siteId>`, so one QR message per store ever.
 3. **QR goes only to its owner.** Send-time check `qrStillBelongs` (welcome and
    store_live): store still owned by the row's user and links == `storeLinks(slug)`,
    else skipped.

@@ -252,9 +252,18 @@ describe('store live QR (a store opened without a trial, live by paying)', () =>
         expect(await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' })).toBeTruthy();
         expect(outbox()).toHaveLength(1);
         expect(outbox()[0]).toMatchObject({
-            event: 'store_live', idempotency_key: 'welcome:s1', template: 'vsite_store_live_qr', status: 'queued',
-            params: { shopName: 'Anna Cafe', menuUrl: 'https://vsite.in/shop/anna-cafe', qrImageUrl: 'https://vsite.in/api/qr/anna-cafe' },
+            event: 'store_live', idempotency_key: 'welcome:s1', template: 'vsite_welcome_qr', status: 'queued',
+            params: {
+                shopName: 'Anna Cafe', menuUrl: 'https://vsite.in/shop/anna-cafe', qrImageUrl: 'https://vsite.in/api/qr/anna-cafe',
+                liveUntil: '22 Oct 2026', // the paid plan's end, never a trial date
+            },
         });
+    });
+
+    it('a store that is not paid (yet) enqueues nothing', async () => {
+        seedStore({ trial_ends_at: null, store_expires_at: null });
+        expect(await enqueueStoreLiveQr({ userId: 'u1', siteId: 's1' })).toBeNull();
+        expect(outbox()).toHaveLength(0);
     });
 
     it('a store that had a trial got the welcome QR already: nothing is enqueued', async () => {
@@ -276,7 +285,7 @@ describe('store live QR (a store opened without a trial, live by paying)', () =>
         fetchMock.mockResolvedValueOnce(metaOk('wamid.QR'));
         expect(await dispatchRow(id, NOW)).toBe('sent');
         const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
-        expect(body.template.name).toBe('vsite_store_live_qr');
+        expect(body.template.name).toBe('vsite_welcome_qr');
         expect(body.template.components[0]).toEqual({
             type: 'header', parameters: [{ type: 'image', image: { link: 'https://vsite.in/api/qr/anna-cafe' } }],
         });
