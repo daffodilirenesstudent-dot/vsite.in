@@ -15,6 +15,15 @@
  * AC6  The migration creates the outbox with a unique idempotency key, RLS on,
  *      and no grants to anon/authenticated.
  * AC7  The QR image encodes the public menu URL and nothing else.
+ *
+ * Added 2026-10-03 (gaps found before go-live):
+ * AC11 A store that opened without a trial gets its QR on WhatsApp when it goes
+ *      live by paying — from both activation paths, never awaited, and sharing
+ *      the welcome's key so a store gets one QR message ever.
+ * AC12 The registry records the category Meta actually approved: the two trial
+ *      templates are MARKETING (owner accepted 2026-10-03), the rest UTILITY.
+ * AC13 The owner's phone comes from the verified Firebase token, server-side,
+ *      on every login and at onboarding/payment — never only from the browser.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -30,6 +39,7 @@ vi.mock('@/lib/platform/db/supabase-server', () => ({
 }));
 
 import { GET as qrGet } from '@/app/api/qr/[slug]/route';
+import { TEMPLATES } from '@/lib/notifications/whatsapp/templates';
 
 const root = process.cwd();
 const src = (p: string) => readFileSync(join(root, 'src', p), 'utf8');
@@ -201,5 +211,47 @@ describe('AC10 - migration 064', () => {
     });
     it('is expand-only', () => {
         expect(sql).not.toMatch(/^\s*(drop|alter table [^;]* drop)/m);
+    });
+});
+
+describe('AC11 - a no-trial store gets its QR when it goes live by paying', () => {
+    it('the store_live template carries the QR as an image header', () => {
+        expect(TEMPLATES.store_live).toMatchObject({ name: 'vsite_store_live_qr', category: 'UTILITY', headerImage: 'qrImageUrl' });
+    });
+    it.each([
+        'app/api/subscription/verify-payment/route.ts',
+        'app/api/webhooks/razorpay/route.ts',
+    ])('%s sends it after activation, without await', (p) => {
+        const s = src(p);
+        expect(s).toMatch(/sendStoreLiveQr\(/);
+        expect(s).not.toMatch(/await\s+sendStoreLiveQr/);
+    });
+    it('shares the welcome key, so a store gets one QR message ever', () => {
+        expect(src('lib/notifications/whatsapp/storeLive.ts')).toMatch(/key:\s*`welcome:\$\{/);
+    });
+});
+
+describe('AC12 - template categories match what Meta approved', () => {
+    it('trial templates are MARKETING, everything else UTILITY', () => {
+        const marketing = Object.entries(TEMPLATES).filter(([, d]) => d.category === 'MARKETING').map(([e]) => e).sort();
+        expect(marketing).toEqual(['trial_ended', 'trial_ending']);
+    });
+});
+
+describe('AC13 - the owner phone is captured server-side from the verified token', () => {
+    it('/auth/continue fills a blank phone on every login', () => {
+        const page = src('app/auth/continue/page.tsx');
+        expect(page).toMatch(/phoneFromIdToken\(token\)/);
+        expect(page).not.toMatch(/provisionUser\(supabaseServer,\s*\{\s*uid,\s*phone:\s*null\s*\}\)/);
+        expect(page).toMatch(/backfillProfilePhone\(/);
+    });
+    it.each([
+        'app/api/onboarding/complete/route.ts',
+        'app/api/subscription/verify-payment/route.ts',
+    ])('%s remembers the verified phone before WhatsApp looks it up', (p) => {
+        const s = src(p);
+        const remember = s.indexOf('rememberVerifiedPhone(');
+        expect(remember).toBeGreaterThan(-1);
+        expect(remember).toBeLessThan(s.indexOf('enqueueAndSend({'));
     });
 });
