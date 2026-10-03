@@ -20,8 +20,8 @@
  * AC11 A store that opened without a trial gets its QR on WhatsApp when it goes
  *      live by paying — from both activation paths, never awaited, and sharing
  *      the welcome's key so a store gets one QR message ever. It reuses
- *      vsite_welcome_qr, whose {{3}} line reads "Live until" (edited in
- *      WhatsApp Manager), so it is true for a trial store and a paid one.
+ *      vsite_welcome_qr unedited; {{3}} is the trial end for a trial store and
+ *      the paid plan's end for a paid one (owner's decision, 2026-10-03).
  * AC12 The registry records the category Meta actually approved: the two trial
  *      templates are MARKETING (owner accepted 2026-10-03), the rest UTILITY.
  * AC13 The owner's phone comes from the verified Firebase token, server-side,
@@ -221,8 +221,8 @@ describe('AC11 - a no-trial store gets its QR when it goes live by paying', () =
         expect(TEMPLATES.store_live).toMatchObject({ name: 'vsite_welcome_qr', category: 'UTILITY', headerImage: 'qrImageUrl' });
         expect(TEMPLATES.store_live.copy).toBe(TEMPLATES.welcome.copy);
     });
-    it('the shared copy never says "trial": a store that paid must not read "free trial"', () => {
-        expect(TEMPLATES.welcome.copy).not.toMatch(/trial/i);
+    it('keeps the copy Meta approved, unedited: {{3}} is "Free trial until" (owner, 2026-10-03)', () => {
+        expect(TEMPLATES.welcome.copy).toContain('Free trial until: *{{3}}*');
     });
     it.each([
         'app/api/subscription/verify-payment/route.ts',

@@ -73,9 +73,9 @@ const PLAN = { text: 'View plan', url: 'https://vsite.in/manage/subscription' };
  *   store_live — a store that opened WITHOUT a trial (one free trial per
  *                account) and went live by paying (storeLive.ts).
  * Same template, same key (`welcome:<siteId>`), so a store gets exactly one QR
- * message whichever way it went live. {{3}} is the date the menu is live until
- * — the trial end, or the paid plan's end — so the line says "Live until",
- * never "Free trial" (edited in WhatsApp Manager 2026-10-03; AC11 guards it).
+ * message whichever way it went live. The approved copy is kept unedited
+ * (owner, 2026-10-03): {{3}} is the date the menu is live until — the trial
+ * end for a trial store, the paid plan's end for a paid store.
  */
 const WELCOME_QR = {
     name: 'vsite_welcome_qr',
@@ -85,7 +85,7 @@ const WELCOME_QR = {
         '🎉 *{{1}}* is now live on vsite.\n\n' +
         'Your QR code is above. Print it and place it on your tables or counter — customers scan it to see your menu.\n\n' +
         'Menu link: {{2}}\n' +
-        'Live until: *{{3}}*\n\n' +
+        'Free trial until: *{{3}}*\n\n' +
         'Tap below to edit your menu anytime.',
     footer: FOOTER,
     button: DASHBOARD,

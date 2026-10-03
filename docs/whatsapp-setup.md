@@ -78,21 +78,11 @@ All 7 are approved (2026-10-02). **Meta filed `vsite_trial_ending` and
 per-user marketing cap (131049: the row waits 24h and tries once more) and are
 never delivered to an owner who turned marketing messages off (131050: dead).
 
-**One edit before the deploy (2026-10-03): `vsite_welcome_qr` line 4.** The same
-template now also carries the QR for a store that opened without a trial and went
-live by paying (an owner's second store). Its {{3}} is then the paid plan's end,
-not a trial end, so the line must not say "Free trial":
-
-| | Body line |
-|---|---|
-| Was | `Free trial until: *{{3}}*` |
-| Now | `Live until: *{{3}}*` |
-
-WhatsApp Manager → Message templates → `vsite_welcome_qr` → Edit → change that one
-line only (same 3 variables) → Submit. Meta allows 1 edit per 24 hours (10 per 30
-days) on an approved template and re-reviews it; name, category and language do
-not change. Check it shows **Active** again before deploying. Until the edit is
-approved, a paid second store would read "Free trial until <its paid date>".
+**No template change needed (owner, 2026-10-03).** `vsite_welcome_qr` also carries
+the QR for a store that opened without a trial and went live by paying (an owner's
+second store), unedited. Its {{3}} is then that store's paid plan end, so that owner
+reads "Free trial until <paid end date>" — the date is right, the label is the
+approved one.
 
 WhatsApp Manager → Message templates → Create. **Category: Utility. Language:
 English (`en` — not "English (US)").** `templates.ts` is the source of truth
@@ -138,7 +128,7 @@ curl -X POST -H "authorization: Bearer $CRON_SECRET" "https://vsite.in/api/cron/
 ```
 Then complete one onboarding with your own number → welcome with QR arrives.
 Second store on the same account (no trial) → pay → receipt **and**
-`vsite_welcome_qr` with that store's own QR and "Live until <paid end>" arrive.
+`vsite_welcome_qr` with that store's own QR and its paid end date as {{3}} arrive.
 Only a store that opens **on its trial** gets the welcome (one trial per account):
 test with a phone number that has never had a store, or the first message you see
 will be the payment receipt.

@@ -11,8 +11,8 @@ import { isPaid } from './windows';
  * One free trial per account (migration 058) means an owner's second store
  * opens with no trial and waits for payment, so it never gets the onboarding
  * welcome — the message that carries the QR. This sends that QR on activation,
- * through the same approved template (`vsite_welcome_qr`), with {{3}} "Live
- * until" set to the paid plan's end.
+ * through the same approved template (`vsite_welcome_qr`, unedited), with {{3}}
+ * set to the paid plan's end (`store_expires_at`).
  *
  * Exactly the right QR to exactly the right owner:
  *   - the store is read by id and must belong to `userId` (else nothing);
