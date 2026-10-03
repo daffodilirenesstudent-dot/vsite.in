@@ -569,7 +569,10 @@ export default function SettingsPage() {
     };
 
     // ── Poll local print bridge every 8 s ─────────────────────────────────────
+    // Only while the Printing tab is open, and never while ordering is frozen:
+    // the bridge prints KOTs and bills, so there is nothing to poll it for.
     useEffect(() => {
+        if (ORDERING_FROZEN || activeTab !== 'printing') return;
         let cancelled = false;
         const poll = async () => {
             try {
@@ -598,8 +601,7 @@ export default function SettingsPage() {
         poll();
         const id = setInterval(poll, 8000);
         return () => { cancelled = true; clearInterval(id); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [activeTab]);
 
     const savePrinterAssignment = async (field: 'kot' | 'bill', printerName: string | null) => {
         if (!siteId) return;

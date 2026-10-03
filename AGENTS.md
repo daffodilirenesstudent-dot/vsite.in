@@ -870,3 +870,13 @@ https production. In Playwright, route `https://localhost:3000/**` back to http.
   must never be deleted (owner rule, guarded in photo-cleanup.test.ts). A new screen that replaces
   or deletes a photo should call `releaseMenuPhotos(siteId, replacedPhotos(old, new))` after its
   DB write — never before.
+
+## QR poster on phones (2026-09-27)
+
+- **Never pass a next/font variable straight to `document.fonts.load()`.** The variable is a family
+  list that includes a metric fallback face (`__Poppins_Fallback_*`, `src: local("Arial")`).
+  Android has no Arial, and Chromium/Firefox reject `fonts.load` if any named face fails, so every
+  Poppins poster failed on phones (preview, tiles, PDF and Status image) while Windows desktops
+  worked. Load the first family only (`waitForPosterFonts` in lib/qr/designRender.ts); keep the
+  full list for `ctx.font`. To reproduce on a laptop, rewrite `local("Arial")` in the served CSS
+  to a missing font (Playwright `route`).

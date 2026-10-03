@@ -6,7 +6,12 @@ status: DONE
 status: CODE DONE — new acceptance suites green: product-pricing (24), menu-freshness (20),
 owner-qa-polish (44), bulk-review (9), ordering-roadmap-copy (+6). Full suite: only the
 pre-existing tests/unit/claude-hooks/* (69) and the timing-sensitive aiCostAbuse test fail, same
-as before this pass. tsc clean, lint 0 errors. NOT committed; NOT deployed.
+as before this pass. tsc clean, lint 0 errors. **RELEASED 2026-09-26** with this week's features
+(tag `release/2026-09-26`, deployed as `acc18cf`, a no-change redeploy after the first deploy was
+stopped; the owner added the six NEXT_PUBLIC flags in DO). **059 applied** after the deploy and
+verified. Live checks: new footer, 34 `.thumb.jpg` images (flags on), CSP has apis.google.com,
+poster art 200, new routes 401 without a token. `/api/version` answers but says `sha: unknown` —
+DO's app spec does not have COMMIT_SHA. Runbook: docs/releases/2026-09-26.md.
 
 **High.**
 - Sizes dish showed "₹0 onwards": save now stores `listedPrice()` (cheapest size); the menu
@@ -347,6 +352,13 @@ WebKit, cold and warm cache.
 **Rollout.** Merge (flag OFF) → backfill dry run → `--apply` → set
 `NEXT_PUBLIC_MENU_IMAGE_THUMBS=true` in DigitalOcean (build-time; redeploy).
 Rollback: unset and redeploy.
+
+**Backfill applied 2026-10-02.** The flag had gone live without the backfill:
+only 4 of 577 originals had a thumbnail, so every menu photo 404'd on its
+thumbnail and fell back to the full original. `--apply` made 573, failed 0
+(product-images 99.6 MB → 5.2 MB, default-images 58.2 MB → 12.5 MB). Re-run dry
+run reports 0 missing. Live check on `/shop/cream-story-1`: 12/12 thumbnails
+200, ~28 KB each, `Cache-Control: public, max-age=31536000`, CDN HIT.
 
 ### 2026-09-19 — Feature: resilient menu extraction + PDF upload
 status: DONE — all acceptance criteria green (docs/GOAL.md AC1–AC14)

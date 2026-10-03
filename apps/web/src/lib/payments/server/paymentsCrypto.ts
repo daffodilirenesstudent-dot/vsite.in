@@ -12,6 +12,7 @@ import crypto from 'crypto';
 //   openssl rand -base64 32
 
 const ALGO = 'aes-256-gcm';
+const GCM_TAG_BYTES = 16;
 
 function getKey(): Buffer {
   const raw = process.env.PAYMENTS_ENC_KEY;
@@ -46,7 +47,12 @@ export function decryptToken(payload: string): string {
   const iv = Buffer.from(parts[1], 'base64');
   const tag = Buffer.from(parts[2], 'base64');
   const ct = Buffer.from(parts[3], 'base64');
-  const decipher = crypto.createDecipheriv(ALGO, key, iv);
+  // Pin the tag at the 16 bytes encryptToken writes. Unpinned, GCM accepts a
+  // tag cut to 4 bytes and verifies only those — a 2^32 forgery instead of 2^128.
+  if (tag.length !== GCM_TAG_BYTES) {
+    throw new Error('Invalid encrypted token payload');
+  }
+  const decipher = crypto.createDecipheriv(ALGO, key, iv, { authTagLength: GCM_TAG_BYTES });
   decipher.setAuthTag(tag);
   const plain = Buffer.concat([decipher.update(ct), decipher.final()]);
   return plain.toString('utf8');

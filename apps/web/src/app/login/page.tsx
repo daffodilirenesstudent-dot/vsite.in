@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthContext';
 import { useOtpInput } from '@/hooks/useOtpInput';
 import { OTP_LENGTH } from '@/lib/auth/otpInput';
+import { DASHBOARD, safeInternalPath } from '@/lib/auth/postAuthDestination';
 
 export default function LoginPage() {
   return (
@@ -25,10 +26,7 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const sessionExpired = searchParams.get('expired') === 'true';
   // Only honour internal paths — prevents open-redirect attacks via crafted URLs
-  const rawRedirect = searchParams.get('redirectTo') ?? '';
-  const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
-    ? rawRedirect
-    : '/manage/dashboard';
+  const redirectTo = safeInternalPath(searchParams.get('redirectTo')) ?? DASHBOARD;
   const { sendOTP, verifyOTP, resetOTP, user, loading: authLoading } = useAuth();
 
   // Step: 'phone' | 'otp'

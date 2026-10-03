@@ -40,8 +40,14 @@ function art(src: string): Promise<HTMLImageElement> {
 type TextEl = Extract<DesignElement, { kind: 'text' }>;
 type QrEl = Extract<DesignElement, { kind: 'qr' }>;
 
-function fontString(e: TextEl, size: number, fonts: PosterFonts): string {
-    return `${e.italic ? 'italic ' : ''}${e.weight} ${size}px ${fonts[e.font]}`;
+function fontString(e: TextEl, size: number, family: string): string {
+    return `${e.italic ? 'italic ' : ''}${e.weight} ${size}px ${family}`;
+}
+
+export async function waitForPosterFonts(design: PosterDesign, fonts: PosterFonts, fontSet: Pick<FontFaceSet, 'load'>): Promise<void> {
+    const texts = design.elements.filter((e): e is TextEl => e.kind === 'text');
+    // Web font only: next/font's fallback face is local("Arial"), Android has no Arial, and fonts.load rejects if any face fails.
+    await Promise.all(texts.map(e => fontSet.load(fontString(e, e.size, fonts[e.font].split(',')[0].trim()))));
 }
 
 function setLetterSpacing(ctx: CanvasRenderingContext2D, px: number) {
@@ -107,14 +113,13 @@ export async function renderDesignPoster({ design, accent, storeName, qrBlobFor,
     const qrInnerDesign = q.size - 2 * q.pad - 2 * q.border;
     const qrPx = Math.round(qrInnerDesign * scale);
 
-    const texts = design.elements.filter((e): e is TextEl => e.kind === 'text');
     const [images, qrImg] = await Promise.all([
         Promise.all(design.elements.map(e => (e.kind === 'image' ? art(e.src) : Promise.resolve(null)))),
         qrBlobFor(qrPx).then(b => {
             if (!b) throw new Error('QR could not be generated');
             return blobToImage(b);
         }),
-        Promise.all(texts.map(e => document.fonts.load(fontString(e, e.size, fonts)))),
+        waitForPosterFonts(design, fonts, document.fonts),
     ]);
 
     const c = document.createElement('canvas');
@@ -157,9 +162,9 @@ export async function renderDesignPoster({ design, accent, storeName, qrBlobFor,
             const cx = DESIGN_W / 2;
             ctx.save();
             const size = e.maxWidth
-                ? fitFontSize(s => { ctx.font = fontString(e, s, fonts); setLetterSpacing(ctx, (e.letterSpacing ?? 0) * s); return ctx.measureText(text).width; }, e.maxWidth, e.size, Math.round(e.size * 0.55))
+                ? fitFontSize(s => { ctx.font = fontString(e, s, fonts[e.font]); setLetterSpacing(ctx, (e.letterSpacing ?? 0) * s); return ctx.measureText(text).width; }, e.maxWidth, e.size, Math.round(e.size * 0.55))
                 : e.size;
-            ctx.font = fontString(e, size, fonts);
+            ctx.font = fontString(e, size, fonts[e.font]);
             setLetterSpacing(ctx, (e.letterSpacing ?? 0) * size);
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';

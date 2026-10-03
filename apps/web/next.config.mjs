@@ -117,6 +117,13 @@ const securityHeaders = [
 
 const nextConfig = {
     images: {
+        // Security hotfix (audit 2026-09-27, C2): next@14.2.35's Image
+        // Optimization API has published RCE/DoS advisories fixed in 15.5.24,
+        // and remotePatterns below points it at a bucket owners can write to.
+        // Images are served straight from the Supabase CDN instead; menus
+        // already ship their own thumbnails. Remove after the Next upgrade —
+        // tests/security/imageOptimizer.test.ts lets go by itself then.
+        unoptimized: true,
         remotePatterns: [
             {
                 protocol: 'https',
