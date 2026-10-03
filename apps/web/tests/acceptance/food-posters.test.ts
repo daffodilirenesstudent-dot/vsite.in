@@ -210,3 +210,54 @@ describe('AC8 / AC9: the print kit uses the chosen design', () => {
         expect(panel).toMatch(/aria-label="Poster design"/);
     });
 });
+
+describe('AC10: every design draws on a phone', () => {
+    // The --poster-* values next/font builds for the QR layout. Poppins comes
+    // with a metric fallback face whose only source is local("Arial");
+    // Newsreader has none.
+    const BUILT_FONTS = {
+        poppins: '"__Poppins_75265a","__Poppins_Fallback_75265a"',
+        newsreader: '"__Newsreader_bd7ce0"',
+    };
+
+    // Chromium on Android: document.fonts.load loads every face the font
+    // string names and rejects with NetworkError if any fails. A next/font
+    // fallback face is local() only, and Android has no Arial.
+    function androidFontSet() {
+        const asked: string[] = [];
+        return {
+            asked,
+            load(font: string): Promise<FontFace[]> {
+                asked.push(font);
+                return /_Fallback_/.test(font)
+                    ? Promise.reject(new Error('NetworkError: A network error occurred.'))
+                    : Promise.resolve([]);
+            },
+        };
+    }
+
+    it('waits for each design\'s web font without failing on a missing local() fallback', async () => {
+        const { POSTER_DESIGNS } = await mod();
+        const { waitForPosterFonts } = await import('@/lib/qr/designRender');
+        for (const d of POSTER_DESIGNS) {
+            const fontSet = androidFontSet();
+            await expect(waitForPosterFonts(d, BUILT_FONTS, fontSet), d.id).resolves.toBeUndefined();
+            expect(fontSet.asked.length, d.id).toBeGreaterThan(0);
+        }
+    });
+
+    it('still waits for the real web font, at each text\'s weight and style', async () => {
+        const { POSTER_DESIGNS, designById } = await mod();
+        const { waitForPosterFonts } = await import('@/lib/qr/designRender');
+        const feast = designById('feast-ring')!;
+        const fontSet = androidFontSet();
+        await waitForPosterFonts(feast, BUILT_FONTS, fontSet);
+        expect(fontSet.asked).toContain('800 34px "__Poppins_75265a"');
+        expect(fontSet.asked).toContain('700 19px "__Poppins_75265a"');
+
+        const floating = POSTER_DESIGNS.find(d => d.id === 'cafe-floating')!;
+        const cafeSet = androidFontSet();
+        await waitForPosterFonts(floating, BUILT_FONTS, cafeSet);
+        expect(cafeSet.asked).toContain('italic 700 30px "__Newsreader_bd7ce0"');
+    });
+});
