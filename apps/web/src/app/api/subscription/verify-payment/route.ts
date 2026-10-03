@@ -35,6 +35,10 @@ import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { rateLimit } from '@/lib/platform/rateLimit';
 import { notify } from '@/lib/notifications/notify';
+import { enqueueAndSend } from '@/lib/notifications/whatsapp/outbox';
+import { sendStoreLiveQr } from '@/lib/notifications/whatsapp/storeLive';
+import { formatDateIST } from '@/lib/notifications/whatsapp/templates';
+import { rememberVerifiedPhone } from '@/lib/auth/profilePhone';
 import { PLAN_PRICES_INR } from '@/lib/platform/productFlags';
 
 import { logger } from '@/lib/platform/logger';
@@ -62,7 +66,8 @@ export async function POST(request: NextRequest) {
         if (!authHeader?.startsWith('Bearer ')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const userId = await verifyFirebaseToken(authHeader.replace('Bearer ', ''));
+        const idToken = authHeader.replace('Bearer ', '');
+        const userId = await verifyFirebaseToken(idToken);
         if (!userId) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
@@ -358,6 +363,24 @@ export async function POST(request: NextRequest) {
           body:  `Your store is live for 30 days. Valid till ${new Date(expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
           link:  '/manage/subscription',
         });
+
+        // The owner's verified phone, so WhatsApp can reach them. Resolves
+        // either way — it cannot fail the activation that already happened.
+        await rememberVerifiedPhone(userId, idToken);
+
+        // WhatsApp receipt. Fire-and-forget: it can never fail or slow the
+        // activation above. Keyed by order id — the Razorpay webhook uses the
+        // same key, so whichever path activates, the owner gets one receipt.
+        enqueueAndSend({
+          event:  'payment_receipt',
+          key:    `receipt:${razorpay_order_id}`,
+          userId,
+          siteId,
+          params: { amountInr: String(amountInr), validTill: formatDateIST(expiresAt) },
+        });
+        // A store opened without a trial never got the welcome QR: send it now.
+        // No-op for a trial store or a renewal (one QR message per store).
+        sendStoreLiveQr({ userId, siteId });
 
         return NextResponse.json({ success: true, expiresAt });
     } catch (err) {

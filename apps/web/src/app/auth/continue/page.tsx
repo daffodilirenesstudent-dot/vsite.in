@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { verifyFirebaseToken } from '@/lib/auth/verifyFirebaseToken';
 import { supabaseServer } from '@/lib/platform/db/supabase-server';
 import { provisionUser } from '@/lib/auth/provisionUser';
+import { backfillProfilePhone, phoneFromIdToken } from '@/lib/auth/profilePhone';
 import {
     resolvePostAuthDestination,
     safeInternalPath,
@@ -69,8 +70,16 @@ export default async function AuthContinuePage({
     // Provisioning was once gated on Firebase's isNewUser, so accounts whose
     // first sign-in failed never got a row; they still created stores, because
     // `sites` does not depend on `profiles`. Idempotent — safe on every login.
+    //
+    // The phone comes from the verified token (the number proved with OTP).
+    // This row used to be written with `phone: null`, and since the browser's
+    // provisioning usually lost the race to this page, owners ended up with no
+    // phone and WhatsApp skipped them. backfill fills a blank phone on every
+    // login and never overwrites a stored one.
+    const phone = phoneFromIdToken(token);
     try {
-        await provisionUser(supabaseServer, { uid, phone: null });
+        await provisionUser(supabaseServer, { uid, phone });
+        if (phone) await backfillProfilePhone(uid, phone);
         if (siteCount > 0) {
             // Owning a store IS being onboarded. Correct the flag so the client
             // gate does not send them round again.

@@ -2,6 +2,74 @@
 status: DONE
 ## Iteration history
 
+### 2026-10-03 — WhatsApp: gaps closed before go-live
+status: CODE DONE — owner actions pending (the 2026-10-02 list; no template changes)
+
+Gap analysis of the notification layer against the live DB and Meta's docs (error
+codes, media limits verified 2026-10-03). Fixed:
+1. **No phones.** 27 of 33 profiles had no phone_number (every signup since
+   2026-08-30) → WhatsApp would skip them silently. Server now fills a blank phone
+   from the verified Firebase token on every login (`/auth/continue`), onboarding and
+   payment (`lib/auth/profilePhone.ts`). Owner approved the auth change.
+2. **No-trial store never got its QR.** New `store_live` event, sent on activation
+   (verify-payment + Razorpay webhook) only for a store with no trial. Owner chose to
+   reuse the approved `vsite_welcome_qr` unedited (no new template, no edit): {{3}}
+   is the trial end for a trial store, the paid plan end for a paid one. Shares
+   `welcome:<siteId>`, so one QR message per store ever.
+3. **QR goes only to its owner.** Send-time check `qrStillBelongs` (welcome and
+   store_live): store still owned by the row's user and links == `storeLinks(slug)`,
+   else skipped.
+4. **Marketing accepted** for the two trial templates (owner, 2026-10-03). 131049 →
+   `defer` (one retry after 24h, Meta's guidance); 131050 → dead.
+
+Test-file note: `tests/unit/whatsappPrimitives.test.ts` pins the event list; it now
+includes `store_live` (spec change, not a weakened assertion).
+
+Verification: WhatsApp + auth-handoff suites 207/207; `npx vitest run` = 69 failed |
+1804 passed | 3 skipped — the 69 are the pre-existing tests/unit/claude-hooks/*
+(hook scripts absent from .claude/hooks). `npx tsc --noEmit` exit 0. `npm run lint`
+exit 0, 0 errors, no warnings in touched files.
+
+Left as known gaps (owner decisions 2026-10-03): no inbound handling / STOP (one-way
+by design); signup consent does not mention WhatsApp; payment receipt does not name
+the store (multi-store owners); English only (no Tamil templates); QR sticker
+ordering out of scope.
+
+### 2026-10-02 — WhatsApp hardening (Tasks 1-9)
+status: CODE DONE — owner actions pending
+
+Shipped: (1) health.ts error classification (codes verified 2026-10-02; 133010 = our number not registered); (2) notification_health store + migration 064; (3) alerts.ts Sentry fingerprints; (4) outbox breakers for system/template/throttle, pool of 5, 200/run, attempts kept; (5) watchdog; (6) sweep in pages of 500, profiles chunked at 100; (7) housekeeping: one delete by 90-day cutoff, heartbeat, not_configured; (8) monitor `whatsapp-dispatch` + cron check-in (task=dispatch only), accountEvents + webhook (template status / quality / account updates); (9) AC8-AC10, runbook, AGENTS.md.
+Deviations from plan: retention is one delete by cutoff (not 1,000-row batches); profiles lookups chunked at 100.
+
+Verification: `npx vitest run` = 69 failed | 1765 passed | 3 skipped (1837); the 69 are the pre-existing tests/unit/claude-hooks/* (need gitignored .claude/). `npx tsc --noEmit` exit 0. `npm run lint` 0 errors (img warnings only).
+
+Owner actions (details: `docs/whatsapp-setup.md` sections 3, 4 and "Alerts"): in Supabase apply 062 -> 064 -> create the Vault secret -> apply 063; subscribe all four webhook fields (`messages`, `message_template_status_update`, `phone_number_quality_update`, `account_update`); create the Sentry alert rule and cron-monitor alert.
+
+### 2026-10-02 — WhatsApp notification layer: rebased for go-live
+status: CODE DONE — go-live blocked on owner actions (`docs/whatsapp-setup.md`)
+
+Branch `feat/whatsapp-live` = the 2026-09-22 layer (`feat/whatsapp-notifications`)
+merged onto `7301e71`. It had never shipped, so Meta's "Verify and save" could not
+succeed: `/api/webhooks/whatsapp` was not deployed.
+
+**Changed by the merge (the rules moved under it).**
+- One free trial per account (058, 2026-09-25) made `created_at + 7 days` wrong.
+  The sweep now windows on `site_subscriptions.trial_ends_at`; a store with no
+  trial never gets "trial ending/ended".
+- The welcome said "is now live… trial until X" to every new store. It now goes
+  only to a store that opened live, with that store's own trial end. A no-trial
+  store's first message is its payment receipt.
+- Migrations renumbered: 057/058 were taken → `062_notification_outbox.sql`,
+  `063_whatsapp_cron.sql`. Neither is applied.
+
+**Verified.** WhatsApp suites 79/79; `npx vitest run` 1680 passed / 3 skipped,
+69 failed — all `tests/unit/claude-hooks/*`, the pre-existing failures (need the
+gitignored `.claude/`); `npx tsc --noEmit` exit 0; `npm run lint` 0 errors.
+
+**Known gap.** A no-trial store gets no QR image on WhatsApp when it goes live by
+paying (the receipt has no image header). Candidate v1.1: a `vsite_store_live_qr`
+template sent from the activation path.
+
 ### 2026-09-26 — Owner QA fixes (high / medium / low list)
 status: CODE DONE — new acceptance suites green: product-pricing (24), menu-freshness (20),
 owner-qa-polish (44), bulk-review (9), ordering-roadmap-copy (+6). Full suite: only the

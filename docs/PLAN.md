@@ -1,3 +1,38 @@
+# PLAN — WhatsApp gaps before go-live (status: DONE 2026-10-03, owner actions pending)
+
+1. Failing acceptance AC11-AC13 in `tests/acceptance/whatsapp-notifications.test.ts` (committed RED).
+2. `health.ts`: 131049 → `defer` (24h, `DEFER_MS`), 131050 → `message`; `outbox.ts` honours `defer`.
+3. `templates.ts`: real categories (trial = MARKETING), `store_live` reusing `vsite_welcome_qr` unedited ({{3}} = paid end), `storeLinks()`.
+4. `storeLive.ts`: `enqueueStoreLiveQr` / `sendStoreLiveQr`; wired in verify-payment and the Razorpay webhook.
+5. `outbox.ts`: `qrStillBelongs` send-time ownership + link check for welcome and store_live.
+6. `lib/auth/profilePhone.ts`; wired in `/auth/continue`, onboarding/complete, verify-payment.
+7. Runbook (`docs/whatsapp-setup.md`), PROGRESS, AGENTS.
+
+---
+
+# PLAN — WhatsApp hardening (status: DONE 2026-10-02, owner actions pending)
+
+Plan: `docs/superpowers/plans/2026-10-02-whatsapp-hardening.md`. Spec: `docs/superpowers/specs/2026-10-02-whatsapp-hardening-design.md`. 9 tasks, all committed on `feat/whatsapp-live`.
+
+---
+
+# PLAN — WhatsApp notification layer: go-live rebase  (status: DONE 2026-10-02, go-live pending owner)
+
+Rebases `feat/whatsapp-notifications` (built 2026-09-22, never merged) onto the
+2026-09-27 security commit. Spec: `docs/superpowers/specs/2026-09-22-whatsapp-notifications-design.md`
+(+ amendment 2026-10-02). Runbook: `docs/whatsapp-setup.md`.
+
+1. Merge the branch; resolve `onboarding/complete` against one-trial-per-account (058).
+2. Welcome only when the store opened live (`if (live)`), with the store's own
+   `trial_ends_at` — tests first in `tests/acceptance/whatsapp-notifications.test.ts`.
+3. Sweep reads `site_subscriptions.trial_ends_at` (window on the column, NULL = no
+   trial) instead of `sites.created_at + TRIAL_DURATION_MS` — `windows.ts`, `sweep.ts`;
+   tests in `tests/unit/whatsappPrimitives.test.ts`, `tests/api/whatsappOutbox.test.ts`.
+4. Renumber migrations 057/058 → `062_notification_outbox.sql`, `063_whatsapp_cron.sql`.
+5. Exit check: WhatsApp suites, full vitest, tsc, lint.
+
+---
+
 # PLAN — One free trial per account  (status: CODE DONE 2026-09-25 — migrations 058/059 await the owner's go)
 
 Goal: `docs/GOAL.md`. Acceptance: `apps/web/tests/acceptance/one-trial.test.ts`.

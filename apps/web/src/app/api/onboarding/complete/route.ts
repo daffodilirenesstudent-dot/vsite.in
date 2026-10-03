@@ -28,6 +28,10 @@ import { AI_PAGE_LIMITS } from '@/lib/platform/productFlags';
 import { bindOnboardingPages } from '@/lib/menu/aiPageLedger';
 
 import { logger } from '@/lib/platform/logger';
+import { enqueueAndSend } from '@/lib/notifications/whatsapp/outbox';
+import { rememberVerifiedPhone } from '@/lib/auth/profilePhone';
+import { formatDateIST } from '@/lib/notifications/whatsapp/templates';
+import { SITE_URL } from '@/lib/platform/brand';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
@@ -293,7 +297,8 @@ export async function POST(request: NextRequest) {
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const userId = await verifyFirebaseToken(authHeader.replace('Bearer ', ''));
+    const idToken = authHeader.replace('Bearer ', '');
+    const userId = await verifyFirebaseToken(idToken);
     if (!userId) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -519,7 +524,32 @@ export async function POST(request: NextRequest) {
       .select('trial_ends_at')
       .eq('site_id', site.id)
       .maybeSingle();
-    const live = trialEndsMs(opened as { trial_ends_at: string | null } | null) > Date.now();
+    const trialEnd = trialEndsMs(opened as { trial_ends_at: string | null } | null);
+    const live = trialEnd > Date.now();
+
+    // The owner's verified phone, so WhatsApp can reach them. Resolves either
+    // way — it cannot cost a signup.
+    await rememberVerifiedPhone(userId, idToken);
+
+    // WhatsApp welcome: congratulations, the QR as an image, and the trial end
+    // date. Only for a store that is live now — a no-trial store gets its QR
+    // when it is paid for (storeLive.ts, same key). Not awaited — Meta being
+    // slow or down must never cost a signup; the outbox retries it. Keyed by
+    // site, so an idempotent replay sends nothing.
+    if (live) {
+      enqueueAndSend({
+        event: 'welcome',
+        key: `welcome:${site.id}`,
+        userId,
+        siteId: site.id,
+        params: {
+          shopName: trimmedShopName,
+          menuUrl: `${SITE_URL}/shop/${site.slug}`,
+          qrImageUrl: `${SITE_URL}/api/qr/${site.slug}`,
+          trialEndsOn: formatDateIST(trialEnd),
+        },
+      });
+    }
 
     const responseBody = {
       success: true,
